@@ -2582,7 +2582,7 @@ class _AboutSettings extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Version 2.0.0-alpha',
+                'Version 2.2.0',
                 style: TextStyle(
                   fontSize: 14,
                   color: colors.textSecondary,

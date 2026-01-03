@@ -5,6 +5,7 @@
 
 import 'api.dart';
 import 'api/alpaca_connections.dart';
+import 'api/ascom_connections.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
@@ -9094,6 +9095,75 @@ class RustLibWire implements BaseWire {
               void Function(
                   int, int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
+  void wire__crate__api__ascom_connections__connect_ascom_camera(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> prog_id,
+  ) {
+    return _wire__crate__api__ascom_connections__connect_ascom_camera(
+      port_,
+      prog_id,
+    );
+  }
+
+  late final _wire__crate__api__ascom_connections__connect_ascom_cameraPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_camera',
+  );
+  late final _wire__crate__api__ascom_connections__connect_ascom_camera =
+      _wire__crate__api__ascom_connections__connect_ascom_cameraPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__ascom_connections__connect_ascom_focuser(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> prog_id,
+  ) {
+    return _wire__crate__api__ascom_connections__connect_ascom_focuser(
+      port_,
+      prog_id,
+    );
+  }
+
+  late final _wire__crate__api__ascom_connections__connect_ascom_focuserPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_focuser',
+  );
+  late final _wire__crate__api__ascom_connections__connect_ascom_focuser =
+      _wire__crate__api__ascom_connections__connect_ascom_focuserPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__ascom_connections__connect_ascom_mount(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> prog_id,
+  ) {
+    return _wire__crate__api__ascom_connections__connect_ascom_mount(
+      port_,
+      prog_id,
+    );
+  }
+
+  late final _wire__crate__api__ascom_connections__connect_ascom_mountPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_mount',
+  );
+  late final _wire__crate__api__ascom_connections__connect_ascom_mount =
+      _wire__crate__api__ascom_connections__connect_ascom_mountPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   void wire__crate__api__alpaca_connections__disconnect_alpaca_device(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -9310,6 +9380,77 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__alpaca_connections__get_alpaca_client =
       _wire__crate__api__alpaca_connections__get_alpaca_clientPtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__ascom_connections__get_ascom_camera_temp(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> prog_id,
+  ) {
+    return _wire__crate__api__ascom_connections__get_ascom_camera_temp(
+      port_,
+      prog_id,
+    );
+  }
+
+  late final _wire__crate__api__ascom_connections__get_ascom_camera_tempPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_camera_temp',
+  );
+  late final _wire__crate__api__ascom_connections__get_ascom_camera_temp =
+      _wire__crate__api__ascom_connections__get_ascom_camera_tempPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__ascom_connections__get_ascom_focuser_position(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> prog_id,
+  ) {
+    return _wire__crate__api__ascom_connections__get_ascom_focuser_position(
+      port_,
+      prog_id,
+    );
+  }
+
+  late final _wire__crate__api__ascom_connections__get_ascom_focuser_positionPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_focuser_position',
+  );
+  late final _wire__crate__api__ascom_connections__get_ascom_focuser_position =
+      _wire__crate__api__ascom_connections__get_ascom_focuser_positionPtr
+          .asFunction<
+              void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__ascom_connections__get_ascom_mount_coords(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> prog_id,
+  ) {
+    return _wire__crate__api__ascom_connections__get_ascom_mount_coords(
+      port_,
+      prog_id,
+    );
+  }
+
+  late final _wire__crate__api__ascom_connections__get_ascom_mount_coordsPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_mount_coords',
+  );
+  late final _wire__crate__api__ascom_connections__get_ascom_mount_coords =
+      _wire__crate__api__ascom_connections__get_ascom_mount_coordsPtr
+          .asFunction<
+              void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   void wire__crate__api__get_camera_status(
     int port_,
@@ -9627,6 +9768,33 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__mount_unparkPtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
+  void wire__crate__api__ascom_connections__move_ascom_focuser(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> prog_id,
+    int position,
+  ) {
+    return _wire__crate__api__ascom_connections__move_ascom_focuser(
+      port_,
+      prog_id,
+      position,
+    );
+  }
+
+  late final _wire__crate__api__ascom_connections__move_ascom_focuserPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Int32,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__ascom_connections__move_ascom_focuser',
+  );
+  late final _wire__crate__api__ascom_connections__move_ascom_focuser =
+      _wire__crate__api__ascom_connections__move_ascom_focuserPtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
+
   void wire__crate__api__set_camera_cooler(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -9757,6 +9925,40 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__simulated_rotator_default =
       _wire__crate__api__simulated_rotator_defaultPtr
           .asFunction<void Function(int)>();
+
+  void wire__crate__api__ascom_connections__slew_ascom_mount(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> prog_id,
+    double ra,
+    double dec,
+  ) {
+    return _wire__crate__api__ascom_connections__slew_ascom_mount(
+      port_,
+      prog_id,
+      ra,
+      dec,
+    );
+  }
+
+  late final _wire__crate__api__ascom_connections__slew_ascom_mountPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Double,
+                ffi.Double,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__ascom_connections__slew_ascom_mount',
+  );
+  late final _wire__crate__api__ascom_connections__slew_ascom_mount =
+      _wire__crate__api__ascom_connections__slew_ascom_mountPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            double,
+            double,
+          )>();
 
   void wire__crate__api__star_detection_config_api_default(int port_) {
     return _wire__crate__api__star_detection_config_api_default(port_);
