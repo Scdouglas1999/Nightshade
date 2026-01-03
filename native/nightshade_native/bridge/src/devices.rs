@@ -980,7 +980,7 @@ impl DeviceManager {
         // Handle focusers
         if info.device_type == DeviceType::Focuser {
             let mut focuser: Box<dyn NativeFocuser + Send + Sync> = match vendor {
-                "zwo" => {
+                "zwo" | "zwo_eaf" => {
                     let id = id_str.parse::<i32>().map_err(|_| "Invalid ZWO focuser ID")?;
                     Box::new(ZwoFocuser::new(id))
                 },
@@ -1005,7 +1005,7 @@ impl DeviceManager {
         // Handle filter wheels
         if info.device_type == DeviceType::FilterWheel {
             let mut filterwheel: Box<dyn NativeFilterWheel + Send + Sync> = match vendor {
-                "zwo" => {
+                "zwo" | "zwo_efw" => {
                     let id = id_str.parse::<i32>().map_err(|_| "Invalid ZWO filter wheel ID")?;
                     Box::new(ZwoFilterWheel::new(id))
                 },

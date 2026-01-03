@@ -200,7 +200,8 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
                 Some(info.discovery_index),
             );
             NativeDeviceInfo {
-                id: format!("native:zwo:{}", info.focuser_id),
+                // Use zwo_eaf vendor to distinguish from cameras (which also use native:zwo:N format)
+                id: format!("native:zwo_eaf:{}", info.focuser_id),
                 name: info.name,
                 vendor: NativeVendor::Zwo,
                 device_type: DeviceType::Focuser,
@@ -223,7 +224,8 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
                 Some(info.discovery_index),
             );
             NativeDeviceInfo {
-                id: format!("native:zwo:{}", info.filterwheel_id),
+                // Use zwo_efw vendor to distinguish from cameras (which also use native:zwo:N format)
+                id: format!("native:zwo_efw:{}", info.filterwheel_id),
                 name: info.name,
                 vendor: NativeVendor::Zwo,
                 device_type: DeviceType::FilterWheel,
