@@ -228,34 +228,91 @@ class LabelLayoutManager {
 }
 
 /// Static paint cache to avoid per-frame allocation of expensive Paint objects
-/// MaskFilter.blur is particularly expensive to recreate each frame
+/// Creating Paint objects, MaskFilters, and Shaders every frame causes significant
+/// GC pressure and CPU overhead. This cache provides reusable instances.
 class _PaintCache {
-  // Cached blur paints with various sigma values (for simple circle draws)
-  static final Map<double, Paint> _blurPaints = {};
-
-  // Cached MaskFilters (for when we need custom Paint properties like strokeWidth)
+  // ===== Cached MaskFilters (expensive to create) =====
   static final Map<double, MaskFilter> _blurFilters = {};
 
-  /// Get or create a Paint with blur filter at the specified sigma
-  /// Use this for simple filled circles where we only need color variation
-  static Paint getBlurPaint(double sigma, Color color, {double alpha = 1.0}) {
-    // Round sigma to reduce cache size (blur differences < 0.5 are imperceptible)
-    final roundedSigma = (sigma * 2).round() / 2;
-    final key = roundedSigma;
+  // ===== Reusable Paint objects for common operations =====
+  // These are created once and reused by updating their properties
+  static final Paint _fillPaint = Paint();
+  static final Paint _strokePaint = Paint()..style = PaintingStyle.stroke;
+  static final Paint _dimStarPaint = Paint()
+    ..strokeWidth = 1.5
+    ..strokeCap = StrokeCap.round;
+  static final Paint _gridPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.5;
+  static final Paint _constellationPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
 
-    var paint = _blurPaints[key];
-    if (paint == null) {
-      paint = Paint()
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, roundedSigma);
-      _blurPaints[key] = paint;
-    }
-    // Update color (Paint objects can have color changed without recreation)
-    paint.color = color.withValues(alpha: alpha);
-    return paint;
+  // Additional cached paints for various rendering operations
+  static final Paint _horizonPaint = Paint()
+    ..strokeWidth = 2
+    ..style = PaintingStyle.stroke;
+  static final Paint _eclipticPaint = Paint()
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke;
+  static final Paint _meridianPaint = Paint()
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Paint _altAzPaint = Paint()
+    ..strokeWidth = 0.5
+    ..style = PaintingStyle.stroke;
+  static final Paint _zenithCrossPaint = Paint()
+    ..strokeWidth = 1.0;
+  static final Paint _groundPaint = Paint()
+    ..style = PaintingStyle.fill;
+  static final Paint _backgroundPaint = Paint();
+
+  // Cached background gradient (only recreate when size changes)
+  static Size? _lastBackgroundSize;
+  static ui.Shader? _cachedDarkBackgroundShader;
+  static ui.Shader? _cachedTwilightVerticalShader;
+  static ui.Shader? _cachedTwilightRadialShader;
+  static double? _lastSunAltitude;
+
+  /// Get a fill paint with specified color (reuses single instance)
+  static Paint getFillPaint(Color color) {
+    _fillPaint.color = color;
+    _fillPaint.shader = null;
+    _fillPaint.maskFilter = null;
+    return _fillPaint;
   }
 
-  /// Get or create a cached MaskFilter
-  /// Use this when you need a blur but have custom Paint properties (strokeWidth, style, etc.)
+  /// Get a stroke paint with specified color and width (reuses single instance)
+  static Paint getStrokePaint(Color color, double strokeWidth) {
+    _strokePaint.color = color;
+    _strokePaint.strokeWidth = strokeWidth;
+    _strokePaint.shader = null;
+    _strokePaint.maskFilter = null;
+    return _strokePaint;
+  }
+
+  /// Get the dim star paint (for batched point rendering)
+  static Paint getDimStarPaint(Color color) {
+    _dimStarPaint.color = color;
+    return _dimStarPaint;
+  }
+
+  /// Get grid paint with specified color
+  static Paint getGridPaint(Color color) {
+    _gridPaint.color = color;
+    return _gridPaint;
+  }
+
+  /// Get constellation line paint
+  static Paint getConstellationPaint(Color color) {
+    _constellationPaint.color = color;
+    return _constellationPaint;
+  }
+
+  /// Get or create a cached MaskFilter for blur effects
   static MaskFilter getBlurFilter(double sigma) {
     final roundedSigma = (sigma * 2).round() / 2;
     var filter = _blurFilters[roundedSigma];
@@ -264,6 +321,180 @@ class _PaintCache {
       _blurFilters[roundedSigma] = filter;
     }
     return filter;
+  }
+
+  // Cached blur paints with various sigma values
+  static final Map<double, Paint> _blurPaints = {};
+
+  /// Get or create a Paint with blur filter at the specified sigma
+  /// This caches the Paint object with MaskFilter to avoid recreation
+  static Paint getBlurPaint(double sigma, Color color, {double alpha = 1.0}) {
+    // Round sigma to reduce cache size (blur differences < 0.5 are imperceptible)
+    final roundedSigma = (sigma * 2).round() / 2;
+
+    var paint = _blurPaints[roundedSigma];
+    if (paint == null) {
+      paint = Paint()
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, roundedSigma);
+      _blurPaints[roundedSigma] = paint;
+    }
+    // Update color (Paint objects can have color changed without recreation)
+    paint.color = color.withValues(alpha: alpha);
+    return paint;
+  }
+
+  /// Get horizon paint with specified color
+  static Paint getHorizonPaint(Color color) {
+    _horizonPaint.color = color;
+    return _horizonPaint;
+  }
+
+  /// Get ecliptic paint with specified color
+  static Paint getEclipticPaint(Color color) {
+    _eclipticPaint.color = color;
+    return _eclipticPaint;
+  }
+
+  /// Get meridian paint with specified color
+  static Paint getMeridianPaint(Color color) {
+    _meridianPaint.color = color;
+    return _meridianPaint;
+  }
+
+  /// Get alt-az grid paint with specified color
+  static Paint getAltAzPaint(Color color) {
+    _altAzPaint.color = color;
+    return _altAzPaint;
+  }
+
+  /// Get zenith cross paint with specified color
+  static Paint getZenithCrossPaint(Color color) {
+    _zenithCrossPaint.color = color;
+    return _zenithCrossPaint;
+  }
+
+  /// Get ground plane paint with specified color
+  static Paint getGroundPaint(Color color) {
+    _groundPaint.color = color;
+    _groundPaint.shader = null;
+    return _groundPaint;
+  }
+
+  /// Get background paint with shader
+  static Paint getBackgroundPaint(ui.Shader shader) {
+    _backgroundPaint.shader = shader;
+    return _backgroundPaint;
+  }
+
+  /// Get or create dark background shader (cached per size)
+  static ui.Shader getDarkBackgroundShader(Size size) {
+    if (_lastBackgroundSize != size || _cachedDarkBackgroundShader == null) {
+      _cachedDarkBackgroundShader = const RadialGradient(
+        center: Alignment.center,
+        radius: 1.5,
+        colors: [
+          Color(0xFF0A0A1A),
+          Color(0xFF050510),
+          Color(0xFF020208),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+      _lastBackgroundSize = size;
+    }
+    return _cachedDarkBackgroundShader!;
+  }
+
+  /// Clear caches (call when memory pressure is high)
+  static void clearCaches() {
+    _blurFilters.clear();
+    _blurPaints.clear();
+    _TextCache.clear();
+    _ShaderCache.clear();
+    _lastBackgroundSize = null;
+    _cachedDarkBackgroundShader = null;
+    _cachedTwilightVerticalShader = null;
+    _cachedTwilightRadialShader = null;
+    _lastSunAltitude = null;
+  }
+}
+
+/// Cache for TextPainter objects to avoid expensive text layout every frame
+/// TextPainter creation and layout() are CPU-intensive operations
+class _TextCache {
+  static final Map<String, TextPainter> _cache = {};
+  static const int _maxCacheSize = 500;
+
+  /// Get or create a TextPainter for the given text and style
+  /// The TextPainter is cached and reused across frames
+  static TextPainter get(String text, TextStyle style) {
+    final key = '${text}_${style.fontSize}_${style.color?.value ?? 0}_${style.fontWeight?.index ?? 0}';
+
+    var painter = _cache[key];
+    if (painter == null) {
+      // Evict old entries if cache is full
+      if (_cache.length >= _maxCacheSize) {
+        // Remove oldest 100 entries
+        final keysToRemove = _cache.keys.take(100).toList();
+        for (final k in keysToRemove) {
+          _cache[k]?.dispose();
+          _cache.remove(k);
+        }
+      }
+
+      painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: ui.TextDirection.ltr,
+      );
+      painter.layout();
+      _cache[key] = painter;
+    }
+    return painter;
+  }
+
+  static void clear() {
+    for (final painter in _cache.values) {
+      painter.dispose();
+    }
+    _cache.clear();
+  }
+}
+
+/// Cache for gradient shaders to avoid recreating them every frame
+/// Shader creation involves GPU resource allocation
+class _ShaderCache {
+  static final Map<String, ui.Shader> _radialShaders = {};
+  static final Map<String, ui.Shader> _linearShaders = {};
+  static const int _maxCacheSize = 100;
+
+  /// Get or create a radial gradient shader
+  static ui.Shader getRadialShader(
+    Offset center,
+    double radius,
+    List<Color> colors,
+    List<double>? stops,
+  ) {
+    // Create a key based on the parameters (rounded for cache efficiency)
+    final cx = (center.dx / 10).round() * 10;
+    final cy = (center.dy / 10).round() * 10;
+    final r = (radius / 5).round() * 5;
+    final colorKey = colors.map((c) => c.value).join('_');
+    final key = 'r_${cx}_${cy}_${r}_$colorKey';
+
+    var shader = _radialShaders[key];
+    if (shader == null) {
+      if (_radialShaders.length >= _maxCacheSize) {
+        _radialShaders.clear(); // Simple eviction
+      }
+      shader = RadialGradient(colors: colors, stops: stops).createShader(
+        Rect.fromCircle(center: center, radius: radius),
+      );
+      _radialShaders[key] = shader;
+    }
+    return shader;
+  }
+
+  static void clear() {
+    _radialShaders.clear();
+    _linearShaders.clear();
   }
 }
 
@@ -451,21 +682,14 @@ class SkyCanvasPainter extends CustomPainter {
   }
   
   void _drawBackground(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+
     // Check if twilight gradient is enabled
     if (!qualityConfig.enableTwilightGradient) {
-      // Simple dark gradient for performance mode
-      final gradient = RadialGradient(
-        center: Alignment.center,
-        radius: 1.5,
-        colors: const [
-          Color(0xFF0A0A1A),
-          Color(0xFF050510),
-          Color(0xFF020208),
-        ],
-      );
-      final paint = Paint()
-        ..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+      // Simple dark gradient for performance mode - use cached shader
+      final shader = _PaintCache.getDarkBackgroundShader(size);
+      final paint = _PaintCache.getBackgroundPaint(shader);
+      canvas.drawRect(rect, paint);
       return;
     }
 
@@ -479,9 +703,9 @@ class SkyCanvasPainter extends CustomPainter {
     // Get twilight colors based on sun altitude
     final (zenithColor, horizonColor) = _getTwilightColors(sunAlt);
 
-    // Create vertical gradient from zenith (top) to horizon (bottom)
-    // This is a simplification - the actual gradient should follow the horizon line
-    // but for a first pass, a vertical gradient provides the visual effect
+    // Create vertical gradient - recreate only when colors change significantly
+    // Note: We always recreate twilight gradients since colors depend on sun position
+    // which changes slowly but continuously
     final gradient = LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
@@ -489,9 +713,8 @@ class SkyCanvasPainter extends CustomPainter {
       stops: const [0.0, 1.0],
     );
 
-    final paint = Paint()
-      ..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+    final paint = _PaintCache.getBackgroundPaint(gradient.createShader(rect));
+    canvas.drawRect(rect, paint);
 
     // Add a subtle radial darkening toward center for depth
     final radialGradient = RadialGradient(
@@ -502,9 +725,8 @@ class SkyCanvasPainter extends CustomPainter {
         zenithColor.withValues(alpha: 0.3),
       ],
     );
-    final radialPaint = Paint()
-      ..shader = radialGradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), radialPaint);
+    final radialPaint = _PaintCache.getBackgroundPaint(radialGradient.createShader(rect));
+    canvas.drawRect(rect, radialPaint);
   }
 
   /// Get twilight colors based on sun altitude
@@ -591,10 +813,8 @@ class SkyCanvasPainter extends CustomPainter {
   }
 
   void _drawEquatorialGrid(Canvas canvas, Size size, Offset center, double scale) {
-    final paint = Paint()
-      ..color = config.gridColor
-      ..strokeWidth = 0.5
-      ..style = PaintingStyle.stroke;
+    // Use cached paint object instead of creating new one
+    final paint = _PaintCache.getGridPaint(config.gridColor);
 
     final fov = viewState.fieldOfView;
 
@@ -683,8 +903,10 @@ class SkyCanvasPainter extends CustomPainter {
   }
 
   void _drawGridLabels(Canvas canvas, Size size, Offset center, double scale, double raSpacing, double decSpacing) {
-    final labelPaint = TextPainter(
-      textDirection: TextDirection.ltr,
+    final textStyle = TextStyle(
+      color: config.gridColor.withValues(alpha: 0.7),
+      fontSize: 10,
+      fontWeight: FontWeight.w500,
     );
 
     // Draw RA labels along dec=0 (celestial equator)
@@ -700,18 +922,11 @@ class SkyCanvasPainter extends CustomPainter {
         final minutes = ((ra - hours) * 60).round();
         final label = minutes == 0 ? '${hours}h' : '${hours}h${minutes}m';
 
-        labelPaint.text = TextSpan(
-          text: label,
-          style: TextStyle(
-            color: config.gridColor.withValues(alpha: 0.7),
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-          ),
-        );
-        labelPaint.layout();
-        labelPaint.paint(
+        // Use cached TextPainter
+        final textPainter = _TextCache.get(label, textStyle);
+        textPainter.paint(
           canvas,
-          offset + Offset(-labelPaint.width / 2, 4),
+          offset + Offset(-textPainter.width / 2, 4),
         );
       }
     }
@@ -727,20 +942,13 @@ class SkyCanvasPainter extends CustomPainter {
       );
 
       if (offset != null && _isInView(offset, size)) {
-        final label = dec > 0 ? '+${dec.toInt()}' : '${dec.toInt()}';
+        final label = dec > 0 ? '+${dec.toInt()}°' : '${dec.toInt()}°';
 
-        labelPaint.text = TextSpan(
-          text: label,
-          style: TextStyle(
-            color: config.gridColor.withValues(alpha: 0.7),
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-          ),
-        );
-        labelPaint.layout();
-        labelPaint.paint(
+        // Use cached TextPainter
+        final textPainter = _TextCache.get(label, textStyle);
+        textPainter.paint(
           canvas,
-          offset + Offset(4, -labelPaint.height / 2),
+          offset + Offset(4, -textPainter.height / 2),
         );
       }
     }
@@ -763,10 +971,8 @@ class SkyCanvasPainter extends CustomPainter {
     );
     if (zenithPos == null || !_isInView(zenithPos, size)) return;
 
-    // Draw crosshair
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.4)
-      ..strokeWidth = 1.0;
+    // Draw crosshair - use cached paint
+    final paint = _PaintCache.getZenithCrossPaint(Colors.white.withValues(alpha: 0.4));
 
     const length = 12.0;
     canvas.drawLine(
@@ -780,19 +986,13 @@ class SkyCanvasPainter extends CustomPainter {
       paint,
     );
 
-    // Draw "Z" label
-    final labelPaint = TextPainter(
-      text: TextSpan(
-        text: 'Z',
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.6),
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
+    // Draw "Z" label - use cached TextPainter
+    final textStyle = TextStyle(
+      color: Colors.white.withValues(alpha: 0.6),
+      fontSize: 12,
+      fontWeight: FontWeight.bold,
     );
-    labelPaint.layout();
+    final labelPaint = _TextCache.get('Z', textStyle);
     labelPaint.paint(
       canvas,
       zenithPos + Offset(length + 4, -labelPaint.height / 2),
@@ -800,11 +1000,9 @@ class SkyCanvasPainter extends CustomPainter {
   }
 
   void _drawAltAzGrid(Canvas canvas, Size size, Offset center, double scale) {
-    final paint = Paint()
-      ..color = config.gridColor.withValues(alpha: 0.3)
-      ..strokeWidth = 0.5
-      ..style = PaintingStyle.stroke;
-    
+    // Use cached paint instead of creating new one each frame
+    final paint = _PaintCache.getAltAzPaint(config.gridColor.withValues(alpha: 0.3));
+
     final lst = AstronomyCalculations.localSiderealTime(observationTime, longitude);
     
     // Draw altitude circles
@@ -844,11 +1042,9 @@ class SkyCanvasPainter extends CustomPainter {
   }
   
   void _drawEcliptic(Canvas canvas, Size size, Offset center, double scale) {
-    final paint = Paint()
-      ..color = config.eclipticColor
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-    
+    // Use cached paint instead of creating new one each frame
+    final paint = _PaintCache.getEclipticPaint(config.eclipticColor);
+
     final path = Path();
     var firstPoint = true;
     
@@ -934,20 +1130,14 @@ class SkyCanvasPainter extends CustomPainter {
       }
     }
 
-    final paint = Paint()
-      ..color = Colors.green.withValues(alpha: 0.4)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
+    // Use cached paint instead of creating new one each frame
+    final paint = _PaintCache.getMeridianPaint(Colors.green.withValues(alpha: 0.4));
     canvas.drawPath(path, paint);
   }
 
   void _drawHorizon(Canvas canvas, Size size, Offset center, double scale) {
-    final paint = Paint()
-      ..color = config.horizonColor
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
+    // Use cached paint instead of creating new one each frame
+    final paint = _PaintCache.getHorizonPaint(config.horizonColor);
 
     final lst = AstronomyCalculations.localSiderealTime(observationTime, longitude);
 
@@ -1003,9 +1193,7 @@ class SkyCanvasPainter extends CustomPainter {
 
     // If horizon is completely above screen (looking down at ground), fill all
     if (horizonY <= 0) {
-      final paint = Paint()
-        ..color = config.groundColorDark
-        ..style = PaintingStyle.fill;
+      final paint = _PaintCache.getGroundPaint(config.groundColorDark);
       canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
       return;
     }
@@ -1014,10 +1202,8 @@ class SkyCanvasPainter extends CustomPainter {
     final groundRect = Rect.fromLTRB(0, horizonY, size.width, size.height);
 
     if (qualityConfig.groundPlaneDetail <= 0.0) {
-      // Performance: solid dark color
-      final paint = Paint()
-        ..color = config.groundColorDark
-        ..style = PaintingStyle.fill;
+      // Performance: solid dark color - use cached paint
+      final paint = _PaintCache.getGroundPaint(config.groundColorDark);
       canvas.drawRect(groundRect, paint);
     } else {
       // Balanced/Quality: gradient from horizon down
@@ -1032,9 +1218,7 @@ class SkyCanvasPainter extends CustomPainter {
         stops: const [0.0, 0.3, 1.0],
       );
 
-      final paint = Paint()
-        ..shader = gradient.createShader(groundRect)
-        ..style = PaintingStyle.fill;
+      final paint = _PaintCache.getBackgroundPaint(gradient.createShader(groundRect));
       canvas.drawRect(groundRect, paint);
 
       // Quality mode: add subtle horizon glow line
@@ -1173,9 +1357,12 @@ class SkyCanvasPainter extends CustomPainter {
   }
 
   void _drawConstellationLines(Canvas canvas, Size size, Offset center, double scale) {
-    // Extract base color and alpha from config
-    final baseColor = config.constellationLineColor;
-    final baseAlpha = baseColor.a;
+    // Use cached paint for constellation lines - no gradient per line (major performance gain)
+    // The gradient was subtle and creating shader per line was expensive
+    final paint = _PaintCache.getConstellationPaint(config.constellationLineColor);
+
+    // Batch all lines into a single Path for better performance
+    final path = Path();
 
     for (final constellation in constellations) {
       for (final line in constellation.lines) {
@@ -1184,30 +1371,15 @@ class SkyCanvasPainter extends CustomPainter {
 
         if (start != null && end != null) {
           if (_isInView(start, size) || _isInView(end, size)) {
-            // Gradient along line for subtle depth effect
-            final gradient = ui.Gradient.linear(
-              start,
-              end,
-              [
-                baseColor.withValues(alpha: baseAlpha * 0.7),
-                baseColor.withValues(alpha: baseAlpha * 0.5),
-                baseColor.withValues(alpha: baseAlpha * 0.7),
-              ],
-              [0.0, 0.5, 1.0],
-            );
-
-            final paint = Paint()
-              ..shader = gradient
-              ..strokeWidth = 1.5  // Increased from 1.0 for better visibility
-              ..strokeCap = StrokeCap.round  // Smooth anti-aliased ends
-              ..strokeJoin = StrokeJoin.round
-              ..style = PaintingStyle.stroke;
-
-            canvas.drawLine(start, end, paint);
+            path.moveTo(start.dx, start.dy);
+            path.lineTo(end.dx, end.dy);
           }
         }
       }
     }
+
+    // Single draw call for all constellation lines
+    canvas.drawPath(path, paint);
   }
   
   void _drawConstellationLabels(Canvas canvas, Size size, Offset center, double scale) {
@@ -1216,16 +1388,13 @@ class SkyCanvasPainter extends CustomPainter {
       fontSize: 10,
       fontWeight: FontWeight.w500,
     );
-    
+
     for (final constellation in constellations) {
       final offset = _celestialToScreen(constellation.center, center, scale);
-      
+
       if (offset != null && _isInView(offset, size)) {
-        final textPainter = TextPainter(
-          text: TextSpan(text: constellation.name.toUpperCase(), style: textStyle),
-          textDirection: ui.TextDirection.ltr,
-        );
-        textPainter.layout();
+        // Use cached TextPainter for constellation labels
+        final textPainter = _TextCache.get(constellation.name.toUpperCase(), textStyle);
         textPainter.paint(
           canvas,
           offset - Offset(textPainter.width / 2, textPainter.height / 2),
@@ -1335,21 +1504,17 @@ class SkyCanvasPainter extends CustomPainter {
       starsProcessed++;
     }
 
-    // BATCH RENDER: Dim stars as points (single draw call per color group)
-    // Group by approximate color to reduce draw calls
+    // BATCH RENDER: Dim stars as points (single draw call)
+    // Using cached paint object to avoid allocation
     if (dimStarPoints.isNotEmpty) {
-      // Use a simple approach: draw all dim stars with a shared paint
-      // Stars are small enough that individual colors aren't critical
-      final dimPaint = Paint()
-        ..color = Colors.white.withValues(alpha: 0.7)
-        ..strokeWidth = 1.5
-        ..strokeCap = StrokeCap.round;
+      final dimPaint = _PaintCache.getDimStarPaint(Colors.white.withValues(alpha: 0.7));
       canvas.drawPoints(ui.PointMode.points, dimStarPoints, dimPaint);
     }
 
-    // BATCH RENDER: Medium stars as simple circles (no shaders)
+    // BATCH RENDER: Medium stars as simple circles
+    // Reuse a single paint object, just update the color
     for (final (offset, radius, color, brightness) in mediumStars) {
-      final paint = Paint()..color = color.withValues(alpha: brightness);
+      final paint = _PaintCache.getFillPaint(color.withValues(alpha: brightness));
       canvas.drawCircle(offset, radius, paint);
     }
 
@@ -1357,7 +1522,7 @@ class SkyCanvasPainter extends CustomPainter {
     for (final (offset, radius, color, brightness, magnitude, star) in brightStars) {
       _drawStarPSF(canvas, offset, radius, color, brightness, magnitude);
 
-      // Draw star name for bright stars
+      // Draw star name for bright stars using cached TextPainter
       if (magnitude < 2.0 && star.name.isNotEmpty) {
         final fontSize = _getLabelFontSize(magnitude, 'star');
         final fontWeight = _getLabelFontWeight(magnitude);
@@ -1366,11 +1531,8 @@ class SkyCanvasPainter extends CustomPainter {
           fontSize: fontSize,
           fontWeight: fontWeight,
         );
-        final textPainter = TextPainter(
-          text: TextSpan(text: star.name, style: textStyle),
-          textDirection: ui.TextDirection.ltr,
-        );
-        textPainter.layout();
+        // Use cached TextPainter instead of creating new one
+        final textPainter = _TextCache.get(star.name, textStyle);
 
         final preferredPos = offset + Offset(radius + 3, -textPainter.height / 2);
         final labelPos = _labelManager.findPlacement(
@@ -1611,11 +1773,8 @@ class SkyCanvasPainter extends CustomPainter {
             fontSize: fontSize,
             fontWeight: fontWeight,
           );
-          final textPainter = TextPainter(
-            text: TextSpan(text: dso.name, style: textStyle),
-            textDirection: ui.TextDirection.ltr,
-          );
-          textPainter.layout();
+          // Use cached TextPainter
+          final textPainter = _TextCache.get(dso.name, textStyle);
 
           // Find non-overlapping placement
           final preferredPos = offset + Offset(displaySize / 2 + 3, -textPainter.height / 2);
@@ -1645,11 +1804,8 @@ class SkyCanvasPainter extends CustomPainter {
             fontSize: fontSize,
             fontWeight: fontWeight,
           );
-          final textPainter = TextPainter(
-            text: TextSpan(text: dso.name, style: textStyle),
-            textDirection: ui.TextDirection.ltr,
-          );
-          textPainter.layout();
+          // Use cached TextPainter
+          final textPainter = _TextCache.get(dso.name, textStyle);
 
           // Find non-overlapping placement
           final preferredPos = offset + Offset(displaySize / 2 + 3, -textPainter.height / 2);
@@ -1708,20 +1864,16 @@ class SkyCanvasPainter extends CustomPainter {
           fontSize: 9,
           fontWeight: FontWeight.w500,
         );
-        final textPainter = TextPainter(
-          text: TextSpan(text: '+$hiddenCount', style: textStyle),
-          textDirection: ui.TextDirection.ltr,
-        );
-        textPainter.layout();
+        // Use cached TextPainter
+        final textPainter = _TextCache.get('+$hiddenCount', textStyle);
 
-        // Draw small background for readability
+        // Draw small background for readability - use cached paint
         final bgRect = Rect.fromCenter(
           center: offset + Offset(0, indicatorRadius + 10),
           width: textPainter.width + 6,
           height: textPainter.height + 2,
         );
-        final bgPaint = Paint()
-          ..color = const Color(0xAA000000);
+        final bgPaint = _PaintCache.getFillPaint(const Color(0xAA000000));
         canvas.drawRRect(
           RRect.fromRectAndRadius(bgRect, const Radius.circular(3)),
           bgPaint,
@@ -2392,7 +2544,7 @@ class SkyCanvasPainter extends CustomPainter {
       fontSize: 14,
       fontWeight: FontWeight.bold,
     );
-    
+
     final directions = ['N', 'E', 'S', 'W'];
     final positions = [
       Offset(size.width / 2, 20),
@@ -2400,13 +2552,10 @@ class SkyCanvasPainter extends CustomPainter {
       Offset(size.width / 2, size.height - 20),
       Offset(20, size.height / 2),
     ];
-    
+
     for (var i = 0; i < 4; i++) {
-      final textPainter = TextPainter(
-        text: TextSpan(text: directions[i], style: textStyle),
-        textDirection: ui.TextDirection.ltr,
-      );
-      textPainter.layout();
+      // Use cached TextPainter
+      final textPainter = _TextCache.get(directions[i], textStyle);
       textPainter.paint(
         canvas,
         positions[i] - Offset(textPainter.width / 2, textPainter.height / 2),

@@ -1,4 +1,6 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -17,6 +19,44 @@ class NightshadeApp extends ConsumerWidget {
     this.isDesktop = false,
     super.key,
   });
+
+  /// Calculate UI scale factor for high-DPI displays
+  ///
+  /// On Linux and some other platforms, Flutter may not properly scale UI
+  /// elements for high-DPI displays. This detects the device pixel ratio
+  /// and applies additional scaling to make the UI readable.
+  double _calculateUiScaleFactor(BuildContext context, String? uiScaleSetting) {
+    // If user has explicitly set a scale, use it
+    if (uiScaleSetting != null && uiScaleSetting != 'Auto') {
+      switch (uiScaleSetting) {
+        case 'Small (0.8x)':
+          return 0.8;
+        case 'Normal (1.0x)':
+          return 1.0;
+        case 'Large (1.2x)':
+          return 1.2;
+        case 'Extra Large (1.4x)':
+          return 1.4;
+      }
+    }
+
+    // Auto-detect scale for high-DPI displays
+    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+
+    // On Linux with high-DPI displays, apply additional scaling
+    // Linux Wayland/X11 doesn't always properly scale Flutter apps
+    // High-DPI is typically > 1.5 device pixel ratio
+    if (!kIsWeb && Platform.isLinux && devicePixelRatio > 1.5) {
+      // For high DPI displays, apply more aggressive scaling
+      // DPR 2.0 -> 1.25x scale, DPR 2.5 -> 1.5x scale, DPR 3.0 -> 1.75x scale
+      final extraScale = 1.0 + (devicePixelRatio - 1.5) * 0.5;
+      return extraScale.clamp(1.0, 1.75);
+    }
+
+    // For desktops with small windows, don't scale down
+    // For mobile, let Flutter handle it naturally
+    return 1.0;
+  }
 
   /// Parse hex color string (e.g., '#6366F1' or '6366F1') to Color
   Color? _parseAccentColor(String? hexColor) {
@@ -83,26 +123,60 @@ class NightshadeApp extends ConsumerWidget {
     final themeSetting = settings?.theme ?? 'dark';
     final accentColor = _parseAccentColor(settings?.accentColor);
     final textScaleFactor = _getTextScaleFactor(settings?.fontSize ?? 'Medium');
+    final uiScaleSetting = settings?.uiScale;
 
-    return MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        textScaler: TextScaler.linear(textScaleFactor),
-      ),
-      child: AutoDiscoveryLauncher(
-        child: SessionRecoveryChecker(
-          child: MaterialApp.router(
-            title: 'Nightshade',
-            theme: _getThemeForSetting(themeSetting, accentColor),
-            debugShowCheckedModeBanner: false,
-            routerConfig: router,
-            builder: (context, child) {
-              // Only add UpdateManager on desktop (not mobile - uses app stores)
-              if (isDesktop) {
-                return UpdateManagerWidget(child: child ?? const SizedBox.shrink());
-              }
-              return child ?? const SizedBox.shrink();
-            },
-          ),
+    return AutoDiscoveryLauncher(
+      child: SessionRecoveryChecker(
+        child: MaterialApp.router(
+          title: 'Nightshade',
+          theme: _getThemeForSetting(themeSetting, accentColor),
+          debugShowCheckedModeBanner: false,
+          routerConfig: router,
+          builder: (context, child) {
+            // Calculate UI scale factor INSIDE builder where we have proper MediaQuery
+            // The outer context doesn't have accurate devicePixelRatio from the window
+            final uiScaleFactor = _calculateUiScaleFactor(context, uiScaleSetting);
+            final combinedTextScale = textScaleFactor * uiScaleFactor;
+
+            // Apply UI scale transformation for high-DPI displays
+            // This scales all widgets, not just text
+            Widget scaledChild = child ?? const SizedBox.shrink();
+
+            if (uiScaleFactor != 1.0) {
+              final mediaQuery = MediaQuery.of(context);
+              scaledChild = MediaQuery(
+                data: mediaQuery.copyWith(
+                  // Adjust the logical size to account for our manual scaling
+                  // This makes layout calculations work correctly
+                  size: mediaQuery.size / uiScaleFactor,
+                  textScaler: TextScaler.linear(combinedTextScale),
+                ),
+                child: Transform.scale(
+                  scale: uiScaleFactor,
+                  alignment: Alignment.topLeft,
+                  child: SizedBox(
+                    width: mediaQuery.size.width / uiScaleFactor,
+                    height: mediaQuery.size.height / uiScaleFactor,
+                    child: scaledChild,
+                  ),
+                ),
+              );
+            } else if (textScaleFactor != 1.0) {
+              // Even if no UI scaling, apply text scale factor
+              scaledChild = MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: TextScaler.linear(textScaleFactor),
+                ),
+                child: scaledChild,
+              );
+            }
+
+            // Only add UpdateManager on desktop (not mobile - uses app stores)
+            if (isDesktop) {
+              return UpdateManagerWidget(child: scaledChild);
+            }
+            return scaledChild;
+          },
         ),
       ),
     );

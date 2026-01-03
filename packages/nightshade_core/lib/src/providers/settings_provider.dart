@@ -18,6 +18,7 @@ class AppSettings {
   final String theme; // 'dark' or 'light'
   final String accentColor; // hex color
   final String fontSize; // 'Small', 'Medium', 'Large'
+  final String uiScale; // 'Auto', 'Small (0.8x)', 'Normal (1.0x)', 'Large (1.2x)', 'Extra Large (1.4x)'
   final bool sidebarCollapsed;
   
   // Location
@@ -113,6 +114,7 @@ class AppSettings {
     this.theme = 'dark',
     this.accentColor = '#6366F1',
     this.fontSize = 'Medium',
+    this.uiScale = 'Auto',
     this.sidebarCollapsed = false,
     
     // Location
@@ -206,6 +208,7 @@ class AppSettings {
     String? theme,
     String? accentColor,
     String? fontSize,
+    String? uiScale,
     bool? sidebarCollapsed,
     double? latitude,
     double? longitude,
@@ -273,6 +276,7 @@ class AppSettings {
       theme: theme ?? this.theme,
       accentColor: accentColor ?? this.accentColor,
       fontSize: fontSize ?? this.fontSize,
+      uiScale: uiScale ?? this.uiScale,
       sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
@@ -353,6 +357,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
       theme: allSettings['theme'] ?? 'dark',
       accentColor: allSettings['accent_color'] ?? '#6366F1',
       fontSize: allSettings['font_size'] ?? 'Medium',
+      uiScale: allSettings['ui_scale'] ?? 'Auto',
       sidebarCollapsed: _parseBool(allSettings['sidebar_collapsed'], false),
       
       // Location

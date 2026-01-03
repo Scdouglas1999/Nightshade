@@ -126,7 +126,11 @@ struct libraw_output_params_t {
     auto_bright_thr_default: c_float,
 }
 
-#[link(name = "libraw")]
+// Platform-specific library name:
+// - Windows: libraw.dll (linked as "libraw")
+// - Linux/macOS: libraw.so/dylib (linked as "raw" since lib prefix is automatic)
+#[cfg_attr(target_os = "windows", link(name = "libraw"))]
+#[cfg_attr(not(target_os = "windows"), link(name = "raw"))]
 extern "C" {
     fn libraw_init(flags: c_uint) -> *mut libraw_data_t;
     fn libraw_open_file(data: *mut libraw_data_t, path: *const c_char) -> c_int;

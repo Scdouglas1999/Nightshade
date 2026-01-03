@@ -20,12 +20,19 @@ mod real_device_ops;
 mod imaging_ops;
 mod timeout_ops;
 mod unified_device_ops;
+#[cfg(windows)]
 mod ascom_wrapper;
+#[cfg(windows)]
 mod ascom_wrapper_mount;
+#[cfg(windows)]
 mod ascom_wrapper_focuser;
+#[cfg(windows)]
 mod ascom_wrapper_filterwheel;
+#[cfg(windows)]
 mod ascom_wrapper_dome;
+#[cfg(windows)]
 mod ascom_wrapper_switch;
+#[cfg(windows)]
 mod ascom_wrapper_covercalibrator;
 mod sequencer_api;
 

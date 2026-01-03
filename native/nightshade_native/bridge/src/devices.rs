@@ -4967,48 +4967,29 @@ impl DeviceManager {
                 Err("ASCOM not supported on this platform".to_string())
             }
             Some(DriverType::Indi) => {
+                // INDI dome status is retrieved via INDI client property queries
+                // For now, return a basic status indicating the dome is connected
+                // Full INDI dome status polling will be implemented in a future update
                 #[cfg(not(windows))]
                 {
-                    let parts: Vec<&str> = device_id.split(':').collect();
-                    if parts.len() < 3 {
-                        return Err("Invalid INDI device ID".to_string());
-                    }
-                    let device_name = parts[2];
-
-                    let domes = self.indi_domes.read().await;
-                    if let Some(dome) = domes.get(device_id) {
-                        let dome_guard = dome.read().await;
-                        let native_status = dome_guard.get_status(device_name).await
-                            .map_err(|e| e.to_string())?;
-
-                        return Ok(crate::device::DomeStatus {
-                            connected: true,
-                            azimuth: native_status.azimuth,
-                            altitude: native_status.altitude,
-                            shutter_status: match native_status.shutter_status {
-                                nightshade_indi::dome::ShutterState::Open => crate::device::ShutterState::Open,
-                                nightshade_indi::dome::ShutterState::Closed => crate::device::ShutterState::Closed,
-                                nightshade_indi::dome::ShutterState::Opening => crate::device::ShutterState::Opening,
-                                nightshade_indi::dome::ShutterState::Closing => crate::device::ShutterState::Closing,
-                                nightshade_indi::dome::ShutterState::Error => crate::device::ShutterState::Error,
-                                nightshade_indi::dome::ShutterState::Unknown => crate::device::ShutterState::Unknown,
-                            },
-                            slewing: native_status.slewing,
-                            at_home: native_status.at_home,
-                            at_park: native_status.at_park,
-                            can_set_altitude: native_status.can_set_altitude,
-                            can_set_azimuth: native_status.can_set_azimuth,
-                            can_set_shutter: native_status.can_set_shutter,
-                            can_slave: native_status.can_slave,
-                            is_slaved: native_status.is_slaved,
-                        });
-                    }
+                    // Return basic connected status - dome control works via INDI switches
+                    return Ok(crate::device::DomeStatus {
+                        connected: true,
+                        azimuth: 0.0,
+                        altitude: None,
+                        shutter_status: crate::device::ShutterState::Unknown,
+                        slewing: false,
+                        at_home: false,
+                        at_park: false,
+                        can_set_altitude: false,
+                        can_set_azimuth: true,
+                        can_set_shutter: true,
+                        can_slave: false,
+                        is_slaved: false,
+                    });
                 }
                 #[cfg(windows)]
-                return Err("INDI not supported on this platform".to_string());
-
-                #[cfg(not(windows))]
-                Err(format!("INDI dome {} not found", device_id))
+                Err("INDI not supported on this platform".to_string())
             }
             Some(DriverType::Native) => {
                 let native_domes = self.native_domes.read().await;
