@@ -15,7 +15,10 @@ Nightshade 2.0 is a comprehensive astrophotography application that controls you
 - **Smart Focusing**: Automatic V-curve autofocus with temperature compensation
 - **PHD2 Integration**: Seamless autoguiding integration
 - **Plate Solving**: Precise target framing and alignment
-- **Session Management**: Track and analyze your imaging sessions
+- **Session Management**: Track and analyze your imaging sessions with checkpoint recovery
+- **Weather Integration**: Radar display, cloud motion analysis, safety alerts
+- **Remote Control**: WebRTC-based P2P control from mobile devices
+- **OTA Updates**: Automatic updates with SHA256 verification
 
 ## Getting Started
 
@@ -59,12 +62,14 @@ Master Nightshade's powerful features:
 - Trigger nodes (monitoring and safety)
 - Multi-target imaging
 - Sequence templates
+- Checkpoint recovery
 
 ### Advanced Features
 
 **Focusing** (covered in [Imaging Guide](features/imaging.md#focus-tab))
 - V-curve autofocus
 - Temperature compensation
+- Focus prediction with ML modeling
 - Focus vs. time graphing
 - Manual focus aids
 
@@ -82,6 +87,12 @@ Master Nightshade's powerful features:
 - Automated flat frame capture
 - Optimal exposure calculation
 - Multi-filter flats
+
+**Weather Monitoring**
+- Weather radar display
+- Cloud motion analysis
+- Safety alerts
+- Automatic sequence pausing
 
 ## Equipment Setup
 
@@ -103,14 +114,14 @@ See [First Connection](getting-started/first-connection.md) for detailed setup i
 **Cameras**
 - ASCOM-compatible cameras (Windows)
 - INDI-compatible cameras (Linux/macOS)
-- Native support: QHY, ZWO ASI, Atik, FLI, SBIG
+- Native SDK support: ZWO ASI, QHY, PlayerOne, SVBony, Atik, FLI, Moravian, Touptek
 - Alpaca cameras (all platforms)
 
 **Mounts**
 - ASCOM-compatible mounts (Windows)
 - INDI-compatible mounts (Linux/macOS)
 - Alpaca mounts (all platforms)
-- Direct serial/USB connection for popular mounts
+- Direct serial: SkyWatcher/Synta, iOptron, LX200
 
 **Focusers**
 - ASCOM/INDI/Alpaca focusers
@@ -119,6 +130,17 @@ See [First Connection](getting-started/first-connection.md) for detailed setup i
 **Filter Wheels**
 - ASCOM/INDI/Alpaca filter wheels
 - Integrated camera filter wheels
+
+**Rotators**
+- ASCOM/INDI/Alpaca rotators
+
+**Domes**
+- ASCOM/INDI/Alpaca domes
+- Automatic slaving to mount
+
+**Weather Stations**
+- ASCOM/INDI/Alpaca observing conditions devices
+- Safety monitors
 
 **Guiders**
 - PHD2 integration (all platforms)
@@ -155,12 +177,15 @@ Nightshade's interface is organized into main screens accessible from the sideba
 - Target library
 - Sequence templates
 - Execution monitoring
+- Checkpoint recovery
 
 **Planetarium**
 - Interactive sky map
 - Target selection
 - Framing preview
 - Equipment overlay
+- Mosaic planning
+- Survey image overlays
 
 **Framing**
 - Target framing assistant
@@ -196,19 +221,26 @@ Nightshade's interface is organized into main screens accessible from the sideba
    - Add targets from library
    - Configure exposures per target
    - Add autofocus between targets
-   - Include safety triggers
+   - Include safety triggers (weather, HFR monitor)
 3. Run preflight validation
 4. Start sequence
-5. Monitor progress
+5. Monitor progress (or let checkpoint recovery handle interruptions)
 
 ### Multi-Filter Deep Sky Imaging
 
 1. Connect filter wheel
 2. Create LRGB or narrowband sequence
-3. Configure filter changes with autofocus
+3. Configure filter changes with autofocus and filter offsets
 4. Set dithering
 5. Run automated sequence
 6. Capture calibration frames with Flat Wizard
+
+### Remote Imaging Session
+
+1. Start desktop app on imaging computer
+2. Enable WebRTC in settings
+3. Pair mobile app via QR code
+4. Control remotely via phone/tablet
 
 ## Troubleshooting
 
@@ -252,23 +284,15 @@ Application:
 3. **Plan Nights**: Use target library to plan entire sessions
 4. **Automate Everything**: Meridian flips, refocusing, filter changes
 5. **Analyze Sessions**: Review analytics to improve workflow
+6. **Use Remote Control**: Monitor from mobile while equipment runs
 
 ## Additional Resources
 
 ### Community and Support
 
 - **Documentation**: You're reading it!
-- **GitHub**: https://github.com/your-org/nightshade
-- **Discord**: https://discord.gg/nightshade (real-time help)
-- **Forum**: https://forum.nightshade.app
-- **Email Support**: support@nightshade.app
-
-### Learning Resources
-
-- Video tutorials (coming soon)
-- Community sequence templates
-- Equipment setup guides
-- Processing workflow guides
+- **GitHub**: https://github.com/Scodouglas1999/Nightshade
+- **Issues**: https://github.com/Scodouglas1999/Nightshade/issues
 
 ### Developer Resources
 
@@ -277,7 +301,6 @@ Building plugins or contributing to Nightshade?
 - [API Documentation](api/README.md)
 - [Plugin Development Guide](api/plugin-api.md)
 - [Architecture Overview](api/core-services.md)
-- [Contributing Guidelines](../CONTRIBUTING.md)
 
 ## What's New in 2.0
 
@@ -287,10 +310,14 @@ Coming from Nightshade 1.x? Here's what's new:
 - **Cross-Platform**: Windows, macOS, Linux, iOS, Android
 - **Behavior Tree Sequencer**: More powerful than script-based v1
 - **Native Performance**: Rust backend for speed
-- **Integrated Planetarium**: No external planetarium needed
-- **Advanced Focusing**: Temperature compensation, graphs
-- **Better PHD2 Integration**: Real-time monitoring
-- **Modern UI**: Clean, responsive interface
+- **Integrated Planetarium**: GPU-rendered sky visualization with survey overlays
+- **Advanced Focusing**: Temperature compensation, ML-based focus prediction
+- **Better PHD2 Integration**: Real-time monitoring, star images, calibration
+- **Weather Integration**: Radar, cloud motion analysis, safety alerts
+- **Remote Control**: WebRTC P2P control from mobile devices
+- **OTA Updates**: Automatic update system with LAN push for development
+- **Checkpoint Recovery**: Resume interrupted sequences automatically
+- **Modern UI**: Clean, responsive interface with dark theme
 - **Plugin System**: Extensible architecture
 
 ## Feedback and Contributions
@@ -298,13 +325,8 @@ Coming from Nightshade 1.x? Here's what's new:
 We value your feedback!
 
 - **Bug Reports**: GitHub Issues
-- **Feature Requests**: GitHub Discussions
-- **Documentation Improvements**: Submit pull requests
-- **Community Help**: Answer questions on Discord/Forum
-
-## License
-
-Nightshade 2.0 is open-source software licensed under the MIT License.
+- **Feature Requests**: GitHub Issues
+- **Code Contributions**: Pull requests welcome
 
 ## About
 

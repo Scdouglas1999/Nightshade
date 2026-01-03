@@ -249,4 +249,4 @@ Now that your equipment is connected:
 If you're having trouble connecting devices:
 - Check the [Troubleshooting Guide](../troubleshooting/common-issues.md)
 - Review your device's ASCOM/INDI driver documentation
-- Post on our [support forum](https://forum.nightshade.app) with specific error messages
+- Report issues on [GitHub](https://github.com/Scodouglas1999/Nightshade/issues) with specific error messages

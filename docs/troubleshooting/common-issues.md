@@ -695,10 +695,8 @@ When asking for help, provide:
 ### Support Resources
 
 **Official Support**
-- Documentation: https://docs.nightshade.app (this site!)
-- GitHub Issues: https://github.com/your-org/nightshade/issues
-- Discord: https://discord.gg/nightshade
-- Forum: https://forum.nightshade.app
+- Documentation: This documentation
+- GitHub Issues: https://github.com/Scodouglas1999/Nightshade/issues
 
 **Community Help**
 - Cloudy Nights forum
@@ -738,8 +736,7 @@ When asking for help, provide:
 
 If you've tried these solutions and still experiencing problems:
 
-1. Join our Discord for real-time help
-2. Post detailed issue on GitHub with logs
-3. Contact support at support@nightshade.app
+1. Post detailed issue on [GitHub Issues](https://github.com/Scodouglas1999/Nightshade/issues) with logs
+2. Include Nightshade version, OS, equipment, and steps to reproduce
 
 We're here to help!

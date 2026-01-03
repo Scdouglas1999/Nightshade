@@ -112,7 +112,7 @@ Nightshade supports multiple device driver protocols:
 - **ASCOM** - Windows-only, industry standard
 - **Alpaca** - Cross-platform, network-based
 - **INDI** - Linux-focused, open source
-- **Native** - Direct SDK access (ZWO, QHY, PlayerOne)
+- **Native** - Direct SDK access (ZWO ASI, QHY, PlayerOne, SVBony, Atik, FLI, Moravian, Touptek)
 - **Simulator** - For testing and development
 
 ## Contributing

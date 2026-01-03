@@ -1,39 +1,78 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# Nightshade App
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+The unified application UI shell for Nightshade 2.0, containing all screens, routing, and application-level widgets.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+## Overview
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+This package provides the shared UI layer that works across both desktop and mobile platforms. It contains:
 
-## Features
+- **App Shell** - The main application widget with navigation and theming
+- **Screens** - All major application screens (Dashboard, Equipment, Imaging, Sequencer, etc.)
+- **Routing** - Navigation using go_router
+- **Wizards** - Step-by-step workflows (Mosaic Wizard, Flat Wizard, etc.)
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+## Screens
 
-## Getting started
+### Dashboard
+Overview of current session, equipment status, and quick actions.
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+### Equipment
+Device connections, equipment profiles, protocol selection, and device settings.
+
+### Imaging
+Main imaging interface with tabs for:
+- **Capture** - Exposure controls and live preview
+- **Camera** - Camera settings, cooling, gain/offset
+- **Mount** - Slewing and tracking control
+- **Focus** - Autofocus and manual focusing
+- **Guiding** - PHD2 integration
+
+### Sequencer
+Behavior tree-based automation builder with:
+- Sequence builder/editor
+- Target library
+- Templates
+- Execution monitoring
+- Checkpoint recovery
+
+### Planetarium
+GPU-rendered interactive sky visualization for target planning and framing.
+
+### Framing
+Target framing assistant with FOV preview and mosaic planning.
+
+### Analytics
+Session statistics, image history, and performance analysis.
+
+### Settings
+Application configuration and preferences.
 
 ## Usage
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
+This package is used internally by the desktop and mobile apps. It is not intended for standalone use.
 
 ```dart
-const like = 'sample';
+import 'package:nightshade_app/nightshade_app.dart';
+
+// The main app shell
+NightshadeApp(
+  // Configuration...
+)
 ```
 
-## Additional information
+## Dependencies
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+- `nightshade_core` - Business logic, providers, and services
+- `nightshade_bridge` - Rust FFI bindings
+- `nightshade_ui` - Design system and shared widgets
+- `nightshade_planetarium` - Sky visualization
+- `nightshade_plugins` - Plugin system
+- `nightshade_webrtc` - Remote control
+
+## Architecture
+
+Uses Riverpod for state management with go_router for navigation. Screens access backend services through providers defined in nightshade_core.
+
+## License
+
+Part of Nightshade 2.0 - see LICENSE file in repository root.
