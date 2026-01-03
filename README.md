@@ -367,9 +367,9 @@ Contributions are welcome:
 
 ## License
 
-<!-- TODO: Choose and add license -->
+This software is proprietary and source-available. You may view and study the code, but you may not copy, modify, distribute, or create derivative works without explicit permission.
 
-License TBD. See [LICENSE](LICENSE) for details.
+See [LICENSE](LICENSE) for full terms.
 
 ---
 
