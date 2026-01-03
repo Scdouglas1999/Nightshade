@@ -44,6 +44,7 @@ class SequenceToolbar extends ConsumerWidget {
             isIdle: isIdle,
             isRunning: isRunning,
             isPaused: isPaused,
+            executionState: executionState,
             onStart: () {
               // Show pre-flight validation dialog before starting
               showDialog(
@@ -59,6 +60,7 @@ class SequenceToolbar extends ConsumerWidget {
             onResume: () => ref.read(sequenceExecutorProvider).resume(),
             onStop: () => ref.read(sequenceExecutorProvider).stop(),
             onSkip: () => ref.read(sequenceExecutorProvider).skip(),
+            onReset: () => ref.read(sequenceExecutorProvider).reset(),
           ),
 
           const SizedBox(width: 24),
@@ -317,26 +319,35 @@ class _PlaybackControls extends StatelessWidget {
   final bool isIdle;
   final bool isRunning;
   final bool isPaused;
+  final SequenceExecutionState executionState;
   final VoidCallback onStart;
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onStop;
   final VoidCallback onSkip;
+  final VoidCallback onReset;
 
   const _PlaybackControls({
     required this.colors,
     required this.isIdle,
     required this.isRunning,
     required this.isPaused,
+    required this.executionState,
     required this.onStart,
     required this.onPause,
     required this.onResume,
     required this.onStop,
     required this.onSkip,
+    required this.onReset,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Reset is enabled when sequence is idle, completed, or failed (not running/paused)
+    final canReset = executionState == SequenceExecutionState.idle ||
+        executionState == SequenceExecutionState.completed ||
+        executionState == SequenceExecutionState.failed;
+
     return Row(
       children: [
         // Play/Pause button
@@ -367,6 +378,16 @@ class _PlaybackControls extends StatelessWidget {
           tooltip: 'Skip to Next',
           colors: colors,
           onPressed: isRunning ? onSkip : null,
+        ),
+
+        const SizedBox(width: 8),
+
+        // Reset button - resets execution state without modifying sequence config
+        _ControlButton(
+          icon: LucideIcons.rotateCcw,
+          tooltip: 'Reset Sequence',
+          colors: colors,
+          onPressed: canReset ? onReset : null,
         ),
       ],
     );
