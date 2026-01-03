@@ -1,8 +1,8 @@
 // This is a generated file; do not edit or check into version control.
-FLUTTER_ROOT=C:\Users\scdou\Documents\FujfilmShift\fujifilm_shift_app\flutter
-FLUTTER_APPLICATION_PATH=c:\Users\scdou\Documents\Nightshade2\packages\nightshade_bridge
+FLUTTER_ROOT=/home/scdouglas/flutter
+FLUTTER_APPLICATION_PATH=/home/scdouglas/Documents/Nightshade/packages/nightshade_bridge
 COCOAPODS_PARALLEL_CODE_SIGN=true
-FLUTTER_TARGET=lib\main.dart
+FLUTTER_TARGET=lib/main.dart
 FLUTTER_BUILD_DIR=build
 FLUTTER_BUILD_NAME=1.0.0
 FLUTTER_BUILD_NUMBER=1.0.0

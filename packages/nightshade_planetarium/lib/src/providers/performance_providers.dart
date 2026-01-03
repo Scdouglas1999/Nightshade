@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Tracks frame timing for performance monitoring.
@@ -65,7 +67,8 @@ final performanceMonitorProvider = Provider<PerformanceMonitor>((ref) {
 ///
 /// When enabled, the system can automatically adjust render quality
 /// based on measured frame rates to maintain smooth performance.
-final autoQualityEnabledProvider = StateProvider<bool>((ref) => false);
+/// Enabled by default to ensure smooth experience on varied hardware.
+final autoQualityEnabledProvider = StateProvider<bool>((ref) => true);
 
 /// Computed provider that suggests a quality adjustment based on performance.
 ///

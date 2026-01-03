@@ -219,8 +219,10 @@ mixin _$AppSettings {
       throw _privateConstructorUsedError; // Discovery settings
   bool get autoDiscoverOnLaunch => throw _privateConstructorUsedError;
   String get accentColor => throw _privateConstructorUsedError;
-  String get fontSize =>
-      throw _privateConstructorUsedError; // Protocol settings
+  String get fontSize => throw _privateConstructorUsedError;
+  String get uiScale =>
+      throw _privateConstructorUsedError; // Auto, Small (0.8x), Normal (1.0x), Large (1.2x), Extra Large (1.4x)
+// Protocol settings
   String get indiServerHost => throw _privateConstructorUsedError;
   int get indiServerPort => throw _privateConstructorUsedError;
   bool get indiAutoConnect => throw _privateConstructorUsedError;
@@ -275,6 +277,7 @@ abstract class $AppSettingsCopyWith<$Res> {
       bool autoDiscoverOnLaunch,
       String accentColor,
       String fontSize,
+      String uiScale,
       String indiServerHost,
       int indiServerPort,
       bool indiAutoConnect,
@@ -329,6 +332,7 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? autoDiscoverOnLaunch = null,
     Object? accentColor = null,
     Object? fontSize = null,
+    Object? uiScale = null,
     Object? indiServerHost = null,
     Object? indiServerPort = null,
     Object? indiAutoConnect = null,
@@ -427,6 +431,10 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
       fontSize: null == fontSize
           ? _value.fontSize
           : fontSize // ignore: cast_nullable_to_non_nullable
+              as String,
+      uiScale: null == uiScale
+          ? _value.uiScale
+          : uiScale // ignore: cast_nullable_to_non_nullable
               as String,
       indiServerHost: null == indiServerHost
           ? _value.indiServerHost
@@ -541,6 +549,7 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
       bool autoDiscoverOnLaunch,
       String accentColor,
       String fontSize,
+      String uiScale,
       String indiServerHost,
       int indiServerPort,
       bool indiAutoConnect,
@@ -594,6 +603,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? autoDiscoverOnLaunch = null,
     Object? accentColor = null,
     Object? fontSize = null,
+    Object? uiScale = null,
     Object? indiServerHost = null,
     Object? indiServerPort = null,
     Object? indiAutoConnect = null,
@@ -693,6 +703,10 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
           ? _value.fontSize
           : fontSize // ignore: cast_nullable_to_non_nullable
               as String,
+      uiScale: null == uiScale
+          ? _value.uiScale
+          : uiScale // ignore: cast_nullable_to_non_nullable
+              as String,
       indiServerHost: null == indiServerHost
           ? _value.indiServerHost
           : indiServerHost // ignore: cast_nullable_to_non_nullable
@@ -789,6 +803,7 @@ class _$AppSettingsImpl implements _AppSettings {
       this.autoDiscoverOnLaunch = true,
       this.accentColor = '',
       this.fontSize = 'Medium',
+      this.uiScale = 'Auto',
       this.indiServerHost = 'localhost',
       this.indiServerPort = 7624,
       this.indiAutoConnect = false,
@@ -871,6 +886,10 @@ class _$AppSettingsImpl implements _AppSettings {
   @override
   @JsonKey()
   final String fontSize;
+  @override
+  @JsonKey()
+  final String uiScale;
+// Auto, Small (0.8x), Normal (1.0x), Large (1.2x), Extra Large (1.4x)
 // Protocol settings
   @override
   @JsonKey()
@@ -929,7 +948,7 @@ class _$AppSettingsImpl implements _AppSettings {
 
   @override
   String toString() {
-    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion)';
+    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion)';
   }
 
   @override
@@ -976,6 +995,7 @@ class _$AppSettingsImpl implements _AppSettings {
                 other.accentColor == accentColor) &&
             (identical(other.fontSize, fontSize) ||
                 other.fontSize == fontSize) &&
+            (identical(other.uiScale, uiScale) || other.uiScale == uiScale) &&
             (identical(other.indiServerHost, indiServerHost) ||
                 other.indiServerHost == indiServerHost) &&
             (identical(other.indiServerPort, indiServerPort) ||
@@ -1037,6 +1057,7 @@ class _$AppSettingsImpl implements _AppSettings {
         autoDiscoverOnLaunch,
         accentColor,
         fontSize,
+        uiScale,
         indiServerHost,
         indiServerPort,
         indiAutoConnect,
@@ -1092,6 +1113,7 @@ abstract class _AppSettings implements AppSettings {
       final bool autoDiscoverOnLaunch,
       final String accentColor,
       final String fontSize,
+      final String uiScale,
       final String indiServerHost,
       final int indiServerPort,
       final bool indiAutoConnect,
@@ -1153,7 +1175,10 @@ abstract class _AppSettings implements AppSettings {
   String get accentColor;
   @override
   String get fontSize;
-  @override // Protocol settings
+  @override
+  String get uiScale;
+  @override // Auto, Small (0.8x), Normal (1.0x), Large (1.2x), Extra Large (1.4x)
+// Protocol settings
   String get indiServerHost;
   @override
   int get indiServerPort;

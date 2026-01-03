@@ -2,10 +2,10 @@
 dependency_overrides:
   build_resolvers: 2.4.2
   nightshade_bridge:
-    path: ..\\nightshade_bridge
+    path: ../nightshade_bridge
   nightshade_core:
-    path: ..\\nightshade_core
+    path: ../nightshade_core
   nightshade_planetarium:
-    path: ..\\nightshade_planetarium
+    path: ../nightshade_planetarium
   nightshade_ui:
-    path: ..\\nightshade_ui
+    path: ../nightshade_ui

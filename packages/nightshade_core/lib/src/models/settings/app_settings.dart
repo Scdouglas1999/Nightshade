@@ -40,6 +40,7 @@ class AppSettings with _$AppSettings {
     @Default(true) bool autoDiscoverOnLaunch,
     @Default('') String accentColor,
     @Default('Medium') String fontSize,
+    @Default('Auto') String uiScale, // Auto, Small (0.8x), Normal (1.0x), Large (1.2x), Extra Large (1.4x)
     // Protocol settings
     @Default('localhost') String indiServerHost,
     @Default(7624) int indiServerPort,
