@@ -4,12 +4,18 @@ The Imaging screen is your central hub for capturing images, controlling your mo
 
 ## Overview
 
-The Imaging screen is organized into four tabs:
+The Imaging screen is organized into five tabs:
 - **Capture**: Main imaging controls and live preview
-- **Camera**: Camera settings and configuration
-- **Mount**: Telescope mount control and slewing
-- **Focus**: Automatic and manual focusing tools
+- **Camera**: Camera settings, cooling, and sensor configuration
+- **Mount**: Telescope mount control, slewing, and polar alignment
+- **Focus**: Automatic and manual focusing tools with filter offsets
 - **Guiding**: PHD2 integration and guiding status
+
+### Screen Layout
+
+Each tab features:
+- **Left side (70%)**: Main content area (image preview, graphs, etc.)
+- **Right side (30%)**: Control sidebar with settings and actions
 
 ## Capture Tab
 
@@ -49,19 +55,34 @@ The Capture tab is where you'll spend most of your imaging time.
 - **Custom**: Manual black/white point sliders
 - **Asinh**: Preserves bright details while showing faint signal
 
-**Image Tools**
-- **Zoom Fit**: Fit entire image to window
-- **Zoom 100%**: View at actual pixel size
-- **Plate Solve**: Solve current image for exact coordinates
-- **Save**: Save current preview image
-- **Full Screen**: Expand preview to full screen
+**Zoom Controls** (Floating buttons, bottom-right)
+- **Zoom In** (+): Increase magnification
+- **Zoom Out** (-): Decrease magnification
+- **Fit to Screen**: Auto-fit entire image to window
+- **1:1 (100%)**: View at actual pixel size
+- **Zoom percentage**: Current zoom level displayed when zoomed
 
-**Statistics Overlay**
-- **Mean**: Average pixel value
-- **Median**: Middle pixel value
-- **StdDev**: Standard deviation (noise measure)
-- **Min/Max**: Darkest and brightest pixels
-- **HFR**: Half-flux radius (star sharpness, lower is better)
+**Image Overlays**
+- **Crosshair**: Toggleable center crosshair overlay
+- **Grid**: Coordinate grid overlay
+- **Stars**: Detected star annotations
+
+**Bottom Stats Row** (Three cards side-by-side)
+
+*Image Stats Card*
+| Metric | Description |
+|--------|-------------|
+| HFR | Half-flux radius (lower = sharper) |
+| Stars | Detected star count |
+| Mean | Average pixel value |
+| Median | Middle pixel value |
+
+*Histogram Card*
+- Interactive logarithmic histogram (40px height)
+- Clipping indicators for over/underexposure
+
+*Annotations Card*
+- Toggle chips: Stars, Grid, Crosshair
 
 #### Thumbnail Strip
 
@@ -237,6 +258,36 @@ If a filter wheel is connected:
 - Toggle tracking on/off
 - Tracking must be on for long exposures
 
+### Target Centering
+
+The **Center Target** button opens the Target Centering Dialog for precise target positioning.
+
+**Centering Process**
+1. Takes image
+2. Plate solves for exact coordinates
+3. Calculates offset from target
+4. Slews to reduce offset
+5. Repeats until within tolerance
+6. Reports final accuracy
+
+**Centering Dialog Features**
+- Target coordinates display (RA/Dec)
+- Status indicator showing current step
+- Iteration counter (e.g., "Iteration 2/5")
+- Progress bar showing offset vs tolerance
+- Iteration history with success/failure status
+
+**Centering Settings**
+- Accuracy threshold (arcseconds)
+- Maximum attempts (1-20)
+
+### Pulse Guide Controls
+
+Manual fine adjustment of mount position:
+- **North/South** buttons: Vertical adjustment
+- **East/West** buttons: Horizontal adjustment
+- Each press sends 500ms pulse guide command
+
 #### Parking
 
 **Park Mount**
@@ -361,6 +412,34 @@ For fine-tuning or when autofocus isn't available:
 - Learn relationship between temperature and focus
 - After several data points, predict focus position
 - Auto-adjust focus as temperature changes
+
+### Filter Focus Offsets
+
+Manage focus position differences between filters.
+
+**Filter Offset Controls**
+Each filter shows:
+- Filter name (large, bold)
+- "REF" badge if reference filter
+- Star icon to set as reference
+- Current offset value
+- +/- buttons (±10 steps per click)
+
+**Reference Filter**
+- Set one filter as the reference (offset = 0)
+- All other filters offset relative to reference
+- Typically use Luminance or Clear as reference
+
+**Managing Offsets**
+1. Focus with reference filter
+2. Change to next filter
+3. Focus and note position difference
+4. Set offset value (+/- steps)
+5. Repeat for all filters
+
+**Buttons**
+- **Clear All**: Reset all offsets to zero
+- **Measure Offsets**: Automatic offset measurement wizard
 
 ## Guiding Tab
 

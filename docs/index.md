@@ -49,50 +49,70 @@ Master Nightshade's powerful features:
 ### Core Imaging
 
 **[Imaging Features](features/imaging.md)**
-- Capture tab: Main imaging interface
-- Camera tab: Settings, cooling, gain/offset
-- Mount tab: Slewing and tracking control
-- Focus tab: Automatic and manual focusing
-- Guiding tab: PHD2 integration
+- Capture tab: Main imaging interface with live preview
+- Camera tab: Settings, cooling, gain/offset presets, debayering
+- Mount tab: Slewing, tracking, target centering, pulse guide
+- Focus tab: V-curve autofocus, filter offsets, temperature compensation
+- Guiding tab: PHD2 integration with real-time graphs
 
 **[Sequencing and Automation](features/sequencing.md)**
 - Building sequences with behavior trees
-- Instruction nodes (expose, slew, focus, etc.)
-- Logic nodes (loops, conditionals, parallel)
+- 20+ instruction nodes (expose, slew, focus, etc.)
+- Logic nodes (loops, conditionals, parallel, recovery)
 - Trigger nodes (monitoring and safety)
-- Multi-target imaging
-- Sequence templates
-- Checkpoint recovery
+- Pre-flight validation
+- Multi-target imaging with session planner
+- Sequence templates and checkpoint recovery
 
-### Advanced Features
+### Equipment & Configuration
 
-**Focusing** (covered in [Imaging Guide](features/imaging.md#focus-tab))
-- V-curve autofocus
-- Temperature compensation
-- Focus prediction with ML modeling
-- Focus vs. time graphing
-- Manual focus aids
+**[Equipment Management](features/equipment.md)**
+- Device discovery (ASCOM, INDI, Alpaca, Native)
+- Connection protocols and troubleshooting
+- Equipment profiles
+- Per-device settings
 
-**Plate Solving** (covered in [Imaging Guide](features/imaging.md#plate-solving))
-- Solving images for precise coordinates
-- Target centering
-- Mosaic alignment
+**[Settings Reference](features/settings.md)**
+- 15 configuration categories
+- 100+ configurable options
+- Location, appearance, notifications
+- Plate solving configuration
 
-**Framing Assistant** (Planetarium integration)
-- Planning target composition
+### Sky Visualization & Planning
+
+**[Planetarium](features/planetarium.md)**
+- GPU-rendered interactive sky view
+- Object selection and details
+- Catalog support (Messier, NGC, IC, GLADE+)
+- Time controls and mount integration
+
+**[Framing Assistant](features/framing.md)**
+- Target search and altitude planning
 - Field of view preview
-- Equipment framing overlay
+- Mosaic grid planning
+- Equipment FOV overlay
 
-**Flat Wizard**
-- Automated flat frame capture
-- Optimal exposure calculation
-- Multi-filter flats
+### Monitoring & Safety
 
-**Weather Monitoring**
-- Weather radar display
-- Cloud motion analysis
-- Safety alerts
-- Automatic sequence pausing
+**[Weather Monitoring](features/weather.md)**
+- Weather radar and satellite display
+- Cloud motion analysis and ETA
+- Safety alerts and auto-park
+- Sequence integration
+
+**[Guiding (PHD2)](features/guiding.md)**
+- Full PHD2 control interface
+- Real-time guiding graphs
+- Calibration management
+- PHD2 Brain settings
+
+### Analysis & Automation
+
+**[Analytics](features/analytics.md)**
+- Session statistics and charts
+- Historical data and trends
+- Equipment performance metrics
+- Image thumbnail review
 
 ## Equipment Setup
 
