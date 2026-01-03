@@ -297,7 +297,6 @@ Now that you've captured your first images:
 Questions about imaging?
 - [Imaging Features Guide](../features/imaging.md) - Detailed feature documentation
 - [Troubleshooting Guide](../troubleshooting/common-issues.md) - Common problems and solutions
-- [Community Forum](https://forum.nightshade.app) - Ask other users
-- [Discord Chat](https://discord.gg/nightshade) - Real-time help
+- [GitHub Issues](https://github.com/Scodouglas1999/Nightshade/issues) - Report bugs or ask for help
 
 Clear skies and happy imaging!

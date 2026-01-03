@@ -29,7 +29,7 @@ Welcome to Nightshade 2.0! This guide will help you install and set up the appli
 
 ## Download
 
-1. Visit the [Nightshade 2.0 releases page](https://github.com/your-org/nightshade/releases)
+1. Visit the [Nightshade 2.0 releases page](https://github.com/Scodouglas1999/Nightshade/releases)
 2. Download the installer for your operating system:
    - **Windows**: `Nightshade-2.0-Setup.exe`
    - **macOS**: `Nightshade-2.0.dmg`
@@ -207,5 +207,4 @@ Now that Nightshade is installed, proceed to:
 
 If you encounter issues during installation:
 - Check the [Troubleshooting Guide](../troubleshooting/common-issues.md)
-- Visit our [GitHub Issues](https://github.com/your-org/nightshade/issues)
-- Join our [Discord community](https://discord.gg/nightshade)
+- Visit our [GitHub Issues](https://github.com/Scodouglas1999/Nightshade/issues)

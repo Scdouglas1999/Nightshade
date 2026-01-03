@@ -5,7 +5,7 @@
     <strong>A modern, cross-platform astrophotography suite</strong>
   </p>
   <p align="center">
-    <img src="https://img.shields.io/badge/status-early%20alpha-orange" alt="Status: Early Alpha">
+    <img src="https://img.shields.io/badge/version-2.0.0-blue" alt="Version: 2.0.0">
     <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android-blue" alt="Platforms">
     <img src="https://img.shields.io/badge/built%20with-Flutter%20%2B%20Rust-blue" alt="Built with Flutter + Rust">
   </p>
@@ -15,9 +15,8 @@
 
 Nightshade is a complete imaging platform for astrophotographers, combining camera control, mount automation, focusing, guiding, and sequence planning in a single unified application. Built with Flutter and Rust for performance and reliability across desktop and mobile.
 
-> **Early Alpha**: Core features work but expect rough edges, breaking changes, and incomplete documentation. Not recommended for critical imaging sessions yet—but we'd love your help testing!
+> **Note on ReadMe**: This project is progressing extremely quickly. There may be some areas of this readme that become outdated or inaccurate. I will do my best to keep things updated but you may find that some features in-app are different (hopefully improved) versus the readme.
 
-> **Note on ReadMe**: This project is progressing extremely quickly. There may be some areas of this readme that become outdated or inaccurate. I will do my best to keep things updated but you may find that some features in-app are different (hopefully improved) versus the readme. 
 ---
 
 ## Features
@@ -35,7 +34,7 @@ Nightshade is a complete imaging platform for astrophotographers, combining came
 - Cooled camera temperature management
 - Gain, offset, and binning presets
 - ROI for faster downloads
-- FITS/TIFF with customizable naming
+- FITS/TIFF/XISF with customizable naming
 - Filter wheel integration
 - Dithering via PHD2
 
@@ -46,7 +45,7 @@ Nightshade is a complete imaging platform for astrophotographers, combining came
 
 <!-- TODO: Screenshot of mount control panel -->
 
-- Directional slewing (guide → slew speeds)
+- Directional slewing (guide to slew speeds)
 - Go-to with coordinates or target selection
 - Sidereal, lunar, solar, and custom tracking
 - Park/unpark with custom positions
@@ -65,6 +64,7 @@ Nightshade is a complete imaging platform for astrophotographers, combining came
 - Temperature compensation
 - Backlash compensation
 - Per-filter focus offsets
+- Focus prediction with ML-based modeling
 
 </td>
 <td width="50%" valign="top">
@@ -75,6 +75,8 @@ Nightshade is a complete imaging platform for astrophotographers, combining came
 - Real-time RA/Dec error graph
 - Dithering with settle detection
 - Guiding alerts and monitoring
+- Star image display
+- Calibration management
 
 </td>
 </tr>
@@ -88,28 +90,46 @@ The sequencer uses a **behavior tree architecture** for building complex automat
 
 | Node Type | Examples |
 |-----------|----------|
-| **Instruction** | Expose, slew, autofocus, filter change, cool camera, park/unpark, wait |
-| **Logic** | Loop, parallel execution, conditionals, sequence grouping |
+| **Instruction** | Expose, slew, autofocus, filter change, cool camera, park/unpark, wait, dither, rotate, open/close dome |
+| **Logic** | Loop, parallel execution, conditionals, sequence grouping, recovery |
 | **Trigger** | HFR monitor, guiding monitor, weather safety, time triggers, meridian flip |
 
-Build anything from simple single-target sequences to multi-target nights with automatic meridian flips, weather safety, and adaptive refocusing.
+Build anything from simple single-target sequences to multi-target nights with automatic meridian flips, weather safety, checkpoint recovery, and adaptive refocusing.
 
 ### Planetarium
 
 <!-- TODO: Screenshot of planetarium view -->
 
 - GPU-accelerated interactive sky map
-- Messier, NGC, IC, Caldwell catalogs
+- Messier, NGC, IC, Caldwell, Hyperleda catalogs
 - Altitude charts and visibility planning
 - Framing preview with camera FOV
 - Moon phase and separation warnings
+- Mosaic planning
+- Survey image overlays
 
 ### Remote Control
 
 - Control your rig from phone or tablet
 - Peer-to-peer WebRTC (no cloud required)
+- Encrypted communications
 - Live preview and equipment status
 - Full sequence control
+- QR code pairing
+
+### Weather Integration
+
+- Weather radar display
+- Cloud motion analysis
+- Safety alerts and monitoring
+- Automatic sequence pausing for unsafe conditions
+
+### OTA Updates
+
+- Self-hosted update system
+- LAN push for development
+- SHA256-verified packages
+- Automatic update detection
 
 ---
 
@@ -118,32 +138,36 @@ Build anything from simple single-target sequences to multi-target nights with a
 ### Protocols
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  ASCOM (Windows)  │  INDI (Linux/macOS)  │  Alpaca (All)    │
-│  Native COM       │  Open-source         │  REST API        │
-└──────────────────────────────────────────────────────────────┘
++--------------------------+-------------------------+------------------+
+|  ASCOM (Windows)         |  INDI (Linux/macOS)     |  Alpaca (All)    |
+|  Native COM              |  Open-source            |  REST API        |
++--------------------------+-------------------------+------------------+
 ```
 
 ### Native Camera SDKs
 
-<table>
-<tr>
-<td>ZWO ASI</td>
-<td>QHY</td>
-<td>PlayerOne</td>
-<td>Atik</td>
-<td>FLI</td>
-</tr>
-<tr>
-<td>Moravian</td>
-<td>SBIG</td>
-<td>SVBony</td>
-<td>Touptek</td>
-<td><em>more coming</em></td>
-</tr>
-</table>
+Direct SDK integration for maximum performance (bypasses ASCOM/INDI overhead):
 
-Mounts, focusers, filter wheels, rotators, and weather stations supported via ASCOM/INDI/Alpaca.
+| Vendor | Status |
+|--------|--------|
+| ZWO ASI | Supported |
+| QHY | Supported |
+| PlayerOne | Supported |
+| SVBony | Supported |
+| Atik | Supported |
+| FLI | Supported |
+| Moravian | Supported |
+| Touptek | Supported |
+
+### Native Mount Protocols
+
+| Protocol | Status |
+|----------|--------|
+| SkyWatcher/Synta | Supported |
+| iOptron | Supported |
+| LX200 (Serial) | Supported |
+
+Mounts, focusers, filter wheels, rotators, domes, and weather stations supported via ASCOM/INDI/Alpaca.
 
 ---
 
@@ -159,7 +183,7 @@ Mounts, focusers, filter wheels, rotators, and weather stations supported via AS
 
 ### Download
 
-Pre-built releases will be available on the [Releases](https://github.com/Scdouglas1999/nightshade/releases) page once we hit beta.
+Pre-built releases will be available on the [Releases](https://github.com/Scodouglas1999/Nightshade/releases) page.
 
 ---
 
@@ -169,18 +193,18 @@ Pre-built releases will be available on the [Releases](https://github.com/Scdoug
 
 | Tool | Notes |
 |------|-------|
-| [Flutter](https://flutter.dev/) | 3.0+ |
-| [Rust](https://rustup.rs/) | Latest stable |
+| [Flutter](https://flutter.dev/) | 3.24+ |
+| [Rust](https://rustup.rs/) | Latest stable (Edition 2021) |
 | [Melos](https://melos.invertase.dev/) | `dart pub global activate melos` |
 
 **Windows**: Visual Studio 2022 (C++ workload), [LLVM/Clang](https://releases.llvm.org/)
-**Linux**: `build-essential`, `libgtk-3-dev`, `liblzma-dev`, `libstdc++-12-dev`
+**Linux**: `build-essential`, `clang`, `cmake`, `ninja-build`, `libgtk-3-dev`, `liblzma-dev`, `libstdc++-12-dev`
 
 ### Quick Start
 
 ```bash
-git clone https://github.com/Scdouglas1999/nightshade.git
-cd nightshade
+git clone https://github.com/Scodouglas1999/Nightshade.git
+cd Nightshade
 
 melos bootstrap          # Install deps, generate code
 melos run dev            # Build Rust + Flutter, run app
@@ -205,22 +229,31 @@ melos run dev            # Build Rust + Flutter, run app
 nightshade/
 ├─ apps/
 │  ├─ desktop/                 # Windows/macOS/Linux
-│  └─ mobile/                  # iOS/Android
+│  └─ mobile/                  # iOS/Android companion app
 │
 ├─ packages/
-│  ├─ nightshade_core/         # Business logic, database, providers
-│  ├─ nightshade_bridge/       # Dart ↔ Rust FFI bindings
-│  ├─ nightshade_ui/           # Design system
+│  ├─ nightshade_app/          # Shared UI shell, screens, routing
+│  ├─ nightshade_core/         # Business logic, database, providers, services
+│  ├─ nightshade_bridge/       # Dart <-> Rust FFI bindings
+│  ├─ nightshade_ui/           # Design system & shared widgets
 │  ├─ nightshade_planetarium/  # GPU sky renderer
-│  └─ ...                      # app, plugins, screens, updater, webrtc
+│  ├─ nightshade_plugins/      # Plugin host & API
+│  ├─ nightshade_screens/      # Shared screen stubs
+│  ├─ nightshade_updater/      # OTA update system
+│  └─ nightshade_webrtc/       # P2P remote control
 │
 ├─ native/nightshade_native/
+│  ├─ bridge/                  # FFI entry point (cdylib)
 │  ├─ sequencer/               # Behavior tree engine
-│  ├─ imaging/                 # LibRaw, FITS processing
+│  ├─ imaging/                 # LibRaw, FITS, XISF processing
 │  ├─ ascom/                   # Windows ASCOM drivers
 │  ├─ indi/                    # Linux/macOS INDI
 │  ├─ alpaca/                  # Cross-platform Alpaca
-│  └─ native/                  # Vendor SDK bindings
+│  ├─ native/                  # Vendor SDK bindings (12 vendors)
+│  └─ updater/                 # Standalone update binary
+│
+├─ tools/
+│  └─ update_server/           # Local update server
 │
 ├─ lib/                        # Third-party libs (LibRaw)
 ├─ scripts/                    # Build scripts
@@ -230,15 +263,15 @@ nightshade/
 ### Architecture at a Glance
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Flutter UI                                │
-│                    (Riverpod providers)                          │
-├─────────────────────────────────────────────────────────────────┤
-│                   flutter_rust_bridge                            │
-├─────────────────────────────────────────────────────────────────┤
-│     Sequencer    │    Imaging    │   ASCOM/INDI/Alpaca          │
-│   (behavior tree)│   (LibRaw)    │   (equipment control)        │
-└─────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------+
+|                        Flutter UI                                |
+|                    (Riverpod providers)                          |
++-----------------------------------------------------------------+
+|                   flutter_rust_bridge 2.11.1                     |
++-----------------------------------------------------------------+
+|     Sequencer    |    Imaging    |   ASCOM/INDI/Alpaca/Native   |
+|   (behavior tree)|   (LibRaw)    |   (equipment control)        |
++-----------------------------------------------------------------+
                               Rust
 ```
 
@@ -267,6 +300,17 @@ flutter_rust_bridge_codegen generate
 </details>
 
 <details>
+<summary><strong>FFI codegen fails (Linux)</strong></summary>
+
+Set CPATH before running codegen:
+
+```bash
+export CPATH="/usr/lib/clang/21/include"
+flutter_rust_bridge_codegen generate
+```
+</details>
+
+<details>
 <summary><strong>Hash mismatch errors at runtime</strong></summary>
 
 Dart bindings and Rust library are out of sync. Use `melos run dev` instead of `flutter run` after Rust changes.
@@ -286,9 +330,9 @@ See [docs/FRB_TROUBLESHOOTING.md](docs/FRB_TROUBLESHOOTING.md) for more.
 
 ## Contributing
 
-Nightshade is early alpha—there's plenty to do:
+Contributions are welcome:
 
-- **Bug reports** and **feature requests** via [Issues](https://github.com/Scdouglas1999/nightshade/issues)
+- **Bug reports** and **feature requests** via [Issues](https://github.com/Scodouglas1999/Nightshade/issues)
 - **Code contributions** via pull requests
 - **Documentation** improvements
 - **Testing** on different equipment setups
@@ -306,16 +350,17 @@ Nightshade is early alpha—there's plenty to do:
 
 ## Roadmap
 
-**Alpha** (current)
+**Current Focus**
 - Core imaging workflow stability
 - Equipment compatibility testing
 - Sequencer reliability
+- Cross-platform consistency
 
-**Beta** (upcoming)
+**Upcoming**
 - Plate solving integration
-- Flat wizard
-- Mosaic planning
-- Plugin system
+- Flat wizard improvements
+- Advanced mosaic planning
+- Plugin system expansion
 - Cloud sync
 
 ---
@@ -332,15 +377,15 @@ License TBD. See [LICENSE](LICENSE) for details.
 
 Standing on the shoulders of giants:
 
-- [ASCOM](https://ascom-standards.org/) — Astronomy Common Object Model
-- [INDI](https://indilib.org/) — Instrument Neutral Distributed Interface
-- [PHD2](https://openphdguiding.org/) — Open-source autoguiding
-- [Flutter](https://flutter.dev/) & [Rust](https://www.rust-lang.org/) — The foundation
-- [flutter_rust_bridge](https://github.com/fzyzcjy/flutter_rust_bridge) — Making FFI painless
-- [LibRaw](https://www.libraw.org/) — RAW image processing
+- [ASCOM](https://ascom-standards.org/) - Astronomy Common Object Model
+- [INDI](https://indilib.org/) - Instrument Neutral Distributed Interface
+- [PHD2](https://openphdguiding.org/) - Open-source autoguiding
+- [Flutter](https://flutter.dev/) & [Rust](https://www.rust-lang.org/) - The foundation
+- [flutter_rust_bridge](https://github.com/aspect-build/flutter_rust_bridge) - Making FFI painless
+- [LibRaw](https://www.libraw.org/) - RAW image processing
 
 ---
 
 <p align="center">
-  <sub>Clear skies! ✨</sub>
+  <sub>Clear skies!</sub>
 </p>
