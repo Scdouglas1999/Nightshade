@@ -17,6 +17,7 @@ Nightshade is a complete imaging platform for astrophotographers, combining came
 
 > **Early Alpha**: Core features work but expect rough edges, breaking changes, and incomplete documentation. Not recommended for critical imaging sessions yet—but we'd love your help testing!
 
+> **Note on ReadMe**: This project is progressing extremely quickly. There may be some areas of this readme that become outdated or inaccurate. I will do my best to keep things updated but you may find that some features in-app are different (hopefully improved) versus the readme. 
 ---
 
 ## Features
