@@ -1,6 +1,6 @@
 <p align="center">
   <!-- TODO: Add logo here -->
-  <h1 align="center">Nightshade 2.0</h1>
+  <h1 align="center">Nightshade</h1>
   <p align="center">
     <strong>A modern, cross-platform astrophotography suite</strong>
   </p>
