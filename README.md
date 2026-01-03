@@ -1,4 +1,4 @@
-# Nightshade 2.0
+# Nightshade
 
 **A modern, cross-platform astrophotography suite**
 
