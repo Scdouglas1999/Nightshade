@@ -15,6 +15,8 @@
 
 Nightshade is a complete imaging platform for astrophotographers, combining camera control, mount automation, focusing, guiding, and sequence planning in a single unified application. Built with Flutter and Rust for performance and reliability across desktop and mobile.
 
+> **Early Alpha Status**: This software is currently in very early stages of functionality. Some things are polished and work quite well, others are pretty sketchy at the moment. Specifically, the Sequencer has been in a state of somewhat working for a while now, and while you may experience no problems, it would genuinely surprise me. Just keep in mind the early nature and rapidly changing state of the app. 
+
 > **Note on ReadMe**: This project is progressing extremely quickly. There may be some areas of this readme that become outdated or inaccurate. I will do my best to keep things updated but you may find that some features in-app are different (hopefully improved) versus the readme.
 
 ---
