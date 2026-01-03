@@ -104,7 +104,7 @@ class BackupService {
   final SequenceRepository sequenceRepository;
 
   static const String backupVersion = '2.0';
-  static const String appVersion = '2.0.0'; // Should be from package info
+  static const String appVersion = '2.2.0'; // Should be from package info
 
   BackupService({
     required this.database,

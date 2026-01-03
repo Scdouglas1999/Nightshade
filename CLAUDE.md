@@ -68,6 +68,41 @@ melos run dev:clean
 
 **Important:** Don't use `flutter run` directly after changing Rust code - use `melos run dev` instead.
 
+### Pushing Updates to Imaging Laptop
+
+The user has a separate Windows imaging laptop (IP: `192.168.1.59`) for testing. SSH is configured for passwordless access. **Use this workflow when the user asks to push/deploy/test on the imaging laptop:**
+
+```bash
+# 1. Build the app (if not already built)
+cd apps/desktop && flutter build windows --release
+
+# 2. Copy Rust DLL to build output (if Rust was rebuilt)
+cp native/nightshade_native/target/release/nightshade_bridge.dll apps/desktop/build/windows/x64/runner/Release/
+
+# 3. Push ALL files to imaging laptop via SCP
+scp -r apps/desktop/build/windows/x64/runner/Release/* scdou@192.168.1.59:"C:/Program Files/Nightshade/"
+
+# 4. Verify the transfer
+ssh scdou@192.168.1.59 "dir \"C:\Program Files\Nightshade\data\app.so\""
+```
+
+**One-liner for quick pushes (after building):**
+```bash
+scp -r apps/desktop/build/windows/x64/runner/Release/* scdou@192.168.1.59:"C:/Program Files/Nightshade/"
+```
+
+**Full rebuild and push:**
+```bash
+cd apps/desktop && flutter build windows --release && cp ../../native/nightshade_native/target/release/nightshade_bridge.dll build/windows/x64/runner/Release/ && scp -r build/windows/x64/runner/Release/* scdou@192.168.1.59:"C:/Program Files/Nightshade/"
+```
+
+**IMPORTANT NOTES:**
+- The user must close Nightshade on the imaging laptop before pushing
+- Nightshade is installed at `C:\Program Files\Nightshade` on the imaging laptop
+- SSH key auth is configured - no password needed
+- Do NOT use Windows file sharing (UNC paths like `\\192.168.1.59\...`) - bash mangles them
+- The `data/` folder structure must be preserved (contains `app.so`, `icudtl.dat`, `flutter_assets/`)
+
 ### Platform-Specific Build Scripts
 
 Located in `scripts/`:

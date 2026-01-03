@@ -60,6 +60,8 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
     switch (event) {
       case LanPushReceivedEvent(:final manifest, :final stagingPath):
         print('[UpdateManager] LAN push received: ${manifest.version}');
+        // Update the provider state so applyUpdate() works
+        ref.read(updateProvider.notifier).setStagedFromLanPush(manifest, stagingPath);
         _showLanPushBannerDirect(manifest.version);
         break;
       case LanPushProgressEvent(:final progress, :final message):

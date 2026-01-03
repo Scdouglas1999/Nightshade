@@ -14,8 +14,8 @@ import 'package:nightshade_app/nightshade_app.dart';
 import 'widgets/update_manager.dart';
 
 // Current app version - read from version.yaml during build
-const String appVersion = '2.0.0';
-const int appBuildNumber = 1;
+const String appVersion = '2.2.0';
+const int appBuildNumber = 2;
 
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
