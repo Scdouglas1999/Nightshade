@@ -1,0 +1,29 @@
+# Nightshade Update Server Configuration
+#
+# This is a template - copy to config.yaml and modify as needed.
+# Run with: dart run server.dart
+
+# Server settings
+host: "0.0.0.0"
+port: 8090
+
+# Directory paths (relative to server.dart or absolute)
+releases_dir: "./releases"
+manifests_dir: "./manifests"
+
+# Optional: HTTPS settings (uncomment to enable)
+# enable_https: true
+# cert_path: "/etc/letsencrypt/live/updates.example.com/fullchain.pem"
+# key_path: "/etc/letsencrypt/live/updates.example.com/privkey.pem"
+
+# Folder structure for releases:
+#
+# releases/
+#   2.1.0/
+#     nightshade-2.1.0-windows-x64.zip
+#   2.2.0/
+#     nightshade-2.2.0-windows-x64.zip
+#
+# manifests/
+#   2.1.0.json
+#   2.2.0.json

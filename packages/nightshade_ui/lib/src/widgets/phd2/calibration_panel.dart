@@ -1,0 +1,478 @@
+import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import '../../theme/nightshade_colors.dart';
+
+/// Calibration state for PHD2
+enum CalibrationState {
+  notCalibrated,
+  calibrating,
+  calibrated,
+}
+
+/// Calibration data from PHD2
+class CalibrationData {
+  final bool hasCalibration;
+  final double? raAngle;
+  final double? decAngle;
+  final double? raRate;
+  final double? decRate;
+  final DateTime? calibrationTime;
+
+  const CalibrationData({
+    this.hasCalibration = false,
+    this.raAngle,
+    this.decAngle,
+    this.raRate,
+    this.decRate,
+    this.calibrationTime,
+  });
+}
+
+/// Panel for viewing and controlling PHD2 calibration
+class CalibrationPanel extends StatelessWidget {
+  /// Current calibration state
+  final CalibrationState state;
+
+  /// Calibration data
+  final CalibrationData data;
+
+  /// Whether PHD2 is connected
+  final bool isConnected;
+
+  /// Calibration progress (0.0 to 1.0)
+  final double? progress;
+
+  /// Callbacks
+  final VoidCallback? onStartCalibration;
+  final VoidCallback? onClearCalibration;
+  final VoidCallback? onFlipCalibration;
+
+  const CalibrationPanel({
+    super.key,
+    required this.state,
+    required this.data,
+    required this.isConnected,
+    this.progress,
+    this.onStartCalibration,
+    this.onClearCalibration,
+    this.onFlipCalibration,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildHeader(colors),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (state == CalibrationState.calibrating)
+                    _buildCalibrationProgress(colors)
+                  else if (data.hasCalibration)
+                    _buildCalibrationData(colors)
+                  else
+                    _buildNotCalibrated(colors),
+                  const SizedBox(height: 16),
+                  _buildActions(colors),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(NightshadeColors colors) {
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+
+    switch (state) {
+      case CalibrationState.notCalibrated:
+        statusColor = colors.warning;
+        statusText = 'Not Calibrated';
+        statusIcon = LucideIcons.alertTriangle;
+        break;
+      case CalibrationState.calibrating:
+        statusColor = colors.info;
+        statusText = 'Calibrating...';
+        statusIcon = LucideIcons.settings;
+        break;
+      case CalibrationState.calibrated:
+        statusColor = colors.success;
+        statusText = 'Calibrated';
+        statusIcon = LucideIcons.checkCircle;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(statusIcon, color: statusColor, size: 16),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Calibration',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              statusText,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalibrationProgress(NightshadeColors colors) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation(colors.primary),
+              backgroundColor: colors.surfaceHover,
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (progress != null) ...[
+            Container(
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.surfaceHover,
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: FractionallySizedBox(
+                widthFactor: progress!,
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [colors.primary, colors.accent],
+                    ),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '${(progress! * 100).toStringAsFixed(0)}%',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+          ] else
+            Text(
+              'Calibrating mount...',
+              style: TextStyle(color: colors.textSecondary, fontSize: 13),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalibrationData(NightshadeColors colors) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.success.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.checkCircle, color: colors.success, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                'Mount Calibrated',
+                style: TextStyle(
+                  color: colors.success,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildDataRow('RA Angle', '${data.raAngle?.toStringAsFixed(1) ?? '-'}°', colors),
+          const SizedBox(height: 8),
+          _buildDataRow('Dec Angle', '${data.decAngle?.toStringAsFixed(1) ?? '-'}°', colors),
+          const SizedBox(height: 8),
+          _buildDataRow('RA Rate', '${data.raRate?.toStringAsFixed(2) ?? '-'} px/s', colors),
+          const SizedBox(height: 8),
+          _buildDataRow('Dec Rate', '${data.decRate?.toStringAsFixed(2) ?? '-'} px/s', colors),
+          if (data.calibrationTime != null) ...[
+            const SizedBox(height: 12),
+            Divider(color: colors.border.withValues(alpha: 0.5), height: 1),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(LucideIcons.clock, size: 12, color: colors.textMuted),
+                const SizedBox(width: 6),
+                Text(
+                  _formatTime(data.calibrationTime!),
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotCalibrated(NightshadeColors colors) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.warning.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.warning.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(LucideIcons.alertTriangle, color: colors.warning, size: 24),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Mount not calibrated',
+            style: TextStyle(
+              color: colors.warning,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'PHD2 needs to calibrate your mount before guiding. Click "Calibrate" to begin.',
+            style: TextStyle(color: colors.textSecondary, fontSize: 12),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDataRow(String label, String value, NightshadeColors colors) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: 12,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActions(NightshadeColors colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!data.hasCalibration && state != CalibrationState.calibrating)
+          _buildActionButton(
+            icon: LucideIcons.settings,
+            label: 'Calibrate',
+            color: colors.warning,
+            colors: colors,
+            onPressed: isConnected ? onStartCalibration : null,
+            isPrimary: true,
+          ),
+        if (data.hasCalibration) ...[
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionButton(
+                  icon: LucideIcons.trash2,
+                  label: 'Clear',
+                  color: colors.error,
+                  colors: colors,
+                  onPressed: isConnected ? onClearCalibration : null,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildActionButton(
+                  icon: LucideIcons.flipHorizontal,
+                  label: 'Flip',
+                  color: colors.info,
+                  colors: colors,
+                  onPressed: isConnected ? onFlipCalibration : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(LucideIcons.info, size: 12, color: colors.textMuted),
+              const SizedBox(width: 6),
+              Text(
+                'Use "Flip" after a meridian flip',
+                style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required NightshadeColors colors,
+    VoidCallback? onPressed,
+    bool isPrimary = false,
+  }) {
+    final isDisabled = onPressed == null;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: isPrimary
+                ? (isDisabled ? colors.surfaceAlt : color)
+                : (isDisabled ? colors.surfaceAlt : color.withValues(alpha: 0.15)),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isDisabled
+                  ? colors.border
+                  : (isPrimary ? color : color.withValues(alpha: 0.3)),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isPrimary
+                    ? (isDisabled ? colors.textMuted : Colors.white)
+                    : (isDisabled ? colors.textMuted : color),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isPrimary
+                      ? (isDisabled ? colors.textMuted : Colors.white)
+                      : (isDisabled ? colors.textMuted : color),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final diff = now.difference(time);
+
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} min ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours} hours ago';
+    } else {
+      return '${diff.inDays} days ago';
+    }
+  }
+}

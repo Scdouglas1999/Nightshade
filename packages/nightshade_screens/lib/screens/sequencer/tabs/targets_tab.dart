@@ -1,0 +1,712 @@
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import 'package:intl/intl.dart';
+
+class TargetsTab extends ConsumerWidget {
+  const TargetsTab({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final sequence = ref.watch(currentSequenceProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Session Planner',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Visualize and optimize your imaging session',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              NightshadeButton(
+                label: 'Add Target',
+                icon: LucideIcons.plus,
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => const _AddTargetDialog(),
+                  );
+                },
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Timeline Chart
+          Expanded(
+            flex: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.border),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: const _NightTimeline(),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Text(
+            'Scheduled Targets',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Active Target List
+          Expanded(
+            flex: 3,
+            child: sequence == null || sequence.targetGroups.isEmpty
+                ? _EmptyState(colors: colors)
+                : _ActiveTargetList(colors: colors, sequence: sequence),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NightTimeline extends ConsumerWidget {
+  const _NightTimeline();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final sequence = ref.watch(currentSequenceProvider);
+    final location = ref.watch(observerLocationProvider);
+    
+    // Calculate timeline range (Sunset to Sunrise, centered on midnight)
+    // For simplicity in this view, we'll show 6pm to 6am local time
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day, 18);
+    final end = start.add(const Duration(hours: 12));
+
+    final targetGroups = sequence?.targetGroups ?? [];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return CustomPaint(
+          size: Size(constraints.maxWidth, constraints.maxHeight),
+          painter: _TimelinePainter(
+            colors: colors,
+            startTime: start,
+            endTime: end,
+            targets: targetGroups,
+            latitude: location.latitude,
+            longitude: location.longitude,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TimelinePainter extends CustomPainter {
+  final NightshadeColors colors;
+  final DateTime startTime;
+  final DateTime endTime;
+  final List<TargetGroupNode> targets;
+  final double latitude;
+  final double longitude;
+
+  _TimelinePainter({
+    required this.colors,
+    required this.startTime,
+    required this.endTime,
+    required this.targets,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Draw background (Sky gradient)
+    final bgPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          colors.background.withValues(alpha: 0.8), // Zenith
+          colors.surface, // Horizon
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
+
+    // Draw Optimal Window (Alt > 30)
+    _drawOptimalWindow(canvas, size);
+
+    // Draw Grid lines
+    _drawGrid(canvas, size);
+
+    // Draw Moon Altitude Curve
+    _drawMoonCurve(canvas, size);
+
+    // Draw Target Altitude Curves
+    for (int i = 0; i < targets.length; i++) {
+      final target = targets[i];
+      // Assign a color based on index
+      final color = [
+        colors.primary,
+        colors.accent,
+        colors.success,
+        colors.warning,
+        colors.info
+      ][i % 5];
+
+      _drawAltitudeCurve(canvas, size, target, color);
+    }
+    
+    // Draw Current Time Indicator
+    _drawCurrentTime(canvas, size);
+  }
+
+  void _drawOptimalWindow(Canvas canvas, Size size) {
+    // Highlight area above 30 degrees
+    final y30 = size.height - (30 / 90.0 * size.height);
+    final paint = Paint()
+      ..color = colors.success.withValues(alpha: 0.05)
+      ..style = PaintingStyle.fill;
+    
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, y30), paint);
+    
+    // Draw clear 30 degree line
+    final linePaint = Paint()
+      ..color = colors.success.withValues(alpha: 0.3)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+      // ..pathEffect = const DashPathEffect(5, 5); // Requires ui import or helper
+      
+    canvas.drawLine(Offset(0, y30), Offset(size.width, y30), linePaint);
+  }
+
+  void _drawMoonCurve(Canvas canvas, Size size) {
+    final path = Path();
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+      // ..pathEffect = DashPathEffect(5, 5);
+
+    final totalMinutes = endTime.difference(startTime).inMinutes;
+    bool first = true;
+
+    for (int i = 0; i <= totalMinutes; i += 10) {
+      final time = startTime.add(Duration(minutes: i));
+      final pos = AstronomyCalculations.moonPosition(time);
+      final altAz = AstronomyCalculations.objectAltAz(
+        raDeg: pos.$1 * 15.0,
+        decDeg: pos.$2,
+        dt: time,
+        latitudeDeg: latitude,
+        longitudeDeg: longitude,
+      );
+
+      final x = (i / totalMinutes) * size.width;
+      final y = size.height - (altAz.$1 / 90.0 * size.height);
+      final clampedY = y.clamp(0.0, size.height);
+
+      if (first) {
+        path.moveTo(x, clampedY);
+        first = false;
+      } else {
+        path.lineTo(x, clampedY);
+      }
+    }
+    
+    canvas.drawPath(path, paint);
+    
+    // Label for Moon
+    final textPainter = TextPainter(
+      text: const TextSpan(
+        text: 'Moon',
+        style: TextStyle(color: Colors.white54, fontSize: 10),
+      ),
+      textDirection: ui.TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(size.width - 40, 10));
+  }
+
+  void _drawGrid(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = colors.border.withValues(alpha: 0.5)
+      ..strokeWidth = 1;
+    
+    final textStyle = TextStyle(
+      color: colors.textMuted,
+      fontSize: 10,
+    );
+    final textPainter = TextPainter(
+      text: const TextSpan(text: ''),
+      textDirection: ui.TextDirection.ltr,
+    );
+
+    // Horizontal lines (Altitude: 0, 30, 60, 90)
+    for (int alt = 0; alt <= 90; alt += 30) {
+      final y = size.height - (alt / 90.0 * size.height);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+      
+      textPainter.text = TextSpan(text: '$alt°', style: textStyle);
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(4, y - 12));
+    }
+
+    // Vertical lines (Time)
+    final totalDuration = endTime.difference(startTime).inMinutes;
+    for (int i = 0; i <= totalDuration; i += 60) { // Every hour
+      final x = (i / totalDuration) * size.width;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
+      
+      final time = startTime.add(Duration(minutes: i));
+      textPainter.text = TextSpan(
+        text: DateFormat('HH:mm').format(time),
+        style: textStyle,
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(x + 4, size.height - 16));
+    }
+  }
+
+  void _drawAltitudeCurve(Canvas canvas, Size size, TargetGroupNode target, Color color) {
+    final path = Path();
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    final shadowPaint = Paint()
+      ..color = color.withValues(alpha: 0.1)
+      ..style = PaintingStyle.fill;
+
+    final totalMinutes = endTime.difference(startTime).inMinutes;
+    
+    // Calculate points every 10 minutes
+    bool first = true;
+    final shadowPath = Path();
+
+    for (int i = 0; i <= totalMinutes; i += 10) {
+      final time = startTime.add(Duration(minutes: i));
+      final altAz = AstronomyCalculations.objectAltAz(
+        raDeg: target.raHours * 15.0,
+        decDeg: target.decDegrees,
+        dt: time,
+        latitudeDeg: latitude,
+        longitudeDeg: longitude,
+      );
+
+      final x = (i / totalMinutes) * size.width;
+      final y = size.height - (altAz.$1 / 90.0 * size.height); // $1 is altitude
+
+      // Clamp Y to not go below chart
+      final clampedY = y.clamp(0.0, size.height);
+
+      if (first) {
+        path.moveTo(x, clampedY);
+        shadowPath.moveTo(x, size.height);
+        shadowPath.lineTo(x, clampedY);
+        first = false;
+      } else {
+        path.lineTo(x, clampedY);
+        shadowPath.lineTo(x, clampedY);
+      }
+    }
+    
+    shadowPath.lineTo(size.width, size.height);
+    shadowPath.close();
+
+    canvas.drawPath(shadowPath, shadowPaint);
+    canvas.drawPath(path, paint);
+    
+    // Draw label at peak (transit)
+    // Simplified: just draw at start for now to identify lines
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: target.targetName,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          shadows: [
+            Shadow(blurRadius: 2, color: Colors.black.withValues(alpha: 0.5)),
+          ],
+        ),
+      ),
+      textDirection: ui.TextDirection.ltr,
+    );
+    
+    // Find highest point on curve to place label
+    // Re-calculate just the peak approx
+    double peakAlt = -90;
+    double peakX = 0;
+    
+    for (int i = 0; i <= totalMinutes; i += 30) {
+       final time = startTime.add(Duration(minutes: i));
+       final altAz = AstronomyCalculations.objectAltAz(
+        raDeg: target.raHours * 15.0,
+        decDeg: target.decDegrees,
+        dt: time,
+        latitudeDeg: latitude,
+        longitudeDeg: longitude,
+      );
+      if (altAz.$1 > peakAlt) {
+        peakAlt = altAz.$1;
+        peakX = (i / totalMinutes) * size.width;
+      }
+    }
+    
+    if (peakAlt > 0) {
+      final peakY = size.height - (peakAlt / 90.0 * size.height);
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(peakX - textPainter.width / 2, peakY - 20));
+    }
+  }
+  
+  void _drawCurrentTime(Canvas canvas, Size size) {
+    final now = DateTime.now();
+    if (now.isBefore(startTime) || now.isAfter(endTime)) return;
+    
+    final totalDuration = endTime.difference(startTime).inMinutes;
+    final elapsed = now.difference(startTime).inMinutes;
+    final x = (elapsed / totalDuration) * size.width;
+    
+    final paint = Paint()
+      ..color = colors.error
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+      
+    canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: 'Now',
+        style: TextStyle(color: colors.error, fontSize: 10),
+      ),
+      textDirection: ui.TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, Offset(x + 4, 4));
+  }
+
+  @override
+  bool shouldRepaint(covariant _TimelinePainter oldDelegate) {
+    return oldDelegate.startTime != startTime || oldDelegate.targets != targets;
+  }
+}
+
+class _ActiveTargetList extends ConsumerWidget {
+  final NightshadeColors colors;
+  final Sequence sequence;
+
+  const _ActiveTargetList({required this.colors, required this.sequence});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ReorderableListView.builder(
+      itemCount: sequence.targetGroups.length,
+      proxyDecorator: (child, index, animation) {
+        return Material(
+          color: Colors.transparent,
+          child: child,
+        );
+      },
+      itemBuilder: (context, index) {
+        final target = sequence.targetGroups[index];
+        // Use index-based color matching the chart
+        final color = [
+          colors.primary,
+          colors.accent,
+          colors.success,
+          colors.warning,
+          colors.info
+        ][index % 5];
+        
+        return _TargetListItem(
+          key: ValueKey(target.id),
+          colors: colors,
+          target: target,
+          color: color,
+          index: index,
+          onDelete: () {
+            ref.read(currentSequenceProvider.notifier).removeNode(target.id);
+          },
+        );
+      },
+      onReorder: (oldIndex, newIndex) {
+        ref.read(currentSequenceProvider.notifier).reorderTargets(oldIndex, newIndex);
+      },
+    );
+  }
+}
+
+class _TargetListItem extends StatelessWidget {
+  final NightshadeColors colors;
+  final TargetGroupNode target;
+  final Color color;
+  final int index;
+  final VoidCallback onDelete;
+
+  const _TargetListItem({
+    super.key,
+    required this.colors,
+    required this.target,
+    required this.color,
+    required this.index,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withValues(alpha: 0.5), width: 2),
+          ),
+          child: Center(
+            child: Text(
+              '${index + 1}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ),
+        ),
+        title: Text(
+          target.targetName,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          'RA: ${target.raHours.toStringAsFixed(4)}h  Dec: ${target.decDegrees.toStringAsFixed(4)}°',
+          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(LucideIcons.trash2, size: 18, color: colors.error),
+              onPressed: onDelete,
+              tooltip: 'Remove Target',
+            ),
+            const SizedBox(width: 8),
+            Icon(LucideIcons.gripVertical, color: colors.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _EmptyState({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(LucideIcons.calendarClock, size: 48, color: colors.textMuted),
+          const SizedBox(height: 16),
+          Text(
+            'No targets scheduled',
+            style: TextStyle(
+              fontSize: 16,
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Add a target to see the plan',
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddTargetDialog extends ConsumerStatefulWidget {
+  const _AddTargetDialog();
+
+  @override
+  ConsumerState<_AddTargetDialog> createState() => _AddTargetDialogState();
+}
+
+class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
+  final _searchController = TextEditingController();
+  
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final searchState = ref.watch(objectSearchProvider);
+
+    return Dialog(
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        width: 500,
+        height: 600,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Add Target to Session',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Search Bar
+            TextField(
+              controller: _searchController,
+              autofocus: true,
+              style: TextStyle(color: colors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Search object (e.g. M42, NGC 7000)...',
+                hintStyle: TextStyle(color: colors.textMuted),
+                prefixIcon: Icon(LucideIcons.search, color: colors.textMuted),
+                filled: true,
+                fillColor: colors.surfaceAlt,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (value) {
+                ref.read(objectSearchProvider.notifier).search(value);
+              },
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Results
+            Expanded(
+              child: searchState.isSearching
+                  ? Center(child: CircularProgressIndicator(color: colors.primary))
+                  : searchState.results.isEmpty
+                      ? Center(
+                          child: Text(
+                            _searchController.text.isEmpty 
+                                ? 'Type to search...' 
+                                : 'No results found',
+                            style: TextStyle(color: colors.textMuted),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: searchState.results.length,
+                          separatorBuilder: (_, __) => Divider(color: colors.border, height: 1),
+                          itemBuilder: (context, index) {
+                            final obj = searchState.results[index];
+                            return ListTile(
+                              title: Text(
+                                obj.name,
+                                style: TextStyle(color: colors.textPrimary),
+                              ),
+                              subtitle: Text(
+                                obj.id != obj.name ? obj.id : '',
+                                style: TextStyle(color: colors.textSecondary),
+                              ),
+                              trailing: NightshadeButton(
+                                label: 'Add',
+                                icon: LucideIcons.plus,
+                                variant: ButtonVariant.ghost,
+                                size: ButtonSize.small,
+                                onPressed: () {
+                                  ref.read(currentSequenceProvider.notifier).addNode(
+                                    TargetGroupNode(
+                                      targetName: obj.name,
+                                      raHours: obj.coordinates.ra,
+                                      decDegrees: obj.coordinates.dec,
+                                    ),
+                                  );
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Added ${obj.name} to sequence')),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

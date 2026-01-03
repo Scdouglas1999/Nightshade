@@ -1,0 +1,3168 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+
+class NodePropertiesPanel extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const NodePropertiesPanel({super.key, required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedNode = ref.watch(selectedNodeProvider);
+
+    return Container(
+      // width: 320, // Removed for ResizablePanel
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(left: BorderSide(color: colors.border)),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            height: 48,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: colors.border)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.settings2,
+                  size: 16,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Properties',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Content
+          Expanded(
+            child: selectedNode == null
+                ? _EmptySelection(colors: colors)
+                : _NodeEditor(
+                    colors: colors,
+                    node: selectedNode,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickTimeButton extends StatelessWidget {
+  final NightshadeColors colors;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _QuickTimeButton({
+    required this.colors,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: colors.border),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: colors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptySelection extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _EmptySelection({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            LucideIcons.mousePointer,
+            size: 32,
+            color: colors.textMuted,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Select a node',
+            style: TextStyle(
+              fontSize: 13,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'to view its properties',
+            style: TextStyle(
+              fontSize: 11,
+              color: colors.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NodeEditor extends ConsumerWidget {
+  final NightshadeColors colors;
+  final SequenceNode node;
+
+  const _NodeEditor({
+    required this.colors,
+    required this.node,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Node type badge
+          _NodeTypeBadge(colors: colors, node: node),
+          const SizedBox(height: 16),
+
+          // Name field
+          _PropertyField(
+            colors: colors,
+            label: 'Name',
+            child: _TextInput(
+              colors: colors,
+              value: node.name,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(name: value),
+                );
+              },
+            ),
+          ),
+
+          // Enabled toggle
+          _PropertyField(
+            colors: colors,
+            label: 'Enabled',
+            child: _ToggleSwitch(
+              colors: colors,
+              value: node.isEnabled,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(isEnabled: value),
+                );
+              },
+            ),
+          ),
+
+          const Divider(height: 32),
+
+          // Type-specific properties
+          _buildTypeSpecificProperties(ref),
+
+          const SizedBox(height: 24),
+
+          // Delete button
+          SizedBox(
+            width: double.infinity,
+            child: _DangerButton(
+              colors: colors,
+              label: 'Delete Node',
+              icon: LucideIcons.trash2,
+              onPressed: () {
+                ref.read(currentSequenceProvider.notifier).removeNode(node.id);
+                ref.read(selectedNodeIdProvider.notifier).state = null;
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypeSpecificProperties(WidgetRef ref) {
+    if (node is ExposureNode) {
+      return _ExposureProperties(colors: colors, node: node as ExposureNode);
+    }
+    if (node is TargetGroupNode) {
+      return _TargetGroupProperties(colors: colors, node: node as TargetGroupNode);
+    }
+    if (node is LoopNode) {
+      return _LoopProperties(colors: colors, node: node as LoopNode);
+    }
+    if (node is CenterNode) {
+      return _CenterProperties(colors: colors, node: node as CenterNode);
+    }
+    if (node is AutofocusNode) {
+      return _AutofocusProperties(colors: colors, node: node as AutofocusNode);
+    }
+    if (node is CoolCameraNode) {
+      return _CoolCameraProperties(colors: colors, node: node as CoolCameraNode);
+    }
+    if (node is FilterChangeNode) {
+      return _FilterChangeProperties(colors: colors, node: node as FilterChangeNode);
+    }
+    if (node is DelayNode) {
+      return _DelayProperties(colors: colors, node: node as DelayNode);
+    }
+    if (node is DitherNode) {
+      return _DitherProperties(colors: colors, node: node as DitherNode);
+    }
+    if (node is WarmCameraNode) {
+      return _WarmCameraProperties(colors: colors, node: node as WarmCameraNode);
+    }
+    if (node is RotatorNode) {
+      return _RotatorProperties(colors: colors, node: node as RotatorNode);
+    }
+    if (node is SlewNode) {
+      return _SlewProperties(colors: colors, node: node as SlewNode);
+    }
+    if (node is WaitTimeNode) {
+      return _WaitTimeProperties(colors: colors, node: node as WaitTimeNode);
+    }
+    if (node is ConditionalNode) {
+      return _ConditionalProperties(colors: colors, node: node as ConditionalNode);
+    }
+    if (node is ParallelNode) {
+      return _ParallelProperties(colors: colors, node: node as ParallelNode);
+    }
+    if (node is RecoveryNode) {
+      return _RecoveryProperties(colors: colors, node: node as RecoveryNode);
+    }
+    if (node is NotificationNode) {
+      return _NotificationProperties(colors: colors, node: node as NotificationNode);
+    }
+    if (node is ScriptNode) {
+      return _ScriptProperties(colors: colors, node: node as ScriptNode);
+    }
+    if (node is ParkNode || node is UnparkNode) {
+      return _SimpleInstructionInfo(colors: colors, node: node);
+    }
+    if (node is MeridianFlipNode) {
+      return _MeridianFlipProperties(colors: colors, node: node as MeridianFlipNode);
+    }
+    if (node is OpenDomeNode) {
+      return _DomeProperties(colors: colors, node: node);
+    }
+    if (node is CloseDomeNode) {
+      return _DomeProperties(colors: colors, node: node);
+    }
+    if (node is ParkDomeNode) {
+      return _DomeProperties(colors: colors, node: node);
+    }
+    if (node is PolarAlignmentNode) {
+      return _PolarAlignmentProperties(colors: colors, node: node as PolarAlignmentNode);
+    }
+    if (node is InstructionSetNode) {
+      return _InstructionSetInfo(colors: colors, node: node as InstructionSetNode);
+    }
+
+    return Text(
+      'No additional properties',
+      style: TextStyle(
+        fontSize: 12,
+        color: colors.textMuted,
+        fontStyle: FontStyle.italic,
+      ),
+    );
+  }
+}
+
+class _NodeTypeBadge extends StatelessWidget {
+  final NightshadeColors colors;
+  final SequenceNode node;
+
+  const _NodeTypeBadge({required this.colors, required this.node});
+
+  Color _getCategoryColor() {
+    switch (node.category) {
+      case NodeCategory.instruction: return colors.primary;
+      case NodeCategory.trigger: return colors.warning;
+      case NodeCategory.logic: return colors.accent;
+      case NodeCategory.target: return colors.warning;
+    }
+  }
+
+  IconData _getIcon() {
+    switch (node.iconName) {
+      case 'target': return LucideIcons.target;
+      case 'camera': return LucideIcons.camera;
+      case 'circle': return LucideIcons.circle;
+      case 'shuffle': return LucideIcons.shuffle;
+      case 'compass': return LucideIcons.compass;
+      case 'crosshair': return LucideIcons.crosshair;
+      case 'parking-circle': return LucideIcons.parkingCircle;
+      case 'unlock': return LucideIcons.unlock;
+      case 'focus': return LucideIcons.focus;
+      case 'snowflake': return LucideIcons.snowflake;
+      case 'flame': return LucideIcons.flame;
+      case 'rotate-cw': return LucideIcons.rotateCw;
+      case 'repeat': return LucideIcons.repeat;
+      case 'git-merge': return LucideIcons.gitMerge;
+      case 'git-branch': return LucideIcons.gitBranch;
+      case 'shield-check': return LucideIcons.shieldCheck;
+      case 'clock': return LucideIcons.clock;
+      case 'timer': return LucideIcons.timer;
+      case 'bell': return LucideIcons.bell;
+      case 'code': return LucideIcons.code;
+      default: return LucideIcons.box;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _getCategoryColor();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(_getIcon(), size: 20, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  node.nodeType,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                Text(
+                  node.category.name.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Property field wrapper
+class _PropertyField extends StatelessWidget {
+  final NightshadeColors colors;
+  final String label;
+  final Widget child;
+
+  const _PropertyField({
+    required this.colors,
+    required this.label,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+// Input widgets
+class _TextInput extends StatefulWidget {
+  final NightshadeColors colors;
+  final String value;
+  final ValueChanged<String> onChanged;
+  final String? hint;
+
+  const _TextInput({
+    required this.colors,
+    required this.value,
+    required this.onChanged,
+    this.hint,
+  });
+
+  @override
+  State<_TextInput> createState() => _TextInputState();
+}
+
+class _TextInputState extends State<_TextInput> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(_TextInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value && widget.value != _controller.text) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: widget.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: widget.colors.border),
+      ),
+      child: TextField(
+        controller: _controller,
+        onChanged: widget.onChanged,
+        style: TextStyle(
+          fontSize: 13,
+          color: widget.colors.textPrimary,
+        ),
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          hintStyle: TextStyle(
+            fontSize: 13,
+            color: widget.colors.textMuted,
+          ),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+      ),
+    );
+  }
+}
+
+class _NumberInput extends StatefulWidget {
+  final NightshadeColors colors;
+  final double value;
+  final ValueChanged<double> onChanged;
+  final String? suffix;
+  final double? min;
+  final double? max;
+  final int decimals;
+
+  const _NumberInput({
+    required this.colors,
+    required this.value,
+    required this.onChanged,
+    this.suffix,
+    this.min,
+    this.max,
+    this.decimals = 0,
+  });
+
+  @override
+  State<_NumberInput> createState() => _NumberInputState();
+}
+
+class _NumberInputState extends State<_NumberInput> {
+  late TextEditingController _controller;
+  late FocusNode _focusNode;
+  bool _hasFocus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.decimals == 0
+          ? widget.value.toInt().toString()
+          : widget.value.toStringAsFixed(widget.decimals),
+    );
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    final hadFocus = _hasFocus;
+    _hasFocus = _focusNode.hasFocus;
+
+    // When losing focus, update to the canonical value format
+    if (hadFocus && !_hasFocus) {
+      final newText = widget.decimals == 0
+          ? widget.value.toInt().toString()
+          : widget.value.toStringAsFixed(widget.decimals);
+      if (_controller.text != newText) {
+        _controller.text = newText;
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(_NumberInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only update text if the field doesn't have focus (user isn't typing)
+    if (!_hasFocus && oldWidget.value != widget.value) {
+      final newText = widget.decimals == 0
+          ? widget.value.toInt().toString()
+          : widget.value.toStringAsFixed(widget.decimals);
+      if (newText != _controller.text) {
+        _controller.text = newText;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: widget.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: widget.colors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              focusNode: _focusNode,
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                final parsed = double.tryParse(value);
+                if (parsed != null) {
+                  var clamped = parsed;
+                  if (widget.min != null) clamped = clamped.clamp(widget.min!, double.infinity);
+                  if (widget.max != null) clamped = clamped.clamp(double.negativeInfinity, widget.max!);
+                  widget.onChanged(clamped);
+                }
+              },
+              style: TextStyle(
+                fontSize: 13,
+                color: widget.colors.textPrimary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+          if (widget.suffix != null)
+            Text(
+              widget.suffix!,
+              style: TextStyle(
+                fontSize: 12,
+                color: widget.colors.textMuted,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ToggleSwitch extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _ToggleSwitch({
+    required this.colors,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 44,
+        height: 24,
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: value ? colors.primary : colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: value ? colors.primary : colors.border,
+          ),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 200),
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Dropdown<T> extends StatelessWidget {
+  final NightshadeColors colors;
+  final T value;
+  final List<T> items;
+  final String Function(T) labelBuilder;
+  final ValueChanged<T> onChanged;
+
+  const _Dropdown({
+    required this.colors,
+    required this.value,
+    required this.items,
+    required this.labelBuilder,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          isExpanded: true,
+          icon: Icon(
+            LucideIcons.chevronDown,
+            size: 16,
+            color: colors.textMuted,
+          ),
+          dropdownColor: colors.surface,
+          style: TextStyle(
+            fontSize: 13,
+            color: colors.textPrimary,
+          ),
+          items: items.map((item) {
+            return DropdownMenuItem(
+              value: item,
+              child: Text(labelBuilder(item)),
+            );
+          }).toList(),
+          onChanged: (newValue) {
+            if (newValue != null) onChanged(newValue);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _DangerButton extends StatefulWidget {
+  final NightshadeColors colors;
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _DangerButton({
+    required this.colors,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  State<_DangerButton> createState() => _DangerButtonState();
+}
+
+class _DangerButtonState extends State<_DangerButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? widget.colors.error.withValues(alpha: 0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: _isHovered
+                  ? widget.colors.error
+                  : widget.colors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                widget.icon,
+                size: 14,
+                color: _isHovered
+                    ? widget.colors.error
+                    : widget.colors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: _isHovered
+                      ? widget.colors.error
+                      : widget.colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Type-specific property editors
+class _ExposureProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final ExposureNode node;
+
+  const _ExposureProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Exposure Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        
+        _PropertyField(
+          colors: colors,
+          label: 'Duration',
+          child: _NumberInput(
+            colors: colors,
+            value: node.durationSecs,
+            suffix: 's',
+            min: 0.001,
+            max: 3600,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(durationSecs: value),
+              );
+              // Save as default for future nodes
+              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
+                duration: value,
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Count',
+          child: _NumberInput(
+            colors: colors,
+            value: node.count.toDouble(),
+            min: 1,
+            max: 9999,
+            onChanged: (value) {
+              final count = value.toInt();
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(count: count),
+              );
+              // Save as default for future nodes
+              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
+                count: count,
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Frame Type',
+          child: _Dropdown<FrameType>(
+            colors: colors,
+            value: node.frameType,
+            items: FrameType.values,
+            labelBuilder: (t) => t.name.toUpperCase(),
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(frameType: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Filter',
+          child: _TextInput(
+            colors: colors,
+            value: node.filter ?? '',
+            hint: 'e.g., L, R, G, B, Ha',
+            onChanged: (value) {
+              final filter = value.isEmpty ? null : value;
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(filter: filter),
+              );
+              // Save as default for future nodes
+              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
+                filter: filter,
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Binning',
+          child: _Dropdown<BinningMode>(
+            colors: colors,
+            value: node.binning,
+            items: BinningMode.values,
+            labelBuilder: (b) => b.label,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(binning: value),
+              );
+              // Save as default for future nodes
+              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
+                binning: value,
+              );
+            },
+          ),
+        ),
+
+        Row(
+          children: [
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Gain',
+                child: _NumberInput(
+                  colors: colors,
+                  value: (node.gain ?? 0).toDouble(),
+                  min: 0,
+                  max: 1000,
+                  onChanged: (value) {
+                    final gain = value.toInt();
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(gain: gain),
+                    );
+                    // Save as default for future nodes
+                    ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
+                      gain: gain,
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Offset',
+                child: _NumberInput(
+                  colors: colors,
+                  value: (node.offset ?? 0).toDouble(),
+                  min: 0,
+                  max: 1000,
+                  onChanged: (value) {
+                    final offset = value.toInt();
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(offset: offset),
+                    );
+                    // Save as default for future nodes
+                    ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
+                      offset: offset,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Dither Every',
+          child: _NumberInput(
+            colors: colors,
+            value: (node.ditherEvery ?? 0).toDouble(),
+            suffix: ' frames',
+            min: 0,
+            max: 100,
+            onChanged: (value) {
+              final ditherEvery = value.toInt();
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(ditherEvery: ditherEvery),
+              );
+              // Save as default for future nodes
+              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
+                ditherEvery: ditherEvery,
+              );
+            },
+          ),
+        ),
+
+        // Summary
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(LucideIcons.clock, size: 14, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Total: ${_formatDuration(node.totalDurationSecs)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: colors.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatDuration(double secs) {
+    if (secs < 60) return '${secs.toStringAsFixed(1)}s';
+    if (secs < 3600) return '${(secs / 60).toStringAsFixed(1)}m';
+    return '${(secs / 3600).toStringAsFixed(1)}h';
+  }
+}
+
+class _TargetGroupProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final TargetGroupNode node;
+
+  const _TargetGroupProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Target Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Target Name',
+          child: _TextInput(
+            colors: colors,
+            value: node.targetName,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(targetName: value),
+              );
+            },
+          ),
+        ),
+
+        Row(
+          children: [
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'RA (hours)',
+                child: _NumberInput(
+                  colors: colors,
+                  value: node.raHours,
+                  suffix: 'h',
+                  min: 0,
+                  max: 24,
+                  decimals: 4,
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(raHours: value),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Dec (degrees)',
+                child: _NumberInput(
+                  colors: colors,
+                  value: node.decDegrees,
+                  suffix: '°',
+                  min: -90,
+                  max: 90,
+                  decimals: 4,
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(decDegrees: value),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Rotation (optional)',
+          child: _NumberInput(
+            colors: colors,
+            value: node.rotation ?? 0,
+            suffix: '°',
+            min: 0,
+            max: 360,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(rotation: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Min Altitude',
+          child: _NumberInput(
+            colors: colors,
+            value: node.minAltitude ?? 30,
+            suffix: '°',
+            min: 0,
+            max: 90,
+            decimals: 0,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(minAltitude: value),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LoopProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final LoopNode node;
+
+  const _LoopProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Loop Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Condition Type',
+          child: _Dropdown<LoopConditionType>(
+            colors: colors,
+            value: node.conditionType,
+            items: LoopConditionType.values,
+            labelBuilder: (t) {
+              switch (t) {
+                case LoopConditionType.count: return 'Fixed Count';
+                case LoopConditionType.untilTime: return 'Until Time';
+                case LoopConditionType.untilAltitude: return 'Until Altitude';
+                case LoopConditionType.forever: return 'Forever';
+                case LoopConditionType.whileDark: return 'While Dark';
+              }
+            },
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(conditionType: value),
+              );
+            },
+          ),
+        ),
+
+        if (node.conditionType == LoopConditionType.count)
+          _PropertyField(
+            colors: colors,
+            label: 'Repeat Count',
+            child: _NumberInput(
+              colors: colors,
+              value: (node.repeatCount ?? 1).toDouble(),
+              min: 1,
+              max: 9999,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(repeatCount: value.toInt()),
+                );
+              },
+            ),
+          ),
+
+        if (node.conditionType == LoopConditionType.untilTime)
+          _PropertyField(
+            colors: colors,
+            label: 'Stop Time',
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    final time = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay.fromDateTime(node.repeatUntil ?? DateTime.now()),
+                    );
+                    if (time != null) {
+                      final now = DateTime.now();
+                      var targetDate = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+                      if (targetDate.isBefore(now)) {
+                        targetDate = targetDate.add(const Duration(days: 1));
+                      }
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(repeatUntil: targetDate),
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
+                        const SizedBox(width: 8),
+                        Text(
+                          node.repeatUntil != null
+                              ? '${node.repeatUntil!.hour.toString().padLeft(2, '0')}:${node.repeatUntil!.minute.toString().padLeft(2, '0')}'
+                              : 'Select time...',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: node.repeatUntil != null ? colors.textPrimary : colors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Quick set buttons for common times
+                Row(
+                  children: [
+                    _QuickTimeButton(
+                      colors: colors,
+                      label: 'Civil Dawn',
+                      onPressed: () {
+                         final location = ref.read(observerLocationProvider);
+                         final now = DateTime.now();
+                         
+                         // Calculate for today first
+                         var twilight = AstronomyCalculations.calculateTwilightTimes(
+                           date: now,
+                           latitudeDeg: location.latitude,
+                           longitudeDeg: location.longitude,
+                         );
+                         
+                         var target = twilight.civilDawn;
+                         
+                         // If dawn passed or not available today, try tomorrow
+                         if (target == null || target.isBefore(now)) {
+                           twilight = AstronomyCalculations.calculateTwilightTimes(
+                             date: now.add(const Duration(days: 1)),
+                             latitudeDeg: location.latitude,
+                             longitudeDeg: location.longitude,
+                           );
+                           target = twilight.civilDawn;
+                         }
+                         
+                         if (target != null) {
+                           ref.read(currentSequenceProvider.notifier).updateNode(
+                             node.copyWith(repeatUntil: target),
+                           );
+                         }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _QuickTimeButton(
+                      colors: colors,
+                      label: 'Nautical Dawn',
+                      onPressed: () {
+                         final location = ref.read(observerLocationProvider);
+                         final now = DateTime.now();
+                         
+                         // Calculate for today first
+                         var twilight = AstronomyCalculations.calculateTwilightTimes(
+                           date: now,
+                           latitudeDeg: location.latitude,
+                           longitudeDeg: location.longitude,
+                         );
+                         
+                         var target = twilight.nauticalDawn;
+                         
+                         // If dawn passed or not available today, try tomorrow
+                         if (target == null || target.isBefore(now)) {
+                           twilight = AstronomyCalculations.calculateTwilightTimes(
+                             date: now.add(const Duration(days: 1)),
+                             latitudeDeg: location.latitude,
+                             longitudeDeg: location.longitude,
+                           );
+                           target = twilight.nauticalDawn;
+                         }
+                         
+                         if (target != null) {
+                           ref.read(currentSequenceProvider.notifier).updateNode(
+                             node.copyWith(repeatUntil: target),
+                           );
+                         }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+        if (node.conditionType == LoopConditionType.untilAltitude)
+          _PropertyField(
+            colors: colors,
+            label: 'Stop Below Altitude',
+            child: _NumberInput(
+              colors: colors,
+              value: node.repeatUntilAltitude ?? 30,
+              suffix: '°',
+              min: 0,
+              max: 90,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(repeatUntilAltitude: value),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CenterProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final CenterNode node;
+
+  const _CenterProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Centering Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Accuracy',
+          child: _NumberInput(
+            colors: colors,
+            value: node.accuracyArcsec,
+            suffix: '"',
+            min: 0.1,
+            max: 60,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(accuracyArcsec: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Max Attempts',
+          child: _NumberInput(
+            colors: colors,
+            value: node.maxAttempts.toDouble(),
+            min: 1,
+            max: 20,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(maxAttempts: value.toInt()),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AutofocusProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final AutofocusNode node;
+
+  const _AutofocusProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Autofocus Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Method',
+          child: _Dropdown<AutofocusMethod>(
+            colors: colors,
+            value: node.method,
+            items: AutofocusMethod.values,
+            labelBuilder: (m) {
+              switch (m) {
+                case AutofocusMethod.vCurve: return 'V-Curve';
+                case AutofocusMethod.hyperbolic: return 'Hyperbolic';
+                case AutofocusMethod.parabolic: return 'Parabolic';
+              }
+            },
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(method: value),
+              );
+            },
+          ),
+        ),
+
+        Row(
+          children: [
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Step Size',
+                child: _NumberInput(
+                  colors: colors,
+                  value: node.stepSize.toDouble(),
+                  min: 1,
+                  max: 1000,
+                  onChanged: (value) {
+                    final stepSize = value.toInt();
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(stepSize: stepSize),
+                    );
+                    // Save as default for future nodes
+                    ref.read(sequencerDefaultsProvider.notifier).updateAutofocusDefaults(
+                      stepSize: stepSize,
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Steps Out',
+                child: _NumberInput(
+                  colors: colors,
+                  value: node.stepsOut.toDouble(),
+                  min: 3,
+                  max: 15,
+                  onChanged: (value) {
+                    final stepsOut = value.toInt();
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(stepsOut: stepsOut),
+                    );
+                    // Save as default for future nodes
+                    ref.read(sequencerDefaultsProvider.notifier).updateAutofocusDefaults(
+                      stepsOut: stepsOut,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Exposure Duration',
+          child: _NumberInput(
+            colors: colors,
+            value: node.exposureDuration,
+            suffix: 's',
+            min: 0.5,
+            max: 30,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(exposureDuration: value),
+              );
+              // Save as default for future nodes
+              ref.read(sequencerDefaultsProvider.notifier).updateAutofocusDefaults(
+                exposureDuration: value,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CoolCameraProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final CoolCameraNode node;
+
+  const _CoolCameraProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cooling Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Target Temperature',
+          child: _NumberInput(
+            colors: colors,
+            value: node.targetTemp,
+            suffix: '°C',
+            min: -50,
+            max: 30,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(targetTemp: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Max Duration',
+          child: _NumberInput(
+            colors: colors,
+            value: node.durationMins ?? 10,
+            suffix: 'min',
+            min: 1,
+            max: 60,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(durationMins: value),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FilterChangeProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final FilterChangeNode node;
+
+  const _FilterChangeProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Filter Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Filter Name',
+          child: _TextInput(
+            colors: colors,
+            value: node.filterName,
+            hint: 'e.g., L, R, G, B, Ha',
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(filterName: value),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DelayProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final DelayNode node;
+
+  const _DelayProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Delay Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Duration',
+          child: _NumberInput(
+            colors: colors,
+            value: node.seconds,
+            suffix: 's',
+            min: 0.1,
+            max: 3600,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(seconds: value),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DitherProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final DitherNode node;
+
+  const _DitherProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Dither Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Dither Amount',
+          child: _NumberInput(
+            colors: colors,
+            value: node.pixels,
+            suffix: 'px',
+            min: 1,
+            max: 50,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(pixels: value),
+              );
+              // Save as default for future nodes
+              ref.read(sequencerDefaultsProvider.notifier).updateDitherDefaults(
+                pixels: value,
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Settle Time',
+          child: _NumberInput(
+            colors: colors,
+            value: node.settleTime,
+            suffix: 's',
+            min: 5,
+            max: 120,
+            decimals: 0,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(settleTime: value),
+              );
+              // Save as default for future nodes
+              ref.read(sequencerDefaultsProvider.notifier).updateDitherDefaults(
+                settleTime: value,
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Settle Threshold',
+          child: _NumberInput(
+            colors: colors,
+            value: node.settlePixels,
+            suffix: 'px',
+            min: 0.1,
+            max: 5,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(settlePixels: value),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WarmCameraProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final WarmCameraNode node;
+
+  const _WarmCameraProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Warming Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Warming Rate',
+          child: _NumberInput(
+            colors: colors,
+            value: node.ratePerMin,
+            suffix: '°C/min',
+            min: 0.5,
+            max: 10,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(ratePerMin: value),
+              );
+            },
+          ),
+        ),
+
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.warning.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(LucideIcons.alertTriangle, size: 14, color: colors.warning),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Gradual warming prevents thermal shock to the sensor',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RotatorProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final RotatorNode node;
+
+  const _RotatorProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Rotator Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Target Angle',
+          child: _NumberInput(
+            colors: colors,
+            value: node.targetAngle,
+            suffix: '°',
+            min: 0,
+            max: 360,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(targetAngle: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Relative Movement',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: node.relative,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(relative: value),
+              );
+            },
+          ),
+        ),
+
+        Text(
+          node.relative 
+              ? 'Rotates relative to current position' 
+              : 'Moves to absolute position angle',
+          style: TextStyle(
+            fontSize: 11,
+            color: colors.textMuted,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SlewProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final SlewNode node;
+
+  const _SlewProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Slew Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Use Target Coordinates',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: node.useTargetCoords,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(useTargetCoords: value),
+              );
+            },
+          ),
+        ),
+
+        if (!node.useTargetCoords) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _PropertyField(
+                  colors: colors,
+                  label: 'RA (hours)',
+                  child: _NumberInput(
+                    colors: colors,
+                    value: node.customRa ?? 0,
+                    suffix: 'h',
+                    min: 0,
+                    max: 24,
+                    decimals: 4,
+                    onChanged: (value) {
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(customRa: value),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _PropertyField(
+                  colors: colors,
+                  label: 'Dec (degrees)',
+                  child: _NumberInput(
+                    colors: colors,
+                    value: node.customDec ?? 0,
+                    suffix: '°',
+                    min: -90,
+                    max: 90,
+                    decimals: 4,
+                    onChanged: (value) {
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(customDec: value),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+
+        if (node.useTargetCoords) ...[
+          Builder(
+            builder: (context) {
+              final sequence = ref.watch(currentSequenceProvider);
+              TargetGroupNode? targetGroup;
+              
+              if (sequence != null) {
+                // Try to find parent target group first
+                try {
+                  targetGroup = sequence.nodes.values
+                      .whereType<TargetGroupNode>()
+                      .where((n) => n.childIds.contains(node.id))
+                      .first;
+                } catch (e) {
+                  // No direct parent found
+                }
+                
+                // If no direct parent, use first target group in sequence
+                if (targetGroup == null && sequence.targetGroups.isNotEmpty) {
+                  targetGroup = sequence.targetGroups.first;
+                }
+              }
+              
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: targetGroup != null 
+                      ? colors.success.withValues(alpha: 0.1)
+                      : colors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      targetGroup != null ? LucideIcons.checkCircle : LucideIcons.alertCircle,
+                      size: 14,
+                      color: targetGroup != null ? colors.success : colors.warning,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        targetGroup != null
+                            ? 'Will use target: ${targetGroup.targetName}\nRA: ${targetGroup.raHours.toStringAsFixed(4)}h, Dec: ${targetGroup.decDegrees.toStringAsFixed(4)}°'
+                            : 'No target group found in sequence',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: targetGroup != null ? colors.success : colors.warning,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _WaitTimeProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final WaitTimeNode node;
+
+  const _WaitTimeProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Wait Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Wait For',
+          child: _Dropdown<String>(
+            colors: colors,
+            value: node.waitForTwilight != null ? 'twilight' : 'time',
+            items: const ['time', 'twilight'],
+            labelBuilder: (v) => v == 'time' ? 'Specific Time' : 'Twilight',
+            onChanged: (value) {
+              if (value == 'twilight') {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(waitForTwilight: TwilightType.astronomical, waitUntil: null),
+                );
+              } else {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(waitForTwilight: null),
+                );
+              }
+            },
+          ),
+        ),
+
+        if (node.waitForTwilight != null) ...[
+          _PropertyField(
+            colors: colors,
+            label: 'Twilight Type',
+            child: _Dropdown<TwilightType>(
+              colors: colors,
+              value: node.waitForTwilight!,
+              items: TwilightType.values,
+              labelBuilder: (t) {
+                switch (t) {
+                  case TwilightType.civil: return 'Civil (-6°)';
+                  case TwilightType.nautical: return 'Nautical (-12°)';
+                  case TwilightType.astronomical: return 'Astronomical (-18°)';
+                }
+              },
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(waitForTwilight: value),
+                );
+              },
+            ),
+          ),
+        ],
+
+        if (node.waitForTwilight == null) ...[
+          _PropertyField(
+            colors: colors,
+            label: 'Wait Until',
+            child: GestureDetector(
+              onTap: () async {
+                final time = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.now(),
+                );
+                if (time != null) {
+                  final now = DateTime.now();
+                  var targetDate = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+                  if (targetDate.isBefore(now)) {
+                    targetDate = targetDate.add(const Duration(days: 1));
+                  }
+                  ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(waitUntil: targetDate),
+                  );
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
+                    const SizedBox(width: 8),
+                    Text(
+                      node.waitUntil != null
+                          ? '${node.waitUntil!.hour.toString().padLeft(2, '0')}:${node.waitUntil!.minute.toString().padLeft(2, '0')}'
+                          : 'Select time...',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: node.waitUntil != null ? colors.textPrimary : colors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ConditionalProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final ConditionalNode node;
+
+  const _ConditionalProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Condition Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Condition Type',
+          child: _Dropdown<ConditionalType>(
+            colors: colors,
+            value: node.conditionType,
+            items: ConditionalType.values,
+            labelBuilder: (t) {
+              switch (t) {
+                case ConditionalType.always: return 'Always Execute';
+                case ConditionalType.altitudeAbove: return 'Altitude Above';
+                case ConditionalType.timeAfter: return 'Time After';
+                case ConditionalType.guidingRmsBelow: return 'Guiding RMS Below';
+                case ConditionalType.hfrBelow: return 'HFR Below';
+                case ConditionalType.weatherSafe: return 'Weather is Safe';
+                case ConditionalType.moonSeparationAbove: return 'Moon Separation Above';
+                case ConditionalType.safetyMonitorSafe: return 'Safety Monitor Safe';
+              }
+            },
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(conditionType: value),
+              );
+            },
+          ),
+        ),
+
+        if (node.conditionType == ConditionalType.altitudeAbove ||
+            node.conditionType == ConditionalType.moonSeparationAbove)
+          _PropertyField(
+            colors: colors,
+            label: 'Threshold (degrees)',
+            child: _NumberInput(
+              colors: colors,
+              value: node.thresholdValue ?? 30,
+              suffix: '°',
+              min: 0,
+              max: 90,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(thresholdValue: value),
+                );
+              },
+            ),
+          ),
+
+        if (node.conditionType == ConditionalType.guidingRmsBelow)
+          _PropertyField(
+            colors: colors,
+            label: 'Max RMS (arcsec)',
+            child: _NumberInput(
+              colors: colors,
+              value: node.thresholdValue ?? 1.5,
+              suffix: '"',
+              min: 0.1,
+              max: 10,
+              decimals: 1,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(thresholdValue: value),
+                );
+              },
+            ),
+          ),
+
+        if (node.conditionType == ConditionalType.hfrBelow)
+          _PropertyField(
+            colors: colors,
+            label: 'Max HFR (pixels)',
+            child: _NumberInput(
+              colors: colors,
+              value: node.thresholdValue ?? 3.0,
+              suffix: 'px',
+              min: 0.5,
+              max: 20,
+              decimals: 1,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(thresholdValue: value),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ParallelProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final ParallelNode node;
+
+  const _ParallelProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Parallel Execution',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Required Successes',
+          child: _NumberInput(
+            colors: colors,
+            value: (node.requiredSuccesses ?? 1).toDouble(),
+            min: 1,
+            max: 10,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(requiredSuccesses: value.toInt()),
+              );
+            },
+          ),
+        ),
+
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.info.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(LucideIcons.info, size: 14, color: colors.info),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'All child nodes will execute simultaneously. Node succeeds when required number of children complete.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.info,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RecoveryProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final RecoveryNode node;
+
+  const _RecoveryProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Recovery Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Trigger Type',
+          child: _Dropdown<TriggerType?>(
+            colors: colors,
+            value: node.triggerType,
+            items: const [null, ...TriggerType.values],
+            labelBuilder: (t) {
+              if (t == null) return 'Any Error';
+              switch (t) {
+                case TriggerType.hfrDegraded: return 'HFR Degraded';
+                case TriggerType.meridianFlip: return 'Meridian Flip Needed';
+                case TriggerType.guidingFailed: return 'Guiding Failed';
+                case TriggerType.altitudeLimit: return 'Altitude Limit';
+                case TriggerType.weatherUnsafe: return 'Weather Unsafe';
+                case TriggerType.temperatureShift: return 'Temperature Shift';
+                case TriggerType.filterChange: return 'Filter Change';
+              }
+            },
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(triggerType: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Recovery Action',
+          child: _Dropdown<RecoveryActionType>(
+            colors: colors,
+            value: node.recoveryAction,
+            items: RecoveryActionType.values,
+            labelBuilder: (a) {
+              switch (a) {
+                case RecoveryActionType.continueExecution: return 'Continue';
+                case RecoveryActionType.pause: return 'Pause Sequence';
+                case RecoveryActionType.autofocus: return 'Run Autofocus';
+                case RecoveryActionType.nextTarget: return 'Skip to Next Target';
+                case RecoveryActionType.retry: return 'Retry Operation';
+                case RecoveryActionType.parkAndAbort: return 'Park & Abort';
+                case RecoveryActionType.customBranch: return 'Custom Branch';
+              }
+            },
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(recoveryAction: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Max Retries',
+          child: _NumberInput(
+            colors: colors,
+            value: node.maxRetries.toDouble(),
+            min: 1,
+            max: 10,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(maxRetries: value.toInt()),
+              );
+            },
+          ),
+        ),
+
+        if (node.triggerType == TriggerType.hfrDegraded)
+          _PropertyField(
+            colors: colors,
+            label: 'HFR Threshold',
+            child: _NumberInput(
+              colors: colors,
+              value: node.triggerThreshold ?? 4.0,
+              suffix: 'px',
+              min: 1,
+              max: 20,
+              decimals: 1,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(triggerThreshold: value),
+                );
+              },
+            ),
+          ),
+
+        if (node.triggerType == TriggerType.altitudeLimit)
+          _PropertyField(
+            colors: colors,
+            label: 'Min Altitude',
+            child: _NumberInput(
+              colors: colors,
+              value: node.triggerThreshold ?? 30,
+              suffix: '°',
+              min: 0,
+              max: 90,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(triggerThreshold: value),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _NotificationProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final NotificationNode node;
+
+  const _NotificationProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Notification Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Title',
+          child: _TextInput(
+            colors: colors,
+            value: node.title,
+            hint: 'Notification title',
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(title: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Message',
+          child: _TextInput(
+            colors: colors,
+            value: node.message,
+            hint: 'Notification message',
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(message: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Level',
+          child: _Dropdown<NotificationLevel>(
+            colors: colors,
+            value: node.level,
+            items: NotificationLevel.values,
+            labelBuilder: (l) {
+              switch (l) {
+                case NotificationLevel.info: return 'Info';
+                case NotificationLevel.warning: return 'Warning';
+                case NotificationLevel.error: return 'Error';
+                case NotificationLevel.success: return 'Success';
+              }
+            },
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(level: value),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ScriptProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final ScriptNode node;
+
+  const _ScriptProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Script Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Script Path',
+          child: _TextInput(
+            colors: colors,
+            value: node.scriptPath,
+            hint: 'Path to script file',
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(scriptPath: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Arguments',
+          child: _TextInput(
+            colors: colors,
+            value: node.arguments.join(' '),
+            hint: 'Space-separated arguments',
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(arguments: value.split(' ').where((s) => s.isNotEmpty).toList()),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Timeout',
+          child: _NumberInput(
+            colors: colors,
+            value: (node.timeoutSecs ?? 300).toDouble(),
+            suffix: 's',
+            min: 1,
+            max: 3600,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(timeoutSecs: value.toInt()),
+              );
+            },
+          ),
+        ),
+
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.warning.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(LucideIcons.alertTriangle, size: 14, color: colors.warning),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Scripts run with sequence context variables available as environment variables',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SimpleInstructionInfo extends StatelessWidget {
+  final NightshadeColors colors;
+  final SequenceNode node;
+
+  const _SimpleInstructionInfo({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context) {
+    final String description;
+    final IconData icon;
+
+    if (node is ParkNode) {
+      description = 'Parks the mount at its home position. The mount will not track after parking.';
+      icon = LucideIcons.parkingCircle;
+    } else if (node is UnparkNode) {
+      description = 'Unparks the mount and enables tracking. Required before slewing or imaging.';
+      icon = LucideIcons.unlock;
+    } else {
+      description = 'This instruction has no additional settings.';
+      icon = LucideIcons.settings;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 32, color: colors.primary),
+          const SizedBox(height: 12),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.textSecondary,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MeridianFlipProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final MeridianFlipNode node;
+
+  const _MeridianFlipProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Meridian Flip Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Minutes Past Meridian',
+          child: _NumberInput(
+            colors: colors,
+            value: node.minutesPastMeridian,
+            suffix: 'min',
+            min: 0,
+            max: 60,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(minutesPastMeridian: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Pause Guiding',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: node.pauseGuiding,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(pauseGuiding: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Auto Center After Flip',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: node.autoCenter,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(autoCenter: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Settle Time',
+          child: _NumberInput(
+            colors: colors,
+            value: node.settleTime,
+            suffix: 's',
+            min: 0,
+            max: 120,
+            decimals: 0,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(settleTime: value),
+              );
+            },
+          ),
+        ),
+
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.info.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(LucideIcons.info, size: 14, color: colors.info),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Performs pier flip when target crosses meridian. Pauses guiding, flips, then optionally re-centers.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.info,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DomeProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final SequenceNode node;
+
+  const _DomeProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final String title;
+    final String description;
+    final IconData icon;
+    final bool shutterOnly;
+
+    if (node is OpenDomeNode) {
+      title = 'Open Dome Settings';
+      description = 'Opens the dome shutter to allow imaging. If not using shutter-only mode, will also rotate dome to tracking position.';
+      icon = LucideIcons.doorOpen;
+      shutterOnly = (node as OpenDomeNode).shutterOnly;
+    } else if (node is CloseDomeNode) {
+      title = 'Close Dome Settings';
+      description = 'Closes the dome shutter to protect equipment. Typically used at end of session or when weather becomes unsafe.';
+      icon = LucideIcons.doorClosed;
+      shutterOnly = (node as CloseDomeNode).shutterOnly;
+    } else {
+      title = 'Park Dome Settings';
+      description = 'Parks the dome at its home position. The dome will stop tracking the telescope.';
+      icon = LucideIcons.parkingCircle;
+      shutterOnly = (node as ParkDomeNode).shutterOnly;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Shutter Only',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: shutterOnly,
+            onChanged: (value) {
+              if (node is OpenDomeNode) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  (node as OpenDomeNode).copyWith(shutterOnly: value),
+                );
+              } else if (node is CloseDomeNode) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  (node as CloseDomeNode).copyWith(shutterOnly: value),
+                );
+              } else if (node is ParkDomeNode) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  (node as ParkDomeNode).copyWith(shutterOnly: value),
+                );
+              }
+            },
+          ),
+        ),
+
+        Text(
+          shutterOnly
+              ? 'Only operates the shutter, dome will not rotate'
+              : 'Will operate both shutter and dome rotation',
+          style: TextStyle(
+            fontSize: 11,
+            color: colors.textMuted,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: colors.border),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 32, color: colors.primary),
+              const SizedBox(height: 12),
+              Text(
+                description,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PolarAlignmentProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final PolarAlignmentNode node;
+
+  const _PolarAlignmentProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Polar Alignment Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Hemisphere',
+          child: _Dropdown<bool>(
+            colors: colors,
+            value: node.isNorth,
+            items: const [true, false],
+            labelBuilder: (v) => v ? 'Northern' : 'Southern',
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(isNorth: value),
+              );
+            },
+          ),
+        ),
+
+        Row(
+          children: [
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Exposure Duration',
+                child: _NumberInput(
+                  colors: colors,
+                  value: node.exposureDuration,
+                  suffix: 's',
+                  min: 0.5,
+                  max: 30,
+                  decimals: 1,
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(exposureDuration: value),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Binning',
+                child: _NumberInput(
+                  colors: colors,
+                  value: node.binning.toDouble(),
+                  min: 1,
+                  max: 4,
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(binning: value.toInt()),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Start Altitude',
+          child: _NumberInput(
+            colors: colors,
+            value: node.startAltitude,
+            suffix: '°',
+            min: 20,
+            max: 80,
+            decimals: 0,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(startAltitude: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Rotation Step',
+          child: _NumberInput(
+            colors: colors,
+            value: node.rotationStep,
+            suffix: '°',
+            min: 10,
+            max: 45,
+            decimals: 0,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(rotationStep: value),
+              );
+            },
+          ),
+        ),
+
+        Row(
+          children: [
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Gain',
+                child: _NumberInput(
+                  colors: colors,
+                  value: (node.gain ?? 0).toDouble(),
+                  min: 0,
+                  max: 1000,
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(gain: value.toInt()),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Offset',
+                child: _NumberInput(
+                  colors: colors,
+                  value: (node.offset ?? 0).toDouble(),
+                  min: 0,
+                  max: 1000,
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(offset: value.toInt()),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Start From Current Position',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: node.startFromCurrent,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(startFromCurrent: value),
+              );
+            },
+          ),
+        ),
+
+        _PropertyField(
+          colors: colors,
+          label: 'Manual Slew Mode',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: node.manualSlew,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                node.copyWith(manualSlew: value),
+              );
+            },
+          ),
+        ),
+
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.info.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(LucideIcons.compass, size: 14, color: colors.info),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Three-point polar alignment using plate solving. Calculates polar error and guides adjustments.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.info,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InstructionSetInfo extends StatelessWidget {
+  final NightshadeColors colors;
+  final InstructionSetNode node;
+
+  const _InstructionSetInfo({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          Icon(LucideIcons.listTree, size: 32, color: colors.accent),
+          const SizedBox(height: 12),
+          Text(
+            'Container for sequential instructions. All children execute in order from top to bottom.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${node.childIds.length} children',
+            style: TextStyle(
+              fontSize: 11,
+              color: colors.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

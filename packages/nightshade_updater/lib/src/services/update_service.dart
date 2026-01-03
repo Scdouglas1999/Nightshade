@@ -1,0 +1,340 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:archive/archive.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+
+import '../models/update_manifest.dart';
+import 'update_downloader.dart';
+import 'update_verifier.dart';
+
+/// Main service for managing OTA updates
+class UpdateService {
+  final String _currentVersion;
+  final int _currentBuildNumber;
+  final UpdateDownloader _downloader;
+  final UpdateVerifier _verifier;
+  final http.Client _httpClient;
+
+  String? _updateServerUrl;
+  String _channel = 'stable';
+
+  UpdateService({
+    required String currentVersion,
+    required int currentBuildNumber,
+    UpdateDownloader? downloader,
+    UpdateVerifier? verifier,
+    http.Client? httpClient,
+  })  : _currentVersion = currentVersion,
+        _currentBuildNumber = currentBuildNumber,
+        _downloader = downloader ?? UpdateDownloader(),
+        _verifier = verifier ?? UpdateVerifier(),
+        _httpClient = httpClient ?? http.Client();
+
+  /// Configure the update server URL and channel
+  void configure({required String serverUrl, String channel = 'stable'}) {
+    _updateServerUrl = serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl;
+    _channel = channel;
+  }
+
+  /// Check for available updates
+  Future<UpdateCheckResult> checkForUpdates() async {
+    if (_updateServerUrl == null) {
+      throw UpdateException('Update server URL not configured');
+    }
+
+    try {
+      // Fetch version info from server
+      final versionUrl = '$_updateServerUrl/api/version';
+      final response = await _httpClient.get(Uri.parse(versionUrl));
+
+      if (response.statusCode != 200) {
+        throw UpdateException('Server returned ${response.statusCode}');
+      }
+
+      final versionInfo = VersionInfo.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+
+      // Get the channel info
+      final channelInfo = versionInfo.channels[_channel];
+      if (channelInfo == null) {
+        return UpdateCheckResult(
+          hasUpdate: false,
+          currentVersion: _currentVersion,
+        );
+      }
+
+      // Check if newer version available
+      final latestVersion = channelInfo.version;
+      final manifest = await _fetchManifest(channelInfo.manifestUrl);
+
+      if (manifest.isNewerThan(_currentVersion)) {
+        // Check if we can upgrade from current version
+        if (!manifest.canUpgradeFrom(_currentVersion)) {
+          return UpdateCheckResult(
+            hasUpdate: true,
+            currentVersion: _currentVersion,
+            availableVersion: latestVersion,
+            manifest: manifest,
+            requiresManualUpgrade: true,
+          );
+        }
+
+        return UpdateCheckResult(
+          hasUpdate: true,
+          currentVersion: _currentVersion,
+          availableVersion: latestVersion,
+          manifest: manifest,
+        );
+      }
+
+      return UpdateCheckResult(
+        hasUpdate: false,
+        currentVersion: _currentVersion,
+      );
+    } on SocketException catch (e) {
+      throw UpdateException('Network error: ${e.message}');
+    } on FormatException catch (e) {
+      throw UpdateException('Invalid response format: ${e.message}');
+    }
+  }
+
+  /// Fetch manifest from URL (relative or absolute)
+  Future<UpdateManifest> _fetchManifest(String manifestUrl) async {
+    final url = manifestUrl.startsWith('http')
+        ? manifestUrl
+        : '$_updateServerUrl$manifestUrl';
+
+    final response = await _httpClient.get(Uri.parse(url));
+    if (response.statusCode != 200) {
+      throw UpdateException('Failed to fetch manifest: ${response.statusCode}');
+    }
+
+    return UpdateManifest.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  /// Download and stage an update
+  Future<void> downloadAndStage(
+    UpdateManifest manifest, {
+    DownloadProgressCallback? onProgress,
+  }) async {
+    // Get staging directory
+    final stagingDir = await _getStagingDirectory();
+    final packagePath = path.join(stagingDir.path, 'update.zip');
+
+    // Download the package
+    await _downloader.download(
+      manifest.downloadUrl,
+      packagePath,
+      onProgress: onProgress,
+      expectedSize: manifest.compressedSize,
+    );
+
+    // Verify package integrity
+    // For now we just check the size, signature verification can be added later
+    final packageFile = File(packagePath);
+    final actualSize = await packageFile.length();
+    if (actualSize != manifest.compressedSize) {
+      await packageFile.delete();
+      throw UpdateException(
+        'Package size mismatch: expected ${manifest.compressedSize}, got $actualSize',
+      );
+    }
+
+    // Extract the package
+    final extractDir = Directory(path.join(stagingDir.path, 'extracted'));
+    if (await extractDir.exists()) {
+      await extractDir.delete(recursive: true);
+    }
+    await extractDir.create(recursive: true);
+
+    await _extractZip(packageFile, extractDir);
+
+    // Verify extracted files
+    final verification = await _verifier.verifyDirectory(extractDir, manifest);
+    if (!verification.success) {
+      await extractDir.delete(recursive: true);
+      throw UpdateException('Verification failed: $verification');
+    }
+
+    // Write a marker file indicating staging is complete
+    final markerFile = File(path.join(stagingDir.path, 'ready.json'));
+    await markerFile.writeAsString(jsonEncode({
+      'version': manifest.version,
+      'buildNumber': manifest.buildNumber,
+      'stagedAt': DateTime.now().toIso8601String(),
+      'extractPath': extractDir.path,
+    }));
+  }
+
+  /// Extract ZIP archive to directory
+  Future<void> _extractZip(File zipFile, Directory destination) async {
+    final bytes = await zipFile.readAsBytes();
+    final archive = ZipDecoder().decodeBytes(bytes);
+
+    for (final file in archive) {
+      final filePath = path.join(destination.path, file.name);
+
+      if (file.isFile) {
+        final outFile = File(filePath);
+        await outFile.parent.create(recursive: true);
+        await outFile.writeAsBytes(file.content as List<int>);
+      } else {
+        await Directory(filePath).create(recursive: true);
+      }
+    }
+  }
+
+  /// Get the staging directory for updates
+  Future<Directory> _getStagingDirectory() async {
+    final appData = await getApplicationSupportDirectory();
+    final staging = Directory(path.join(appData.path, 'updates', 'staging'));
+    if (!await staging.exists()) {
+      await staging.create(recursive: true);
+    }
+    return staging;
+  }
+
+  /// Check if there's a staged update ready to apply
+  Future<StagedUpdate?> getStagedUpdate() async {
+    final staging = await _getStagingDirectory();
+    final markerFile = File(path.join(staging.path, 'ready.json'));
+
+    if (!await markerFile.exists()) {
+      return null;
+    }
+
+    try {
+      final content = await markerFile.readAsString();
+      final data = jsonDecode(content) as Map<String, dynamic>;
+
+      return StagedUpdate(
+        version: data['version'] as String,
+        buildNumber: data['buildNumber'] as int,
+        stagedAt: DateTime.parse(data['stagedAt'] as String),
+        extractPath: data['extractPath'] as String,
+      );
+    } catch (e) {
+      // Corrupted marker, clean up
+      await clearStagedUpdate();
+      return null;
+    }
+  }
+
+  /// Clear any staged update
+  Future<void> clearStagedUpdate() async {
+    final staging = await _getStagingDirectory();
+    if (await staging.exists()) {
+      await staging.delete(recursive: true);
+    }
+  }
+
+  /// Apply staged update by launching the external updater
+  ///
+  /// This will launch the updater executable and exit the current process.
+  /// The updater will:
+  /// 1. Wait for this process to exit
+  /// 2. Backup current installation
+  /// 3. Copy staged files to installation directory
+  /// 4. Launch the new version
+  Future<void> applyUpdate() async {
+    final staged = await getStagedUpdate();
+    if (staged == null) {
+      throw UpdateException('No staged update available');
+    }
+
+    // Get paths
+    final installDir = await _getInstallDirectory();
+    final updaterPath = path.join(installDir.path, 'updater.exe');
+    final backupDir = await _getBackupDirectory();
+
+    // Verify updater exists
+    if (!await File(updaterPath).exists()) {
+      throw UpdateException('Updater executable not found');
+    }
+
+    // Launch updater with arguments
+    final args = [
+      '--parent-pid', pid.toString(),
+      '--staging-dir', staged.extractPath,
+      '--install-dir', installDir.path,
+      '--backup-dir', backupDir.path,
+      '--launch-after',
+    ];
+
+    await Process.start(updaterPath, args, mode: ProcessStartMode.detached);
+
+    // Exit this process so updater can proceed
+    exit(0);
+  }
+
+  /// Get the installation directory
+  Future<Directory> _getInstallDirectory() async {
+    // On Windows, this is the directory containing the executable
+    final execPath = Platform.resolvedExecutable;
+    return Directory(path.dirname(execPath));
+  }
+
+  /// Get the backup directory
+  Future<Directory> _getBackupDirectory() async {
+    final appData = await getApplicationSupportDirectory();
+    final backup = Directory(path.join(appData.path, 'updates', 'backup'));
+    if (!await backup.exists()) {
+      await backup.create(recursive: true);
+    }
+    return backup;
+  }
+
+  /// Dispose resources
+  void dispose() {
+    _downloader.dispose();
+    _httpClient.close();
+  }
+}
+
+/// Result of checking for updates
+class UpdateCheckResult {
+  final bool hasUpdate;
+  final String currentVersion;
+  final String? availableVersion;
+  final UpdateManifest? manifest;
+  final bool requiresManualUpgrade;
+
+  UpdateCheckResult({
+    required this.hasUpdate,
+    required this.currentVersion,
+    this.availableVersion,
+    this.manifest,
+    this.requiresManualUpgrade = false,
+  });
+}
+
+/// Information about a staged update
+class StagedUpdate {
+  final String version;
+  final int buildNumber;
+  final DateTime stagedAt;
+  final String extractPath;
+
+  StagedUpdate({
+    required this.version,
+    required this.buildNumber,
+    required this.stagedAt,
+    required this.extractPath,
+  });
+}
+
+/// Exception thrown by update operations
+class UpdateException implements Exception {
+  final String message;
+
+  UpdateException(this.message);
+
+  @override
+  String toString() => 'UpdateException: $message';
+}

@@ -1,0 +1,53 @@
+name: nightshade_core
+description: Nightshade 2.0 Core - Shared business logic and data models
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.4.9
+  riverpod_annotation: ^2.3.3
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.8.1
+  equatable: ^2.0.5
+  uuid: ^4.3.3
+  http: ^1.1.2
+  file_selector: ^1.0.3
+  web_socket_channel: ^2.4.0
+  csv: ^6.0.0
+
+  # Database
+  drift: ^2.15.0
+  sqlite3_flutter_libs: ^0.5.18
+  path_provider: ^2.1.2
+  path: ^1.8.3
+  
+  # Native bridge
+  nightshade_bridge:
+    path: ../nightshade_bridge
+  
+  # Planetarium (for catalog access)
+  nightshade_planetarium:
+    path: ../nightshade_planetarium
+
+dev_dependencies:
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.8
+  freezed: ^2.4.6
+  json_serializable: ^6.7.1
+  drift_dev: ^2.15.0
+  riverpod_generator: ^2.3.9
+  flutter_test:
+    sdk: flutter
+  mocktail: ^1.0.0
+  mockito: ^5.4.4
+
+# Workaround for build_runner "Cannot recurse at later or equal phase" bug
+# See: https://github.com/dart-lang/build/issues/3822
+dependency_overrides:
+  build_resolvers: 2.4.2

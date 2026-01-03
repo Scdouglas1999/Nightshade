@@ -1,6 +1,71 @@
-# Prerequisites
-*.d
+# =============================================================================
+# Nightshade 2.0 .gitignore
+# =============================================================================
 
+# =============================================================================
+# AI/Agent Tools
+# =============================================================================
+.agent/
+.claude/
+.cursor/
+.aider*
+.continue/
+
+# =============================================================================
+# IDE and Editors
+# =============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# =============================================================================
+# Dart/Flutter
+# =============================================================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+
+# Generated code markers (keep generated files, ignore markers)
+*.g.dart.info
+*.freezed.dart.info
+
+# Flutter specific
+**/android/.gradle/
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.*
+**/ios/Flutter/.last_build_id
+**/ios/.generated/
+**/ios/Flutter/App.framework/
+**/ios/Flutter/Flutter.framework/
+**/ios/Flutter/Flutter.podspec
+**/ios/Pods/
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# =============================================================================
+# Rust
+# =============================================================================
+**/target/
+**/*.rs.bk
+Cargo.lock
+
+# But keep Cargo.lock for apps (not libraries) - uncomment if needed:
+# !apps/**/Cargo.lock
+
+# =============================================================================
+# Native/Compiled Binaries
+# =============================================================================
 # Compiled Object files
 *.slo
 *.lo
@@ -11,22 +76,128 @@
 *.gch
 *.pch
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
+# Compiled Dynamic libraries (at root and build folders)
+/*.dll
+/*.so
+/*.dylib
 
 # Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
+/*.lai
+/*.la
+/*.a
+/*.lib
+
+# BUT track lib/ directory for required dependencies (LibRaw, etc.)
+!lib/
+!lib/**
 
 # Executables
 *.exe
 *.out
 *.app
+
+# Fortran module files
+*.mod
+*.smod
+
+# =============================================================================
+# Vendor SDKs (large binary dependencies)
+# =============================================================================
+SDKs/
+
+# =============================================================================
+# Logs and Temporary Files
+# =============================================================================
+logs/
+*.log
+*.tmp
+*.temp
+nul
+build_output.txt
+temp_*.txt
+
+# =============================================================================
+# Development/Debug Scripts (root level)
+# =============================================================================
+# Temporary PowerShell scripts
+check_*.ps1
+find_*.ps1
+verify_*.ps1
+test_*.ps1
+
+# Temporary fix scripts
+fix_*.sh
+fix_*.py
+
+# Temporary Dart test scripts (root level only)
+/test_*.dart
+/inspect_*.dart
+
+# =============================================================================
+# Documentation (AI-generated implementation notes - not core docs)
+# =============================================================================
+# Keep these out of version control - they're development notes
+*_IMPLEMENTATION.md
+*_IMPLEMENTATION_SUMMARY.md
+*_README.md
+NOT_IMPLEMENTED_FIXES.md
+
+# But DO track the docs/ folder and CLAUDE.md
+!docs/
+!CLAUDE.md
+
+# =============================================================================
+# OS-Specific
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# =============================================================================
+# Workspace Files
+# =============================================================================
+*.code-workspace
+
+# =============================================================================
+# Secrets and Environment
+# =============================================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.yaml
+secrets.json
+
+# =============================================================================
+# Profiles and User Data
+# =============================================================================
+profiles/
+
+# =============================================================================
+# Coverage and Test Reports
+# =============================================================================
+coverage/
+.test_coverage/
+lcov.info
+*.lcov
+
+# =============================================================================
+# Miscellaneous
+# =============================================================================
+*.d
+.melos_tool/

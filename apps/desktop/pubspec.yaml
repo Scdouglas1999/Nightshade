@@ -1,0 +1,94 @@
+name: nightshade_desktop
+description: Nightshade 2.0 Desktop - Cross-platform astrophotography suite
+publish_to: 'none'
+version: 2.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Shared packages
+  nightshade_core:
+    path: ../../packages/nightshade_core
+  nightshade_ui:
+    path: ../../packages/nightshade_ui
+  nightshade_planetarium:
+    path: ../../packages/nightshade_planetarium
+  nightshade_bridge:
+    path: ../../packages/nightshade_bridge
+  nightshade_plugins:
+    path: ../../packages/nightshade_plugins
+  nightshade_webrtc:
+    path: ../../packages/nightshade_webrtc
+  nightshade_app:
+    path: ../../packages/nightshade_app
+  nightshade_updater:
+    path: ../../packages/nightshade_updater
+
+  # State management
+  flutter_riverpod: ^2.4.9
+  riverpod_annotation: ^2.3.3
+
+  # Navigation
+  go_router: ^14.0.0
+
+  # Database
+  drift: ^2.15.0
+  sqlite3_flutter_libs: ^0.5.18
+
+  # Utilities
+  flutter_hooks: ^0.20.5
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.8.1
+  path_provider: ^2.1.2
+  path: ^1.8.3
+  intl: ^0.19.0
+  collection: ^1.18.0
+  equatable: ^2.0.5
+  uuid: ^4.3.3
+
+  # Window management (desktop)
+  window_manager: ^0.3.8
+  
+  # File selection
+  file_selector: ^1.0.3
+  
+  # Icons
+  lucide_icons: ^0.257.0
+  
+  # URL launcher
+  url_launcher: ^6.2.4
+  
+  # Image processing
+  image: ^4.1.7
+
+  # QR code generation
+  qr_flutter: ^4.1.0
+  shelf: ^1.4.2
+  shelf_router: ^1.1.4
+  shelf_web_socket: ^3.0.0
+
+  # mDNS service registration
+  multicast_dns: ^0.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.8
+  riverpod_generator: ^2.3.9
+  freezed: ^2.4.6
+  json_serializable: ^6.7.1
+  drift_dev: ^2.15.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/catalogs/
+

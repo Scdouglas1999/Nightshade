@@ -1,0 +1,140 @@
+/// Utility class for parsing astronomical coordinates in various formats
+class CoordinateParser {
+  /// Parse RA string to hours (decimal)
+  /// Supports formats:
+  /// - HH:MM:SS.ss or HH:MM:SS
+  /// - HHhMMmSSs or HH MM SS
+  /// - Decimal hours (e.g., 12.5)
+  /// - Decimal degrees if value > 24 (heuristic) or explicitly suffixed (deg, d, °)
+  ///
+  /// Returns null if parsing fails or value is out of range.
+  static double? parseRa(String input) {
+    if (input.trim().isEmpty) return null;
+
+    final trimmed = input.trim();
+    final lower = trimmed.toLowerCase();
+
+    // Explicit degrees suffix (common copy/paste format)
+    if (lower.endsWith('deg') || lower.endsWith('°') || lower.endsWith('d')) {
+      var degText = lower;
+      if (degText.endsWith('deg')) {
+        degText = degText.substring(0, degText.length - 3).trim();
+      } else {
+        // remove trailing '°' or 'd'
+        degText = degText.substring(0, degText.length - 1).trim();
+      }
+      final deg = double.tryParse(degText);
+      if (deg != null && deg >= 0 && deg <= 360) {
+        return (deg % 360) / 15.0;
+      }
+      return null;
+    }
+
+    // Try decimal format first
+    final decimal = double.tryParse(trimmed);
+    if (decimal != null) {
+      if (decimal >= 0 && decimal < 24) {
+        return decimal;
+      }
+      // Heuristic: if value looks like degrees, convert to hours.
+      if (decimal > 24 && decimal <= 360) {
+        return (decimal % 360) / 15.0;
+      }
+      return null;
+    }
+
+    // Remove common separators and letters
+    final cleaned = trimmed
+        .replaceAll('h', ':')
+        .replaceAll('m', ':')
+        .replaceAll('s', '')
+        .replaceAll(' ', ':')
+        .replaceAll(RegExp(r':+'), ':'); // Replace multiple colons with single
+
+    final parts = cleaned.split(':');
+    if (parts.isEmpty || parts.length > 3) return null;
+
+    try {
+      final hours = int.parse(parts[0]);
+      final minutes = parts.length > 1 ? int.parse(parts[1]) : 0;
+      final seconds = parts.length > 2 ? double.parse(parts[2]) : 0.0;
+
+      if (hours < 0 || hours >= 24) return null;
+      if (minutes < 0 || minutes >= 60) return null;
+      if (seconds < 0 || seconds >= 60) return null;
+
+      return hours + minutes / 60.0 + seconds / 3600.0;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Parse Dec string to degrees (decimal)
+  /// Supports formats:
+  /// - +DD:MM:SS.ss or -DD:MM:SS.ss
+  /// - DD°MM'SS" or DD MM SS
+  /// - Decimal degrees (e.g., +45.5 or -12.75)
+  ///
+  /// Returns null if parsing fails or value is out of range [-90, 90]
+  static double? parseDec(String input) {
+    if (input.trim().isEmpty) return null;
+
+    final trimmed = input.trim();
+
+    // Try decimal format first
+    final decimal = double.tryParse(trimmed);
+    if (decimal != null) {
+      if (decimal >= -90 && decimal <= 90) {
+        return decimal;
+      }
+      return null;
+    }
+
+    // Determine sign
+    final isNegative = trimmed.startsWith('-');
+    final cleaned = trimmed
+        .replaceAll('+', '')
+        .replaceAll('-', '')
+        .replaceAll('°', ':')
+        .replaceAll('\'', ':')
+        .replaceAll('"', '')
+        .replaceAll(' ', ':')
+        .replaceAll(RegExp(r':+'), ':'); // Replace multiple colons with single
+
+    final parts = cleaned.split(':');
+    if (parts.isEmpty || parts.length > 3) return null;
+
+    try {
+      final degrees = int.parse(parts[0]);
+      final minutes = parts.length > 1 ? int.parse(parts[1]) : 0;
+      final seconds = parts.length > 2 ? double.parse(parts[2]) : 0.0;
+
+      if (degrees < 0 || degrees > 90) return null;
+      if (minutes < 0 || minutes >= 60) return null;
+      if (seconds < 0 || seconds >= 60) return null;
+
+      final result = degrees + minutes / 60.0 + seconds / 3600.0;
+      return isNegative ? -result : result;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Format RA from decimal hours to HMS string (HH:MM:SS.ss)
+  static String formatRaHms(double raHours) {
+    final hours = raHours.floor();
+    final minutes = ((raHours - hours) * 60).floor();
+    final seconds = ((raHours - hours - minutes / 60) * 3600);
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toStringAsFixed(2).padLeft(5, '0')}';
+  }
+
+  /// Format Dec from decimal degrees to DMS string (+DD:MM:SS.ss)
+  static String formatDecDms(double decDegrees) {
+    final sign = decDegrees < 0 ? '-' : '+';
+    final absDec = decDegrees.abs();
+    final degrees = absDec.floor();
+    final minutes = ((absDec - degrees) * 60).floor();
+    final seconds = ((absDec - degrees - minutes / 60) * 3600);
+    return '$sign${degrees.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toStringAsFixed(2).padLeft(5, '0')}';
+  }
+}

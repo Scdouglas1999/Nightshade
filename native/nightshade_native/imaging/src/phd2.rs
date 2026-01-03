@@ -1,0 +1,1104 @@
+//! Real PHD2 Guiding Integration
+//!
+//! Implements the PHD2 server protocol for communication with PHD2.
+//! PHD2 uses a JSON-RPC style protocol over TCP on port 4400.
+//!
+//! Reference: https://github.com/OpenPHDGuiding/phd2/wiki/EventMonitoring
+
+use serde::{Deserialize, Serialize};
+use std::io::{BufRead, BufReader, Write};
+use std::net::TcpStream;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+/// PHD2 connection state
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Phd2State {
+    /// Not connected to PHD2
+    Disconnected,
+    /// Connected but not guiding
+    Connected,
+    /// Calibrating
+    Calibrating,
+    /// Guiding
+    Guiding,
+    /// Looping (exposures without guiding)
+    Looping,
+    /// Paused
+    Paused,
+    /// Settling after dither
+    Settling,
+    /// Lost lock on guide star
+    LostLock,
+}
+
+/// PHD2 guide statistics
+#[derive(Debug, Clone, Default)]
+pub struct GuideStats {
+    /// RMS error in RA (arcseconds)
+    pub rms_ra: f64,
+    /// RMS error in Dec (arcseconds)
+    pub rms_dec: f64,
+    /// Total RMS error (arcseconds)
+    pub rms_total: f64,
+    /// Peak RA error (arcseconds)
+    pub peak_ra: f64,
+    /// Peak Dec error (arcseconds)
+    pub peak_dec: f64,
+    /// Number of guide frames
+    pub frame_count: u32,
+    /// SNR of guide star
+    pub snr: f64,
+    /// Guide star mass (brightness)
+    pub star_mass: f64,
+}
+
+/// Star image data from PHD2
+#[derive(Debug, Clone)]
+pub struct StarImageData {
+    /// Frame number
+    pub frame: u32,
+    /// Image width in pixels
+    pub width: u32,
+    /// Image height in pixels
+    pub height: u32,
+    /// Star centroid X position within the subframe
+    pub star_x: f64,
+    /// Star centroid Y position within the subframe
+    pub star_y: f64,
+    /// Raw pixel data (16-bit grayscale, row-major)
+    pub pixels: Vec<u8>,
+}
+
+/// PHD2 Brain algorithm parameter
+#[derive(Debug, Clone)]
+pub struct AlgoParam {
+    /// Parameter name
+    pub name: String,
+    /// Parameter value
+    pub value: f64,
+}
+
+/// Rolling statistics calculator for guide frames
+/// Uses Welford's online algorithm for numerically stable variance calculation
+#[derive(Debug, Clone)]
+pub struct RollingGuideStats {
+    /// Maximum number of samples to keep
+    max_samples: usize,
+    /// Recent RA errors
+    ra_samples: Vec<f64>,
+    /// Recent Dec errors
+    dec_samples: Vec<f64>,
+    /// Recent SNR values
+    snr_samples: Vec<f64>,
+    /// Running count of all frames
+    total_frame_count: u32,
+    /// Peak RA error seen
+    peak_ra: f64,
+    /// Peak Dec error seen
+    peak_dec: f64,
+    /// Last calculated stats
+    cached_stats: GuideStats,
+    /// Whether cache is valid
+    cache_valid: bool,
+}
+
+impl Default for RollingGuideStats {
+    fn default() -> Self {
+        Self::new(100) // Default to 100 sample window
+    }
+}
+
+impl RollingGuideStats {
+    /// Create a new rolling stats calculator with specified window size
+    pub fn new(max_samples: usize) -> Self {
+        Self {
+            max_samples,
+            ra_samples: Vec::with_capacity(max_samples),
+            dec_samples: Vec::with_capacity(max_samples),
+            snr_samples: Vec::with_capacity(max_samples),
+            total_frame_count: 0,
+            peak_ra: 0.0,
+            peak_dec: 0.0,
+            cached_stats: GuideStats::default(),
+            cache_valid: false,
+        }
+    }
+
+    /// Add a new guide frame to the rolling statistics
+    pub fn add_frame(&mut self, frame: &GuideFrame) {
+        self.total_frame_count += 1;
+        self.cache_valid = false;
+
+        // Add samples, removing oldest if at capacity
+        if self.ra_samples.len() >= self.max_samples {
+            self.ra_samples.remove(0);
+            self.dec_samples.remove(0);
+            self.snr_samples.remove(0);
+        }
+
+        self.ra_samples.push(frame.ra_distance);
+        self.dec_samples.push(frame.dec_distance);
+        self.snr_samples.push(frame.snr);
+
+        // Track peak errors
+        let ra_abs = frame.ra_distance.abs();
+        let dec_abs = frame.dec_distance.abs();
+        if ra_abs > self.peak_ra {
+            self.peak_ra = ra_abs;
+        }
+        if dec_abs > self.peak_dec {
+            self.peak_dec = dec_abs;
+        }
+    }
+
+    /// Calculate current statistics
+    pub fn get_stats(&mut self) -> GuideStats {
+        if self.cache_valid {
+            return self.cached_stats.clone();
+        }
+
+        let n = self.ra_samples.len();
+        if n == 0 {
+            return GuideStats::default();
+        }
+
+        // Calculate RMS for RA
+        let ra_sum_sq: f64 = self.ra_samples.iter().map(|x| x * x).sum();
+        let rms_ra = (ra_sum_sq / n as f64).sqrt();
+
+        // Calculate RMS for Dec
+        let dec_sum_sq: f64 = self.dec_samples.iter().map(|x| x * x).sum();
+        let rms_dec = (dec_sum_sq / n as f64).sqrt();
+
+        // Total RMS (pythagorean)
+        let rms_total = (rms_ra * rms_ra + rms_dec * rms_dec).sqrt();
+
+        // Average SNR
+        let snr = self.snr_samples.iter().sum::<f64>() / n as f64;
+
+        self.cached_stats = GuideStats {
+            rms_ra,
+            rms_dec,
+            rms_total,
+            peak_ra: self.peak_ra,
+            peak_dec: self.peak_dec,
+            frame_count: self.total_frame_count,
+            snr,
+            star_mass: 0.0, // Not tracked in guide frames
+        };
+        self.cache_valid = true;
+
+        self.cached_stats.clone()
+    }
+
+    /// Reset all statistics
+    pub fn reset(&mut self) {
+        self.ra_samples.clear();
+        self.dec_samples.clear();
+        self.snr_samples.clear();
+        self.total_frame_count = 0;
+        self.peak_ra = 0.0;
+        self.peak_dec = 0.0;
+        self.cache_valid = false;
+    }
+
+    /// Get the number of samples in the rolling window
+    pub fn sample_count(&self) -> usize {
+        self.ra_samples.len()
+    }
+}
+
+/// Connection configuration for auto-reconnect
+#[derive(Debug, Clone)]
+pub struct Phd2ConnectionConfig {
+    /// Maximum number of reconnection attempts
+    pub max_reconnect_attempts: u32,
+    /// Initial delay between reconnection attempts (ms)
+    pub initial_reconnect_delay_ms: u64,
+    /// Maximum delay between reconnection attempts (ms)
+    pub max_reconnect_delay_ms: u64,
+    /// Whether to auto-reconnect on disconnect
+    pub auto_reconnect: bool,
+}
+
+impl Default for Phd2ConnectionConfig {
+    fn default() -> Self {
+        Self {
+            max_reconnect_attempts: 5,
+            initial_reconnect_delay_ms: 1000,
+            max_reconnect_delay_ms: 30000,
+            auto_reconnect: true,
+        }
+    }
+}
+
+/// PHD2 guide frame data
+#[derive(Debug, Clone)]
+pub struct GuideFrame {
+    /// Frame number
+    pub frame: u32,
+    /// Timestamp
+    pub timestamp: f64,
+    /// RA offset in arcseconds
+    pub ra_distance: f64,
+    /// Dec offset in arcseconds
+    pub dec_distance: f64,
+    /// RA guide pulse duration (ms)
+    pub ra_duration: i32,
+    /// Dec guide pulse duration (ms)
+    pub dec_duration: i32,
+    /// RA guide direction ("East" or "West")
+    pub ra_direction: String,
+    /// Dec guide direction ("North" or "South")
+    pub dec_direction: String,
+    /// Guide star SNR
+    pub snr: f64,
+    /// Star position X
+    pub star_x: f64,
+    /// Star position Y
+    pub star_y: f64,
+    /// Average distance (RMS)
+    pub avg_dist: f64,
+}
+
+/// Events from PHD2
+#[derive(Debug, Clone)]
+pub enum Phd2Event {
+    /// State changed
+    StateChanged(Phd2State),
+    /// New guide frame
+    GuideStep(GuideFrame),
+    /// Settling started
+    SettleBegin,
+    /// Settling complete
+    SettleDone { total_frames: u32, dropped_frames: u32 },
+    /// Star lost
+    StarLost,
+    /// Star selected
+    StarSelected { x: f64, y: f64 },
+    /// Calibration complete
+    CalibrationComplete,
+    /// Alert from PHD2
+    Alert { message: String, alert_type: String },
+    /// Connection lost
+    Disconnected,
+    /// Error occurred
+    Error(String),
+}
+
+/// PHD2 JSON-RPC messages
+#[derive(Serialize)]
+struct JsonRpcRequest {
+    method: String,
+    params: Option<serde_json::Value>,
+    id: u32,
+}
+
+#[derive(Deserialize, Debug)]
+struct JsonRpcResponse {
+    result: Option<serde_json::Value>,
+    error: Option<JsonRpcError>,
+    id: Option<u32>,
+}
+
+#[derive(Deserialize, Debug)]
+struct JsonRpcError {
+    #[allow(dead_code)]
+    code: i32,
+    message: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[allow(dead_code)]
+struct Phd2EventMessage {
+    #[serde(rename = "Event")]
+    event: String,
+    #[serde(rename = "Timestamp")]
+    timestamp: Option<f64>,
+    #[serde(rename = "Host")]
+    host: Option<String>,
+    #[serde(rename = "Inst")]
+    inst: Option<u32>,
+    // Event-specific fields stored in remaining
+    #[serde(flatten)]
+    extra: serde_json::Value,
+}
+
+/// PHD2 client for real guiding control
+pub struct Phd2Client {
+    stream: Option<TcpStream>,
+    host: String,
+    port: u16,
+    request_id: u32,
+    running: Arc<AtomicBool>,
+    event_callback: Option<Arc<Mutex<dyn Fn(Phd2Event) + Send>>>,
+    /// Rolling guide statistics
+    rolling_stats: Arc<Mutex<RollingGuideStats>>,
+    /// Connection configuration
+    config: Phd2ConnectionConfig,
+    /// Current connection state
+    state: Arc<Mutex<Phd2State>>,
+    /// Number of reconnection attempts
+    reconnect_attempts: Arc<std::sync::atomic::AtomicU32>,
+}
+
+impl Phd2Client {
+    /// Create a new PHD2 client
+    pub fn new(host: &str, port: u16) -> Self {
+        Self {
+            stream: None,
+            host: host.to_string(),
+            port,
+            request_id: 0,
+            running: Arc::new(AtomicBool::new(false)),
+            event_callback: None,
+            rolling_stats: Arc::new(Mutex::new(RollingGuideStats::default())),
+            config: Phd2ConnectionConfig::default(),
+            state: Arc::new(Mutex::new(Phd2State::Disconnected)),
+            reconnect_attempts: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        }
+    }
+
+    /// Create a new PHD2 client with custom configuration
+    pub fn with_config(host: &str, port: u16, config: Phd2ConnectionConfig) -> Self {
+        Self {
+            stream: None,
+            host: host.to_string(),
+            port,
+            request_id: 0,
+            running: Arc::new(AtomicBool::new(false)),
+            event_callback: None,
+            rolling_stats: Arc::new(Mutex::new(RollingGuideStats::default())),
+            config,
+            state: Arc::new(Mutex::new(Phd2State::Disconnected)),
+            reconnect_attempts: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        }
+    }
+
+    /// Connect to PHD2 on localhost with default port
+    pub fn localhost() -> Self {
+        Self::new("127.0.0.1", 4400)
+    }
+
+    /// Get rolling guide statistics
+    pub fn get_rolling_stats(&self) -> GuideStats {
+        self.rolling_stats.lock().map(|mut s| s.get_stats()).unwrap_or_default()
+    }
+
+    /// Reset rolling guide statistics
+    pub fn reset_stats(&self) {
+        if let Ok(mut stats) = self.rolling_stats.lock() {
+            stats.reset();
+        }
+    }
+
+    /// Get current connection state
+    pub fn get_state(&self) -> Phd2State {
+        self.state.lock().map(|s| s.clone()).unwrap_or(Phd2State::Disconnected)
+    }
+
+    /// Set event callback
+    pub fn set_event_callback<F>(&mut self, callback: F)
+    where
+        F: Fn(Phd2Event) + Send + 'static,
+    {
+        self.event_callback = Some(Arc::new(Mutex::new(callback)));
+    }
+
+    /// Attempt to reconnect with exponential backoff
+    pub fn reconnect(&mut self) -> Result<(), String> {
+        if !self.config.auto_reconnect {
+            return Err("Auto-reconnect is disabled".to_string());
+        }
+
+        let max_attempts = self.config.max_reconnect_attempts;
+        let mut delay = self.config.initial_reconnect_delay_ms;
+
+        for attempt in 1..=max_attempts {
+            self.reconnect_attempts.store(attempt, std::sync::atomic::Ordering::SeqCst);
+            tracing::info!("PHD2 reconnection attempt {}/{}", attempt, max_attempts);
+
+            match self.connect() {
+                Ok(()) => {
+                    self.reconnect_attempts.store(0, std::sync::atomic::Ordering::SeqCst);
+                    tracing::info!("PHD2 reconnection successful");
+                    return Ok(());
+                }
+                Err(e) => {
+                    tracing::warn!("PHD2 reconnection failed: {}", e);
+                    if attempt < max_attempts {
+                        std::thread::sleep(Duration::from_millis(delay));
+                        // Exponential backoff with cap
+                        delay = (delay * 2).min(self.config.max_reconnect_delay_ms);
+                    }
+                }
+            }
+        }
+
+        Err(format!("Failed to reconnect after {} attempts", max_attempts))
+    }
+    
+    /// Connect to PHD2
+    pub fn connect(&mut self) -> Result<(), String> {
+        let addr = format!("{}:{}", self.host, self.port);
+        tracing::info!("Connecting to PHD2 at {}", addr);
+
+        let stream = TcpStream::connect_timeout(
+            &addr.parse().map_err(|e| format!("Invalid address: {}", e))?,
+            Duration::from_secs(5),
+        ).map_err(|e| format!("Failed to connect to PHD2: {}", e))?;
+
+        stream.set_read_timeout(Some(Duration::from_millis(100)))
+            .map_err(|e| format!("Failed to set timeout: {}", e))?;
+
+        self.stream = Some(stream);
+        self.running.store(true, Ordering::SeqCst);
+
+        // Update connection state
+        if let Ok(mut state) = self.state.lock() {
+            *state = Phd2State::Connected;
+        }
+
+        // Start event listener thread
+        self.start_event_listener();
+
+        tracing::info!("Connected to PHD2");
+        Ok(())
+    }
+
+    /// Disconnect from PHD2
+    pub fn disconnect(&mut self) {
+        self.running.store(false, Ordering::SeqCst);
+        self.stream = None;
+
+        // Update connection state
+        if let Ok(mut state) = self.state.lock() {
+            *state = Phd2State::Disconnected;
+        }
+
+        tracing::info!("Disconnected from PHD2");
+    }
+
+    /// Check if connected
+    pub fn is_connected(&self) -> bool {
+        self.stream.is_some() && self.running.load(Ordering::SeqCst)
+    }
+
+    /// Start the event listener thread
+    fn start_event_listener(&self) {
+        let stream = match &self.stream {
+            Some(s) => s.try_clone().expect("Failed to clone stream"),
+            None => return,
+        };
+
+        let running = Arc::clone(&self.running);
+        let callback = self.event_callback.clone();
+        let rolling_stats = Arc::clone(&self.rolling_stats);
+        let state = Arc::clone(&self.state);
+
+        thread::spawn(move || {
+            let reader = BufReader::new(stream);
+
+            for line in reader.lines() {
+                if !running.load(Ordering::SeqCst) {
+                    break;
+                }
+
+                match line {
+                    Ok(json) => {
+                        if json.trim().is_empty() {
+                            continue;
+                        }
+
+                        // Parse as event message
+                        if let Ok(event_msg) = serde_json::from_str::<Phd2EventMessage>(&json) {
+                            if let Some(event) = parse_phd2_event(&event_msg) {
+                                // Update rolling stats for guide frames
+                                if let Phd2Event::GuideStep(ref frame) = event {
+                                    if let Ok(mut stats) = rolling_stats.lock() {
+                                        stats.add_frame(frame);
+                                    }
+                                }
+
+                                // Update state for state change events
+                                if let Phd2Event::StateChanged(ref new_state) = event {
+                                    if let Ok(mut s) = state.lock() {
+                                        *s = new_state.clone();
+                                    }
+                                }
+
+                                // Call user callback
+                                if let Some(ref cb) = callback {
+                                    if let Ok(cb) = cb.lock() {
+                                        cb(event);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        if e.kind() != std::io::ErrorKind::WouldBlock
+                            && e.kind() != std::io::ErrorKind::TimedOut
+                        {
+                            tracing::warn!("PHD2 read error: {}", e);
+
+                            // Update state to disconnected
+                            if let Ok(mut s) = state.lock() {
+                                *s = Phd2State::Disconnected;
+                            }
+
+                            if let Some(ref cb) = callback {
+                                if let Ok(cb) = cb.lock() {
+                                    cb(Phd2Event::Disconnected);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    /// Send a JSON-RPC request
+    fn send_request(&mut self, method: &str, params: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
+        let stream = self.stream.as_mut()
+            .ok_or_else(|| "Not connected to PHD2".to_string())?;
+        
+        self.request_id += 1;
+        let request = JsonRpcRequest {
+            method: method.to_string(),
+            params,
+            id: self.request_id,
+        };
+        
+        let json = serde_json::to_string(&request)
+            .map_err(|e| format!("Failed to serialize request: {}", e))?;
+        
+        stream.write_all(json.as_bytes())
+            .map_err(|e| format!("Failed to send request: {}", e))?;
+        stream.write_all(b"\r\n")
+            .map_err(|e| format!("Failed to send newline: {}", e))?;
+        stream.flush()
+            .map_err(|e| format!("Failed to flush: {}", e))?;
+        
+        // Read response (simplified - real impl would handle async)
+        let mut reader = BufReader::new(stream.try_clone().unwrap());
+        let mut response_line = String::new();
+        
+        // Wait for response with timeout
+        stream.set_read_timeout(Some(Duration::from_secs(10)))
+            .map_err(|e| format!("Failed to set timeout: {}", e))?;
+        
+        loop {
+            response_line.clear();
+            match reader.read_line(&mut response_line) {
+                Ok(0) => return Err("Connection closed".to_string()),
+                Ok(_) => {
+                    // Check if this is a response (has "id" field matching our request)
+                    if let Ok(resp) = serde_json::from_str::<JsonRpcResponse>(&response_line) {
+                        if resp.id == Some(self.request_id) {
+                            if let Some(error) = resp.error {
+                                return Err(format!("PHD2 error: {}", error.message));
+                            }
+                            return Ok(resp.result.unwrap_or(serde_json::Value::Null));
+                        }
+                    }
+                    // Otherwise it's an event, keep reading
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => continue,
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    return Err("Request timed out".to_string());
+                }
+                Err(e) => return Err(format!("Read error: {}", e)),
+            }
+        }
+    }
+    
+    // ========================================================================
+    // PHD2 Commands
+    // ========================================================================
+    
+    /// Get PHD2 application state
+    pub fn get_app_state(&mut self) -> Result<Phd2State, String> {
+        let result = self.send_request("get_app_state", None)?;
+        let state_str = result.as_str().unwrap_or("Unknown");
+        
+        Ok(match state_str {
+            "Stopped" => Phd2State::Connected,
+            "Selected" => Phd2State::Connected,
+            "Calibrating" => Phd2State::Calibrating,
+            "Guiding" => Phd2State::Guiding,
+            "Looping" => Phd2State::Looping,
+            "Paused" => Phd2State::Paused,
+            "LostLock" => Phd2State::LostLock,
+            _ => Phd2State::Connected,
+        })
+    }
+    
+    /// Get connected equipment
+    pub fn get_connected(&mut self) -> Result<bool, String> {
+        let result = self.send_request("get_connected", None)?;
+        Ok(result.as_bool().unwrap_or(false))
+    }
+    
+    /// Connect PHD2 to equipment
+    pub fn set_connected(&mut self, connected: bool) -> Result<(), String> {
+        self.send_request("set_connected", Some(serde_json::json!(connected)))?;
+        Ok(())
+    }
+    
+    /// Start guiding
+    pub fn guide(&mut self, settle_pixels: f64, settle_time: f64, settle_timeout: f64) -> Result<(), String> {
+        let params = serde_json::json!({
+            "settle": {
+                "pixels": settle_pixels,
+                "time": settle_time,
+                "timeout": settle_timeout
+            }
+        });
+        self.send_request("guide", Some(params))?;
+        Ok(())
+    }
+    
+    /// Stop guiding
+    pub fn stop_capture(&mut self) -> Result<(), String> {
+        self.send_request("stop_capture", None)?;
+        Ok(())
+    }
+    
+    /// Pause guiding
+    pub fn set_paused(&mut self, paused: bool) -> Result<(), String> {
+        self.send_request("set_paused", Some(serde_json::json!([paused, "full"])))?;
+        Ok(())
+    }
+    
+    /// Dither the guide star
+    pub fn dither(&mut self, amount: f64, ra_only: bool, settle_pixels: f64, settle_time: f64, settle_timeout: f64) -> Result<(), String> {
+        let params = serde_json::json!({
+            "amount": amount,
+            "raOnly": ra_only,
+            "settle": {
+                "pixels": settle_pixels,
+                "time": settle_time,
+                "timeout": settle_timeout
+            }
+        });
+        self.send_request("dither", Some(params))?;
+        Ok(())
+    }
+    
+    /// Set lock position (guide star position)
+    pub fn set_lock_position(&mut self, x: f64, y: f64, exact: bool) -> Result<(), String> {
+        self.send_request("set_lock_position", Some(serde_json::json!([x, y, exact])))?;
+        Ok(())
+    }
+    
+    /// Clear calibration
+    pub fn clear_calibration(&mut self, which: &str) -> Result<(), String> {
+        self.send_request("clear_calibration", Some(serde_json::json!(which)))?;
+        Ok(())
+    }
+    
+    /// Flip calibration (after meridian flip)
+    pub fn flip_calibration(&mut self) -> Result<(), String> {
+        self.send_request("flip_calibration", None)?;
+        Ok(())
+    }
+    
+    /// Get current guide star position
+    pub fn get_lock_position(&mut self) -> Result<(f64, f64), String> {
+        let result = self.send_request("get_lock_position", None)?;
+        let arr = result.as_array()
+            .ok_or_else(|| "Invalid response".to_string())?;
+        
+        let x = arr.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
+        
+        Ok((x, y))
+    }
+    
+    /// Get exposure time
+    pub fn get_exposure(&mut self) -> Result<u32, String> {
+        let result = self.send_request("get_exposure", None)?;
+        Ok(result.as_u64().unwrap_or(0) as u32)
+    }
+    
+    /// Set exposure time (milliseconds)
+    pub fn set_exposure(&mut self, exposure_ms: u32) -> Result<(), String> {
+        self.send_request("set_exposure", Some(serde_json::json!(exposure_ms)))?;
+        Ok(())
+    }
+    
+    /// Get pixel scale (arcsec/pixel)
+    pub fn get_pixel_scale(&mut self) -> Result<f64, String> {
+        let result = self.send_request("get_pixel_scale", None)?;
+        Ok(result.as_f64().unwrap_or(0.0))
+    }
+    
+    /// Get current star image (raw bytes only - deprecated, use get_star_image_data instead)
+    pub fn get_star_image(&mut self) -> Result<Vec<u8>, String> {
+        let data = self.get_star_image_data(32)?;
+        Ok(data.pixels)
+    }
+
+    /// Get current star image with full metadata
+    /// size: requested size of the subframe (minimum 15, default 32)
+    pub fn get_star_image_data(&mut self, size: u32) -> Result<StarImageData, String> {
+        let params = serde_json::json!({ "size": size });
+        let result = self.send_request("get_star_image", Some(params))?;
+
+        // Parse response fields
+        let frame = result.get("frame")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32;
+
+        let width = result.get("width")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32;
+
+        let height = result.get("height")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as u32;
+
+        // star_pos is [x, y] array
+        let star_pos = result.get("star_pos")
+            .and_then(|v| v.as_array());
+        let (star_x, star_y) = match star_pos {
+            Some(arr) => {
+                let x = arr.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
+                (x, y)
+            }
+            None => (0.0, 0.0),
+        };
+
+        // Decode base64 pixel data
+        let pixels_b64 = result.get("pixels")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "No pixel data in response".to_string())?;
+        let pixels = base64_decode(pixels_b64)?;
+
+        Ok(StarImageData {
+            frame,
+            width,
+            height,
+            star_x,
+            star_y,
+            pixels,
+        })
+    }
+    
+    /// Loop exposures (without guiding)
+    pub fn loop_exposures(&mut self) -> Result<(), String> {
+        self.send_request("loop", None)?;
+        Ok(())
+    }
+    
+    /// Find a guide star automatically
+    pub fn find_star(&mut self) -> Result<(f64, f64), String> {
+        let result = self.send_request("find_star", None)?;
+        let arr = result.as_array()
+            .ok_or_else(|| "Invalid response".to_string())?;
+
+        let x = arr.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        Ok((x, y))
+    }
+
+    // ========================================================================
+    // PHD2 Brain API - Algorithm Parameters
+    // ========================================================================
+
+    /// Get available algorithm parameter names for an axis
+    /// axis: "ra" or "dec" (also accepts "x" or "y")
+    pub fn get_algo_param_names(&mut self, axis: &str) -> Result<Vec<String>, String> {
+        let params = serde_json::json!({ "axis": axis });
+        let result = self.send_request("get_algo_param_names", Some(params))?;
+
+        let arr = result.as_array()
+            .ok_or_else(|| "Invalid response: expected array".to_string())?;
+
+        let names: Vec<String> = arr.iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect();
+
+        Ok(names)
+    }
+
+    /// Get the value of an algorithm parameter
+    /// axis: "ra" or "dec" (also accepts "x" or "y")
+    /// name: parameter name (from get_algo_param_names)
+    pub fn get_algo_param(&mut self, axis: &str, name: &str) -> Result<f64, String> {
+        let params = serde_json::json!({
+            "axis": axis,
+            "name": name
+        });
+        let result = self.send_request("get_algo_param", Some(params))?;
+
+        result.as_f64()
+            .ok_or_else(|| format!("Invalid response for parameter {}: expected number", name))
+    }
+
+    /// Set the value of an algorithm parameter
+    /// axis: "ra" or "dec" (also accepts "x" or "y")
+    /// name: parameter name (from get_algo_param_names)
+    /// value: new parameter value
+    pub fn set_algo_param(&mut self, axis: &str, name: &str, value: f64) -> Result<(), String> {
+        let params = serde_json::json!({
+            "axis": axis,
+            "name": name,
+            "value": value
+        });
+        let result = self.send_request("set_algo_param", Some(params))?;
+
+        // Result should be 0 on success
+        let code = result.as_i64().unwrap_or(-1);
+        if code != 0 {
+            return Err(format!("Failed to set parameter {}: error code {}", name, code));
+        }
+
+        Ok(())
+    }
+
+    /// Get all algorithm parameters for an axis
+    pub fn get_all_algo_params(&mut self, axis: &str) -> Result<Vec<AlgoParam>, String> {
+        let names = self.get_algo_param_names(axis)?;
+        let mut params = Vec::with_capacity(names.len());
+
+        for name in names {
+            let value = self.get_algo_param(axis, &name)?;
+            params.push(AlgoParam {
+                name,
+                value,
+            });
+        }
+
+        Ok(params)
+    }
+
+    /// Get the current calibration data
+    pub fn get_calibration_data(&mut self, which: &str) -> Result<serde_json::Value, String> {
+        let params = serde_json::json!({ "which": which });
+        self.send_request("get_calibration_data", Some(params))
+    }
+
+    /// Deselect the current guide star
+    pub fn deselect_star(&mut self) -> Result<(), String> {
+        self.send_request("deselect_star", None)?;
+        Ok(())
+    }
+
+    /// Get current camera frame dimensions
+    pub fn get_camera_frame_size(&mut self) -> Result<(u32, u32), String> {
+        let result = self.send_request("get_camera_frame_size", None)?;
+        let arr = result.as_array()
+            .ok_or_else(|| "Invalid response".to_string())?;
+
+        let width = arr.get(0).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        let height = arr.get(1).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+
+        Ok((width, height))
+    }
+
+    /// Get guide output enabled status
+    pub fn get_guide_output_enabled(&mut self) -> Result<bool, String> {
+        let result = self.send_request("get_guide_output_enabled", None)?;
+        Ok(result.as_bool().unwrap_or(false))
+    }
+
+    /// Set guide output enabled status
+    pub fn set_guide_output_enabled(&mut self, enabled: bool) -> Result<(), String> {
+        self.send_request("set_guide_output_enabled", Some(serde_json::json!(enabled)))?;
+        Ok(())
+    }
+
+    /// Get current profile name
+    pub fn get_profile(&mut self) -> Result<String, String> {
+        let result = self.send_request("get_profile", None)?;
+        let profile = result.get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
+        Ok(profile.to_string())
+    }
+}
+
+impl Drop for Phd2Client {
+    fn drop(&mut self) {
+        self.disconnect();
+    }
+}
+
+/// Parse a PHD2 event message
+fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
+    match msg.event.as_str() {
+        "GuideStep" => {
+            let extra = &msg.extra;
+            Some(Phd2Event::GuideStep(GuideFrame {
+                frame: extra.get("Frame").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                timestamp: msg.timestamp.unwrap_or(0.0),
+                ra_distance: extra.get("RADistanceRaw").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                dec_distance: extra.get("DECDistanceRaw").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                ra_duration: extra.get("RADuration").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+                dec_duration: extra.get("DECDuration").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+                ra_direction: extra.get("RADirection").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                dec_direction: extra.get("DECDirection").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                snr: extra.get("SNR").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                star_x: extra.get("StarX").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                star_y: extra.get("StarY").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                avg_dist: extra.get("AvgDist").and_then(|v| v.as_f64()).unwrap_or(0.0),
+            }))
+        }
+        "AppState" => {
+            let state_str = msg.extra.get("State").and_then(|v| v.as_str()).unwrap_or("");
+            let state = match state_str {
+                "Stopped" => Phd2State::Connected,
+                "Selected" => Phd2State::Connected,
+                "Calibrating" => Phd2State::Calibrating,
+                "Guiding" => Phd2State::Guiding,
+                "Looping" => Phd2State::Looping,
+                "Paused" => Phd2State::Paused,
+                "LostLock" => Phd2State::LostLock,
+                _ => Phd2State::Connected,
+            };
+            Some(Phd2Event::StateChanged(state))
+        }
+        "StartCalibration" => Some(Phd2Event::StateChanged(Phd2State::Calibrating)),
+        "CalibrationComplete" => Some(Phd2Event::CalibrationComplete),
+        "StartGuiding" => Some(Phd2Event::StateChanged(Phd2State::Guiding)),
+        "GuidingStopped" => Some(Phd2Event::StateChanged(Phd2State::Connected)),
+        "Paused" => Some(Phd2Event::StateChanged(Phd2State::Paused)),
+        "LoopingExposures" => Some(Phd2Event::StateChanged(Phd2State::Looping)),
+        "LoopingExposuresStopped" => Some(Phd2Event::StateChanged(Phd2State::Connected)),
+        "StarLost" => Some(Phd2Event::StarLost),
+        "StarSelected" => {
+            let x = msg.extra.get("X").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let y = msg.extra.get("Y").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            Some(Phd2Event::StarSelected { x, y })
+        }
+        "SettleBegin" => Some(Phd2Event::SettleBegin),
+        "Settling" => Some(Phd2Event::StateChanged(Phd2State::Settling)),
+        "SettleDone" => {
+            let total = msg.extra.get("TotalFrames").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            let dropped = msg.extra.get("DroppedFrames").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            Some(Phd2Event::SettleDone { total_frames: total, dropped_frames: dropped })
+        }
+        "Alert" => {
+            let message = msg.extra.get("Msg").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let alert_type = msg.extra.get("Type").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            Some(Phd2Event::Alert { message, alert_type })
+        }
+        _ => None,
+    }
+}
+
+/// Simple base64 decoder
+fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    
+    let input = input.trim().replace('\n', "").replace('\r', "");
+    let mut output = Vec::with_capacity(input.len() * 3 / 4);
+    
+    let mut buf = 0u32;
+    let mut bits = 0;
+    
+    for c in input.bytes() {
+        if c == b'=' {
+            break;
+        }
+        
+        let val = ALPHABET.iter().position(|&x| x == c)
+            .ok_or_else(|| format!("Invalid base64 character: {}", c as char))?;
+        
+        buf = (buf << 6) | (val as u32);
+        bits += 6;
+        
+        if bits >= 8 {
+            bits -= 8;
+            output.push((buf >> bits) as u8);
+            buf &= (1 << bits) - 1;
+        }
+    }
+    
+    Ok(output)
+}
+
+/// Check if PHD2 is running
+pub fn is_phd2_running() -> bool {
+    // Try to connect briefly
+    match TcpStream::connect_timeout(
+        &"127.0.0.1:4400".parse().unwrap(),
+        Duration::from_millis(500),
+    ) {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+/// Check if PHD2 is installed (Windows only for now)
+pub fn is_phd2_installed() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        // Check registry for PHD2 installation
+        let output = Command::new("reg")
+            .args(&["query", "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PHD 2_is1", "/v", "InstallLocation"])
+            .output();
+            
+        match output {
+            Ok(o) => o.status.success(),
+            Err(_) => false,
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        // TODO: Implement for Linux/Mac
+        false
+    }
+}
+
+/// Launch PHD2 application
+pub fn launch_phd2() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        
+        // Get install location
+        let output = Command::new("reg")
+            .args(&["query", "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PHD 2_is1", "/v", "InstallLocation"])
+            .output()
+            .map_err(|e| format!("Failed to query registry: {}", e))?;
+            
+        if !output.status.success() {
+            return Err("PHD2 not found in registry".to_string());
+        }
+        
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Parse path from output
+        let path_line = stdout.lines().find(|l| l.contains("InstallLocation")).ok_or("InstallLocation not found")?;
+        let path_part = path_line.split("REG_SZ").nth(1).ok_or("Invalid registry output")?.trim();
+        
+        let exe_path = std::path::Path::new(path_part).join("phd2.exe");
+        
+        tracing::info!("Launching PHD2 from: {:?}", exe_path);
+        
+        Command::new(exe_path)
+            .spawn()
+            .map_err(|e| format!("Failed to launch PHD2: {}", e))?;
+            
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Auto-launch not supported on this platform".to_string())
+    }
+}
+
+
+
+
+

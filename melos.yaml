@@ -1,0 +1,101 @@
+name: nightshade
+repository: https://github.com/Scoduglas1999/Nightshade2
+
+packages:
+  - apps/*
+  - packages/*
+
+command:
+  version:
+    linkToCommits: true
+    workspaceChangelog: true
+
+  bootstrap:
+    usePubspecOverrides: true
+    runPubGetInParallel: true
+
+scripts:
+  # ==========================================================================
+  # Development Commands
+  # ==========================================================================
+
+  dev:
+    run: powershell -ExecutionPolicy Bypass -File scripts/dev.ps1
+    description: Full dev rebuild (FRB + Rust + copy DLLs) and run Flutter
+
+  dev:norun:
+    run: powershell -ExecutionPolicy Bypass -File scripts/dev.ps1 -NoRun
+    description: Full dev rebuild without running Flutter
+
+  dev:quick:
+    run: powershell -ExecutionPolicy Bypass -File scripts/dev.ps1 -SkipFrb
+    description: Quick rebuild (skip FRB regen - use when only Dart/Rust impl changed)
+
+  dev:clean:
+    run: powershell -ExecutionPolicy Bypass -File scripts/dev.ps1 -Clean
+    description: Clean all build artifacts and rebuild from scratch
+
+  # ==========================================================================
+  # Code Quality
+  # ==========================================================================
+
+  analyze:
+    run: melos exec -- dart analyze .
+    description: Run dart analyze in all packages
+
+  format:
+    run: melos exec -- dart format .
+    description: Format all packages
+
+  test:
+    run: melos exec -- flutter test
+    description: Run tests in all packages
+    packageFilters:
+      flutter: true
+
+  # ==========================================================================
+  # Production Builds
+  # ==========================================================================
+
+  build:desktop:windows:
+    run: |
+      cd native/nightshade_native && cargo build --release --manifest-path bridge/Cargo.toml
+      melos exec --scope="nightshade_desktop" -- flutter build windows
+    description: Build Windows desktop app
+
+  build:desktop:macos:
+    run: |
+      cd native/nightshade_native && cargo build --release --target x86_64-apple-darwin --manifest-path bridge/Cargo.toml || cargo build --release --target aarch64-apple-darwin --manifest-path bridge/Cargo.toml
+      melos exec --scope="nightshade_desktop" -- flutter build macos
+    description: Build macOS desktop app
+
+  build:desktop:linux:
+    run: |
+      cd native/nightshade_native && cargo build --release --manifest-path bridge/Cargo.toml
+      melos exec --scope="nightshade_desktop" -- flutter build linux
+    description: Build Linux desktop app
+
+  build:mobile:android:
+    run: melos exec --scope="nightshade_mobile" -- flutter build apk
+    description: Build Android app
+
+  build:mobile:ios:
+    run: melos exec --scope="nightshade_mobile" -- flutter build ios
+    description: Build iOS app
+
+  build:mobile:ios:simulator:
+    run: melos exec --scope="nightshade_mobile" -- flutter build ios --simulator
+    description: Build iOS app for simulator (no signing required)
+
+  run:mobile:ios:
+    run: melos exec --scope="nightshade_mobile" -- flutter run -d iphone
+    description: Run iOS app on connected device or simulator
+
+  generate:
+    run: melos exec -- dart run build_runner build --delete-conflicting-outputs
+    description: Run build_runner in all packages
+
+  clean:
+    run: melos exec -- flutter clean
+    description: Clean all packages
+

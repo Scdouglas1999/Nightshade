@@ -1,0 +1,16 @@
+[package]
+name = "nightshade_ascom"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tracing.workspace = true
+
+# Windows-only dependencies
+[target.'cfg(windows)'.dependencies]
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+windows.workspace = true

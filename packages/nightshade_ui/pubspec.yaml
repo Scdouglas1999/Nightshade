@@ -1,0 +1,30 @@
+name: nightshade_ui
+description: Nightshade 2.0 UI Design System - Shared components and theming
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.4.9
+  lucide_icons: ^0.257.0
+  nightshade_core:
+    path: ../nightshade_core
+  nightshade_bridge:
+    path: ../nightshade_bridge
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true
+
+
+
+

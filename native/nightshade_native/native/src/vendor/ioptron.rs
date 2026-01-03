@@ -1,0 +1,663 @@
+//! iOptron Mount Protocol Implementation
+//!
+//! Implements the iOptron serial command protocol for iEQ, CEM, and GEM series mounts.
+//! Protocol reference: iOptron Command Set v2.5/v3.0
+//!
+//! Communication: Serial 9600 or 115200 baud, terminated with #
+
+use crate::traits::*;
+use crate::NativeVendor;
+use async_trait::async_trait;
+use std::io::{Read, Write};
+use std::sync::Mutex;
+use std::time::Duration;
+
+// =============================================================================
+// CONSTANTS
+// =============================================================================
+
+const IOPTRON_BAUD_RATE: u32 = 9600;
+const IOPTRON_BAUD_RATE_FAST: u32 = 115200;
+const RESPONSE_TERM: u8 = b'#';
+
+// =============================================================================
+// IOPTRON COMMANDS
+// =============================================================================
+
+mod commands {
+    pub const GET_FIRMWARE: &str = ":GVF#";
+    pub const GET_MOUNT_VERSION: &str = ":MountInfo#";
+    pub const GET_RA_DEC: &str = ":GEC#";
+    pub const GET_ALT_AZ: &str = ":GAC#";
+    pub const GET_SYSTEM_STATUS: &str = ":GAS#";
+    pub const GET_SIDEREAL_TIME: &str = ":GLS#";
+
+    pub const SLEW_RA_DEC: &str = ":MS#";
+    pub const SET_RA: &str = ":Sr";
+    pub const SET_DEC: &str = ":Sd";
+    pub const STOP_SLEW: &str = ":Q#";
+
+    pub const SYNC: &str = ":CM#";
+
+    pub const STOP_TRACKING: &str = ":ST0#";
+    pub const START_TRACKING: &str = ":ST1#";
+
+    // Tracking rate commands
+    pub const SET_TRACKING_SIDEREAL: &str = ":RT0#";
+    pub const SET_TRACKING_LUNAR: &str = ":RT1#";
+    pub const SET_TRACKING_SOLAR: &str = ":RT2#";
+    pub const SET_TRACKING_KING: &str = ":RT3#";
+
+    pub const PARK: &str = ":MP1#";
+    pub const UNPARK: &str = ":MP0#";
+
+    pub const PULSE_GUIDE_NORTH: &str = ":Mn";
+    pub const PULSE_GUIDE_SOUTH: &str = ":Ms";
+    pub const PULSE_GUIDE_EAST: &str = ":Me";
+    pub const PULSE_GUIDE_WEST: &str = ":Mw";
+}
+
+// =============================================================================
+// MOUNT STATUS PARSING
+// =============================================================================
+
+#[derive(Debug, Clone, Default)]
+pub struct IOptronStatus {
+    pub tracking: bool,
+    pub slewing: bool,
+    pub parked: bool,
+    pub home: bool,
+    pub pier_side_west: bool,
+    pub gps_connected: bool,
+    pub tracking_rate: u8, // 0=sidereal, 1=lunar, 2=solar, 3=king
+}
+
+fn parse_system_status(response: &str) -> Result<IOptronStatus, NativeError> {
+    if response.len() < 8 {
+        return Err(NativeError::SdkError(format!(
+            "Invalid status response: {}", response
+        )));
+    }
+
+    let chars: Vec<char> = response.chars().collect();
+
+    // Parse tracking rate from character at position 2 (0-3 for sidereal/lunar/solar/king)
+    let tracking_rate = chars.get(2)
+        .and_then(|c| c.to_digit(10))
+        .map(|d| d as u8)
+        .unwrap_or(0);
+
+    Ok(IOptronStatus {
+        tracking: chars.get(0) == Some(&'1'),
+        slewing: chars.get(1) == Some(&'1'),
+        parked: chars.get(5) == Some(&'1'),
+        home: chars.get(4) == Some(&'1'),
+        pier_side_west: chars.get(6) == Some(&'1'),
+        gps_connected: chars.get(7) == Some(&'1'),
+        tracking_rate,
+    })
+}
+
+// =============================================================================
+// COORDINATE CONVERSION
+// =============================================================================
+
+fn parse_ra(response: &str) -> Result<f64, NativeError> {
+    if response.len() < 8 {
+        return Err(NativeError::SdkError(format!(
+            "Invalid RA response: {}", response
+        )));
+    }
+
+    let hours: f64 = response[0..2].parse()
+        .map_err(|_| NativeError::SdkError("Invalid RA hours".into()))?;
+    let minutes: f64 = response[2..4].parse()
+        .map_err(|_| NativeError::SdkError("Invalid RA minutes".into()))?;
+    let centisecs: f64 = response[4..8].parse()
+        .map_err(|_| NativeError::SdkError("Invalid RA seconds".into()))?;
+
+    let seconds = centisecs / 100.0;
+    Ok(hours + minutes / 60.0 + seconds / 3600.0)
+}
+
+fn parse_dec(response: &str) -> Result<f64, NativeError> {
+    if response.len() < 9 {
+        return Err(NativeError::SdkError(format!(
+            "Invalid Dec response: {}", response
+        )));
+    }
+
+    let sign = if response.starts_with('-') { -1.0 } else { 1.0 };
+    let start = if response.starts_with('-') || response.starts_with('+') { 1 } else { 0 };
+
+    let degrees: f64 = response[start..start+2].parse()
+        .map_err(|_| NativeError::SdkError("Invalid Dec degrees".into()))?;
+    let arcmin: f64 = response[start+2..start+4].parse()
+        .map_err(|_| NativeError::SdkError("Invalid Dec arcmin".into()))?;
+    let centiarcsec: f64 = response[start+4..start+8].parse()
+        .map_err(|_| NativeError::SdkError("Invalid Dec arcsec".into()))?;
+
+    let arcsec = centiarcsec / 100.0;
+    Ok(sign * (degrees + arcmin / 60.0 + arcsec / 3600.0))
+}
+
+fn format_ra(ra_hours: f64) -> String {
+    let hours = ra_hours.floor() as u32;
+    let remaining = (ra_hours - hours as f64) * 60.0;
+    let minutes = remaining.floor() as u32;
+    let seconds = (remaining - minutes as f64) * 60.0;
+    let centisecs = (seconds * 100.0).round() as u32;
+
+    format!("{:02}{:02}{:04}", hours, minutes, centisecs)
+}
+
+fn format_dec(dec_degrees: f64) -> String {
+    let sign = if dec_degrees < 0.0 { "-" } else { "+" };
+    let dec_abs = dec_degrees.abs();
+    let degrees = dec_abs.floor() as u32;
+    let remaining = (dec_abs - degrees as f64) * 60.0;
+    let arcmin = remaining.floor() as u32;
+    let arcsec = (remaining - arcmin as f64) * 60.0;
+    let centiarcsec = (arcsec * 100.0).round() as u32;
+
+    format!("{}{:02}{:02}{:04}", sign, degrees, arcmin, centiarcsec)
+}
+
+// =============================================================================
+// IOPTRON MOUNT IMPLEMENTATION
+// =============================================================================
+
+pub struct IOptronMount {
+    device_id: String,
+    name: String,
+    port_name: String,
+    baud_rate: u32,
+    serial_port: Mutex<Option<Box<dyn serialport::SerialPort + Send>>>,
+    connected: Mutex<bool>,
+    status: Mutex<IOptronStatus>,
+    firmware_version: String,
+    mount_model: Mutex<String>,
+}
+
+impl std::fmt::Debug for IOptronMount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IOptronMount")
+            .field("device_id", &self.device_id)
+            .field("name", &self.name)
+            .finish()
+    }
+}
+
+impl IOptronMount {
+    pub fn new(port: String, baud_rate: Option<u32>) -> Self {
+        let device_id = format!("native:ioptron:{}", port.replace("/", "_").replace("\\", "_"));
+        Self {
+            device_id,
+            name: format!("iOptron ({})", port),
+            port_name: port,
+            baud_rate: baud_rate.unwrap_or(IOPTRON_BAUD_RATE),
+            serial_port: Mutex::new(None),
+            connected: Mutex::new(false),
+            status: Mutex::new(IOptronStatus::default()),
+            firmware_version: String::new(),
+            mount_model: Mutex::new(String::new()),
+        }
+    }
+
+    fn send_command(&self, command: &str) -> Result<String, NativeError> {
+        let mut port_guard = self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
+
+        port.write_all(command.as_bytes())
+            .map_err(|e| NativeError::Io(e))?;
+        port.flush().map_err(|e| NativeError::Io(e))?;
+
+        let mut response = Vec::new();
+        let mut buf = [0u8; 1];
+        let timeout = std::time::Instant::now();
+
+        loop {
+            if timeout.elapsed() > Duration::from_secs(5) {
+                return Err(NativeError::Timeout("iOptron command response timed out".to_string()));
+            }
+
+            match port.read(&mut buf) {
+                Ok(1) => {
+                    if buf[0] == RESPONSE_TERM {
+                        break;
+                    }
+                    response.push(buf[0]);
+                }
+                Ok(_) => continue,
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
+                Err(e) => return Err(NativeError::Io(e)),
+            }
+        }
+
+        Ok(String::from_utf8_lossy(&response).to_string())
+    }
+
+    fn send_command_no_response(&self, command: &str) -> Result<(), NativeError> {
+        let mut port_guard = self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
+
+        port.write_all(command.as_bytes())
+            .map_err(|e| NativeError::Io(e))?;
+        port.flush().map_err(|e| NativeError::Io(e))?;
+
+        Ok(())
+    }
+
+    fn update_status(&self) -> Result<(), NativeError> {
+        let response = self.send_command(commands::GET_SYSTEM_STATUS)?;
+        let new_status = parse_system_status(&response)?;
+        *self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = new_status;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl NativeDevice for IOptronMount {
+    fn id(&self) -> &str {
+        &self.device_id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn vendor(&self) -> NativeVendor {
+        NativeVendor::IOptron
+    }
+
+    fn is_connected(&self) -> bool {
+        *self.connected.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    async fn connect(&mut self) -> Result<(), NativeError> {
+        if self.is_connected() {
+            return Ok(());
+        }
+
+        let serial = serialport::new(&self.port_name, self.baud_rate)
+            .timeout(Duration::from_millis(500))
+            .open()
+            .map_err(|e| NativeError::SdkError(format!("Failed to open serial port: {}", e)))?;
+
+        *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(serial);
+
+        match self.send_command(commands::GET_MOUNT_VERSION) {
+            Ok(response) => {
+                *self.mount_model.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = response.clone();
+                self.name = format!("iOptron {} ({})", response, self.port_name);
+            }
+            Err(_) => {
+                *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
+                let serial = serialport::new(&self.port_name, IOPTRON_BAUD_RATE_FAST)
+                    .timeout(Duration::from_millis(500))
+                    .open()
+                    .map_err(|e| NativeError::SdkError(format!("Failed to open serial port: {}", e)))?;
+
+                *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(serial);
+                self.baud_rate = IOPTRON_BAUD_RATE_FAST;
+
+                match self.send_command(commands::GET_MOUNT_VERSION) {
+                    Ok(response) => {
+                        *self.mount_model.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = response.clone();
+                        self.name = format!("iOptron {} ({})", response, self.port_name);
+                    }
+                    Err(e) => {
+                        *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        let _ = self.update_status();
+
+        *self.connected.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
+        tracing::info!("Connected to iOptron mount");
+
+        Ok(())
+    }
+
+    async fn disconnect(&mut self) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Ok(());
+        }
+
+        let _ = self.send_command_no_response(commands::STOP_SLEW);
+
+        *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
+        *self.connected.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = false;
+
+        tracing::info!("Disconnected from iOptron mount");
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl NativeMount for IOptronMount {
+    async fn slew_to_coordinates(&mut self, ra_hours: f64, dec_degrees: f64) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        tracing::info!("Slewing to RA={:.4}h, Dec={:.4}°", ra_hours, dec_degrees);
+
+        let ra_cmd = format!("{}{}#", commands::SET_RA, format_ra(ra_hours));
+        let response = self.send_command(&ra_cmd)?;
+        if response != "1" {
+            return Err(NativeError::SdkError("Failed to set RA target".into()));
+        }
+
+        let dec_cmd = format!("{}{}#", commands::SET_DEC, format_dec(dec_degrees));
+        let response = self.send_command(&dec_cmd)?;
+        if response != "1" {
+            return Err(NativeError::SdkError("Failed to set Dec target".into()));
+        }
+
+        let response = self.send_command(commands::SLEW_RA_DEC)?;
+        if response != "1" {
+            return Err(NativeError::SdkError(format!("Slew failed: {}", response)));
+        }
+
+        Ok(())
+    }
+
+    async fn get_coordinates(&self) -> Result<(f64, f64), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        let response = self.send_command(commands::GET_RA_DEC)?;
+
+        if response.len() < 16 {
+            return Err(NativeError::SdkError(format!("Invalid coordinate response: {}", response)));
+        }
+
+        let ra = parse_ra(&response[0..8])?;
+        let dec = parse_dec(&response[8..17])?;
+
+        Ok((ra, dec))
+    }
+
+    async fn sync_to_coordinates(&mut self, ra_hours: f64, dec_degrees: f64) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        tracing::info!("Syncing to RA={:.4}h, Dec={:.4}°", ra_hours, dec_degrees);
+
+        let ra_cmd = format!("{}{}#", commands::SET_RA, format_ra(ra_hours));
+        self.send_command(&ra_cmd)?;
+
+        let dec_cmd = format!("{}{}#", commands::SET_DEC, format_dec(dec_degrees));
+        self.send_command(&dec_cmd)?;
+
+        self.send_command(commands::SYNC)?;
+
+        Ok(())
+    }
+
+    async fn park(&mut self) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        tracing::info!("Parking mount");
+        self.send_command(commands::PARK)?;
+
+        Ok(())
+    }
+
+    async fn unpark(&mut self) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        tracing::info!("Unparking mount");
+        self.send_command(commands::UNPARK)?;
+
+        Ok(())
+    }
+
+    async fn is_slewing(&self) -> Result<bool, NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        self.update_status()?;
+        let status = self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+
+        Ok(status.slewing)
+    }
+
+    async fn is_parked(&self) -> Result<bool, NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        self.update_status()?;
+        let status = self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+
+        Ok(status.parked)
+    }
+
+    async fn pulse_guide(&mut self, direction: GuideDirection, duration_ms: u32) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        let cmd = match direction {
+            GuideDirection::North => format!("{}{}#", commands::PULSE_GUIDE_NORTH, duration_ms),
+            GuideDirection::South => format!("{}{}#", commands::PULSE_GUIDE_SOUTH, duration_ms),
+            GuideDirection::East => format!("{}{}#", commands::PULSE_GUIDE_EAST, duration_ms),
+            GuideDirection::West => format!("{}{}#", commands::PULSE_GUIDE_WEST, duration_ms),
+        };
+
+        self.send_command_no_response(&cmd)?;
+
+        Ok(())
+    }
+
+    async fn abort_slew(&mut self) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        tracing::info!("Aborting slew");
+        self.send_command_no_response(commands::STOP_SLEW)?;
+
+        Ok(())
+    }
+
+    async fn set_tracking(&mut self, enabled: bool) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        let cmd = if enabled {
+            commands::START_TRACKING
+        } else {
+            commands::STOP_TRACKING
+        };
+
+        self.send_command(cmd)?;
+
+        tracing::info!("Tracking {}", if enabled { "enabled" } else { "disabled" });
+
+        Ok(())
+    }
+
+    async fn get_tracking(&self) -> Result<bool, NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        self.update_status()?;
+        let status = self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+
+        Ok(status.tracking)
+    }
+
+    async fn get_side_of_pier(&self) -> Result<PierSide, NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        self.update_status()?;
+        let status = self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+
+        Ok(if status.pier_side_west {
+            PierSide::West
+        } else {
+            PierSide::East
+        })
+    }
+
+    async fn get_alt_az(&self) -> Result<(f64, f64), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        let response = self.send_command(commands::GET_ALT_AZ)?;
+
+        if response.len() < 17 {
+            return Err(NativeError::SdkError("Invalid alt/az response".into()));
+        }
+
+        let alt = parse_dec(&response[0..9])?;
+        let az_deg: f64 = response[9..12].parse()
+            .map_err(|_| NativeError::SdkError("Invalid azimuth".into()))?;
+        let az_min: f64 = response[12..14].parse()
+            .map_err(|_| NativeError::SdkError("Invalid azimuth".into()))?;
+        let az_sec: f64 = response[14..18].parse()
+            .map_err(|_| NativeError::SdkError("Invalid azimuth".into()))?;
+
+        let az = az_deg + az_min / 60.0 + (az_sec / 100.0) / 3600.0;
+
+        Ok((alt, az))
+    }
+
+    async fn get_sidereal_time(&self) -> Result<f64, NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        let response = self.send_command(commands::GET_SIDEREAL_TIME)?;
+        parse_ra(&response)
+    }
+
+    async fn set_tracking_rate(&mut self, rate: TrackingRate) -> Result<(), NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        let cmd = match rate {
+            TrackingRate::Sidereal => commands::SET_TRACKING_SIDEREAL,
+            TrackingRate::Lunar => commands::SET_TRACKING_LUNAR,
+            TrackingRate::Solar => commands::SET_TRACKING_SOLAR,
+            TrackingRate::King => commands::SET_TRACKING_KING,
+            TrackingRate::Custom => {
+                return Err(NativeError::NotSupported);
+            }
+        };
+
+        self.send_command(cmd)?;
+        tracing::info!("Set tracking rate to {:?}", rate);
+
+        Ok(())
+    }
+
+    async fn get_tracking_rate(&self) -> Result<TrackingRate, NativeError> {
+        if !self.is_connected() {
+            return Err(NativeError::NotConnected);
+        }
+
+        // iOptron returns tracking rate in the status response
+        // For now, default to sidereal as the status parsing would need enhancement
+        Ok(TrackingRate::Sidereal)
+    }
+
+    fn can_set_tracking_rate(&self) -> bool {
+        true
+    }
+}
+
+// =============================================================================
+// DISCOVERY
+// =============================================================================
+
+pub struct IOptronMountInfo {
+    pub port: String,
+    pub name: String,
+    pub model: String,
+    /// Baud rate that was successful during discovery
+    pub baud_rate: u32,
+}
+
+pub async fn discover_mounts() -> Result<Vec<IOptronMountInfo>, NativeError> {
+    let mut mounts = Vec::new();
+
+    let ports = serialport::available_ports()
+        .map_err(|e| NativeError::SdkError(format!("Failed to enumerate ports: {}", e)))?;
+
+    tracing::info!("iOptron discovery: found {} serial ports to scan", ports.len());
+
+    for port_info in ports {
+        let port_name = port_info.port_name.clone();
+        let mut found_mount = false;
+
+        for baud_rate in [IOPTRON_BAUD_RATE, IOPTRON_BAUD_RATE_FAST] {
+            if found_mount {
+                break;
+            }
+
+            tracing::debug!("Trying {} at {} baud for iOptron", port_name, baud_rate);
+
+            let result = serialport::new(&port_name, baud_rate)
+                .timeout(Duration::from_millis(500))
+                .open();
+
+            if let Ok(mut port) = result {
+                if port.write_all(commands::GET_MOUNT_VERSION.as_bytes()).is_ok() {
+                    let _ = port.flush();
+
+                    let mut buf = [0u8; 32];
+                    std::thread::sleep(Duration::from_millis(100));
+
+                    if let Ok(n) = port.read(&mut buf) {
+                        let response = String::from_utf8_lossy(&buf[..n]);
+                        tracing::debug!("iOptron response from {} at {} baud: {:?}", port_name, baud_rate, response);
+                        if response.contains("iEQ") || response.contains("CEM")
+                            || response.contains("GEM") || response.contains("AZ") {
+                            let model = response.trim_end_matches('#').to_string();
+                            let display_name = format!("iOptron {} ({})", model, port_name);
+                            mounts.push(IOptronMountInfo {
+                                port: port_name.clone(),
+                                name: display_name.clone(),
+                                model,
+                                baud_rate,
+                            });
+                            tracing::info!("Found iOptron mount on {} at {} baud: {}", port_name, baud_rate, display_name);
+                            found_mount = true;
+                        }
+                    }
+                }
+                // Explicit drop + sleep for Windows to fully release the COM port handle
+                drop(port);
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }
+    }
+
+    tracing::info!("iOptron discovery complete: found {} mounts", mounts.len());
+    Ok(mounts)
+}
+
+pub fn is_available() -> bool {
+    true
+}

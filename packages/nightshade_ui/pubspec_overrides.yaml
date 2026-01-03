@@ -1,0 +1,8 @@
+# melos_managed_dependency_overrides: nightshade_bridge,nightshade_core,nightshade_planetarium
+dependency_overrides:
+  nightshade_bridge:
+    path: ..\\nightshade_bridge
+  nightshade_core:
+    path: ..\\nightshade_core
+  nightshade_planetarium:
+    path: ..\\nightshade_planetarium

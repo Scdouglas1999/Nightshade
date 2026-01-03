@@ -1,0 +1,40 @@
+# Nightshade Update Server Docker Compose
+#
+# Usage:
+#   docker-compose up -d
+#
+# The server will be available at http://localhost:8090
+#
+# To publish an update:
+#   1. Copy manifest to ./manifests/2.1.0.json
+#   2. Copy package to ./releases/2.1.0/nightshade-2.1.0-windows-x64.zip
+
+version: '3.8'
+
+services:
+  update-server:
+    build: .
+    container_name: nightshade-update-server
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./releases:/app/releases
+      - ./manifests:/app/manifests
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Optional: nginx reverse proxy with HTTPS
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - /etc/letsencrypt:/etc/letsencrypt:ro
+  #   depends_on:
+  #     - update-server

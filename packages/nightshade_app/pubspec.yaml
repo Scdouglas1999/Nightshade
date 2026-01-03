@@ -1,0 +1,49 @@
+name: nightshade_app
+description: Unified Nightshade application UI
+version: 0.0.1
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  nightshade_core:
+    path: ../nightshade_core
+  nightshade_bridge:
+    path: ../nightshade_bridge
+  nightshade_ui:
+    path: ../nightshade_ui
+  nightshade_webrtc:
+    path: ../nightshade_webrtc
+  nightshade_planetarium:
+    path: ../nightshade_planetarium
+  nightshade_plugins:
+    path: ../nightshade_plugins
+
+  # Other dependencies
+  go_router: ^14.0.0
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.2
+  window_manager: ^0.3.8
+  lucide_icons: ^0.257.0
+  file_selector: ^1.0.3
+  url_launcher: ^6.2.4
+  intl: ^0.19.0
+  collection: ^1.18.0
+  equatable: ^2.0.5
+  uuid: ^4.3.3
+  image: ^4.1.7
+  path: ^1.8.3
+  fl_chart: ^0.68.0
+  share_plus: ^7.2.2
+  csv: ^6.0.0
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
