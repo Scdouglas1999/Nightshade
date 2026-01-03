@@ -150,6 +150,9 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   /// Apply the staged update (will restart the app)
   Future<void> applyUpdate() async {
     print('[UpdateNotifier] applyUpdate() called, current status: ${state.status}');
+    print('[UpdateNotifier] Staged path: ${state.stagingPath}');
+    print('[UpdateNotifier] Available update: ${state.availableUpdate?.version}');
+
     if (state.status != UpdateStatus.staged) {
       print('[UpdateNotifier] Status is not staged, returning early');
       return;
@@ -162,8 +165,13 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
       await _updateService.applyUpdate();
       // If we get here, something went wrong (we should have exited)
       print('[UpdateNotifier] ERROR: applyUpdate returned without exiting!');
-    } catch (e) {
-      print('[UpdateNotifier] ERROR: $e');
+      state = state.copyWith(
+        status: UpdateStatus.error,
+        errorMessage: 'Update process did not launch correctly. The app should have restarted.',
+      );
+    } catch (e, stackTrace) {
+      print('[UpdateNotifier] ERROR applying update: $e');
+      print('[UpdateNotifier] Stack trace: $stackTrace');
       state = state.copyWith(
         status: UpdateStatus.error,
         errorMessage: e.toString(),

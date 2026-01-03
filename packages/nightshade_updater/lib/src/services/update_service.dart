@@ -253,9 +253,35 @@ class UpdateService {
     final updaterPath = path.join(installDir.path, 'updater.exe');
     final backupDir = await _getBackupDirectory();
 
-    // Verify updater exists
+    // Check if updater exists in install directory
     if (!await File(updaterPath).exists()) {
-      throw UpdateException('Updater executable not found');
+      // Try to bootstrap the updater from the staged update
+      // This handles the case where the current install doesn't have updater.exe
+      // but the staged update does
+      final stagedUpdaterPath = path.join(staged.extractPath, 'updater.exe');
+      print('[UpdateService] Updater not in install dir, checking staging: $stagedUpdaterPath');
+
+      if (await File(stagedUpdaterPath).exists()) {
+        print('[UpdateService] Found updater in staging, copying to install directory');
+        try {
+          await File(stagedUpdaterPath).copy(updaterPath);
+          print('[UpdateService] Updater bootstrapped successfully');
+        } catch (e) {
+          throw UpdateException(
+            'Failed to bootstrap updater from staged update: $e\n'
+            'Try running Nightshade as administrator, or install a full release build.',
+          );
+        }
+      } else {
+        throw UpdateException(
+          'Updater executable not found.\n'
+          'Not in install directory: $updaterPath\n'
+          'Not in staged update: $stagedUpdaterPath\n\n'
+          'Solutions:\n'
+          '1. Create a new update package using build_update_package.ps1 (includes updater)\n'
+          '2. Or install a full release build with package_windows.ps1',
+        );
+      }
     }
 
     // Launch updater with arguments
@@ -266,6 +292,9 @@ class UpdateService {
       '--backup-dir', backupDir.path,
       '--launch-after',
     ];
+
+    print('[UpdateService] Launching updater: $updaterPath');
+    print('[UpdateService] Arguments: $args');
 
     await Process.start(updaterPath, args, mode: ProcessStartMode.detached);
 

@@ -61,6 +61,26 @@ try {
         throw "Release build not found at $releaseDir. Run 'melos run dev:norun' first."
     }
 
+    # Build the updater executable (required for OTA updates to work)
+    Write-Host "`nBuilding updater.exe..." -ForegroundColor Yellow
+    $rustDir = "native/nightshade_native"
+    Push-Location $rustDir
+    cargo build --release --package nightshade_updater
+    if ($LASTEXITCODE -ne 0) {
+        Pop-Location
+        throw "Updater build failed"
+    }
+    Pop-Location
+
+    # Copy updater.exe to the release directory
+    $updaterSource = Join-Path $rustDir "target/release/updater.exe"
+    $updaterDest = Join-Path $releaseDir "updater.exe"
+    if (-not (Test-Path $updaterSource)) {
+        throw "Updater not found at $updaterSource"
+    }
+    Copy-Item $updaterSource $updaterDest -Force
+    Write-Host "  Copied updater.exe to release directory" -ForegroundColor Gray
+
     # Create output directory
     if (-not (Test-Path $OutputDir)) {
         New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
