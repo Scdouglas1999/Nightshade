@@ -1702,6 +1702,47 @@ class SequenceExecutor {
     }
   }
 
+  /// Reset the sequence execution state without modifying the sequence configuration.
+  ///
+  /// This clears all execution progress (completed exposures, node statuses, etc.)
+  /// while preserving the sequence structure and instruction settings.
+  /// Useful when you want to re-run a sequence from the beginning.
+  Future<void> reset() async {
+    final currentState = _ref.read(sequenceExecutionStateProvider);
+
+    // If running or paused, stop first
+    if (currentState == SequenceExecutionState.running ||
+        currentState == SequenceExecutionState.paused) {
+      await stop();
+    }
+
+    // Reset progress notifier to clear all execution stats
+    _ref.read(sequenceProgressProvider.notifier).reset();
+
+    // Reset native sequencer if using native execution
+    if (_useNativeExecution) {
+      try {
+        await bridge.NativeBridge.sequencerReset();
+      } catch (e) {
+        print('[SequenceExecutor] Error resetting native sequencer: $e');
+        // Continue anyway - the Dart-side reset is more important
+      }
+    }
+
+    // Clear any checkpoints
+    try {
+      final backend = _ref.read(backendProvider);
+      await backend.discardCheckpoint();
+    } catch (e) {
+      print('[SequenceExecutor] Error clearing checkpoint on reset: $e');
+    }
+
+    // Ensure we're in idle state
+    _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.idle;
+
+    print('[SequenceExecutor] Sequence reset - ready to run from beginning');
+  }
+
   TargetHeaderNode? _findParentTargetHeader(Sequence sequence, String nodeId) {
     var currentId = nodeId;
     while (true) {
