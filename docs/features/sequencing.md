@@ -22,9 +22,36 @@ Navigate to **Sequencer** in the sidebar to access three tabs:
 
 The Builder tab has three main areas:
 
-1. **Node Palette** (Left): Available nodes to add to your sequence
-2. **Sequence Tree** (Center): Visual workflow editor
-3. **Properties Panel** (Right): Configure selected node
+1. **Node Palette** (Left, 260px default, resizable): Available nodes to add to your sequence
+2. **Sequence Tree** (Center): Visual workflow editor with drag-and-drop
+3. **Properties Panel** (Right, 320px default, resizable): Configure selected node
+
+### Toolbar
+
+**Playback Controls**
+- **Start/Resume** (green, pulsing glow): Start or resume sequence
+- **Pause** (orange): Pause running sequence
+- **Stop**: Halt sequence execution
+- **Skip**: Skip to next node
+
+**File Operations**
+- **New Sequence**: Create blank sequence
+- **Open Sequence**: Import .nightshade file
+- **Save Sequence**: Export sequence to file
+
+**Navigation**
+- **Polar Alignment**: Link to polar alignment wizard
+- **Slew to Target**: Move mount to first target (if targets exist)
+
+**Undo/Redo**
+- **Undo** (Ctrl+Z)
+- **Redo** (Ctrl+Y)
+
+**Status Display**
+- Frame counter and duration
+- Simulation mode badge (when enabled)
+- Equipment status indicators
+- Status badge: Idle | Running | Paused | Stopping | Completed | Failed
 
 ### Creating Your First Sequence
 
@@ -77,7 +104,29 @@ Click any node to configure in Properties Panel:
 - Paste: Ctrl+V (Cmd+V on Mac)
 - Duplicate: Ctrl+D (Cmd+D on Mac)
 
-### Node Types
+### Node Palette
+
+The Node Palette organizes nodes into categories with search functionality.
+
+**Search**
+- Real-time filtering by name and description
+- Categories collapse/expand
+
+**Categories**
+- Target
+- Imaging
+- Mount
+- Focus
+- Camera
+- Logic
+- Timing
+- Utilities
+
+**Adding Nodes**
+- Drag from palette to tree
+- Double-click to add to selected parent
+
+### Complete Node Reference
 
 ## Instruction Nodes
 
@@ -185,19 +234,58 @@ Moves mount to/from park position.
 - Unpark before imaging
 - Mid-sequence park (waiting for target to rise)
 
-### Wait
+### Wait Time
 
-Pauses sequence execution.
+Waits for a specific time or condition.
 
 **Parameters**
 - **Duration**: Seconds to wait (or use Until Time)
 - **Until Time**: Wait until specific clock time
-- **Until Target Altitude**: Wait for target to reach altitude
+- **Until Twilight**: Wait for civil/nautical/astronomical twilight
 
 **Example Use**
 - Wait for sky to darken
 - Delay until target rises above trees
 - Pause between targets
+
+### Delay
+
+Simple pause for a fixed duration.
+
+**Parameters**
+- **Seconds**: Duration to pause
+
+### Rotator Control
+
+Controls camera rotator position.
+
+**Parameters**
+- **Target Angle**: Desired rotation (0-360°)
+- **Mode**: Absolute or Relative
+
+### Dome Control
+
+Controls observatory dome.
+
+**Parameters**
+- **Action**: Open, Close, or Park
+
+### Notification
+
+Sends user alerts during sequence.
+
+**Parameters**
+- **Message**: Alert text
+- **Level**: Info, Warning, Error, Success
+
+### Script
+
+Executes external scripts.
+
+**Parameters**
+- **Script Path**: Path to script file
+- **Arguments**: Command-line arguments
+- **Timeout**: Maximum execution time
 
 ## Logic Nodes
 
@@ -205,17 +293,27 @@ Control sequence flow.
 
 ### Loop
 
-Repeats child nodes.
+Repeats child nodes with various termination conditions.
+
+**Loop Types**
+| Type | Description |
+|------|-------------|
+| **Fixed Count** | Repeat exact number of times |
+| **Until Time** | Loop until clock time reached |
+| **Until Altitude** | Loop until target below threshold |
+| **Forever** | Loop indefinitely |
+| **While Dark** | Loop while astronomical dark |
 
 **Parameters**
-- **Count**: Number of iterations (blank = infinite)
-- **Until Time**: Loop until clock time
-- **Until Condition**: Loop until some condition met
+- **Repeat Count**: Number of iterations (fixed count mode)
+- **Stop Time**: Target time with quick buttons (Civil Dawn, Nautical Dawn)
+- **Stop Below Altitude**: Minimum altitude threshold
 
 **Example Use**
 - Take 10 sets of LRGB
 - Image until dawn
 - Repeat until total integration reached
+- Continue while target above 30°
 
 ### Parallel
 
@@ -234,20 +332,46 @@ Executes multiple branches simultaneously.
 
 Executes child only if condition met.
 
+**Condition Types**
+| Condition | Description |
+|-----------|-------------|
+| **Altitude** | Target altitude threshold |
+| **Time** | Current time range |
+| **Guiding RMS** | Guiding accuracy threshold |
+| **HFR** | Star sharpness threshold |
+| **Weather** | Weather conditions |
+| **Moon Separation** | Angular distance from moon |
+| **Safety Monitor** | Safety device status |
+
 **Parameters**
 - **Condition Type**: What to check
-  - Time range
-  - Target altitude
-  - Weather conditions
-  - Temperature threshold
-  - Moon distance
 - **Comparison**: Equals, greater than, less than, etc.
 - **Value**: Threshold value
 
 **Example Use**
 - Only image if target altitude > 30°
 - Skip if moon too close to target
-- Abort if temperature rises
+- Abort if guiding RMS > 2.0"
+
+### Recovery Node
+
+Handles errors with automatic recovery actions.
+
+**Recovery Conditions**
+| Condition | Description |
+|-----------|-------------|
+| **HFR Degradation** | Stars becoming softer |
+| **Meridian Flip** | Mount needs to flip |
+| **Guiding Failure** | Guide star lost |
+| **Altitude Limit** | Target too low |
+| **Weather** | Conditions degraded |
+| **Temperature** | Temperature changed significantly |
+| **Filter Change** | Filter change failed |
+
+**Parameters**
+- **Trigger Condition**: What triggers recovery
+- **Recovery Action**: What to do (refocus, recalibrate, pause, etc.)
+- **Retry Count**: Number of recovery attempts
 
 ### Sequence
 
@@ -524,19 +648,43 @@ Make templates flexible with parameters:
 
 ## Running Sequences
 
-### Pre-flight Validation
+### Pre-flight Validation Dialog
 
-Before running, Nightshade validates your sequence:
+Before running, Nightshade validates your sequence with a comprehensive check.
 
-1. Click **Validate** (or automatic when clicking Run)
-2. Checks for:
-   - All required equipment connected
-   - No conflicting settings
-   - Targets visible at scheduled times
-   - Sufficient disk space
-   - Temperature warnings
-3. Displays warnings and errors
-4. Fix issues before running
+**Validation Process**
+1. Click **Run** to open Pre-Flight Validation Dialog
+2. Loading spinner with "Running validation checks..."
+3. Results display with summary
+
+**Results Summary Card**
+| Status | Color | Description |
+|--------|-------|-------------|
+| **Cannot Start** | Red | Blocking errors found |
+| **Ready with Warnings** | Orange | Non-blocking issues |
+| **All Checks Passed** | Green | Ready to run |
+
+**Issue Categories**
+| Category | Examples |
+|----------|----------|
+| **Structure** | Empty sequence, no root, orphaned nodes |
+| **Targets** | Invalid coordinates, empty targets, low altitude |
+| **Imaging** | No exposures, invalid exposure time, high binning |
+| **Equipment** | Missing camera, mount, focuser, guider |
+| **Timing** | Wait times passed, loop end times passed |
+| **Settings** | Default names, long sequences |
+
+**Issue Display**
+Each issue shows:
+- Severity icon (red X, orange ⚠, blue ℹ)
+- Issue title and category badge
+- Description text
+- Resolution suggestion (lightbulb icon)
+
+**Actions**
+- **Re-check**: Run validation again
+- **Cancel**: Close dialog
+- **Start/Start Anyway**: Begin sequence (if no blocking errors)
 
 ### Starting Execution
 
@@ -550,21 +698,42 @@ Before running, Nightshade validates your sequence:
 
 ### Monitoring Execution
 
-**Progress Display**
-- Current node highlighted in tree
-- Progress bar shows overall completion
-- Estimated time remaining
+**Sequence Progress Bar** (Visible when running)
 
-**Sequence Timeline**
-- Gantt-chart view of execution
-- Shows past and upcoming nodes
-- Click to jump to node details
+*Current Node Info*
+- Pulsing indicator (green when running, pause badge when paused)
+- Node name (truncated if long)
+- Progress message if available
+
+*Target & Filter Display*
+- Current target name with icon
+- Current filter name with icon
+
+*Progress Metrics*
+- "Progress" label
+- Exposure counter: "X/Y" (completed/total)
+- Percentage badge with number
+- Gradient progress bar
+- Integration progress overlay
+
+*Timing Information*
+- Elapsed time (HhMmSs format)
+- Estimated remaining time
+
+**Sequence Tree Updates**
+- Current node highlighted in tree
+- Status indicators on each node:
+  - Running (spinning icon)
+  - Success (green check)
+  - Failed (red X)
+  - Skipped (gray)
+- Progress percentage on running nodes
 
 **Equipment Status**
 - Live equipment state
 - Current exposure countdown
 - Guiding graph
-- Temperature, etc.
+- Temperature monitoring
 
 ### Controlling Execution
 
