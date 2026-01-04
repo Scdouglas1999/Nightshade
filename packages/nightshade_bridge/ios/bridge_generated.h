@@ -1779,6 +1779,10 @@ void frbgen_nightshade_bridge_wire__crate__api__api_filterwheel_set_by_name(int6
                                                                             struct wire_cst_list_prim_u_8_strict *device_id,
                                                                             struct wire_cst_list_prim_u_8_strict *name);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_filterwheel_set_filter_names(int64_t port_,
+                                                                                 struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                                 struct wire_cst_list_String *names);
+
 void frbgen_nightshade_bridge_wire__crate__api__api_filterwheel_set_position(int64_t port_,
                                                                              struct wire_cst_list_prim_u_8_strict *device_id,
                                                                              int32_t position);
@@ -2128,7 +2132,8 @@ void frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_devices(int64_
                                                                           struct wire_cst_list_prim_u_8_strict *mount_id,
                                                                           struct wire_cst_list_prim_u_8_strict *focuser_id,
                                                                           struct wire_cst_list_prim_u_8_strict *filterwheel_id,
-                                                                          struct wire_cst_list_prim_u_8_strict *rotator_id);
+                                                                          struct wire_cst_list_prim_u_8_strict *rotator_id,
+                                                                          struct wire_cst_list_String *filter_names);
 
 void frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_simulation_mode(int64_t port_,
                                                                                   bool enabled);
@@ -2613,6 +2618,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_export_logs);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_filterwheel_get_names);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_filterwheel_set_by_name);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_filterwheel_set_filter_names);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_filterwheel_set_position);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_focuser_halt);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_focuser_move_relative);

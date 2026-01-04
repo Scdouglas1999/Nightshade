@@ -76,7 +76,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1989240131;
+  int get rustContentHash => 1168426990;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -371,6 +371,9 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiApiFilterwheelSetByName(
       {required String deviceId, required String name});
+
+  Future<void> crateApiApiFilterwheelSetFilterNames(
+      {required String deviceId, required List<String> names});
 
   Future<void> crateApiApiFilterwheelSetPosition(
       {required String deviceId, required int position});
@@ -682,7 +685,8 @@ abstract class RustLibApi extends BaseApi {
       String? mountId,
       String? focuserId,
       String? filterwheelId,
-      String? rotatorId});
+      String? rotatorId,
+      List<String>? filterNames});
 
   Future<void> crateApiApiSequencerSetSimulationMode({required bool enabled});
 
@@ -2907,6 +2911,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_filterwheel_set_by_name",
         argNames: ["deviceId", "name"],
+      );
+
+  @override
+  Future<void> crateApiApiFilterwheelSetFilterNames(
+      {required String deviceId, required List<String> names}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_list_String(names);
+        return wire.wire__crate__api__api_filterwheel_set_filter_names(
+            port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiFilterwheelSetFilterNamesConstMeta,
+      argValues: [deviceId, names],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiFilterwheelSetFilterNamesConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_filterwheel_set_filter_names",
+        argNames: ["deviceId", "names"],
       );
 
   @override
@@ -5529,7 +5559,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       String? mountId,
       String? focuserId,
       String? filterwheelId,
-      String? rotatorId}) {
+      String? rotatorId,
+      List<String>? filterNames}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_opt_String(cameraId);
@@ -5537,15 +5568,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg2 = cst_encode_opt_String(focuserId);
         var arg3 = cst_encode_opt_String(filterwheelId);
         var arg4 = cst_encode_opt_String(rotatorId);
+        var arg5 = cst_encode_opt_list_String(filterNames);
         return wire.wire__crate__api__api_sequencer_set_devices(
-            port_, arg0, arg1, arg2, arg3, arg4);
+            port_, arg0, arg1, arg2, arg3, arg4, arg5);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_nightshade_error,
       ),
       constMeta: kCrateApiApiSequencerSetDevicesConstMeta,
-      argValues: [cameraId, mountId, focuserId, filterwheelId, rotatorId],
+      argValues: [
+        cameraId,
+        mountId,
+        focuserId,
+        filterwheelId,
+        rotatorId,
+        filterNames
+      ],
       apiImpl: this,
     ));
   }
@@ -5558,7 +5597,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "mountId",
           "focuserId",
           "filterwheelId",
-          "rotatorId"
+          "rotatorId",
+          "filterNames"
         ],
       );
 
@@ -8980,6 +9020,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<String>? dco_decode_opt_list_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_String(raw);
+  }
+
+  @protected
   Phd2AlgoParam dco_decode_phd_2_algo_param(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -11925,6 +11971,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<String>? sse_decode_opt_list_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   Phd2AlgoParam sse_decode_phd_2_algo_param(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_name = sse_decode_String(deserializer);
@@ -14676,6 +14733,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_u_64(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_list_String(
+      List<String>? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_String(self, serializer);
     }
   }
 

@@ -458,6 +458,12 @@ impl SequenceExecutor {
                             name: node_name,
                         });
                     }
+                } else if matches!(update.status, NodeStatus::Success | NodeStatus::Failure | NodeStatus::Cancelled | NodeStatus::Skipped) {
+                    // Clear node from started set when it completes, so it can emit NodeStarted again
+                    // on the next loop iteration (fixes UI not updating when loop cycles back)
+                    let mut started = started_nodes.write().unwrap();
+                    started.remove(&update.node_id);
+                    tracing::debug!("[PROGRESS_CB] Cleared node {} from started set (status={:?})", update.node_id, update.status);
                 }
 
                 if let (Some(current), Some(_total)) = (update.current_frame, update.total_frames) {

@@ -602,6 +602,14 @@ Future<void> apiFilterwheelSetByName(
     RustLib.instance.api
         .crateApiApiFilterwheelSetByName(deviceId: deviceId, name: name);
 
+/// Set filter names on a filter wheel.
+/// This pushes user-defined filter names from the equipment profile to the native driver.
+/// Should be called after connecting a filter wheel to sync profile names with the driver.
+Future<void> apiFilterwheelSetFilterNames(
+        {required String deviceId, required List<String> names}) =>
+    RustLib.instance.api
+        .crateApiApiFilterwheelSetFilterNames(deviceId: deviceId, names: names);
+
 /// Get rotator status
 Future<RotatorStatus> apiGetRotatorStatus({required String deviceId}) =>
     RustLib.instance.api.crateApiApiGetRotatorStatus(deviceId: deviceId);
@@ -1035,13 +1043,15 @@ Future<void> apiSequencerSetDevices(
         String? mountId,
         String? focuserId,
         String? filterwheelId,
-        String? rotatorId}) =>
+        String? rotatorId,
+        List<String>? filterNames}) =>
     RustLib.instance.api.crateApiApiSequencerSetDevices(
         cameraId: cameraId,
         mountId: mountId,
         focuserId: focuserId,
         filterwheelId: filterwheelId,
-        rotatorId: rotatorId);
+        rotatorId: rotatorId,
+        filterNames: filterNames);
 
 /// Create an exposure node configuration
 String apiCreateExposureNode(

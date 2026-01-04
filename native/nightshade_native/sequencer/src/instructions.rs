@@ -590,7 +590,10 @@ pub async fn execute_center(
                 1, 1, // Full resolution for best solve
             ) => {
                 match result {
-                    Ok(data) => data,
+                    Ok(data) => {
+                tracing::info!("[SEQ] Exposure completed: {}x{} image ({} pixels)", data.width, data.height, data.data.len());
+                data
+            }
                     Err(e) => return InstructionResult::failure(format!("Failed to capture image: {}", e)),
                 }
             }
@@ -773,7 +776,10 @@ pub async fn execute_exposure(
             bin_x,
             bin_y,
         ).await {
-            Ok(data) => data,
+            Ok(data) => {
+                tracing::info!("[SEQ] Exposure completed: {}x{} image ({} pixels)", data.width, data.height, data.data.len());
+                data
+            }
             Err(e) => return InstructionResult::failure(format!("Exposure failed: {}", e)),
         };
 
@@ -970,7 +976,10 @@ pub async fn execute_autofocus(
             None,
             bin_x, bin_y,
         ).await {
-            Ok(data) => data,
+            Ok(data) => {
+                tracing::info!("[SEQ] Exposure completed: {}x{} image ({} pixels)", data.width, data.height, data.data.len());
+                data
+            }
             Err(e) => return InstructionResult::failure(format!("Autofocus exposure failed: {}", e)),
         };
 

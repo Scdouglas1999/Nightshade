@@ -582,6 +582,7 @@ abstract class NightshadeBackend {
     String? focuserId,
     String? filterwheelId,
     String? rotatorId,
+    List<String>? filterNames,
   });
 
   // =========================================================================

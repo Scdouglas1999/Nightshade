@@ -327,6 +327,8 @@ impl DeviceOps for UnifiedDeviceOps {
                 format!("Failed to download image: {}", e)
             })?;
 
+        tracing::info!("[EXPOSURE] Download complete: {}x{} ({} pixels)", native_image.width, native_image.height, native_image.data.len());
+
         // Validate downloaded image data to catch corrupted/bad frames early
         // This prevents cascading failures in autofocus, plate solving, etc.
         {
@@ -338,6 +340,8 @@ impl DeviceOps for UnifiedDeviceOps {
                 &native_image.data
             );
 
+            tracing::debug!("[EXPOSURE] Starting image validation...");
+
             // Use comprehensive validation - bias frames (very short exposures) are allowed to have uniform data
             let is_bias_frame = duration_secs < 0.1; // Bias frames are typically < 100ms
             let validation = nightshade_imaging::validate_image_with_options(
@@ -347,6 +351,8 @@ impl DeviceOps for UnifiedDeviceOps {
                 is_bias_frame,
             );
 
+
+            tracing::debug!("[EXPOSURE] Validation complete: valid={}", validation.is_valid);
 
             // Log validation warnings (don't fail, just inform user via logging)
             for warning in &validation.warnings {
@@ -384,6 +390,109 @@ impl DeviceOps for UnifiedDeviceOps {
         // Map bayer pattern to sensor_type and bayer_offset
             None => (Some("Monochrome".to_string()), None),
         };
+
+        // Store image in unified storage for UI access
+        // This is critical - the Flutter UI calls api_get_last_image() to display captures
+        {
+            let is_color = bayer_offset.is_some();
+
+            // Create ImageData for stretching
+            let channels = if is_color { 3 } else { 1 };
+            let image = nightshade_imaging::ImageData::from_u16(
+                native_image.width,
+                native_image.height,
+                channels,
+                &native_image.data,
+            );
+
+            // Apply auto-stretch to create display-ready data
+            let display_data = if is_color {
+                // Color: debayer and stretch
+                // Get bayer pattern from offset
+                let bayer_pattern = match bayer_offset {
+                    Some((0, 0)) => nightshade_imaging::BayerPattern::RGGB,
+                    Some((1, 0)) => nightshade_imaging::BayerPattern::GRBG,
+                    Some((0, 1)) => nightshade_imaging::BayerPattern::GBRG,
+                    Some((1, 1)) => nightshade_imaging::BayerPattern::BGGR,
+                    _ => nightshade_imaging::BayerPattern::RGGB, // Default
+                };
+                let rgb_data = nightshade_imaging::debayer_to_rgb16(
+                    &native_image.data,
+                    native_image.width,
+                    native_image.height,
+                    bayer_pattern,
+                    nightshade_imaging::DebayerAlgorithm::Bilinear,
+                );
+
+                // Auto-stretch RGB
+                use rayon::prelude::*;
+                let rgb_pixels: Vec<f64> = rgb_data.par_iter()
+                    .map(|&v| v as f64 / 65535.0)
+                    .collect();
+                let mut sorted = rgb_pixels.clone();
+                sorted.par_sort_unstable_by(|a, b| {
+                    a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                });
+                let median = sorted[sorted.len() / 2];
+                let unified_params = nightshade_imaging::StretchParams {
+                    shadows: (median - 0.1).max(0.0),
+                    highlights: (median + 0.3).min(1.0),
+                    midtones: 0.5,
+                };
+
+                nightshade_imaging::apply_stretch_rgb(
+                    &rgb_data,
+                    native_image.width,
+                    native_image.height,
+                    &unified_params,
+                )
+            } else {
+                // Grayscale: auto-stretch to u8
+                let stretch_params = nightshade_imaging::auto_stretch_stf(&image);
+                nightshade_imaging::apply_stretch(&image, &stretch_params)
+            };
+
+            // Calculate stats and histogram
+            let stats = nightshade_imaging::calculate_stats_u16(&image);
+            let stars = nightshade_imaging::detect_stars(&image, &nightshade_imaging::StarDetectionConfig::default());
+            let star_count = stars.len() as u32;
+
+            let mut histogram = vec![0u32; 256];
+            for &pixel in &display_data {
+                histogram[pixel as usize] += 1;
+            }
+
+            // Create and store the display result
+            let display_result = CapturedImageResult {
+                width: native_image.width,
+                height: native_image.height,
+                display_data,
+                histogram,
+                stats: ImageStatsResult {
+                    min: stats.min,
+                    max: stats.max,
+                    mean: stats.mean,
+                    median: stats.median,
+                    std_dev: stats.std_dev,
+                    hfr: None,
+                    star_count,
+                },
+                exposure_time: duration_secs,
+                timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
+                is_color,
+            };
+
+            let raw_info = RawImageInfo {
+                width: native_image.width,
+                height: native_image.height,
+                data: native_image.data.clone(),
+                sensor_type: sensor_type.clone(),
+                bayer_offset,
+            };
+
+            store_captured_image_atomically(display_result, raw_info).await;
+            tracing::info!("Stored image in unified storage for UI display");
+        }
 
         // Publish success event
         self.app_state.publish_imaging_event(

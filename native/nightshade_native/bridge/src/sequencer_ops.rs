@@ -414,13 +414,14 @@ impl DeviceOps for BridgeDeviceOps {
     
     async fn filterwheel_set_filter_by_name(&self, fw_id: &str, name: &str) -> DeviceResult<i32> {
         let names = self.filterwheel_get_names(fw_id).await?;
-        
+        tracing::info!("filterwheel_set_filter_by_name: Looking for '{}' in available filters: {:?}", name, names);
+
         // Find the filter position by name (case-insensitive)
         let position = names.iter()
             .position(|n| n.eq_ignore_ascii_case(name))
             .map(|p| (p + 1) as i32) // Filter positions are 1-based
-            .ok_or_else(|| format!("Filter '{}' not found", name))?;
-        
+            .ok_or_else(|| format!("Filter '{}' not found. Available: {:?}", name, names))?;
+
         self.filterwheel_set_position(fw_id, position).await?;
         Ok(position)
     }
