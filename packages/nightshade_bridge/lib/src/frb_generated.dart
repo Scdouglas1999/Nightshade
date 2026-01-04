@@ -76,7 +76,11 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
+<<<<<<< Updated upstream
   int get rustContentHash => 1168426990;
+=======
+  int get rustContentHash => 382576679;
+>>>>>>> Stashed changes
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
