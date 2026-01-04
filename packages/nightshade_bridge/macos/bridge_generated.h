@@ -2241,6 +2241,15 @@ void frbgen_nightshade_bridge_wire__crate__api__alpaca_connections__connect_alpa
                                                                                           int32_t device_type,
                                                                                           struct wire_cst_list_prim_u_8_strict *device_id);
 
+void frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_camera(int64_t port_,
+                                                                                        struct wire_cst_list_prim_u_8_strict *prog_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_focuser(int64_t port_,
+                                                                                         struct wire_cst_list_prim_u_8_strict *prog_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_mount(int64_t port_,
+                                                                                       struct wire_cst_list_prim_u_8_strict *prog_id);
+
 void frbgen_nightshade_bridge_wire__crate__api__alpaca_connections__disconnect_alpaca_device(int64_t port_,
                                                                                              struct wire_cst_list_prim_u_8_strict *device_id);
 
@@ -2276,6 +2285,15 @@ void frbgen_nightshade_bridge_wire__crate__api__focuser_move_rel(int64_t port_,
 
 void frbgen_nightshade_bridge_wire__crate__api__alpaca_connections__get_alpaca_client(int64_t port_,
                                                                                       struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_camera_temp(int64_t port_,
+                                                                                         struct wire_cst_list_prim_u_8_strict *prog_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_focuser_position(int64_t port_,
+                                                                                              struct wire_cst_list_prim_u_8_strict *prog_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_mount_coords(int64_t port_,
+                                                                                          struct wire_cst_list_prim_u_8_strict *prog_id);
 
 void frbgen_nightshade_bridge_wire__crate__api__get_camera_status(int64_t port_,
                                                                   struct wire_cst_list_prim_u_8_strict *device_id);
@@ -2333,6 +2351,10 @@ void frbgen_nightshade_bridge_wire__crate__api__mount_sync(int64_t port_,
 void frbgen_nightshade_bridge_wire__crate__api__mount_unpark(int64_t port_,
                                                              struct wire_cst_list_prim_u_8_strict *device_id);
 
+void frbgen_nightshade_bridge_wire__crate__api__ascom_connections__move_ascom_focuser(int64_t port_,
+                                                                                      struct wire_cst_list_prim_u_8_strict *prog_id,
+                                                                                      int32_t position);
+
 void frbgen_nightshade_bridge_wire__crate__api__set_camera_cooler(int64_t port_,
                                                                   struct wire_cst_list_prim_u_8_strict *device_id,
                                                                   uint8_t enabled,
@@ -2355,6 +2377,11 @@ void frbgen_nightshade_bridge_wire__crate__api__simulated_focuser_default(int64_
 void frbgen_nightshade_bridge_wire__crate__api__simulated_mount_default(int64_t port_);
 
 void frbgen_nightshade_bridge_wire__crate__api__simulated_rotator_default(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__ascom_connections__slew_ascom_mount(int64_t port_,
+                                                                                    struct wire_cst_list_prim_u_8_strict *prog_id,
+                                                                                    double ra,
+                                                                                    double dec);
 
 void frbgen_nightshade_bridge_wire__crate__api__star_detection_config_api_default(int64_t port_);
 
@@ -2759,6 +2786,14 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_stop_device_heartbeat);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_stop_polar_alignment);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_update_settings);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_camera);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_focuser);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_mount);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_camera_temp);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_focuser_position);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_mount_coords);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__move_ascom_focuser);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__slew_ascom_mount);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__cancel_exposure);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__filter_wheel_get_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__filter_wheel_get_position);
