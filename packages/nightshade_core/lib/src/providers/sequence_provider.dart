@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
@@ -1286,12 +1287,59 @@ class SequenceExecutor {
     // Start checkpoint auto-save timer
     _startCheckpointTimer();
 
+    // Sync filter names from equipment profile to native driver
+    // This ensures user-defined filter names (Ha, OIII, SII) work in sequences
+    await _syncFilterNamesToDriver();
+
     if (_useNativeExecution) {
       // Use native executor
       await _startNativeExecution(sequence);
     } else {
       // Execute with real equipment
       await _executeSequence(sequence);
+    }
+  }
+
+  /// Sync filter names from the active equipment profile to the native filter wheel driver.
+  /// This is called at sequence start to ensure user-defined names are available.
+  Future<void> _syncFilterNamesToDriver() async {
+    try {
+      final activeProfile = _ref.read(activeEquipmentProfileProvider);
+      if (activeProfile == null) {
+        debugPrint('SequenceExecutor: No active profile - skipping filter name sync');
+        return;
+      }
+
+      final filterWheelState = _ref.read(filterWheelStateProvider);
+      if (filterWheelState.connectionState != DeviceConnectionState.connected) {
+        debugPrint('SequenceExecutor: Filter wheel not connected - skipping filter name sync');
+        return;
+      }
+
+      final deviceId = filterWheelState.deviceId;
+      if (deviceId == null) {
+        debugPrint('SequenceExecutor: No filter wheel device ID - skipping filter name sync');
+        return;
+      }
+
+      final profileFilterNames = activeProfile.filterNames;
+      if (profileFilterNames.isEmpty) {
+        debugPrint('SequenceExecutor: Profile has no filter names - skipping sync');
+        return;
+      }
+
+      debugPrint('SequenceExecutor: Syncing ${profileFilterNames.length} filter names to driver: $profileFilterNames');
+
+      // Push filter names to the native driver
+      await bridge.apiFilterwheelSetFilterNames(
+        deviceId: deviceId,
+        names: profileFilterNames,
+      );
+
+      debugPrint('SequenceExecutor: Filter names synced successfully');
+    } catch (e) {
+      // Don't fail sequence start if filter name sync fails - log and continue
+      debugPrint('SequenceExecutor: Failed to sync filter names: $e');
     }
   }
   
@@ -1335,12 +1383,27 @@ class SequenceExecutor {
     final filterwheelId = filterwheelState.connectionState == DeviceConnectionState.connected ? filterwheelState.deviceId : null;
     final rotatorId = rotatorState.connectionState == DeviceConnectionState.connected ? rotatorState.deviceId : null;
 
+    // Get filter names - try equipment profile first, then filter wheel state
+    List<String>? filterNames;
+    final activeProfile = _ref.read(activeEquipmentProfileProvider);
+    if (activeProfile != null && activeProfile.filterNames.isNotEmpty) {
+      filterNames = activeProfile.filterNames;
+      debugPrint('SequenceExecutor: Using profile filter names: $filterNames');
+    } else if (filterwheelState.filterNames.isNotEmpty) {
+      // Fall back to filter names from hardware (synced at connection time)
+      filterNames = filterwheelState.filterNames;
+      debugPrint('SequenceExecutor: Using hardware filter names: $filterNames');
+    } else {
+      debugPrint('SequenceExecutor: No filter names available from profile or hardware');
+    }
+
     await backend.sequencerSetDevices(
       cameraId: cameraId,
       mountId: mountId,
       focuserId: focuserId,
       filterwheelId: filterwheelId,
       rotatorId: rotatorId,
+      filterNames: filterNames,
     );
 
     // Convert sequence to JSON and load into native executor via backend
@@ -1365,7 +1428,16 @@ class SequenceExecutor {
     // Log all events to verify handler is being called
     print('[SequenceProvider] Received event: type=${event.eventType}, category=${event.category}');
 
-    // Only process sequencer events
+    // Handle imaging events for image preview during sequences
+    if (event.category == EventCategory.imaging && event.eventType == 'ExposureComplete') {
+      print('[SEQ_PROVIDER] ExposureComplete imaging event received - fetching image for preview');
+      // Get exposure duration from event data if available
+      final durationSecs = (event.data['duration_secs'] as num?)?.toDouble() ?? 2.0;
+      _fetchAndDisplaySequenceImage(durationSecs);
+      return;
+    }
+
+    // Only process sequencer events for progress tracking
     if (event.category != EventCategory.sequencer) return;
 
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
@@ -1412,10 +1484,12 @@ class SequenceExecutor {
         }
         break;
 
-      case 'ExposureCompleted':
+      case 'ExposureComplete':  // Note: NOT 'ExposureCompleted' - event has no 'd'
+        print('[SEQ_PROVIDER] ExposureComplete event received');
         final frame = event.data['frame'] as int? ?? 0;
         final total = event.data['total'] as int? ?? 1;
         final durationSecs = (event.data['duration_secs'] as num?)?.toDouble() ?? 0.0;
+        print('[SEQ_PROVIDER] Frame $frame/$total, duration=${durationSecs}s');
         // Calculate new completed integration time
         final newCompletedIntegration = _ref.read(sequenceProgressProvider).completedIntegrationSecs + durationSecs;
         progressNotifier.updateProgress(
@@ -1530,10 +1604,13 @@ class SequenceExecutor {
   /// Fetch the last captured image and update the UI providers
   /// This ensures sequence images are displayed in the Imaging tab and Dashboard
   void _fetchAndDisplaySequenceImage(double durationSecs) {
+    print('[SEQ_PROVIDER] _fetchAndDisplaySequenceImage called, duration=${durationSecs}s');
     // Run async fetch in a fire-and-forget manner
     Future(() async {
       try {
+        print('[SEQ_PROVIDER] Calling bridge.apiGetLastImage()...');
         final capturedImage = await bridge.apiGetLastImage();
+        print('[SEQ_PROVIDER] Got image: ${capturedImage.width}x${capturedImage.height}, displayData size: ${capturedImage.displayData.length}');
 
         // Convert to CapturedImageData (same as ImagingService.captureImage does)
         final imageData = CapturedImageData(
@@ -1569,11 +1646,14 @@ class SequenceExecutor {
         );
 
         // Update providers to display the image in UI
+        print('[SEQ_PROVIDER] Setting currentImageProvider with image ${imageData.width}x${imageData.height}');
         _ref.read(currentImageProvider.notifier).state = imageData;
         _ref.read(lastImageStatsProvider.notifier).state = imageData.stats;
-      } catch (e) {
+        print('[SEQ_PROVIDER] Providers updated successfully!');
+      } catch (e, stackTrace) {
         // Log but don't fail - image display is non-critical
-        print('Failed to fetch sequence image for display: $e');
+        print('[SEQ_PROVIDER] ERROR: Failed to fetch sequence image for display: $e');
+        print('[SEQ_PROVIDER] Stack trace: $stackTrace');
       }
     });
   }

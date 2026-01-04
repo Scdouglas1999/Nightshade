@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import '../services/device_service.dart';
 import '../models/equipment/equipment_models.dart';
+import 'profiles_provider.dart';
 
 /// Default retry configuration for device operations
 const int _defaultMaxRetries = 3;
@@ -391,6 +393,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       await deviceService.connectFilterWheel(deviceId);
       _retryAttempts = 0;
       setConnected();
+
+      // After connection, sync profile filter names to the native driver
+      // This ensures user-defined filter names (Ha, OIII, SII) work in sequences
+      await _syncProfileFilterNamesToDriver(deviceId);
     } catch (e) {
       _retryAttempts++;
       final error = DeviceError.fromException(
@@ -409,6 +415,40 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
           lastError: error,
         );
       }
+    }
+  }
+
+  /// Sync filter names from the active equipment profile to the native driver.
+  /// This is called after filter wheel connection to ensure user-defined names work.
+  Future<void> _syncProfileFilterNamesToDriver(String deviceId) async {
+    try {
+      final activeProfile = _ref.read(activeEquipmentProfileProvider);
+      if (activeProfile == null) {
+        debugPrint('FilterWheelStateNotifier: No active profile - skipping filter name sync');
+        return;
+      }
+
+      final profileFilterNames = activeProfile.filterNames;
+      if (profileFilterNames.isEmpty) {
+        debugPrint('FilterWheelStateNotifier: Profile has no filter names - skipping sync');
+        return;
+      }
+
+      debugPrint('FilterWheelStateNotifier: Syncing ${profileFilterNames.length} filter names to driver: $profileFilterNames');
+
+      // Push filter names to the native driver
+      await bridge_api.apiFilterwheelSetFilterNames(
+        deviceId: deviceId,
+        names: profileFilterNames,
+      );
+
+      // Update our local state with the synced filter names
+      state = state.copyWith(filterNames: profileFilterNames);
+
+      debugPrint('FilterWheelStateNotifier: Filter names synced successfully');
+    } catch (e) {
+      // Don't fail connection if filter name sync fails - log and continue
+      debugPrint('FilterWheelStateNotifier: Failed to sync filter names: $e');
     }
   }
 

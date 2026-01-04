@@ -355,6 +355,7 @@ class DisconnectedBackend implements NightshadeBackend {
     String? focuserId,
     String? filterwheelId,
     String? rotatorId,
+    List<String>? filterNames,
   }) async {
     _throwNotConnected();
   }

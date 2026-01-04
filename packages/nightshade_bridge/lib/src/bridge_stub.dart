@@ -3065,6 +3065,7 @@ class NativeBridge {
     String? focuserId,
     String? filterwheelId,
     String? rotatorId,
+    List<String>? filterNames,
   }) async {
     if (_nativeAvailable) {
       try {
@@ -3074,9 +3075,10 @@ class NativeBridge {
           focuserId: focuserId,
           filterwheelId: filterwheelId,
           rotatorId: rotatorId,
+          filterNames: filterNames,
         );
         print(
-            '[NativeBridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId');
+            '[NativeBridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames');
         return;
       } catch (e) {
         print('[NativeBridge] Error setting sequencer devices: $e');

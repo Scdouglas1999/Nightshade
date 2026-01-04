@@ -2145,6 +2145,23 @@ pub async fn api_filterwheel_set_by_name(device_id: String, name: String) -> Res
     }
 }
 
+/// Set filter names on a filter wheel.
+/// This pushes user-defined filter names from the equipment profile to the native driver.
+/// Should be called after connecting a filter wheel to sync profile names with the driver.
+pub async fn api_filterwheel_set_filter_names(device_id: String, names: Vec<String>) -> Result<(), NightshadeError> {
+    tracing::info!("api_filterwheel_set_filter_names: Called with device_id='{}', names={:?}", device_id, names);
+
+    if device_id.starts_with("sim_") {
+        let mut fw = get_sim_filterwheel().write().await;
+        fw.status.filter_names = names;
+        Ok(())
+    } else {
+        let mgr = get_device_manager();
+        mgr.filter_wheel_set_filter_names(&device_id, names).await
+            .map_err(|e| NightshadeError::OperationFailed(e))
+    }
+}
+
 // =============================================================================
 // Rotator Control (Simulator implementation for now)
 // =============================================================================
@@ -2520,7 +2537,11 @@ fn get_unified_image_storage() -> &'static Arc<RwLock<Option<CapturedImageData>>
 /// Store captured image data atomically
 /// This ensures all image-related data (display, raw, metadata) is updated together,
 /// preventing race conditions where the UI could see inconsistent state.
-async fn store_captured_image_atomically(
+///
+/// This function is public so it can be called from UnifiedDeviceOps when the
+/// sequencer captures images (the sequencer uses a different code path than
+/// api_camera_start_exposure, but both need to store images for UI display).
+pub async fn store_captured_image_atomically(
     display: CapturedImageResult,
     raw_info: RawImageInfo,
 ) {
@@ -5000,11 +5021,25 @@ pub async fn api_sequencer_set_devices(
     focuser_id: Option<String>,
     filterwheel_id: Option<String>,
     rotator_id: Option<String>,
+    filter_names: Option<Vec<String>>,
 ) -> Result<(), NightshadeError> {
     tracing::info!(
-        "Setting sequencer devices: camera={:?}, mount={:?}, focuser={:?}, filterwheel={:?}, rotator={:?}",
-        camera_id, mount_id, focuser_id, filterwheel_id, rotator_id
+        "Setting sequencer devices: camera={:?}, mount={:?}, focuser={:?}, filterwheel={:?}, rotator={:?}, filter_names={:?}",
+        camera_id, mount_id, focuser_id, filterwheel_id, rotator_id, filter_names
     );
+
+    // If filter names are provided and a filter wheel is specified, sync them to the native driver
+    if let (Some(ref fw_id), Some(ref names)) = (&filterwheel_id, &filter_names) {
+        if !names.is_empty() {
+            tracing::info!("Syncing {} filter names to native driver: {:?}", names.len(), names);
+            let mgr = get_device_manager();
+            if let Err(e) = mgr.filter_wheel_set_filter_names(fw_id, names.clone()).await {
+                tracing::warn!("Failed to sync filter names to native driver: {}", e);
+                // Don't fail - just log and continue
+            }
+        }
+    }
+
     let mut executor = get_sequence_executor().write().await;
     executor.set_devices(camera_id, mount_id, focuser_id, filterwheel_id, rotator_id);
     Ok(())

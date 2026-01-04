@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
@@ -9,6 +10,7 @@ import '../providers/sequence_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/ui_notification_provider.dart';
 import '../providers/filter_offset_provider.dart';
+import '../providers/profiles_provider.dart';
 import '../backend/nightshade_backend.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/sequence/sequence_models.dart';
@@ -1358,7 +1360,7 @@ class DeviceService {
   /// Connect to a filter wheel
   Future<void> connectFilterWheel(String deviceId) async {
     final notifier = _ref.read(filterWheelStateProvider.notifier);
-    
+
     final devices = await discoverDevices(NightshadeDeviceType.filterWheel);
     final device = devices.firstWhere(
       (d) => d.id == deviceId,
@@ -1369,10 +1371,14 @@ class DeviceService {
 
     try {
       await _backend.connectDevice(DeviceType.filterWheel, deviceId);
-      
-      // Fetch filter names from backend
+
+      // Sync profile filter names to the native driver BEFORE fetching names back
+      // This ensures user-defined names (Ha, OIII, SII) work in sequences
+      await _syncProfileFilterNamesToDriver(deviceId);
+
+      // Fetch filter names from backend (now should have profile names)
       final filterNames = await _backend.filterWheelGetNames(deviceId);
-      
+
       notifier.setConnected(
         filterNames: filterNames,
       );
@@ -1380,6 +1386,36 @@ class DeviceService {
     } catch (e) {
       notifier.setDisconnected();
       rethrow;
+    }
+  }
+
+  /// Sync filter names from the active equipment profile to the native driver.
+  Future<void> _syncProfileFilterNamesToDriver(String deviceId) async {
+    try {
+      final activeProfile = _ref.read(activeEquipmentProfileProvider);
+      if (activeProfile == null) {
+        debugPrint('DeviceService: No active profile - skipping filter name sync');
+        return;
+      }
+
+      final profileFilterNames = activeProfile.filterNames;
+      if (profileFilterNames.isEmpty) {
+        debugPrint('DeviceService: Profile has no filter names - skipping sync');
+        return;
+      }
+
+      debugPrint('DeviceService: Syncing ${profileFilterNames.length} filter names to driver: $profileFilterNames');
+
+      // Push filter names to the native driver
+      await bridge_api.apiFilterwheelSetFilterNames(
+        deviceId: deviceId,
+        names: profileFilterNames,
+      );
+
+      debugPrint('DeviceService: Filter names synced successfully');
+    } catch (e) {
+      // Don't fail connection if filter name sync fails - log and continue
+      debugPrint('DeviceService: Failed to sync filter names: $e');
     }
   }
   

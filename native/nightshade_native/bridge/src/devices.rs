@@ -4296,6 +4296,7 @@ impl DeviceManager {
                 if let Some(wheel) = native_filter_wheels.get(device_id) {
                     let count = wheel.get_filter_count();
                     let names = wheel.get_filter_names().await.map_err(|e| e.to_string())?;
+                    tracing::info!("filter_wheel_get_config: Returning {} filter names: {:?}", count, names);
                     return Ok((count, names));
                 }
                 tracing::error!("filter_wheel_get_config: Native filter wheel '{}' not found in native_filter_wheels map!", device_id);
@@ -4303,6 +4304,48 @@ impl DeviceManager {
             }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+            }
+            _ => Err("Not implemented for this driver type".to_string()),
+        }
+    }
+
+    /// Set filter names on a filter wheel.
+    /// This pushes user-defined filter names from the equipment profile to the hardware driver.
+    pub async fn filter_wheel_set_filter_names(&self, device_id: &str, names: Vec<String>) -> Result<(), String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+        drop(devices);
+
+        tracing::info!("filter_wheel_set_filter_names: Setting filter names for '{}': {:?}", device_id, names);
+
+        match info.driver_type {
+            DriverType::Native => {
+                let mut native_filter_wheels = self.native_filter_wheels.write().await;
+                if let Some(wheel) = native_filter_wheels.get_mut(device_id) {
+                    for (i, name) in names.iter().enumerate() {
+                        wheel.set_filter_name(i as i32, name.clone()).await.map_err(|e| e.to_string())?;
+                    }
+                    tracing::info!("filter_wheel_set_filter_names: Successfully set {} filter names", names.len());
+                    return Ok(());
+                }
+                Err("Native filter wheel not connected".to_string())
+            }
+            DriverType::Ascom => {
+                // ASCOM filter names are typically stored in the driver's configuration
+                // Many ASCOM drivers don't support programmatic name setting
+                tracing::warn!("filter_wheel_set_filter_names: ASCOM filter wheels typically manage names in their own config - skipping");
+                Ok(())
+            }
+            DriverType::Alpaca => {
+                // Alpaca filter names are typically read-only from the driver
+                tracing::warn!("filter_wheel_set_filter_names: Alpaca filter wheels typically have read-only names - skipping");
+                Ok(())
+            }
+            DriverType::Indi => {
+                // INDI filter names can be set via FILTER_NAME property
+                tracing::warn!("filter_wheel_set_filter_names: INDI filter name setting not yet implemented");
+                Ok(())
             }
             _ => Err("Not implemented for this driver type".to_string()),
         }

@@ -944,6 +944,7 @@ class FfiBackend implements NightshadeBackend {
     String? focuserId,
     String? filterwheelId,
     String? rotatorId,
+    List<String>? filterNames,
   }) async {
     await bridge.NativeBridge.sequencerSetDevices(
       cameraId: cameraId,
@@ -951,6 +952,7 @@ class FfiBackend implements NightshadeBackend {
       focuserId: focuserId,
       filterwheelId: filterwheelId,
       rotatorId: rotatorId,
+      filterNames: filterNames,
     );
   }
 

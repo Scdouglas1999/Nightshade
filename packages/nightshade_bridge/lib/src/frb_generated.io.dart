@@ -469,6 +469,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
 
   @protected
+  List<String>? dco_decode_opt_list_String(dynamic raw);
+
+  @protected
   Phd2AlgoParam dco_decode_phd_2_algo_param(dynamic raw);
 
   @protected
@@ -1099,6 +1102,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
 
   @protected
   Phd2AlgoParam sse_decode_phd_2_algo_param(SseDeserializer deserializer);
@@ -1970,6 +1976,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ffi.Pointer<ffi.Uint64> cst_encode_opt_box_autoadd_u_64(BigInt? raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return raw == null ? ffi.nullptr : cst_encode_box_autoadd_u_64(raw);
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_String> cst_encode_opt_list_String(
+      List<String>? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null ? ffi.nullptr : cst_encode_list_String(raw);
   }
 
   @protected
@@ -4621,6 +4634,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_phd_2_algo_param(
       Phd2AlgoParam self, SseSerializer serializer);
 
@@ -6609,6 +6625,35 @@ class RustLibWire implements BaseWire {
             int,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>();
+
+  void wire__crate__api__api_filterwheel_set_filter_names(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    ffi.Pointer<wire_cst_list_String> names,
+  ) {
+    return _wire__crate__api__api_filterwheel_set_filter_names(
+      port_,
+      device_id,
+      names,
+    );
+  }
+
+  late final _wire__crate__api__api_filterwheel_set_filter_namesPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_String>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_filterwheel_set_filter_names',
+  );
+  late final _wire__crate__api__api_filterwheel_set_filter_names =
+      _wire__crate__api__api_filterwheel_set_filter_namesPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_String>,
           )>();
 
   void wire__crate__api__api_filterwheel_set_position(
@@ -8638,6 +8683,7 @@ class RustLibWire implements BaseWire {
     ffi.Pointer<wire_cst_list_prim_u_8_strict> focuser_id,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> filterwheel_id,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> rotator_id,
+    ffi.Pointer<wire_cst_list_String> filter_names,
   ) {
     return _wire__crate__api__api_sequencer_set_devices(
       port_,
@@ -8646,6 +8692,7 @@ class RustLibWire implements BaseWire {
       focuser_id,
       filterwheel_id,
       rotator_id,
+      filter_names,
     );
   }
 
@@ -8658,6 +8705,7 @@ class RustLibWire implements BaseWire {
                 ffi.Pointer<wire_cst_list_prim_u_8_strict>,
                 ffi.Pointer<wire_cst_list_prim_u_8_strict>,
                 ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<wire_cst_list_String>,
               )>>(
       'frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_devices');
   late final _wire__crate__api__api_sequencer_set_devices =
@@ -8669,6 +8717,7 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_String>,
           )>();
 
   void wire__crate__api__api_sequencer_set_simulation_mode(

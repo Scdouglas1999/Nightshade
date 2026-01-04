@@ -1452,7 +1452,11 @@ impl RuntimeNode {
             }
 
             self.current_iteration += 1;
-            tracing::info!("Loop iteration {}", self.current_iteration);
+            tracing::info!("=== LOOP ITERATION {} STARTING ===", self.current_iteration);
+            tracing::info!("Loop has {} children", self.children.len());
+            for (i, child) in self.children.iter().enumerate() {
+                tracing::info!("  Child {}: '{}' (id={})", i, child.name(), child.id());
+            }
 
             let total_children = match config.condition {
                 LoopCondition::Count => Some(max_iterations as usize),
@@ -1471,12 +1475,16 @@ impl RuntimeNode {
             });
 
             // Reset children for this iteration
+            tracing::info!("Resetting {} children for iteration {}", self.children.len(), self.current_iteration);
             for child in &mut self.children {
                 child.reset();
             }
+            tracing::info!("Children reset complete");
 
             // Execute children
+            tracing::info!("Starting execute_children_sequential for iteration {}", self.current_iteration);
             let result = self.execute_children_sequential(context).await;
+            tracing::info!("execute_children_sequential completed with result: {:?}", result);
             if result == NodeStatus::Failure || result == NodeStatus::Cancelled {
                 return result;
             }

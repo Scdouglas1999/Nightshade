@@ -1003,6 +1003,20 @@ impl NativeCamera for ZwoCamera {
         }
 
         tracing::info!("Downloaded {}x{} image ({} bytes, img_type={})", width, height, buffer_size, img_type);
+
+        // Get temperature and vendor features using sync methods since we already hold the lock
+        // (calling async methods here would deadlock because they try to acquire the same mutex)
+        let temperature = self.get_control(ASIControlType::ASI_TEMPERATURE)
+            .map(|v| v as f64 / 10.0)
+            .ok();
+
+        let mut vendor_data = VendorFeatures::default();
+        if let Ok(bw) = self.get_control(ASIControlType::ASI_BANDWIDTHOVERLOAD) {
+            vendor_data.usb_bandwidth = Some(bw as f64);
+        }
+        if let Ok(heater) = self.get_control(ASIControlType::ASI_ANTI_DEW_HEATER) {
+            vendor_data.anti_dew_heater = Some(heater != 0);
+        }
         
         Ok(ImageData {
             width: width as u32,
@@ -1024,11 +1038,11 @@ impl NativeCamera for ZwoCamera {
                 offset: self.current_offset,
                 bin_x: self.current_bin,
                 bin_y: self.current_bin,
-                temperature: self.get_temperature().await.ok(),
+                temperature,
                 timestamp: chrono::Utc::now(),
                 subframe: self.current_subframe.clone(),
                 readout_mode: None,
-                vendor_data: self.get_vendor_features().await?,
+                vendor_data,
             },
         })
     }
