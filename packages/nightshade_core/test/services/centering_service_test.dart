@@ -1,8 +1,11 @@
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// Import plate_solve_service directly to get its PlateSolveResult type
+import 'package:nightshade_core/src/services/plate_solve_service.dart' as plate_solve;
 
 import 'centering_service_test.mocks.dart';
 
@@ -30,29 +33,19 @@ void main() {
           plateSolveServiceProvider.overrideWithValue(mockPlateSolveService),
           deviceServiceProvider.overrideWithValue(mockDeviceService),
           // Override equipment states to simulate connected devices
-          cameraStateProvider.overrideWith((ref) =>
-            StateNotifier<CameraState>(() => const CameraState(
-              connectionState: DeviceConnectionState.connected,
-              deviceId: 'test_camera',
-              deviceName: 'Test Camera',
-            ))
-          ),
-          mountStateProvider.overrideWith((ref) =>
-            StateNotifier<MountState>(() => const MountState(
-              connectionState: DeviceConnectionState.connected,
-              deviceName: 'Test Mount',
-              ra: 10.0,
-              dec: 45.0,
-            ))
-          ),
-          // Override app settings
-          appSettingsProvider.overrideWith((ref) =>
-            Stream.value(const AppSettings(
-              plateSolverType: 'ASTAP',
-              plateSolverPath: '/usr/bin/astap',
-              plateSolverCatalogPath: '/usr/share/astap/catalogs',
-            ))
-          ),
+          cameraStateProvider.overrideWith((ref) {
+            final notifier = CameraStateNotifier(ref);
+            notifier.setConnecting('test_camera', 'Test Camera');
+            notifier.setConnected();
+            return notifier;
+          }),
+          mountStateProvider.overrideWith((ref) {
+            final notifier = MountStateNotifier(ref);
+            notifier.setConnecting('test_mount');
+            notifier.setConnected();
+            notifier.updatePosition(10.0, 45.0, 30.0, 180.0); // ra, dec, alt, az
+            return notifier;
+          }),
         ],
       );
     });
@@ -68,8 +61,8 @@ void main() {
         const targetDec = 45.0; // degrees
         const toleranceArcsec = 30.0;
 
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -95,11 +88,14 @@ void main() {
         );
 
         // Plate solve returns coordinates very close to target (within tolerance)
-        final solveResult = PlateSolveResult(
+        final solveResult = plate_solve.PlateSolveResult(
           success: true,
           ra: targetRa, // Same as target
           dec: targetDec, // Same as target
           rotation: 0.0,
+          pixelScale: 1.0,
+          fieldWidth: 2.0,
+          fieldHeight: 1.5,
         );
 
         when(mockImagingService.captureImage(
@@ -136,8 +132,8 @@ void main() {
         const targetDec = 45.0; // degrees
         const toleranceArcsec = 30.0;
 
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -174,17 +170,25 @@ void main() {
           iterationCount++;
           if (iterationCount == 1) {
             // First solve: 2 arcmin (120 arcsec) off in RA
-            return PlateSolveResult(
+            return plate_solve.PlateSolveResult(
               success: true,
               ra: targetRa + (120.0 / 3600.0 / 15.0), // 120 arcsec converted to hours
               dec: targetDec,
+              rotation: 0.0,
+              pixelScale: 1.0,
+              fieldWidth: 2.0,
+              fieldHeight: 1.5,
             );
           } else {
             // Second solve: within tolerance
-            return PlateSolveResult(
+            return plate_solve.PlateSolveResult(
               success: true,
               ra: targetRa,
               dec: targetDec,
+              rotation: 0.0,
+              pixelScale: 1.0,
+              fieldWidth: 2.0,
+              fieldHeight: 1.5,
             );
           }
         });
@@ -218,8 +222,8 @@ void main() {
         const toleranceArcsec = 30.0;
         const maxIterations = 3;
 
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -251,10 +255,14 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return PlateSolveResult(
+          return plate_solve.PlateSolveResult(
             success: true,
             ra: targetRa + (300.0 / 3600.0 / 15.0), // 300 arcsec (5 arcmin) off
             dec: targetDec,
+            rotation: 0.0,
+            pixelScale: 1.0,
+            fieldWidth: 2.0,
+            fieldHeight: 1.5,
           );
         });
 
@@ -285,22 +293,20 @@ void main() {
         // Arrange
         final disconnectedContainer = ProviderContainer(
           overrides: [
-            cameraStateProvider.overrideWith((ref) =>
-              StateNotifier<CameraState>(() => const CameraState(
-                connectionState: DeviceConnectionState.disconnected,
-              ))
-            ),
-            mountStateProvider.overrideWith((ref) =>
-              StateNotifier<MountState>(() => const MountState(
-                connectionState: DeviceConnectionState.connected,
-                deviceName: 'Test Mount',
-              ))
-            ),
+            cameraStateProvider.overrideWith((ref) {
+              return CameraStateNotifier(ref); // Default is disconnected
+            }),
+            mountStateProvider.overrideWith((ref) {
+              final notifier = MountStateNotifier(ref);
+              notifier.setConnecting('test_mount');
+              notifier.setConnected();
+              return notifier;
+            }),
           ],
         );
 
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -324,23 +330,20 @@ void main() {
         // Arrange
         final disconnectedContainer = ProviderContainer(
           overrides: [
-            cameraStateProvider.overrideWith((ref) =>
-              StateNotifier<CameraState>(() => const CameraState(
-                connectionState: DeviceConnectionState.connected,
-                deviceId: 'test_camera',
-                deviceName: 'Test Camera',
-              ))
-            ),
-            mountStateProvider.overrideWith((ref) =>
-              StateNotifier<MountState>(() => const MountState(
-                connectionState: DeviceConnectionState.disconnected,
-              ))
-            ),
+            cameraStateProvider.overrideWith((ref) {
+              final notifier = CameraStateNotifier(ref);
+              notifier.setConnecting('test_camera', 'Test Camera');
+              notifier.setConnected();
+              return notifier;
+            }),
+            mountStateProvider.overrideWith((ref) {
+              return MountStateNotifier(ref); // Default is disconnected
+            }),
           ],
         );
 
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -362,8 +365,8 @@ void main() {
 
       test('fails when plate solve fails', () async {
         // Arrange
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -388,7 +391,7 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return PlateSolveResult.failed('No stars found in image');
+          return plate_solve.PlateSolveResult.failed('No stars found in image');
         });
 
         // Act
@@ -411,8 +414,8 @@ void main() {
         const targetRa = 10.0;
         const targetDec = 45.0;
 
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -442,16 +445,24 @@ void main() {
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           iterationCount++;
           if (iterationCount == 1) {
-            return PlateSolveResult(
+            return plate_solve.PlateSolveResult(
               success: true,
               ra: targetRa + (120.0 / 3600.0 / 15.0),
               dec: targetDec,
+              rotation: 0.0,
+              pixelScale: 1.0,
+              fieldWidth: 2.0,
+              fieldHeight: 1.5,
             );
           } else {
-            return PlateSolveResult(
+            return plate_solve.PlateSolveResult(
               success: true,
               ra: targetRa,
               dec: targetDec,
+              rotation: 0.0,
+              pixelScale: 1.0,
+              fieldWidth: 2.0,
+              fieldHeight: 1.5,
             );
           }
         });
@@ -495,60 +506,6 @@ void main() {
       });
     });
 
-    group('_calculateOffset', () {
-      test('calculates zero offset for identical coordinates', () {
-        // Arrange
-        final service = container.read(centeringServiceProvider);
-        const ra = 10.0; // hours
-        const dec = 45.0; // degrees
-
-        // Act
-        final offset = service._calculateOffset(ra, dec, ra, dec);
-
-        // Assert
-        expect(offset, closeTo(0.0, 0.01));
-      });
-
-      test('calculates correct offset for 1 arcmin RA difference', () {
-        // Arrange
-        final service = container.read(centeringServiceProvider);
-        const targetRa = 10.0; // hours
-        const targetDec = 45.0; // degrees
-        const solvedRa = targetRa + (60.0 / 3600.0 / 15.0); // 1 arcmin in hours
-
-        // Act
-        final offset = service._calculateOffset(
-          targetRa,
-          targetDec,
-          solvedRa,
-          targetDec,
-        );
-
-        // Assert
-        // At Dec=45 deg, 1 arcmin in RA is about 0.707 * 60 = 42.4 arcsec in angular separation
-        expect(offset, closeTo(42.4, 5.0)); // Allow 5" tolerance
-      });
-
-      test('calculates correct offset for 1 arcmin Dec difference', () {
-        // Arrange
-        final service = container.read(centeringServiceProvider);
-        const targetRa = 10.0; // hours
-        const targetDec = 45.0; // degrees
-        const solvedDec = targetDec + (60.0 / 3600.0); // 1 arcmin in degrees
-
-        // Act
-        final offset = service._calculateOffset(
-          targetRa,
-          targetDec,
-          targetRa,
-          solvedDec,
-        );
-
-        // Assert
-        expect(offset, closeTo(60.0, 0.1)); // 1 arcmin = 60 arcsec
-      });
-    });
-
     group('verifyCenter', () {
       test('succeeds when within tolerance', () async {
         // Arrange
@@ -556,8 +513,8 @@ void main() {
         const targetDec = 45.0;
         const toleranceArcsec = 30.0;
 
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -582,10 +539,14 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return PlateSolveResult(
+          return plate_solve.PlateSolveResult(
             success: true,
             ra: targetRa,
             dec: targetDec,
+            rotation: 0.0,
+            pixelScale: 1.0,
+            fieldWidth: 2.0,
+            fieldHeight: 1.5,
           );
         });
 
@@ -613,8 +574,8 @@ void main() {
         const targetDec = 45.0;
         const toleranceArcsec = 30.0;
 
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -639,10 +600,14 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return PlateSolveResult(
+          return plate_solve.PlateSolveResult(
             success: true,
             ra: targetRa + (300.0 / 3600.0 / 15.0), // 5 arcmin off
             dec: targetDec,
+            rotation: 0.0,
+            pixelScale: 1.0,
+            fieldWidth: 2.0,
+            fieldHeight: 1.5,
           );
         });
 
@@ -668,8 +633,8 @@ void main() {
         const mountRa = 10.0;
         const mountDec = 45.0;
 
-        final solverConfig = PlateSolverConfig(
-          type: PlateSolverType.astap,
+        final solverConfig = plate_solve.PlateSolverConfig(
+          type: plate_solve.PlateSolverType.astap,
           executablePath: '/usr/bin/astap',
         );
 
@@ -694,10 +659,14 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
-          return PlateSolveResult(
+          return plate_solve.PlateSolveResult(
             success: true,
             ra: mountRa,
             dec: mountDec,
+            rotation: 0.0,
+            pixelScale: 1.0,
+            fieldWidth: 2.0,
+            fieldHeight: 1.5,
           );
         });
 

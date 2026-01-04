@@ -77,20 +77,21 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
     }
   }
 
-  void _saveAndConnect() {
+  Future<void> _saveAndConnect() async {
     final host = _hostController.text.trim();
     final port = int.tryParse(_portController.text) ?? 7624;
 
-    // Save settings
-    // Note: We need to implement updateIndiSettings in SettingsProvider or use copyWith
-    // For now, assuming we can't easily modify the provider implementation here, 
-    // we'll just return the values and let the parent handle it, OR we can try to update if the provider allows.
-    // Actually, let's just return the values.
-    
-    Navigator.pop(context, {
-      'host': host,
-      'port': port,
-    });
+    // Persist the INDI server settings
+    final settingsNotifier = ref.read(appSettingsProvider.notifier);
+    await settingsNotifier.setIndiServerHost(host);
+    await settingsNotifier.setIndiServerPort(port);
+
+    if (mounted) {
+      Navigator.pop(context, {
+        'host': host,
+        'port': port,
+      });
+    }
   }
 
   @override

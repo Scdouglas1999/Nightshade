@@ -3,14 +3,13 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i6;
+import 'dart:async' as _i5;
 
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:nightshade_bridge/nightshade_bridge.dart' as _i3;
-import 'package:nightshade_core/src/backend/nightshade_backend.dart' as _i4;
-import 'package:nightshade_core/src/models/imaging/imaging_models.dart' as _i7;
-import 'package:nightshade_core/src/services/device_service.dart' as _i8;
-import 'package:nightshade_core/src/services/imaging_service.dart' as _i5;
+import 'package:nightshade_core/src/backend/nightshade_backend.dart' as _i3;
+import 'package:nightshade_core/src/models/imaging/imaging_models.dart' as _i6;
+import 'package:nightshade_core/src/services/device_service.dart' as _i7;
+import 'package:nightshade_core/src/services/imaging_service.dart' as _i4;
 import 'package:nightshade_core/src/services/plate_solve_service.dart' as _i2;
 
 // ignore_for_file: type=lint
@@ -37,9 +36,9 @@ class _FakePlateSolveResult_0 extends _i1.SmartFake
         );
 }
 
-class _FakeAutofocusResultApi_1 extends _i1.SmartFake
-    implements _i3.AutofocusResultApi {
-  _FakeAutofocusResultApi_1(
+class _FakeAutofocusResult_1 extends _i1.SmartFake
+    implements _i3.AutofocusResult {
+  _FakeAutofocusResult_1(
     Object parent,
     Invocation parentInvocation,
   ) : super(
@@ -49,7 +48,7 @@ class _FakeAutofocusResultApi_1 extends _i1.SmartFake
 }
 
 class _FakeSequencerStatus_2 extends _i1.SmartFake
-    implements _i4.SequencerStatus {
+    implements _i3.SequencerStatus {
   _FakeSequencerStatus_2(
     Object parent,
     Invocation parentInvocation,
@@ -62,7 +61,7 @@ class _FakeSequencerStatus_2 extends _i1.SmartFake
 /// A class which mocks [ImagingService].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockImagingService extends _i1.Mock implements _i5.ImagingService {
+class MockImagingService extends _i1.Mock implements _i4.ImagingService {
   MockImagingService() {
     _i1.throwOnMissingStub(this);
   }
@@ -74,8 +73,8 @@ class MockImagingService extends _i1.Mock implements _i5.ImagingService {
       ) as bool);
 
   @override
-  _i6.Future<_i7.CapturedImageData?> captureImage({
-    required _i7.ExposureSettings? settings,
+  _i5.Future<_i6.CapturedImageData?> captureImage({
+    required _i6.ExposureSettings? settings,
     String? targetName,
     int? frameNumber,
   }) =>
@@ -89,15 +88,15 @@ class MockImagingService extends _i1.Mock implements _i5.ImagingService {
             #frameNumber: frameNumber,
           },
         ),
-        returnValue: _i6.Future<_i7.CapturedImageData?>.value(),
-      ) as _i6.Future<_i7.CapturedImageData?>);
+        returnValue: _i5.Future<_i6.CapturedImageData?>.value(),
+      ) as _i5.Future<_i6.CapturedImageData?>);
 
   @override
-  _i6.Future<void> startLoopCapture({
-    required _i7.ExposureSettings? settings,
+  _i5.Future<void> startLoopCapture({
+    required _i6.ExposureSettings? settings,
     String? targetName,
     int? maxFrames,
-    void Function(_i7.CapturedImageData)? onImageCaptured,
+    void Function(_i6.CapturedImageData)? onImageCaptured,
     void Function(String)? onError,
   }) =>
       (super.noSuchMethod(
@@ -112,9 +111,9 @@ class MockImagingService extends _i1.Mock implements _i5.ImagingService {
             #onError: onError,
           },
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
   void cancelExposure() => super.noSuchMethod(
@@ -144,7 +143,7 @@ class MockPlateSolveService extends _i1.Mock implements _i2.PlateSolveService {
   }
 
   @override
-  _i6.Future<_i2.PlateSolveResult> solve(
+  _i5.Future<_i2.PlateSolveResult> solve(
     String? imagePath,
     _i2.PlateSolverConfig? config,
   ) =>
@@ -157,7 +156,7 @@ class MockPlateSolveService extends _i1.Mock implements _i2.PlateSolveService {
           ],
         ),
         returnValue:
-            _i6.Future<_i2.PlateSolveResult>.value(_FakePlateSolveResult_0(
+            _i5.Future<_i2.PlateSolveResult>.value(_FakePlateSolveResult_0(
           this,
           Invocation.method(
             #solve,
@@ -167,13 +166,13 @@ class MockPlateSolveService extends _i1.Mock implements _i2.PlateSolveService {
             ],
           ),
         )),
-      ) as _i6.Future<_i2.PlateSolveResult>);
+      ) as _i5.Future<_i2.PlateSolveResult>);
 }
 
 /// A class which mocks [DeviceService].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
+class MockDeviceService extends _i1.Mock implements _i7.DeviceService {
   MockDeviceService() {
     _i1.throwOnMissingStub(this);
   }
@@ -188,19 +187,17 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
       );
 
   @override
-  _i6.Future<List<_i8.AvailableDevice>> discoverDevices(
-          _i8.NightshadeDeviceType? type) =>
+  _i5.Future<List<_i3.DeviceInfo>> discoverDevices(_i3.DeviceType? type) =>
       (super.noSuchMethod(
         Invocation.method(
           #discoverDevices,
           [type],
         ),
-        returnValue: _i6.Future<List<_i8.AvailableDevice>>.value(
-            <_i8.AvailableDevice>[]),
-      ) as _i6.Future<List<_i8.AvailableDevice>>);
+        returnValue: _i5.Future<List<_i3.DeviceInfo>>.value(<_i3.DeviceInfo>[]),
+      ) as _i5.Future<List<_i3.DeviceInfo>>);
 
   @override
-  _i6.Future<List<_i8.AvailableDevice>> discoverIndiAtAddress(
+  _i5.Future<List<_i3.DeviceInfo>> discoverIndiAtAddress(
     String? host,
     int? port,
   ) =>
@@ -212,12 +209,11 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             port,
           ],
         ),
-        returnValue: _i6.Future<List<_i8.AvailableDevice>>.value(
-            <_i8.AvailableDevice>[]),
-      ) as _i6.Future<List<_i8.AvailableDevice>>);
+        returnValue: _i5.Future<List<_i3.DeviceInfo>>.value(<_i3.DeviceInfo>[]),
+      ) as _i5.Future<List<_i3.DeviceInfo>>);
 
   @override
-  _i6.Future<List<_i8.AvailableDevice>> discoverAlpacaAtAddress(
+  _i5.Future<List<_i3.DeviceInfo>> discoverAlpacaAtAddress(
     String? host,
     int? port,
   ) =>
@@ -229,22 +225,21 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             port,
           ],
         ),
-        returnValue: _i6.Future<List<_i8.AvailableDevice>>.value(
-            <_i8.AvailableDevice>[]),
-      ) as _i6.Future<List<_i8.AvailableDevice>>);
+        returnValue: _i5.Future<List<_i3.DeviceInfo>>.value(<_i3.DeviceInfo>[]),
+      ) as _i5.Future<List<_i3.DeviceInfo>>);
 
   @override
-  _i6.Future<void> connectCamera(String? deviceId) => (super.noSuchMethod(
+  _i5.Future<void> connectCamera(String? deviceId) => (super.noSuchMethod(
         Invocation.method(
           #connectCamera,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> setCameraCooling({
+  _i5.Future<void> setCameraCooling({
     required bool? enabled,
     double? targetTemp,
   }) =>
@@ -257,204 +252,204 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             #targetTemp: targetTemp,
           },
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectCamera() => (super.noSuchMethod(
+  _i5.Future<void> disconnectCamera() => (super.noSuchMethod(
         Invocation.method(
           #disconnectCamera,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectMount(String? deviceId) => (super.noSuchMethod(
+  _i5.Future<void> connectMount(String? deviceId) => (super.noSuchMethod(
         Invocation.method(
           #connectMount,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectMount() => (super.noSuchMethod(
+  _i5.Future<void> disconnectMount() => (super.noSuchMethod(
         Invocation.method(
           #disconnectMount,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectFocuser(String? deviceId) => (super.noSuchMethod(
+  _i5.Future<void> connectFocuser(String? deviceId) => (super.noSuchMethod(
         Invocation.method(
           #connectFocuser,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectFocuser() => (super.noSuchMethod(
+  _i5.Future<void> disconnectFocuser() => (super.noSuchMethod(
         Invocation.method(
           #disconnectFocuser,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectFilterWheel(String? deviceId) => (super.noSuchMethod(
+  _i5.Future<void> connectFilterWheel(String? deviceId) => (super.noSuchMethod(
         Invocation.method(
           #connectFilterWheel,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectFilterWheel() => (super.noSuchMethod(
+  _i5.Future<void> disconnectFilterWheel() => (super.noSuchMethod(
         Invocation.method(
           #disconnectFilterWheel,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectGuider(String? deviceId) => (super.noSuchMethod(
+  _i5.Future<void> connectGuider(String? deviceId) => (super.noSuchMethod(
         Invocation.method(
           #connectGuider,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectGuider() => (super.noSuchMethod(
+  _i5.Future<void> disconnectGuider() => (super.noSuchMethod(
         Invocation.method(
           #disconnectGuider,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectDome(String? deviceId) => (super.noSuchMethod(
+  _i5.Future<void> connectDome(String? deviceId) => (super.noSuchMethod(
         Invocation.method(
           #connectDome,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectDome() => (super.noSuchMethod(
+  _i5.Future<void> disconnectDome() => (super.noSuchMethod(
         Invocation.method(
           #disconnectDome,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectWeather(String? deviceId) => (super.noSuchMethod(
+  _i5.Future<void> connectWeather(String? deviceId) => (super.noSuchMethod(
         Invocation.method(
           #connectWeather,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectWeather() => (super.noSuchMethod(
+  _i5.Future<void> disconnectWeather() => (super.noSuchMethod(
         Invocation.method(
           #disconnectWeather,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectSafetyMonitor(String? deviceId) =>
+  _i5.Future<void> connectSafetyMonitor(String? deviceId) =>
       (super.noSuchMethod(
         Invocation.method(
           #connectSafetyMonitor,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectSafetyMonitor() => (super.noSuchMethod(
+  _i5.Future<void> disconnectSafetyMonitor() => (super.noSuchMethod(
         Invocation.method(
           #disconnectSafetyMonitor,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectRotator(String? deviceId) => (super.noSuchMethod(
+  _i5.Future<void> connectRotator(String? deviceId) => (super.noSuchMethod(
         Invocation.method(
           #connectRotator,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectRotator() => (super.noSuchMethod(
+  _i5.Future<void> disconnectRotator() => (super.noSuchMethod(
         Invocation.method(
           #disconnectRotator,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectCoverCalibrator(String? deviceId) =>
+  _i5.Future<void> connectCoverCalibrator(String? deviceId) =>
       (super.noSuchMethod(
         Invocation.method(
           #connectCoverCalibrator,
           [deviceId],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectCoverCalibrator() => (super.noSuchMethod(
+  _i5.Future<void> disconnectCoverCalibrator() => (super.noSuchMethod(
         Invocation.method(
           #disconnectCoverCalibrator,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectProfile({
+  _i5.Future<void> connectProfile({
     String? cameraId,
     String? mountId,
     String? focuserId,
@@ -473,32 +468,32 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             #guiderId: guiderId,
           },
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> connectActiveProfile() => (super.noSuchMethod(
+  _i5.Future<void> connectActiveProfile() => (super.noSuchMethod(
         Invocation.method(
           #connectActiveProfile,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> disconnectAll() => (super.noSuchMethod(
+  _i5.Future<void> disconnectAll() => (super.noSuchMethod(
         Invocation.method(
           #disconnectAll,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> slewMountToCoordinates(
+  _i5.Future<void> slewMountToCoordinates(
     double? ra,
     double? dec,
   ) =>
@@ -510,12 +505,12 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             dec,
           ],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> syncMountToCoordinates(
+  _i5.Future<void> syncMountToCoordinates(
     double? ra,
     double? dec,
   ) =>
@@ -527,82 +522,100 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             dec,
           ],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> parkMount() => (super.noSuchMethod(
+  _i5.Future<void> parkMount() => (super.noSuchMethod(
         Invocation.method(
           #parkMount,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> unparkMount() => (super.noSuchMethod(
+  _i5.Future<void> unparkMount() => (super.noSuchMethod(
         Invocation.method(
           #unparkMount,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> setMountTracking(bool? enabled) => (super.noSuchMethod(
+  _i5.Future<void> setMountTracking(bool? enabled) => (super.noSuchMethod(
         Invocation.method(
           #setMountTracking,
           [enabled],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> setMountTrackingRate(int? rate) => (super.noSuchMethod(
+  _i5.Future<void> setMountTrackingRate(int? rate) => (super.noSuchMethod(
         Invocation.method(
           #setMountTrackingRate,
           [rate],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> abortMountSlew() => (super.noSuchMethod(
+  _i5.Future<void> abortMountSlew() => (super.noSuchMethod(
         Invocation.method(
           #abortMountSlew,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> moveFocuserTo(int? position) => (super.noSuchMethod(
+  _i5.Future<void> pulseGuidMount({
+    required String? direction,
+    required int? durationMs,
+  }) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #pulseGuidMount,
+          [],
+          {
+            #direction: direction,
+            #durationMs: durationMs,
+          },
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> moveFocuserTo(int? position) => (super.noSuchMethod(
         Invocation.method(
           #moveFocuserTo,
           [position],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> moveFocuserRelative(int? delta) => (super.noSuchMethod(
+  _i5.Future<void> moveFocuserRelative(int? delta) => (super.noSuchMethod(
         Invocation.method(
           #moveFocuserRelative,
           [delta],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<_i3.AutofocusResultApi> runAutofocus({
+  _i5.Future<_i3.AutofocusResult> runAutofocus({
     required double? exposureTime,
     required int? stepSize,
     required int? stepsOut,
@@ -622,7 +635,7 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
           },
         ),
         returnValue:
-            _i6.Future<_i3.AutofocusResultApi>.value(_FakeAutofocusResultApi_1(
+            _i5.Future<_i3.AutofocusResult>.value(_FakeAutofocusResult_1(
           this,
           Invocation.method(
             #runAutofocus,
@@ -636,20 +649,20 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             },
           ),
         )),
-      ) as _i6.Future<_i3.AutofocusResultApi>);
+      ) as _i5.Future<_i3.AutofocusResult>);
 
   @override
-  _i6.Future<void> setFilterWheelPosition(int? position) => (super.noSuchMethod(
+  _i5.Future<void> setFilterWheelPosition(int? position) => (super.noSuchMethod(
         Invocation.method(
           #setFilterWheelPosition,
           [position],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> startGuiding({
+  _i5.Future<void> startGuiding({
     double? settlePixels = 1.0,
     double? settleTime = 10.0,
     double? settleTimeout = 60.0,
@@ -664,22 +677,22 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             #settleTimeout: settleTimeout,
           },
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> stopGuiding() => (super.noSuchMethod(
+  _i5.Future<void> stopGuiding() => (super.noSuchMethod(
         Invocation.method(
           #stopGuiding,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> dither({
+  _i5.Future<void> dither({
     double? amount = 5.0,
     bool? raOnly = false,
     double? settlePixels = 1.0,
@@ -698,73 +711,73 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             #settleTimeout: settleTimeout,
           },
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> startSequence() => (super.noSuchMethod(
+  _i5.Future<void> startSequence() => (super.noSuchMethod(
         Invocation.method(
           #startSequence,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> stopSequence() => (super.noSuchMethod(
+  _i5.Future<void> stopSequence() => (super.noSuchMethod(
         Invocation.method(
           #stopSequence,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> pauseSequence() => (super.noSuchMethod(
+  _i5.Future<void> pauseSequence() => (super.noSuchMethod(
         Invocation.method(
           #pauseSequence,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> resumeSequence() => (super.noSuchMethod(
+  _i5.Future<void> resumeSequence() => (super.noSuchMethod(
         Invocation.method(
           #resumeSequence,
           [],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<void> loadSequence(String? json) => (super.noSuchMethod(
+  _i5.Future<void> loadSequence(String? json) => (super.noSuchMethod(
         Invocation.method(
           #loadSequence,
           [json],
         ),
-        returnValue: _i6.Future<void>.value(),
-        returnValueForMissingStub: _i6.Future<void>.value(),
-      ) as _i6.Future<void>);
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
 
   @override
-  _i6.Future<_i4.SequencerStatus> getSequencerStatus() => (super.noSuchMethod(
+  _i5.Future<_i3.SequencerStatus> getSequencerStatus() => (super.noSuchMethod(
         Invocation.method(
           #getSequencerStatus,
           [],
         ),
         returnValue:
-            _i6.Future<_i4.SequencerStatus>.value(_FakeSequencerStatus_2(
+            _i5.Future<_i3.SequencerStatus>.value(_FakeSequencerStatus_2(
           this,
           Invocation.method(
             #getSequencerStatus,
             [],
           ),
         )),
-      ) as _i6.Future<_i4.SequencerStatus>);
+      ) as _i5.Future<_i3.SequencerStatus>);
 }

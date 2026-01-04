@@ -597,10 +597,21 @@ class _FOVOverlayPainter extends CustomPainter {
     final rectWidth = fovWidth! * scale;
     final rectHeight = fovHeight! * scale;
     
-    // Calculate offset if FOV center is different
+    // Calculate offset if FOV center is different from view center
     Offset rectCenter = center;
     if (fovCenter != null) {
-      // TODO: Calculate proper offset for different FOV center
+      // Calculate angular difference between view center and FOV center
+      // RA is in hours, convert to degrees. Apply cos(dec) correction for RA.
+      final viewCenterDecRad = viewState.centerDec * math.pi / 180;
+      final deltaRA = (fovCenter!.ra - viewState.centerRA) * 15 * math.cos(viewCenterDecRad);
+      final deltaDec = fovCenter!.dec - viewState.centerDec;
+
+      // Convert angular offset (degrees) to screen pixels
+      // Positive deltaRA moves right, positive deltaDec moves up (screen Y is inverted)
+      final offsetX = deltaRA * scale;
+      final offsetY = -deltaDec * scale; // Negative because screen Y increases downward
+
+      rectCenter = Offset(center.dx + offsetX, center.dy + offsetY);
     }
     
     // Draw FOV rectangle

@@ -67,6 +67,9 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
       updateCheckIntervalHours:
           (json['updateCheckIntervalHours'] as num?)?.toInt() ?? 24,
       skippedUpdateVersion: json['skippedUpdateVersion'] as String? ?? '',
+      safetyFailMode: $enumDecodeNullable(
+              _$SafetyFailModeEnumMap, json['safetyFailMode']) ??
+          SafetyFailMode.failOpen,
     );
 
 Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
@@ -109,4 +112,11 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'updateChannel': instance.updateChannel,
       'updateCheckIntervalHours': instance.updateCheckIntervalHours,
       'skippedUpdateVersion': instance.skippedUpdateVersion,
+      'safetyFailMode': _$SafetyFailModeEnumMap[instance.safetyFailMode]!,
     };
+
+const _$SafetyFailModeEnumMap = {
+  SafetyFailMode.failOpen: 'failOpen',
+  SafetyFailMode.failClosed: 'failClosed',
+  SafetyFailMode.warnOnly: 'warnOnly',
+};

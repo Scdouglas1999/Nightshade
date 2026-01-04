@@ -43,7 +43,6 @@ class TestFixtures {
     starCount: 125,
     hfr: 2.5,
     fwhm: 3.2,
-    eccentricity: 0.15,
   );
 
   /// Sample exposure settings
@@ -61,25 +60,15 @@ class TestFixtures {
     return EquipmentProfile(
       id: 'test-profile-1',
       name: 'Test Equipment Profile',
-      description: 'Profile for testing',
-      cameraDeviceId: cameraId,
-      mountDeviceId: mountId,
-      focuserDeviceId: focuserId,
-      filterWheelDeviceId: filterWheelId,
-      rotatorDeviceId: null,
-      domeDeviceId: null,
-      weatherDeviceId: null,
-      safetyMonitorDeviceId: null,
-      cameraSettings: const {},
-      mountSettings: const {},
-      focuserSettings: const {},
-      filterWheelSettings: const {},
-      rotatorSettings: null,
-      domeSettings: null,
-      weatherSettings: null,
-      safetyMonitorSettings: null,
+      cameraId: cameraId,
+      mountId: mountId,
+      focuserId: focuserId,
+      filterWheelId: filterWheelId,
+      rotatorId: null,
+      domeId: null,
+      weatherId: null,
+      coverCalibratorId: null,
       isActive: true,
-      createdAt: DateTime(2024, 1, 1),
       updatedAt: DateTime(2024, 1, 1),
     );
   }
@@ -157,6 +146,7 @@ class TestFixtures {
 void registerMocktailFallbackValues() {
   registerFallbackValue(FrameType.light);
   registerFallbackValue(DeviceType.camera);
+  registerFallbackValue(DriverType.simulator);
   registerFallbackValue(const ExposureSettings(
     exposureTime: 1.0,
     gain: 0,
@@ -164,5 +154,13 @@ void registerMocktailFallbackValues() {
     binningX: 1,
     binningY: 1,
     frameType: FrameType.light,
+  ));
+  registerFallbackValue(DeviceInfo(
+    id: 'fallback',
+    name: 'Fallback',
+    deviceType: DeviceType.camera,
+    driverType: DriverType.simulator,
+    description: '',
+    driverVersion: '1.0',
   ));
 }

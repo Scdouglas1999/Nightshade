@@ -172,22 +172,25 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
 
     final deviceService = ref.read(deviceServiceProvider);
 
-    // Connect devices in sequence
+    // Connect devices in sequence, checking for non-empty IDs
     try {
-      if (profile.cameraId != null) {
+      if (profile.cameraId != null && profile.cameraId!.isNotEmpty) {
         await deviceService.connectCamera(profile.cameraId!);
       }
-      if (profile.mountId != null) {
+      if (profile.mountId != null && profile.mountId!.isNotEmpty) {
         await deviceService.connectMount(profile.mountId!);
       }
-      if (profile.focuserId != null) {
+      if (profile.focuserId != null && profile.focuserId!.isNotEmpty) {
         await deviceService.connectFocuser(profile.focuserId!);
       }
-      if (profile.filterWheelId != null) {
+      if (profile.filterWheelId != null && profile.filterWheelId!.isNotEmpty) {
         await deviceService.connectFilterWheel(profile.filterWheelId!);
       }
-      if (profile.guiderId != null) {
+      if (profile.guiderId != null && profile.guiderId!.isNotEmpty) {
         await deviceService.connectGuider(profile.guiderId!);
+      }
+      if (profile.rotatorId != null && profile.rotatorId!.isNotEmpty) {
+        await deviceService.connectRotator(profile.rotatorId!);
       }
     } catch (e) {
       if (mounted) {
@@ -211,6 +214,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
       await deviceService.disconnectFocuser();
       await deviceService.disconnectFilterWheel();
       await deviceService.disconnectGuider();
+      await deviceService.disconnectRotator();
     } catch (e) {
       if (mounted) {
         final colors = Theme.of(context).extension<NightshadeColors>()!;
@@ -299,16 +303,83 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
 
   void _showEditProfileDialog(BuildContext context, db.EquipmentProfile? profile) {
     if (profile == null) return;
-    // TODO: Implement full profile editor dialog
-    // For now, just show a simple name editor
-    _showCreateProfileDialog(context);
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final nameController = TextEditingController(text: profile.name);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text('Edit Profile', style: TextStyle(color: colors.textPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              style: TextStyle(color: colors.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Profile Name',
+                labelStyle: TextStyle(color: colors.textMuted),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: colors.primary),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isEmpty) return;
+
+              try {
+                final dao = ref.read(equipmentProfilesDaoProvider);
+                await dao.updateProfile(profile.copyWith(
+                  name: name,
+                  updatedAt: DateTime.now(),
+                ));
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Profile updated'),
+                      backgroundColor: colors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to update profile: $e'),
+                      backgroundColor: colors.error,
+                    ),
+                  );
+                }
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: colors.primary),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showCreateProfileWizard(BuildContext context) {
-    // TODO: Implement guided setup wizard
-    // For now, just create a profile and start discovery
+    // Quick setup: Create a new profile and immediately trigger device discovery
+    // The user can then assign discovered devices to their profile
     _createEmptyProfile().then((_) {
-      // Trigger device discovery
+      // Trigger device discovery to find available equipment
       ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
     });
   }

@@ -135,12 +135,24 @@ class QuickConnectBar extends ConsumerWidget {
     int connectedDevices = 0;
     int connectingDevices = 0;
     int errorDevices = 0;
+    int mismatchDevices = 0;
+
+    // Helper to check if connected device matches profile
+    bool isDeviceMatch(String? profileId, String? connectedId, DeviceConnectionState state) {
+      if (state != DeviceConnectionState.connected) return true; // Not connected, no mismatch
+      if (profileId == null || connectedId == null) return true; // No ID to compare
+      return profileId == connectedId;
+    }
 
     // Check each device type
     if (profile.cameraId != null) {
       totalDevices++;
       if (cameraState.connectionState == DeviceConnectionState.connected) {
-        connectedDevices++;
+        if (isDeviceMatch(profile.cameraId, cameraState.deviceId, cameraState.connectionState)) {
+          connectedDevices++;
+        } else {
+          mismatchDevices++;
+        }
       } else if (cameraState.connectionState == DeviceConnectionState.connecting) {
         connectingDevices++;
       } else if (cameraState.connectionState == DeviceConnectionState.error) {
@@ -151,7 +163,11 @@ class QuickConnectBar extends ConsumerWidget {
     if (profile.mountId != null) {
       totalDevices++;
       if (mountState.connectionState == DeviceConnectionState.connected) {
-        connectedDevices++;
+        if (isDeviceMatch(profile.mountId, mountState.deviceId, mountState.connectionState)) {
+          connectedDevices++;
+        } else {
+          mismatchDevices++;
+        }
       } else if (mountState.connectionState == DeviceConnectionState.connecting) {
         connectingDevices++;
       } else if (mountState.connectionState == DeviceConnectionState.error) {
@@ -162,7 +178,11 @@ class QuickConnectBar extends ConsumerWidget {
     if (profile.focuserId != null) {
       totalDevices++;
       if (focuserState.connectionState == DeviceConnectionState.connected) {
-        connectedDevices++;
+        if (isDeviceMatch(profile.focuserId, focuserState.deviceId, focuserState.connectionState)) {
+          connectedDevices++;
+        } else {
+          mismatchDevices++;
+        }
       } else if (focuserState.connectionState == DeviceConnectionState.connecting) {
         connectingDevices++;
       } else if (focuserState.connectionState == DeviceConnectionState.error) {
@@ -173,7 +193,11 @@ class QuickConnectBar extends ConsumerWidget {
     if (profile.filterWheelId != null) {
       totalDevices++;
       if (filterWheelState.connectionState == DeviceConnectionState.connected) {
-        connectedDevices++;
+        if (isDeviceMatch(profile.filterWheelId, filterWheelState.deviceId, filterWheelState.connectionState)) {
+          connectedDevices++;
+        } else {
+          mismatchDevices++;
+        }
       } else if (filterWheelState.connectionState == DeviceConnectionState.connecting) {
         connectingDevices++;
       } else if (filterWheelState.connectionState == DeviceConnectionState.error) {
@@ -184,7 +208,11 @@ class QuickConnectBar extends ConsumerWidget {
     if (profile.guiderId != null) {
       totalDevices++;
       if (guiderState.connectionState == DeviceConnectionState.connected) {
-        connectedDevices++;
+        if (isDeviceMatch(profile.guiderId, guiderState.deviceId, guiderState.connectionState)) {
+          connectedDevices++;
+        } else {
+          mismatchDevices++;
+        }
       } else if (guiderState.connectionState == DeviceConnectionState.connecting) {
         connectingDevices++;
       } else if (guiderState.connectionState == DeviceConnectionState.error) {
@@ -198,6 +226,11 @@ class QuickConnectBar extends ConsumerWidget {
 
     if (connectingDevices > 0) {
       return (ProfileConnectionState.connecting, connectedDevices, totalDevices);
+    }
+
+    // Check for mismatches - connected devices don't match profile
+    if (mismatchDevices > 0) {
+      return (ProfileConnectionState.mismatch, connectedDevices, totalDevices);
     }
 
     if (errorDevices > 0 && connectedDevices == 0) {
@@ -286,7 +319,68 @@ class QuickConnectBar extends ConsumerWidget {
 
       switch (value) {
         case 'edit':
-          // TODO: Show edit profile dialog
+          // Show rename dialog for the profile
+          if (!context.mounted) return;
+          final nameController = TextEditingController(text: profile.name);
+          final newName = await showDialog<String>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: colors.surface,
+              title: Text('Rename Profile', style: TextStyle(color: colors.textPrimary)),
+              content: TextField(
+                controller: nameController,
+                autofocus: true,
+                style: TextStyle(color: colors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Profile Name',
+                  labelStyle: TextStyle(color: colors.textMuted),
+                  enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: colors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: colors.primary),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
+                  style: FilledButton.styleFrom(backgroundColor: colors.primary),
+                  child: const Text('Save'),
+                ),
+              ],
+            ),
+          );
+          if (newName != null && newName.isNotEmpty && newName != profile.name) {
+            try {
+              final dao = ref.read(equipmentProfilesDaoProvider);
+              await dao.updateProfile(profile.copyWith(
+                name: newName,
+                updatedAt: DateTime.now(),
+              ));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Renamed to "$newName"'),
+                    backgroundColor: colors.success,
+                  ),
+                );
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to rename: $e'),
+                    backgroundColor: colors.error,
+                  ),
+                );
+              }
+            }
+          }
           break;
         case 'duplicate':
           try {
@@ -311,7 +405,27 @@ class QuickConnectBar extends ConsumerWidget {
           }
           break;
         case 'default':
-          // TODO: Implement set as default
+          try {
+            final dao = ref.read(equipmentProfilesDaoProvider);
+            await dao.setActiveProfile(profile.id);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('"${profile.name}" set as default'),
+                  backgroundColor: colors.success,
+                ),
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to set default: $e'),
+                  backgroundColor: colors.error,
+                ),
+              );
+            }
+          }
           break;
         case 'delete':
           final confirmed = await showDialog<bool>(

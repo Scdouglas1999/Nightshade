@@ -199,16 +199,83 @@ class _FocusTabState extends ConsumerState<FocusTab> {
   }
 
   Future<void> _showMeasureOffsetsDialog(BuildContext context) async {
-    // TODO: Implement automated filter offset measurement
-    // This would:
-    // 1. Run autofocus on reference filter
-    // 2. For each filter, change filter and run autofocus
-    // 3. Calculate offset from reference filter
-    // 4. Save offsets automatically
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final filterWheelState = ref.read(filterWheelStateProvider);
+    final filterOffsetState = ref.read(filterOffsetProvider);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Automated filter offset measurement coming soon! Use +/- buttons to set offsets manually.'),
+    // Check if filter wheel is connected
+    if (filterWheelState.connectionState != DeviceConnectionState.connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Filter wheel must be connected to measure offsets.'),
+          backgroundColor: colors.warning,
+        ),
+      );
+      return;
+    }
+
+    // Check if focuser is connected
+    final focuserState = ref.read(focuserStateProvider);
+    if (focuserState.connectionState != DeviceConnectionState.connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Focuser must be connected to measure offsets.'),
+          backgroundColor: colors.warning,
+        ),
+      );
+      return;
+    }
+
+    final filters = filterWheelState.filterNames;
+    if (filters.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No filters available in filter wheel.'),
+          backgroundColor: colors.warning,
+        ),
+      );
+      return;
+    }
+
+    // Determine reference filter - use existing or default to first filter
+    final referenceFilter = filterOffsetState.referenceFilter ?? filters.first;
+
+    // Show the measurement dialog
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => _FilterOffsetMeasurementDialog(
+        colors: colors,
+        filters: filters,
+        referenceFilter: referenceFilter,
+        deviceService: ref.read(deviceServiceProvider),
+        backend: ref.read(backendProvider),
+        filterWheelDeviceId: filterWheelState.deviceId!,
+        focusSettings: ref.read(focusSettingsProvider),
+        onComplete: (Map<String, int> offsets) async {
+          // Save all measured offsets
+          final notifier = ref.read(filterOffsetProvider.notifier);
+
+          // Set reference filter if not already set
+          if (filterOffsetState.referenceFilter == null) {
+            await notifier.setReferenceFilter(referenceFilter);
+          }
+
+          // Save each offset
+          for (final entry in offsets.entries) {
+            await notifier.setFilterOffset(entry.key, entry.value);
+          }
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Filter offsets measured and saved for ${offsets.length} filters.'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        },
       ),
     );
   }
@@ -1111,5 +1178,499 @@ class _FocusCurvePainter extends CustomPainter {
   bool shouldRepaint(covariant _FocusCurvePainter oldDelegate) {
     return focusData != oldDelegate.focusData ||
         bestPosition != oldDelegate.bestPosition;
+  }
+}
+
+/// Dialog for automated filter offset measurement
+class _FilterOffsetMeasurementDialog extends StatefulWidget {
+  final NightshadeColors colors;
+  final List<String> filters;
+  final String referenceFilter;
+  final DeviceService deviceService;
+  final NightshadeBackend backend;
+  final String filterWheelDeviceId;
+  final FocusSettings focusSettings;
+  final void Function(Map<String, int> offsets) onComplete;
+
+  const _FilterOffsetMeasurementDialog({
+    required this.colors,
+    required this.filters,
+    required this.referenceFilter,
+    required this.deviceService,
+    required this.backend,
+    required this.filterWheelDeviceId,
+    required this.focusSettings,
+    required this.onComplete,
+  });
+
+  @override
+  State<_FilterOffsetMeasurementDialog> createState() => _FilterOffsetMeasurementDialogState();
+}
+
+class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurementDialog> {
+  bool _isRunning = false;
+  bool _isCancelled = false;
+  String _status = 'Ready to measure';
+  String? _currentFilter;
+  int _completedFilters = 0;
+  int? _referencePosition;
+  final Map<String, int> _measuredOffsets = {};
+  final Map<String, int> _measuredPositions = {};
+  String? _errorMessage;
+
+  Future<void> _startMeasurement() async {
+    setState(() {
+      _isRunning = true;
+      _isCancelled = false;
+      _status = 'Starting measurement...';
+      _measuredOffsets.clear();
+      _measuredPositions.clear();
+      _completedFilters = 0;
+      _referencePosition = null;
+      _errorMessage = null;
+    });
+
+    try {
+      // First, measure the reference filter
+      final refIndex = widget.filters.indexOf(widget.referenceFilter);
+      if (refIndex == -1) {
+        throw Exception('Reference filter not found');
+      }
+
+      setState(() {
+        _currentFilter = widget.referenceFilter;
+        _status = 'Changing to reference filter: ${widget.referenceFilter}';
+      });
+
+      // Change to reference filter
+      await widget.backend.filterWheelSetPosition(widget.filterWheelDeviceId, refIndex);
+
+      // Wait for filter change to complete
+      await _waitForFilterChange();
+
+      if (_isCancelled) return;
+
+      setState(() {
+        _status = 'Running autofocus on reference filter: ${widget.referenceFilter}';
+      });
+
+      // Run autofocus on reference filter
+      final refResult = await widget.deviceService.runAutofocus(
+        exposureTime: widget.focusSettings.exposureTime,
+        stepSize: widget.focusSettings.afStepSize,
+        stepsOut: widget.focusSettings.stepsOut,
+        method: widget.focusSettings.method,
+        binning: 1,
+      );
+
+      _referencePosition = refResult.bestPosition;
+      _measuredPositions[widget.referenceFilter] = refResult.bestPosition;
+      _measuredOffsets[widget.referenceFilter] = 0; // Reference is always 0
+
+      setState(() {
+        _completedFilters = 1;
+        _status = 'Reference position: ${refResult.bestPosition}';
+      });
+
+      if (_isCancelled) return;
+
+      // Measure each other filter
+      for (var i = 0; i < widget.filters.length; i++) {
+        if (_isCancelled) return;
+
+        final filterName = widget.filters[i];
+        if (filterName == widget.referenceFilter) continue;
+
+        setState(() {
+          _currentFilter = filterName;
+          _status = 'Changing to filter: $filterName';
+        });
+
+        // Change filter
+        await widget.backend.filterWheelSetPosition(widget.filterWheelDeviceId, i);
+
+        // Wait for filter change
+        await _waitForFilterChange();
+
+        if (_isCancelled) return;
+
+        setState(() {
+          _status = 'Running autofocus on filter: $filterName';
+        });
+
+        // Run autofocus
+        final result = await widget.deviceService.runAutofocus(
+          exposureTime: widget.focusSettings.exposureTime,
+          stepSize: widget.focusSettings.afStepSize,
+          stepsOut: widget.focusSettings.stepsOut,
+          method: widget.focusSettings.method,
+          binning: 1,
+        );
+
+        // Calculate offset from reference
+        final offset = result.bestPosition - _referencePosition!;
+        _measuredPositions[filterName] = result.bestPosition;
+        _measuredOffsets[filterName] = offset;
+
+        setState(() {
+          _completedFilters++;
+          _status = '$filterName: position ${result.bestPosition} (offset: ${offset > 0 ? '+$offset' : offset})';
+        });
+      }
+
+      setState(() {
+        _isRunning = false;
+        _status = 'Measurement complete!';
+      });
+
+      // Call completion callback
+      widget.onComplete(_measuredOffsets);
+    } catch (e) {
+      setState(() {
+        _isRunning = false;
+        _errorMessage = e.toString();
+        _status = 'Error: $e';
+      });
+    }
+  }
+
+  Future<void> _waitForFilterChange() async {
+    // Wait up to 30 seconds for filter to settle
+    for (var i = 0; i < 30; i++) {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      if (_isCancelled) return;
+    }
+  }
+
+  void _cancel() {
+    setState(() {
+      _isCancelled = true;
+      _isRunning = false;
+      _status = 'Cancelled';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalFilters = widget.filters.length;
+    final progress = totalFilters > 0 ? _completedFilters / totalFilters : 0.0;
+
+    return AlertDialog(
+      backgroundColor: widget.colors.surface,
+      title: Row(
+        children: [
+          Icon(LucideIcons.focus, color: widget.colors.accent),
+          const SizedBox(width: 8),
+          Text(
+            'Measure Filter Offsets',
+            style: TextStyle(color: widget.colors.textPrimary),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 450,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Reference filter info
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: widget.colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: widget.colors.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.star, size: 16, color: widget.colors.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Reference Filter: ',
+                    style: TextStyle(color: widget.colors.textSecondary),
+                  ),
+                  Text(
+                    widget.referenceFilter,
+                    style: TextStyle(
+                      color: widget.colors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Filters to measure
+            Text(
+              'Filters to measure:',
+              style: TextStyle(
+                color: widget.colors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: widget.filters.map((filter) {
+                final isReference = filter == widget.referenceFilter;
+                final isMeasured = _measuredOffsets.containsKey(filter);
+                final isCurrent = filter == _currentFilter && _isRunning;
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isCurrent
+                        ? widget.colors.primary.withValues(alpha: 0.2)
+                        : isReference
+                            ? widget.colors.primary.withValues(alpha: 0.1)
+                            : widget.colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: isCurrent
+                          ? widget.colors.primary
+                          : isReference
+                              ? widget.colors.primary
+                              : isMeasured
+                                  ? widget.colors.success
+                                  : widget.colors.border,
+                      width: isCurrent ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isCurrent)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(widget.colors.primary),
+                            ),
+                          ),
+                        )
+                      else if (isMeasured)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(
+                            LucideIcons.check,
+                            size: 12,
+                            color: widget.colors.success,
+                          ),
+                        ),
+                      Text(
+                        filter,
+                        style: TextStyle(
+                          color: isReference ? widget.colors.primary : widget.colors.textPrimary,
+                          fontWeight: isReference ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (isMeasured && _measuredOffsets[filter] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Text(
+                            _measuredOffsets[filter] == 0
+                                ? '(ref)'
+                                : '(${_measuredOffsets[filter]! > 0 ? '+' : ''}${_measuredOffsets[filter]})',
+                            style: TextStyle(
+                              color: widget.colors.textMuted,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+
+            // Progress
+            if (_isRunning || _completedFilters > 0) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: widget.colors.surfaceAlt,
+                      valueColor: AlwaysStoppedAnimation(widget.colors.primary),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '$_completedFilters / $totalFilters',
+                    style: TextStyle(
+                      color: widget.colors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Status
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _errorMessage != null
+                    ? widget.colors.error.withValues(alpha: 0.1)
+                    : widget.colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                children: [
+                  if (_isRunning)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(widget.colors.primary),
+                        ),
+                      ),
+                    ),
+                  Expanded(
+                    child: Text(
+                      _status,
+                      style: TextStyle(
+                        color: _errorMessage != null
+                            ? widget.colors.error
+                            : widget.colors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Results table
+            if (_measuredPositions.isNotEmpty && !_isRunning) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Results:',
+                style: TextStyle(
+                  color: widget.colors.textSecondary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 150),
+                decoration: BoxDecoration(
+                  border: Border.all(color: widget.colors.border),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: _measuredPositions.entries.map((entry) {
+                    final offset = _measuredOffsets[entry.key] ?? 0;
+                    final isRef = entry.key == widget.referenceFilter;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: Row(
+                              children: [
+                                Text(
+                                  entry.key,
+                                  style: TextStyle(
+                                    color: isRef ? widget.colors.primary : widget.colors.textPrimary,
+                                    fontWeight: isRef ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                                if (isRef) ...[
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: widget.colors.primary,
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                    child: Text(
+                                      'REF',
+                                      style: TextStyle(
+                                        color: widget.colors.surface,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'Pos: ${entry.value}',
+                              style: TextStyle(
+                                color: widget.colors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 80,
+                            child: Text(
+                              isRef ? '--' : (offset > 0 ? '+$offset' : '$offset'),
+                              style: TextStyle(
+                                color: isRef ? widget.colors.textMuted : widget.colors.textPrimary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        if (!_isRunning)
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              _completedFilters == widget.filters.length ? 'Done' : 'Close',
+              style: TextStyle(color: widget.colors.textSecondary),
+            ),
+          ),
+        if (_isRunning)
+          TextButton(
+            onPressed: _cancel,
+            child: Text('Cancel', style: TextStyle(color: widget.colors.error)),
+          ),
+        if (!_isRunning && _completedFilters < widget.filters.length)
+          ElevatedButton(
+            onPressed: _startMeasurement,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: widget.colors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Start Measurement'),
+          ),
+      ],
+    );
   }
 }

@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' as drift;
-import 'package:nightshade_bridge/nightshade_bridge.dart' hide AppSettings, EventCategory, ImageStats, CapturedImageResult;
+import 'package:nightshade_bridge/nightshade_bridge.dart' hide AppSettings, EventCategory, ImageStats, CapturedImageResult, FitsWriteHeader;
 import 'package:path/path.dart' as path;
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart';
@@ -75,43 +76,68 @@ class ImagingService {
         binY: settings.binningY,
       );
       
-      // Monitor progress via event stream
-      final startTime = DateTime.now();
-      final duration = Duration(milliseconds: (settings.exposureTime * 1000).toInt());
-      
-      // Listen for exposure events and update progress
+      // Use event-driven completion instead of busy-wait loop
+      // Completer signals when exposure is complete or cancelled
+      final exposureCompleter = Completer<bool>();
+
+      // Timeout margin: exposure time + 30 seconds for readout/download
+      // Long exposures need more margin for sensor readout
+      final timeoutDuration = Duration(
+        milliseconds: (settings.exposureTime * 1000).toInt() + 30000,
+      );
+
+      // Listen for exposure events and complete when done
       final eventSubscription = backend.eventStream.listen((event) {
         if (event.category == EventCategory.imaging) {
           if (event.eventType == 'ExposureProgress') {
             final progress = event.data['progress'] as double? ?? 0.0;
             final remainingSecs = event.data['remainingSecs'] as double? ?? 0.0;
             final elapsed = settings.exposureTime - remainingSecs;
-            
+
             cameraNotifier.setExposing(true, progress: progress);
             progressNotifier.updateProgress(elapsed, remainingSecs, progress * 100);
           } else if (event.eventType == 'ExposureComplete') {
-            // Exposure is done
+            // Exposure is complete - signal the completer
+            if (!exposureCompleter.isCompleted) {
+              exposureCompleter.complete(true);
+            }
           } else if (event.eventType == 'ExposureCancelled') {
-            _cancelRequested = true;
+            // Exposure was cancelled
+            if (!exposureCompleter.isCompleted) {
+              exposureCompleter.complete(false);
+            }
+          } else if (event.eventType == 'ExposureFailed') {
+            // Exposure failed
+            if (!exposureCompleter.isCompleted) {
+              final errorMsg = event.data['error'] as String? ?? 'Unknown error';
+              exposureCompleter.completeError(Exception('Exposure failed: $errorMsg'));
+            }
           }
         }
       });
-      
+
       try {
-        // Wait for exposure to complete or be cancelled
-        while (DateTime.now().difference(startTime) < duration) {
+        // Wait for exposure completion event OR timeout
+        // The Completer is completed by the event listener above
+        final completed = await exposureCompleter.future.timeout(
+          timeoutDuration,
+          onTimeout: () {
+            // Timeout - exposure took too long, assume it completed
+            // This handles cases where the event was missed
+            print('[ImagingService] Exposure timeout reached, checking for image...');
+            return true;
+          },
+        );
+
+        // Check if cancelled
+        if (!completed || _cancelRequested) {
           if (_cancelRequested) {
             await backend.cameraAbortExposure(deviceId);
-            cameraNotifier.setExposing(false);
-            progressNotifier.reset();
-            return null;
           }
-          
-          await Future.delayed(const Duration(milliseconds: 100));
+          cameraNotifier.setExposing(false);
+          progressNotifier.reset();
+          return null;
         }
-        
-        // Add a small buffer for download/processing
-        await Future.delayed(const Duration(milliseconds: 500));
 
         // Update to downloading state
         progressNotifier.startDownload();
@@ -200,6 +226,7 @@ class ImagingService {
             // Call native FITS save API
             // Note: This uses the raw data still in memory on the Rust side
             await _saveFitsFile(
+              deviceId: deviceId,
               filePath: savedFilePath,
               width: capturedImage.width,
               height: capturedImage.height,
@@ -401,7 +428,11 @@ class ImagingService {
   }
 
   /// Save FITS file via Rust backend
+  ///
+  /// Uses the optimized saveFitsFromLastCapture API which reads raw image data
+  /// directly from Rust-side storage, avoiding expensive FFI data transfers.
   Future<void> _saveFitsFile({
+    required String deviceId,
     required String filePath,
     required int width,
     required int height,
@@ -413,10 +444,7 @@ class ImagingService {
   }) async {
     final backend = _ref.read(backendProvider);
 
-    // Get raw u16 data from backend
-    final rawData = await backend.getLastRawImageData();
-
-    // Get equipment states
+    // Get equipment states for header metadata
     final cameraState = _ref.read(cameraStateProvider);
     final mountState = _ref.read(mountStateProvider);
     final profilesDao = _ref.read(equipmentProfilesDaoProvider);
@@ -449,12 +477,11 @@ class ImagingService {
       siteElevation: appSettings.elevation != 0.0 ? appSettings.elevation : null,
     );
 
-    // Call FFI to save FITS
-    await backend.saveFitsFile(
+    // Use the optimized API that saves directly from Rust-side stored image data
+    // This avoids the expensive raw data roundtrip (Rust -> Dart -> Rust)
+    await backend.saveFitsFromLastCapture(
+      deviceId: deviceId,
       filePath: filePath,
-      width: width,
-      height: height,
-      data: rawData,
       headerData: header,
     );
   }

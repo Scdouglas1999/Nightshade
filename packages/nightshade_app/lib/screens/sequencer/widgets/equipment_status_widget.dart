@@ -288,6 +288,45 @@ class _ExpandedStatusChip extends StatelessWidget {
   }
 }
 
+/// Derive driver type from device ID
+/// Device IDs follow patterns:
+/// - ASCOM: "ASCOM.Camera.Simulator"
+/// - Alpaca: "alpaca://host:port/..." or starts with "alpaca:"
+/// - INDI: "indi:DeviceName" or starts with "indi:"
+/// - Native: vendor prefix like "zwo:", "qhy:", "playerone:", etc.
+/// - Simulator: contains "Simulator" or starts with "sim:"
+DriverType _deriveDriverType(String deviceId) {
+  final lower = deviceId.toLowerCase();
+
+  // Check for explicit protocol prefixes
+  if (lower.startsWith('ascom.') || lower.startsWith('ascom:')) {
+    return DriverType.ascom;
+  }
+  if (lower.startsWith('alpaca:') || lower.startsWith('alpaca://')) {
+    return DriverType.alpaca;
+  }
+  if (lower.startsWith('indi:')) {
+    return DriverType.indi;
+  }
+  if (lower.startsWith('sim:') || lower.contains('simulator')) {
+    return DriverType.simulator;
+  }
+
+  // Check for native vendor prefixes
+  const nativeVendorPrefixes = [
+    'zwo:', 'asi:', 'qhy:', 'playerone:', 'svbony:', 'atik:',
+    'fli:', 'moravian:', 'touptek:', 'skywatcher:', 'ioptron:', 'lx200:',
+  ];
+  for (final prefix in nativeVendorPrefixes) {
+    if (lower.startsWith(prefix)) {
+      return DriverType.native;
+    }
+  }
+
+  // Default to ASCOM for unrecognized patterns (most common on Windows)
+  return DriverType.ascom;
+}
+
 /// Provider for connected devices status - derives from individual device state providers
 /// This ensures reactive updates when devices connect/disconnect
 final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
@@ -307,7 +346,7 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       id: cameraState.deviceId!,
       name: cameraState.deviceName ?? cameraState.deviceId!,
       deviceType: DeviceType.camera,
-      driverType: DriverType.ascom,
+      driverType: _deriveDriverType(cameraState.deviceId!),
       description: '',
       driverVersion: '',
     ));
@@ -320,7 +359,7 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       id: mountState.deviceId!,
       name: mountState.deviceName ?? mountState.deviceId!,
       deviceType: DeviceType.mount,
-      driverType: DriverType.ascom,
+      driverType: _deriveDriverType(mountState.deviceId!),
       description: '',
       driverVersion: '',
     ));
@@ -328,12 +367,12 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
 
   // Add focuser if connected
   if (focuserState.connectionState == DeviceConnectionState.connected &&
-      focuserState.deviceName != null) {
+      focuserState.deviceId != null) {
     devices.add(DeviceInfo(
-      id: focuserState.deviceName!,
-      name: focuserState.deviceName!,
+      id: focuserState.deviceId!,
+      name: focuserState.deviceName ?? focuserState.deviceId!,
       deviceType: DeviceType.focuser,
-      driverType: DriverType.ascom,
+      driverType: _deriveDriverType(focuserState.deviceId!),
       description: '',
       driverVersion: '',
     ));
@@ -341,12 +380,12 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
 
   // Add filter wheel if connected
   if (filterWheelState.connectionState == DeviceConnectionState.connected &&
-      filterWheelState.deviceName != null) {
+      filterWheelState.deviceId != null) {
     devices.add(DeviceInfo(
-      id: filterWheelState.deviceName!,
-      name: filterWheelState.deviceName!,
+      id: filterWheelState.deviceId!,
+      name: filterWheelState.deviceName ?? filterWheelState.deviceId!,
       deviceType: DeviceType.filterWheel,
-      driverType: DriverType.ascom,
+      driverType: _deriveDriverType(filterWheelState.deviceId!),
       description: '',
       driverVersion: '',
     ));
@@ -354,12 +393,12 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
 
   // Add guider if connected
   if (guiderState.connectionState == DeviceConnectionState.connected &&
-      guiderState.deviceName != null) {
+      guiderState.deviceId != null) {
     devices.add(DeviceInfo(
-      id: guiderState.deviceName!,
-      name: guiderState.deviceName!,
+      id: guiderState.deviceId!,
+      name: guiderState.deviceName ?? guiderState.deviceId!,
       deviceType: DeviceType.guider,
-      driverType: DriverType.ascom,
+      driverType: _deriveDriverType(guiderState.deviceId!),
       description: '',
       driverVersion: '',
     ));

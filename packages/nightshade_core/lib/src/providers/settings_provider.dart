@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'database_provider.dart';
+import '../models/settings/app_settings.dart' show SafetyFailMode;
 
 // ============================================================================
 // App Settings - Complete settings model
@@ -42,6 +43,7 @@ class AppSettings {
   final int autoFocusEveryMinutes;
   final bool ditherEnabled;
   final int ditherEveryFrames;
+  final SafetyFailMode safetyFailMode; // How to behave when safety data unavailable
   
   // Plate Solving
   final String plateSolver; // 'ASTAP', 'Astrometry.net', 'PlateSolve2'
@@ -138,7 +140,8 @@ class AppSettings {
     this.autoFocusEveryMinutes = 60,
     this.ditherEnabled = true,
     this.ditherEveryFrames = 3,
-    
+    this.safetyFailMode = SafetyFailMode.failOpen,
+
     // Plate Solving
     this.plateSolver = 'ASTAP',
     this.astapPath = '',
@@ -226,6 +229,7 @@ class AppSettings {
     int? autoFocusEveryMinutes,
     bool? ditherEnabled,
     int? ditherEveryFrames,
+    SafetyFailMode? safetyFailMode,
     String? plateSolver,
     String? astapPath,
     String? astrometryPath,
@@ -294,6 +298,7 @@ class AppSettings {
       autoFocusEveryMinutes: autoFocusEveryMinutes ?? this.autoFocusEveryMinutes,
       ditherEnabled: ditherEnabled ?? this.ditherEnabled,
       ditherEveryFrames: ditherEveryFrames ?? this.ditherEveryFrames,
+      safetyFailMode: safetyFailMode ?? this.safetyFailMode,
       plateSolver: plateSolver ?? this.plateSolver,
       astapPath: astapPath ?? this.astapPath,
       astrometryPath: astrometryPath ?? this.astrometryPath,
@@ -381,7 +386,8 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
       autoFocusEveryMinutes: _parseInt(allSettings['auto_focus_every_minutes'], 60),
       ditherEnabled: _parseBool(allSettings['dither_enabled'], true),
       ditherEveryFrames: _parseInt(allSettings['dither_every_frames'], 3),
-      
+      safetyFailMode: _parseSafetyFailMode(allSettings['safety_fail_mode']),
+
       // Plate Solving
       plateSolver: allSettings['plate_solver'] ?? 'ASTAP',
       astapPath: allSettings['astap_path'] ?? '',
@@ -456,6 +462,16 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
   int _parseInt(String? value, int defaultValue) {
     if (value == null) return defaultValue;
     return int.tryParse(value) ?? defaultValue;
+  }
+
+  SafetyFailMode _parseSafetyFailMode(String? value) {
+    if (value == null) return SafetyFailMode.failOpen;
+    return switch (value) {
+      'failOpen' => SafetyFailMode.failOpen,
+      'failClosed' => SafetyFailMode.failClosed,
+      'warnOnly' => SafetyFailMode.warnOnly,
+      _ => SafetyFailMode.failOpen,
+    };
   }
 
   Future<void> _saveSetting(String key, String value) async {
@@ -596,6 +612,11 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
   Future<void> setParkBeforeDawn(bool value) async {
     await _saveSetting('park_before_dawn', value.toString());
     state = AsyncData(state.value!.copyWith(parkBeforeDawn: value));
+  }
+
+  Future<void> setSafetyFailMode(SafetyFailMode value) async {
+    await _saveSetting('safety_fail_mode', value.name);
+    state = AsyncData(state.value!.copyWith(safetyFailMode: value));
   }
 
   Future<void> setMeridianFlipMinutes(int value) async {

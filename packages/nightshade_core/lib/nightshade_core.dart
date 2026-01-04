@@ -11,11 +11,13 @@ export 'src/database/daos/targets_dao.dart';
 export 'src/database/daos/sessions_dao.dart';
 export 'src/database/daos/images_dao.dart';
 export 'src/database/daos/sequences_dao.dart';
+export 'src/database/daos/sequence_checkpoints_dao.dart';
 export 'src/database/daos/settings_dao.dart';
 export 'src/database/daos/weather_settings_dao.dart';
 
 // Data models (domain models, distinct from DB entities)
-export 'src/models/equipment/equipment_models.dart';
+// Hide TrackingRate from equipment_models - canonical version is in backend/device_capabilities
+export 'src/models/equipment/equipment_models.dart' hide TrackingRate;
 export 'src/models/equipment/unified_device.dart';
 export 'src/models/equipment/discovery_state.dart';
 export 'src/models/equipment_profile.dart';
@@ -27,7 +29,7 @@ export 'src/models/target/target_models.dart';
 export 'src/models/annotation_data.dart';
 export 'src/models/annotation_settings.dart';
 export 'src/models/tutorial/tutorial_models.dart';
-export 'src/models/phd2_models.dart' hide Phd2StarImage;
+export 'src/models/phd2_models.dart';
 export 'src/models/weather/weather_models.dart';
 export 'src/models/autofocus_progress.dart';
 
@@ -53,6 +55,7 @@ export 'src/providers/tutorial_provider.dart';
 export 'src/providers/filter_offset_provider.dart';
 export 'src/providers/camera_presets_provider.dart';
 export 'src/providers/weather_providers.dart';
+export 'src/providers/capability_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;
@@ -72,7 +75,8 @@ export 'src/services/sequence_file_service.dart';
 export 'src/services/wcs_overlay.dart';
 export 'src/services/annotation_service.dart';
 export 'src/services/scheduler_service.dart';
-export 'src/services/focus_model_service.dart';
+// Hide FocusDataPoint from focus_model_service - canonical version is in backend/autofocus_result
+export 'src/services/focus_model_service.dart' hide FocusDataPoint;
 export 'src/services/logging_service.dart';
 export 'src/services/error_service.dart';
 export 'src/services/flat_wizard_service.dart';

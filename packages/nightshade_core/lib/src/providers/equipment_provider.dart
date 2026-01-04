@@ -186,8 +186,8 @@ class MountStateNotifier extends StateNotifier<MountState> {
   }
 
   Future<void> retryConnection() async {
-    if (state.deviceName != null) {
-      await connect(state.deviceName!);
+    if (state.deviceId != null) {
+      await connect(state.deviceId!);
     }
   }
 
@@ -196,7 +196,7 @@ class MountStateNotifier extends StateNotifier<MountState> {
   }
 
   Future<void> disconnect() async {
-    if (state.deviceName == null) return;
+    if (state.deviceId == null) return;
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectMount();
@@ -305,8 +305,8 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
   }
 
   Future<void> retryConnection() async {
-    if (state.deviceName != null) {
-      await connect(state.deviceName!);
+    if (state.deviceId != null) {
+      await connect(state.deviceId!);
     }
   }
 
@@ -315,7 +315,7 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
   }
 
   Future<void> disconnect() async {
-    if (state.deviceName == null) return;
+    if (state.deviceId == null) return;
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectFocuser();
@@ -413,8 +413,8 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
   }
 
   Future<void> retryConnection() async {
-    if (state.deviceName != null) {
-      await connect(state.deviceName!);
+    if (state.deviceId != null) {
+      await connect(state.deviceId!);
     }
   }
 
@@ -423,14 +423,14 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
   }
 
   Future<void> disconnect() async {
-    if (state.deviceName == null) return;
+    if (state.deviceId == null) return;
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectFilterWheel();
       setDisconnected();
     } catch (e) {
       state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceName),
+        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
       );
     }
   }
@@ -467,7 +467,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,
-      lastError: DeviceError.fromException(error, deviceId: state.deviceName),
+      lastError: DeviceError.fromException(error, deviceId: state.deviceId),
     );
   }
 }
@@ -517,20 +517,20 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
   }
 
   Future<void> retryConnection() async {
-    if (state.deviceName != null) {
-      await connect(state.deviceName!);
+    if (state.deviceId != null) {
+      await connect(state.deviceId!);
     }
   }
 
   Future<void> disconnect() async {
-    if (state.deviceName == null) return;
+    if (state.deviceId == null) return;
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectGuider();
       setDisconnected();
     } catch (e) {
       state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceName),
+        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
       );
     }
   }
@@ -570,7 +570,7 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,
-      lastError: DeviceError.fromException(error, deviceId: state.deviceName),
+      lastError: DeviceError.fromException(error, deviceId: state.deviceId),
     );
   }
 }

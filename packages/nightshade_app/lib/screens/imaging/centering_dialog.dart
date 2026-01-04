@@ -23,14 +23,19 @@ class CenteringDialog extends ConsumerStatefulWidget {
 class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   bool _isCentering = false;
   CenteringResult? _result;
-  final _centeringConfig = const CenteringConfig(
-    maxIterations: 5,
-    toleranceArcsec: 30.0,
-    exposureTime: 3.0,
-    binning: 2,
-    gain: 100,
-    syncMount: false,
-  );
+
+  /// Build centering config using user-configured exposure settings
+  CenteringConfig get _centeringConfig {
+    final userSettings = ref.read(exposureSettingsProvider);
+    return CenteringConfig(
+      maxIterations: 5,
+      toleranceArcsec: 30.0,
+      exposureTime: userSettings.exposureTime > 0 ? userSettings.exposureTime : 3.0,
+      binning: userSettings.binningX > 0 ? userSettings.binningX : 2,
+      gain: userSettings.gain,
+      syncMount: false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -466,10 +471,15 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     final centeringService = ref.read(centeringServiceProvider);
 
     // Get plate solver config from settings
-    // For now, use a default ASTAP config - this should come from user settings
-    const solverConfig = PlateSolverConfig(
+    // PlateSolveService tries backend.plateSolve() first (works for both local and remote)
+    // Only falls back to local solver if backend fails
+    final appSettings = ref.read(appSettingsProvider).value;
+    final executablePath = await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
+
+    final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,
-      executablePath: 'C:\\Program Files\\astap\\astap.exe', // TODO: Get from settings
+      // Provide path for local fallback - backend is tried first
+      executablePath: executablePath ?? '',
       timeoutSeconds: 60,
       searchRadius: 30.0,
     );

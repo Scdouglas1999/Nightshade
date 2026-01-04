@@ -4,11 +4,10 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import '../models/sequence/sequence_models.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart';
-import '../models/settings/app_settings.dart' show ObserverLocation;
+import '../models/settings/app_settings.dart' show ObserverLocation, SafetyFailMode;
 import 'equipment_provider.dart';
 import 'database_provider.dart';
 import 'profiles_provider.dart';
@@ -1321,6 +1320,17 @@ class SequenceExecutor {
     // Set simulation mode based on settings
     await backend.sequencerSetSimulationMode(_useSimulationMode);
 
+    // Set safety fail mode from app settings
+    if (settings != null) {
+      final modeString = switch (settings.safetyFailMode) {
+        SafetyFailMode.failOpen => 'fail_open',
+        SafetyFailMode.failClosed => 'fail_closed',
+        SafetyFailMode.warnOnly => 'warn_only',
+      };
+      await backend.sequencerSetSafetyFailMode(modeString);
+      print('[SEQUENCE] Safety fail mode set to: $modeString');
+    }
+
     // Get connected device IDs from equipment providers
     final cameraState = _ref.read(cameraStateProvider);
     final mountState = _ref.read(mountStateProvider);
@@ -1533,7 +1543,19 @@ class SequenceExecutor {
     // Run async fetch in a fire-and-forget manner
     Future(() async {
       try {
-        final capturedImage = await bridge.apiGetLastImage();
+        // Get the camera device ID for fetching the last image
+        final cameraState = _ref.read(cameraStateProvider);
+        final cameraDeviceId = cameraState.deviceId;
+        if (cameraDeviceId == null || cameraDeviceId.isEmpty) {
+          print('[SequenceProvider] No camera device ID available, skipping image fetch');
+          return;
+        }
+        final backend = _ref.read(backendProvider);
+        final capturedImage = await backend.cameraGetLastImage(cameraDeviceId);
+        if (capturedImage == null) {
+          print('[SequenceProvider] No image data available from camera');
+          return;
+        }
 
         // Convert to CapturedImageData (same as ImagingService.captureImage does)
         final imageData = CapturedImageData(
@@ -1610,7 +1632,8 @@ class SequenceExecutor {
 
     try {
       if (_useNativeExecution) {
-        await bridge.NativeBridge.sequencerPause();
+        final backend = _ref.read(backendProvider);
+        await backend.sequencerPause();
 
         // Wait for confirmation from event system
         final confirmed = await _awaitStateChange(SequenceExecutionState.paused);
@@ -1646,7 +1669,8 @@ class SequenceExecutor {
 
     try {
       if (_useNativeExecution) {
-        await bridge.NativeBridge.sequencerResume();
+        final backend = _ref.read(backendProvider);
+        await backend.sequencerResume();
 
         // Wait for confirmation from event system
         final confirmed = await _awaitStateChange(SequenceExecutionState.running);
@@ -1683,11 +1707,11 @@ class SequenceExecutor {
     _ref.read(sessionStateProvider.notifier).endSession(status: 'stopped');
 
     if (_useNativeExecution) {
-      await bridge.NativeBridge.sequencerStop();
+      final backend = _ref.read(backendProvider);
+      await backend.sequencerStop();
 
       // Clear checkpoint when stopped gracefully
       try {
-        final backend = _ref.read(backendProvider);
         await backend.discardCheckpoint();
       } catch (e) {
         // Ignore errors during cleanup
@@ -1698,7 +1722,8 @@ class SequenceExecutor {
 
   Future<void> skip() async {
     if (_useNativeExecution) {
-      await bridge.NativeBridge.sequencerSkip();
+      final backend = _ref.read(backendProvider);
+      await backend.sequencerSkip();
     }
   }
 
@@ -1720,9 +1745,10 @@ class SequenceExecutor {
     _ref.read(sequenceProgressProvider.notifier).reset();
 
     // Reset native sequencer if using native execution
+    final backend = _ref.read(backendProvider);
     if (_useNativeExecution) {
       try {
-        await bridge.NativeBridge.sequencerReset();
+        await backend.sequencerReset();
       } catch (e) {
         print('[SequenceExecutor] Error resetting native sequencer: $e');
         // Continue anyway - the Dart-side reset is more important
@@ -1731,7 +1757,6 @@ class SequenceExecutor {
 
     // Clear any checkpoints
     try {
-      final backend = _ref.read(backendProvider);
       await backend.discardCheckpoint();
     } catch (e) {
       print('[SequenceExecutor] Error clearing checkpoint on reset: $e');
@@ -1880,13 +1905,20 @@ class SequenceExecutor {
             message: 'Changing to filter: ${node.filterName}',
             currentFilter: node.filterName,
           );
-          // Find filter position by name
-          final filterNames = filterWheelState.filterNames;
-          final filterIndex = filterNames.indexWhere(
-            (name) => name.toLowerCase() == node.filterName.toLowerCase()
-          );
-          if (filterIndex < 0) {
-            throw Exception('Filter "${node.filterName}" not found');
+          // Prefer filter position if specified, otherwise find by name
+          int filterIndex;
+          if (node.filterPosition != null && node.filterPosition! >= 0) {
+            // Use explicit filter position
+            filterIndex = node.filterPosition!;
+          } else {
+            // Fall back to name lookup
+            final filterNames = filterWheelState.filterNames;
+            filterIndex = filterNames.indexWhere(
+              (name) => name.toLowerCase() == node.filterName.toLowerCase()
+            );
+            if (filterIndex < 0) {
+              throw Exception('Filter "${node.filterName}" not found');
+            }
           }
           final deviceService = _ref.read(deviceServiceProvider);
           await deviceService.setFilterWheelPosition(filterIndex);
@@ -2027,12 +2059,13 @@ class SequenceExecutor {
             
             // Plate solve the image
             // Note: Full plate solving integration requires external solver (ASTAP, etc.)
-            // For now, we use the bridge plate solver
-            final result = await bridge.NativeBridge.plateSolveNear(
-              image.filePath ?? '',
-              targetRa * 15.0, // Convert hours to degrees
-              targetDec,
-              30.0, // Search radius
+            // For now, we use the backend plate solver
+            final backend = _ref.read(backendProvider);
+            final result = await backend.plateSolve(
+              imagePath: image.filePath ?? '',
+              ra: targetRa * 15.0, // Convert hours to degrees
+              dec: targetDec,
+              fovDegrees: 30.0, // Search radius hint
             );
             
             if (!result.success) {
@@ -2147,31 +2180,33 @@ class SequenceExecutor {
             throw Exception(error);
           }
           progressNotifier.updateProgress(message: 'Cooling camera to ${node.targetTemp}°C...');
-          
+
           // Enable cooler with target temperature
-          await bridge.NativeBridge.setCameraCooler(
-            cameraState.deviceName ?? '',
-            true,
-            node.targetTemp,
+          final backend = _ref.read(backendProvider);
+          final deviceId = cameraState.deviceId ?? '';
+          await backend.cameraSetCooling(
+            deviceId: deviceId,
+            enabled: true,
+            targetTemp: node.targetTemp,
           );
-          
+
           // Wait for temperature to stabilize (poll until target reached)
           final timeout = Duration(minutes: (node.durationMins ?? 10).toInt());
           final deadline = DateTime.now().add(timeout);
-          
+
           while (DateTime.now().isBefore(deadline)) {
-            final status = await bridge.NativeBridge.getCameraStatus(cameraState.deviceName ?? '');
+            final status = await backend.getCameraStatus(deviceId);
             final currentTemp = status.sensorTemp ?? 20.0;
-            
+
             progressNotifier.updateProgress(
               message: 'Cooling: ${currentTemp.toStringAsFixed(1)}°C -> ${node.targetTemp}°C',
             );
-            
+
             if (currentTemp <= node.targetTemp + 1.0) {
               // Within 1 degree of target
               break;
             }
-            
+
             await Future.delayed(const Duration(seconds: 5));
           }
         } else if (node is WarmCameraNode) {
@@ -2185,37 +2220,38 @@ class SequenceExecutor {
             throw Exception(error);
           }
           progressNotifier.updateProgress(message: 'Warming camera...');
-          
+
           // Get current temperature
-          final status = await bridge.NativeBridge.getCameraStatus(cameraState.deviceName ?? '');
+          final backend = _ref.read(backendProvider);
+          final deviceId = cameraState.deviceId ?? '';
+          final status = await backend.getCameraStatus(deviceId);
           final startTemp = status.sensorTemp ?? -10.0;
           final ambientTemp = 15.0; // Target to warm up to
-          
+
           // Gradual warming by stepping up temperature
           final rate = node.ratePerMin; // degrees per minute
           var currentTarget = startTemp;
-          
+
           while (currentTarget < ambientTemp) {
             currentTarget = (currentTarget + rate).clamp(startTemp, ambientTemp);
-            
+
             progressNotifier.updateProgress(
               message: 'Warming: target ${currentTarget.toStringAsFixed(1)}°C',
             );
-            
-            await bridge.NativeBridge.setCameraCooler(
-              cameraState.deviceName ?? '',
-              true,
-              currentTarget,
+
+            await backend.cameraSetCooling(
+              deviceId: deviceId,
+              enabled: true,
+              targetTemp: currentTarget,
             );
-            
+
             await Future.delayed(const Duration(minutes: 1));
           }
-          
+
           // Turn off cooler
-          await bridge.NativeBridge.setCameraCooler(
-            cameraState.deviceName ?? '',
-            false,
-            null,
+          await backend.cameraSetCooling(
+            deviceId: deviceId,
+            enabled: false,
           );
         } else if (node is RotatorNode) {
           // Rotator is optional - skip silently if not connected

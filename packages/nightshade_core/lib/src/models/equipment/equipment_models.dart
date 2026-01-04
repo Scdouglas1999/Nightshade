@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../errors/nightshade_error.dart';
+
 /// Base device state
 enum DeviceConnectionState { disconnected, connecting, connected, error }
 
@@ -59,14 +61,27 @@ class DeviceError extends Equatable {
   });
 
   /// Create a DeviceError from an exception
+  ///
+  /// If the exception is a [NightshadeError], the structured error information
+  /// is extracted directly. Otherwise, the error message is parsed to determine
+  /// the error category.
   factory DeviceError.fromException(
     Object error, {
     String? deviceId,
     int retryAttempts = 0,
   }) {
+    // If it's already a NightshadeError, convert directly
+    if (error is NightshadeError) {
+      return DeviceError.fromNightshadeError(
+        error,
+        deviceId: deviceId,
+        retryAttempts: retryAttempts,
+      );
+    }
+
     final message = error.toString();
 
-    // Try to categorize the error
+    // Try to categorize the error from the message
     DeviceErrorType type = DeviceErrorType.unknown;
     bool recoverable = true;
 
@@ -94,6 +109,45 @@ class DeviceError extends Equatable {
       message: message,
       timestamp: DateTime.now(),
       deviceId: deviceId,
+      retryAttempts: retryAttempts,
+      recoverable: recoverable,
+    );
+  }
+
+  /// Create a DeviceError from a structured [NightshadeError]
+  ///
+  /// This provides a more accurate conversion using the structured error
+  /// information from the native backend.
+  factory DeviceError.fromNightshadeError(
+    NightshadeError error, {
+    String? deviceId,
+    int retryAttempts = 0,
+  }) {
+    // Map BackendErrorCategory to DeviceErrorType
+    final type = switch (error.category) {
+      BackendErrorCategory.connection => DeviceErrorType.connectionFailed,
+      BackendErrorCategory.hardware => DeviceErrorType.communicationError,
+      BackendErrorCategory.timeout => DeviceErrorType.timeout,
+      BackendErrorCategory.validation => DeviceErrorType.invalidParameter,
+      BackendErrorCategory.unsupported => DeviceErrorType.invalidParameter,
+      BackendErrorCategory.busy => DeviceErrorType.busy,
+      BackendErrorCategory.imaging => DeviceErrorType.driverError,
+      BackendErrorCategory.io => DeviceErrorType.driverError,
+      BackendErrorCategory.sequence => DeviceErrorType.driverError,
+      BackendErrorCategory.driver => DeviceErrorType.driverError,
+      BackendErrorCategory.system => DeviceErrorType.unknown,
+      BackendErrorCategory.unknown => DeviceErrorType.unknown,
+    };
+
+    // Determine recoverability - prefer NightshadeError's assessment
+    final recoverable = error.isRecoverable;
+
+    return DeviceError(
+      type: type,
+      message: error.userMessage,
+      code: error.errorCode?.toString(),
+      timestamp: DateTime.now(),
+      deviceId: deviceId ?? error.deviceId,
       retryAttempts: retryAttempts,
       recoverable: recoverable,
     );

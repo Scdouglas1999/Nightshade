@@ -1,12 +1,17 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' show MountStatus;
-import 'package:nightshade_bridge/src/api.dart' as bridge_api;
-import 'package:nightshade_core/nightshade_core.dart' show equipmentProfilesDaoProvider, slewCoordinatesProvider, CoordinateParser;
+import 'package:nightshade_core/nightshade_core.dart'
+    show
+        deviceServiceProvider,
+        mountStateProvider,
+        mountCapabilitiesProvider,
+        slewCoordinatesProvider,
+        CoordinateParser,
+        DeviceConnectionState;
 import '../centering_dialog.dart';
+import '../../polar_alignment/polar_alignment_screen.dart';
 
 class MountTab extends ConsumerStatefulWidget {
   const MountTab({super.key});
@@ -16,12 +21,6 @@ class MountTab extends ConsumerStatefulWidget {
 }
 
 class _MountTabState extends ConsumerState<MountTab> {
-  Timer? _statusTimer;
-  MountStatus? _status;
-  final bool _isLoading = false;
-  String? _error;
-  String? _deviceId;
-
   // Slew target inputs - initialized from provider in initState
   late final TextEditingController _raController;
   late final TextEditingController _decController;
@@ -37,9 +36,6 @@ class _MountTabState extends ConsumerState<MountTab> {
     // Add listeners to sync changes back to provider (persists across tab switches)
     _raController.addListener(_syncRaToProvider);
     _decController.addListener(_syncDecToProvider);
-
-    _loadDeviceId();
-    _startPolling();
   }
 
   void _syncRaToProvider() {
@@ -58,19 +54,8 @@ class _MountTabState extends ConsumerState<MountTab> {
     }
   }
 
-  Future<void> _loadDeviceId() async {
-    final profilesDao = ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
-    if (mounted && activeProfile?.mountId != null) {
-      setState(() {
-        _deviceId = activeProfile!.mountId;
-      });
-    }
-  }
-
   @override
   void dispose() {
-    _statusTimer?.cancel();
     _raController.removeListener(_syncRaToProvider);
     _decController.removeListener(_syncDecToProvider);
     _raController.dispose();
@@ -78,85 +63,62 @@ class _MountTabState extends ConsumerState<MountTab> {
     super.dispose();
   }
 
-  void _startPolling() {
-    _statusTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _fetchStatus();
-    });
-    _fetchStatus(); // Initial fetch
-  }
-
-  Future<void> _fetchStatus() async {
-    if (_deviceId == null) return;
-    try {
-      final status = await bridge_api.apiGetMountStatus(deviceId: _deviceId!);
-      if (mounted) {
-        setState(() {
-          _status = status as MountStatus?;
-          _error = null;
-        });
-      }
-    } catch (e) {
-      // Don't spam errors on poll, just store last error if needed or log
-      // setState(() => _error = e.toString());
-    }
+  bool _isConnected() {
+    final mountState = ref.read(mountStateProvider);
+    return mountState.connectionState == DeviceConnectionState.connected;
   }
 
   Future<void> _toggleTracking(bool enabled) async {
-    if (_deviceId == null) {
+    if (!_isConnected()) {
       _showError("No mount connected");
       return;
     }
     try {
-      await bridge_api.apiMountSetTracking(deviceId: _deviceId!, enabled: enabled ? 1 : 0);
-      _fetchStatus();
+      await ref.read(deviceServiceProvider).setMountTracking(enabled);
     } catch (e) {
       _showError("Failed to set tracking: $e");
     }
   }
 
   Future<void> _abortSlew() async {
-    if (_deviceId == null) {
+    if (!_isConnected()) {
       _showError("No mount connected");
       return;
     }
     try {
-      await bridge_api.mountAbort(deviceId: _deviceId!);
-      _fetchStatus();
+      await ref.read(deviceServiceProvider).abortMountSlew();
     } catch (e) {
       _showError("Failed to abort: $e");
     }
   }
 
   Future<void> _park() async {
-    if (_deviceId == null) {
+    if (!_isConnected()) {
       _showError("No mount connected");
       return;
     }
     try {
-      await bridge_api.apiMountPark(deviceId: _deviceId!);
-      _fetchStatus();
+      await ref.read(deviceServiceProvider).parkMount();
     } catch (e) {
       _showError("Failed to park: $e");
     }
   }
 
   Future<void> _unpark() async {
-    if (_deviceId == null) {
+    if (!_isConnected()) {
       _showError("No mount connected");
       return;
     }
     try {
-      await bridge_api.apiMountUnpark(deviceId: _deviceId!);
-      _fetchStatus();
+      await ref.read(deviceServiceProvider).unparkMount();
     } catch (e) {
       _showError("Failed to unpark: $e");
     }
   }
 
   Future<void> _slew() async {
-    if (_deviceId == null) {
+    if (!_isConnected()) {
       _showError("No mount connected. Please check equipment profile.");
-      debugPrint('[MountTab] Slew failed: _deviceId is null');
       return;
     }
     // Parse RA/Dec using CoordinateParser which supports HMS/DMS formats
@@ -164,21 +126,17 @@ class _MountTabState extends ConsumerState<MountTab> {
     final dec = CoordinateParser.parseDec(_decController.text);
     if (ra == null || dec == null) {
       _showError("Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
-      debugPrint('[MountTab] Slew failed: Invalid coordinates (ra=$ra, dec=$dec) from "${_raController.text}", "${_decController.text}"');
       return;
     }
     try {
-      debugPrint('[MountTab] Slewing to RA=$ra, Dec=$dec using deviceId=$_deviceId');
-      await bridge_api.apiMountSlewToCoordinates(deviceId: _deviceId!, ra: ra, dec: dec);
-      debugPrint('[MountTab] Slew command sent successfully');
-    } catch (e, stack) {
+      await ref.read(deviceServiceProvider).slewMountToCoordinates(ra, dec);
+    } catch (e) {
       _showError("Slew failed: $e");
-      debugPrint('[MountTab] Slew failed with error: $e\n$stack');
     }
   }
 
   Future<void> _sync() async {
-    if (_deviceId == null) {
+    if (!_isConnected()) {
       _showError("No mount connected");
       return;
     }
@@ -190,19 +148,22 @@ class _MountTabState extends ConsumerState<MountTab> {
       return;
     }
     try {
-      await bridge_api.apiMountSyncToCoordinates(deviceId: _deviceId!, ra: ra, dec: dec);
+      await ref.read(deviceServiceProvider).syncMountToCoordinates(ra, dec);
     } catch (e) {
       _showError("Sync failed: $e");
     }
   }
 
   Future<void> _pulseGuide(String direction) async {
-    if (_deviceId == null) {
+    if (!_isConnected()) {
       _showError("No mount connected");
       return;
     }
     try {
-      await bridge_api.apiMountPulseGuide(deviceId: _deviceId!, direction: direction, durationMs: 500);
+      await ref.read(deviceServiceProvider).pulseGuidMount(
+        direction: direction,
+        durationMs: 500,
+      );
     } catch (e) {
       _showError("Pulse guide failed: $e");
     }
@@ -218,6 +179,13 @@ class _MountTabState extends ConsumerState<MountTab> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final mountState = ref.watch(mountStateProvider);
+    final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+
+    // Watch mount capabilities to gate UI features
+    final capabilitiesAsync = ref.watch(
+        mountCapabilitiesProvider(mountState.deviceId ?? ''));
+    final capabilities = capabilitiesAsync.valueOrNull;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -241,37 +209,42 @@ class _MountTabState extends ConsumerState<MountTab> {
                           color: colors.textPrimary,
                         ),
                       ),
-                      if (_status != null)
+                      if (isConnected)
                         _StatusBadge(
-                          label: _status!.slewing ? 'SLEWING' : (_status!.tracking ? 'TRACKING' : 'STOPPED'),
-                          color: _status!.slewing 
-                              ? colors.warning 
-                              : (_status!.tracking ? colors.success : colors.textSecondary),
+                          label: mountState.isSlewing ? 'SLEWING' : (mountState.isTracking ? 'TRACKING' : 'STOPPED'),
+                          color: mountState.isSlewing
+                              ? colors.warning
+                              : (mountState.isTracking ? colors.success : colors.textSecondary),
+                        ),
+                      if (!isConnected)
+                        _StatusBadge(
+                          label: 'DISCONNECTED',
+                          color: colors.error,
                         ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: _InfoRow(label: 'RA', value: _status?.rightAscension.toStringAsFixed(4) ?? '--')),
+                      Expanded(child: _InfoRow(label: 'RA', value: mountState.ra?.toStringAsFixed(4) ?? '--')),
                       const SizedBox(width: 16),
-                      Expanded(child: _InfoRow(label: 'Dec', value: _status?.declination.toStringAsFixed(4) ?? '--')),
+                      Expanded(child: _InfoRow(label: 'Dec', value: mountState.dec?.toStringAsFixed(4) ?? '--')),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Expanded(child: _InfoRow(label: 'Alt', value: _status?.altitude.toStringAsFixed(2) ?? '--')),
+                      Expanded(child: _InfoRow(label: 'Alt', value: mountState.altitude?.toStringAsFixed(2) ?? '--')),
                       const SizedBox(width: 16),
-                      Expanded(child: _InfoRow(label: 'Az', value: _status?.azimuth.toStringAsFixed(2) ?? '--')),
+                      Expanded(child: _InfoRow(label: 'Az', value: mountState.azimuth?.toStringAsFixed(2) ?? '--')),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Expanded(child: _InfoRow(label: 'Pier', value: _status?.sideOfPier.toString().split('.').last ?? '--')),
+                      Expanded(child: _InfoRow(label: 'Pier', value: mountState.sideOfPier ?? '--')),
                       const SizedBox(width: 16),
-                      Expanded(child: _InfoRow(label: 'LST', value: _status?.siderealTime.toStringAsFixed(4) ?? '--')),
+                      Expanded(child: _InfoRow(label: 'Status', value: mountState.isParked ? 'Parked' : 'Ready')),
                     ],
                   ),
                 ],
@@ -301,19 +274,28 @@ class _MountTabState extends ConsumerState<MountTab> {
                     children: [
                       Expanded(
                         child: NightshadeButton(
-                          label: _status?.parked == true ? 'Unpark' : 'Park',
+                          label: mountState.isParked ? 'Unpark' : 'Park',
                           icon: LucideIcons.parkingSquare,
                           variant: ButtonVariant.outline,
-                          onPressed: _status?.parked == true ? _unpark : _park,
+                          // Gate on canPark/canUnpark capabilities
+                          onPressed: isConnected &&
+                              (mountState.isParked
+                                  ? (capabilities?.canUnpark ?? true)
+                                  : (capabilities?.canPark ?? true))
+                              ? (mountState.isParked ? _unpark : _park)
+                              : null,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: NightshadeButton(
-                          label: _status?.tracking == true ? 'Stop Track' : 'Start Track',
+                          label: mountState.isTracking ? 'Stop Track' : 'Start Track',
                           icon: LucideIcons.activity,
-                          variant: _status?.tracking == true ? ButtonVariant.outline : ButtonVariant.primary,
-                          onPressed: () => _toggleTracking(!(_status?.tracking ?? false)),
+                          variant: mountState.isTracking ? ButtonVariant.outline : ButtonVariant.primary,
+                          // Gate on canSetTracking capability
+                          onPressed: isConnected && (capabilities?.canSetTracking ?? true)
+                              ? () => _toggleTracking(!mountState.isTracking)
+                              : null,
                         ),
                       ),
                     ],
@@ -325,7 +307,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                       label: 'ABORT SLEW',
                       icon: LucideIcons.octagon,
                       variant: ButtonVariant.primary,
-                      onPressed: _abortSlew,
+                      onPressed: isConnected ? _abortSlew : null,
                     ),
                   ),
                 ],
@@ -364,7 +346,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                             backgroundColor: colors.surface,
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 800, maxHeight: 600),
-                              child: const PolarAlignmentWizard(),
+                              child: const PolarAlignmentScreen(),
                             ),
                           ),
                         );
@@ -527,7 +509,13 @@ class _InfoRow extends StatelessWidget {
       children: [
         Text(label, style: TextStyle(fontSize: 11, color: colors.textSecondary)),
         const SizedBox(height: 2),
-        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: colors.textPrimary)),
+        Text(
+          value,
+          style: NightshadeTypography.monoSm.copyWith(
+            fontWeight: FontWeight.w500,
+            color: colors.textPrimary,
+          ),
+        ),
       ],
     );
   }

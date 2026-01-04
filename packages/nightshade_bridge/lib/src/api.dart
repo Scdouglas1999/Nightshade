@@ -14,7 +14,7 @@ import 'storage.dart';
 
 // These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `run_polar_alignment`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `DiscoveryCache`, `RawImageInfo`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`, `get_device_manager`, `get_last_raw_image_info`, `get_phd2_storage`, `get_sim_focuser`, `get_sim_rotator`, `get_state`
 
 /// Invalidate the discovery cache, forcing fresh discovery on next call.
@@ -302,8 +302,8 @@ Future<void> startExposure(
 Future<void> cancelExposure({required String deviceId}) =>
     RustLib.instance.api.crateApiCancelExposure(deviceId: deviceId);
 
-/// Download last image from camera
-/// Returns the image stored by start_exposure/api_camera_start_exposure
+/// Download last image from camera (DEPRECATED - use api_get_last_image with device_id instead)
+/// Returns the first image found in storage, or None if empty
 /// Reads from unified atomic storage to ensure consistency with raw data
 Future<CapturedImageResult?> getLastImage() =>
     RustLib.instance.api.crateApiGetLastImage();
@@ -651,16 +651,21 @@ Future<void> apiCameraStartExposure(
         binX: binX,
         binY: binY);
 
-/// Get the last captured image (display-ready format)
-/// Reads from unified atomic storage to ensure consistency with raw data
-Future<CapturedImageResult> apiGetLastImage() =>
-    RustLib.instance.api.crateApiApiGetLastImage();
+/// Get the last captured image for a specific device (display-ready format)
+/// Reads from per-device atomic storage to ensure consistency with raw data
+Future<CapturedImageResult> apiGetLastImage({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGetLastImage(deviceId: deviceId);
 
-/// Get the last captured raw image data (u16)
+/// Get the last captured raw image data (u16) for a specific device
 /// This is used for saving FITS files with original bit depth
-/// Reads from unified atomic storage to ensure consistency with display data
-Future<Uint16List> apiGetLastRawImageData() =>
-    RustLib.instance.api.crateApiApiGetLastRawImageData();
+/// Reads from per-device atomic storage to ensure consistency with display data
+Future<Uint16List> apiGetLastRawImageData({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGetLastRawImageData(deviceId: deviceId);
+
+/// Clear stored image data for a specific device
+/// This is used to free memory when a camera is disconnected or when explicitly requested
+Future<void> apiClearDeviceImage({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiClearDeviceImage(deviceId: deviceId);
 
 /// Cancel current exposure
 Future<void> apiCameraCancelExposure({required String deviceId}) =>
@@ -687,6 +692,16 @@ Future<StarDetectionResultApi> apiDetectStarsInFile(
         {required String filePath, StarDetectionConfigApi? config}) =>
     RustLib.instance.api
         .crateApiApiDetectStarsInFile(filePath: filePath, config: config);
+
+/// Get star crops from the last captured image for a device
+///
+/// This extracts the top N brightest stars from the last image and returns
+/// cropped 80x80 pixel regions centered on each star, auto-stretched for display.
+/// Used by the autofocus UI to show star crops for visual feedback.
+Future<List<StarCropApi>> apiGetStarCropsFromLastImage(
+        {required String deviceId, required int maxCrops}) =>
+    RustLib.instance.api.crateApiApiGetStarCropsFromLastImage(
+        deviceId: deviceId, maxCrops: maxCrops);
 
 /// Calculate HFR for a FITS file
 Future<double?> apiCalculateHfr({required String filePath}) =>
@@ -1043,6 +1058,14 @@ Future<void> apiSequencerSetDevices(
         filterwheelId: filterwheelId,
         rotatorId: rotatorId);
 
+/// Set the safety fail mode for the sequencer.
+/// This determines behavior when safety devices fail or are unavailable:
+/// - "fail_open": Assume safe and continue imaging (default)
+/// - "fail_closed": Assume unsafe and pause/park
+/// - "warn_only": Show warning but continue
+Future<void> apiSequencerSetSafetyFailMode({required String mode}) =>
+    RustLib.instance.api.crateApiApiSequencerSetSafetyFailMode(mode: mode);
+
 /// Create an exposure node configuration
 String apiCreateExposureNode(
         {required String id,
@@ -1394,14 +1417,22 @@ Future<void> apiStartPolarAlignment(
         required int binning,
         required bool isNorth,
         required bool manualRotation,
-        required bool rotateEast}) =>
+        required bool rotateEast,
+        int? gain,
+        int? offset,
+        double? solveTimeout,
+        bool? startFromCurrent}) =>
     RustLib.instance.api.crateApiApiStartPolarAlignment(
         exposureTime: exposureTime,
         stepSize: stepSize,
         binning: binning,
         isNorth: isNorth,
         manualRotation: manualRotation,
-        rotateEast: rotateEast);
+        rotateEast: rotateEast,
+        gain: gain,
+        offset: offset,
+        solveTimeout: solveTimeout,
+        startFromCurrent: startFromCurrent);
 
 /// Stop the polar alignment process
 Future<void> apiStopPolarAlignment() =>
@@ -1465,6 +1496,18 @@ Future<void> apiSaveFitsFile(
         height: height,
         data: data,
         headerData: headerData);
+
+/// Save FITS file directly from the last captured image stored in Rust
+/// This eliminates the need to transfer raw pixel data across the FFI boundary
+/// by using the image data already stored from the last exposure.
+///
+/// Returns an error if no image has been captured yet for the specified device.
+Future<void> apiSaveFitsFromLastCapture(
+        {required String deviceId,
+        required String filePath,
+        required FitsWriteHeader headerData}) =>
+    RustLib.instance.api.crateApiApiSaveFitsFromLastCapture(
+        deviceId: deviceId, filePath: filePath, headerData: headerData);
 
 /// Calculate image statistics
 ImageStatsResult apiGetImageStats(
@@ -2874,6 +2917,51 @@ class SimulatedRotator {
       other is SimulatedRotator &&
           runtimeType == other.runtimeType &&
           status == other.status;
+}
+
+/// Star crop data for UI display
+class StarCropApi {
+  /// Base64-encoded grayscale pixel data
+  final String pixelsBase64;
+
+  /// Width of the crop
+  final int width;
+
+  /// Height of the crop
+  final int height;
+
+  /// HFR of this star
+  final double hfr;
+
+  /// SNR of this star
+  final double snr;
+
+  const StarCropApi({
+    required this.pixelsBase64,
+    required this.width,
+    required this.height,
+    required this.hfr,
+    required this.snr,
+  });
+
+  @override
+  int get hashCode =>
+      pixelsBase64.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      hfr.hashCode ^
+      snr.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StarCropApi &&
+          runtimeType == other.runtimeType &&
+          pixelsBase64 == other.pixelsBase64 &&
+          width == other.width &&
+          height == other.height &&
+          hfr == other.hfr &&
+          snr == other.snr;
 }
 
 /// Star detection configuration

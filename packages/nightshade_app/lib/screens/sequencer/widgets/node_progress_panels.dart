@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -290,7 +291,7 @@ class _PowerGauge extends StatelessWidget {
 }
 
 /// Progress panel for autofocus operations with V-curve and star zoom
-class _AutofocusProgressPanel extends StatefulWidget {
+class _AutofocusProgressPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final double progressPercent;
   final String detail;
@@ -302,11 +303,13 @@ class _AutofocusProgressPanel extends StatefulWidget {
   });
 
   @override
-  State<_AutofocusProgressPanel> createState() => _AutofocusProgressPanelState();
+  ConsumerState<_AutofocusProgressPanel> createState() => _AutofocusProgressPanelState();
 }
 
-class _AutofocusProgressPanelState extends State<_AutofocusProgressPanel> {
+class _AutofocusProgressPanelState extends ConsumerState<_AutofocusProgressPanel> {
   int _currentStarIndex = 0;
+  bool _isRefreshing = false;
+  List<StarCrop>? _refreshedCrops;
 
   @override
   Widget build(BuildContext context) {
@@ -367,10 +370,80 @@ class _AutofocusProgressPanelState extends State<_AutofocusProgressPanel> {
     );
   }
 
+  Future<void> _refreshStarCrops() async {
+    if (_isRefreshing) return;
+
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      // Get the camera device ID from the camera state
+      final cameraState = ref.read(cameraStateProvider);
+      final deviceId = cameraState.deviceId;
+
+      if (deviceId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('No camera connected'),
+              backgroundColor: widget.colors.warning,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Request fresh star crops from the backend
+      final backend = ref.read(backendProvider);
+      final crops = await backend.getStarCropsFromLastImage(deviceId, maxCrops: 5);
+
+      if (mounted) {
+        setState(() {
+          _refreshedCrops = crops;
+          _currentStarIndex = 0;
+        });
+
+        if (crops.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('No stars detected in image'),
+              backgroundColor: widget.colors.warning,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to refresh star crops: $e'),
+            backgroundColor: widget.colors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
+
   Widget _buildEnhancedPanel(AutofocusProgressData data) {
+    // Use refreshed crops if available, otherwise use data from progress events
+    final starCrops = _refreshedCrops ?? data.starCrops;
+
     // Ensure star index is valid
-    if (_currentStarIndex >= data.starCrops.length) {
+    if (_currentStarIndex >= starCrops.length) {
       _currentStarIndex = 0;
+    }
+
+    // Clear refreshed crops when new progress data arrives with different crops
+    if (_refreshedCrops != null && data.starCrops.isNotEmpty &&
+        data.starCrops.first.pixelsBase64 != _refreshedCrops!.first.pixelsBase64) {
+      _refreshedCrops = null;
     }
 
     return _ProgressPanelContainer(
@@ -407,23 +480,22 @@ class _AutofocusProgressPanelState extends State<_AutofocusProgressPanel> {
                 ),
 
                 // Star zoom panel (top-left corner overlay)
-                if (data.starCrops.isNotEmpty)
+                if (starCrops.isNotEmpty)
                   Positioned(
                     left: 4,
                     top: 4,
                     child: _StarZoomPanel(
                       colors: widget.colors,
-                      starCrops: data.starCrops,
+                      starCrops: starCrops,
                       currentIndex: _currentStarIndex,
+                      isRefreshing: _isRefreshing,
                       onPrevious: () => setState(() {
-                        _currentStarIndex = (_currentStarIndex - 1 + data.starCrops.length) % data.starCrops.length;
+                        _currentStarIndex = (_currentStarIndex - 1 + starCrops.length) % starCrops.length;
                       }),
                       onNext: () => setState(() {
-                        _currentStarIndex = (_currentStarIndex + 1) % data.starCrops.length;
+                        _currentStarIndex = (_currentStarIndex + 1) % starCrops.length;
                       }),
-                      onRefresh: () {
-                        // TODO: Request new star crops from backend
-                      },
+                      onRefresh: _refreshStarCrops,
                     ),
                   ),
               ],
@@ -474,6 +546,7 @@ class _StarZoomPanel extends StatelessWidget {
   final NightshadeColors colors;
   final List<StarCrop> starCrops;
   final int currentIndex;
+  final bool isRefreshing;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onRefresh;
@@ -482,6 +555,7 @@ class _StarZoomPanel extends StatelessWidget {
     required this.colors,
     required this.starCrops,
     required this.currentIndex,
+    this.isRefreshing = false,
     required this.onPrevious,
     required this.onNext,
     required this.onRefresh,
@@ -551,11 +625,21 @@ class _StarZoomPanel extends StatelessWidget {
                   onTap: starCrops.length > 1 ? onNext : null,
                 ),
                 // Refresh button
-                _buildNavButton(
-                  icon: Icons.refresh,
-                  onTap: onRefresh,
-                  size: 12,
-                ),
+                if (isRefreshing)
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      valueColor: AlwaysStoppedAnimation(colors.primary),
+                    ),
+                  )
+                else
+                  _buildNavButton(
+                    icon: Icons.refresh,
+                    onTap: onRefresh,
+                    size: 12,
+                  ),
               ],
             ),
           ),
