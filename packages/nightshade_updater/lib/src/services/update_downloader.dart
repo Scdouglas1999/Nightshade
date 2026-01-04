@@ -9,20 +9,45 @@ typedef DownloadProgressCallback = void Function(
   double progress,
 );
 
+/// Token for cancelling downloads
+class CancelToken {
+  bool _isCancelled = false;
+
+  bool get isCancelled => _isCancelled;
+
+  void cancel() {
+    _isCancelled = true;
+  }
+}
+
 /// Service for downloading update packages with progress tracking
 class UpdateDownloader {
   final http.Client _client;
+  CancelToken? _currentCancelToken;
 
   UpdateDownloader({http.Client? client}) : _client = client ?? http.Client();
+
+  /// Create a new cancel token for the next download
+  CancelToken createCancelToken() {
+    _currentCancelToken = CancelToken();
+    return _currentCancelToken!;
+  }
+
+  /// Cancel the current download if one is in progress
+  void cancelCurrentDownload() {
+    _currentCancelToken?.cancel();
+  }
 
   /// Download a file from URL to destination with progress tracking
   ///
   /// Supports resume via Range header if server supports it.
+  /// Pass a [cancelToken] to allow cancellation of the download.
   Future<File> download(
     String url,
     String destinationPath, {
     DownloadProgressCallback? onProgress,
     int? expectedSize,
+    CancelToken? cancelToken,
   }) async {
     final destination = File(destinationPath);
     final parent = destination.parent;
@@ -83,6 +108,16 @@ class UpdateDownloader {
 
     try {
       await for (final chunk in streamedResponse.stream) {
+        // Check for cancellation
+        if (cancelToken?.isCancelled ?? false) {
+          await sink.close();
+          // Delete partial download
+          if (await destination.exists()) {
+            await destination.delete();
+          }
+          throw DownloadCancelledException();
+        }
+
         sink.add(chunk);
         downloadedBytes += chunk.length;
 
@@ -134,4 +169,10 @@ class DownloadException implements Exception {
 
   @override
   String toString() => 'DownloadException: $message (status: $statusCode)';
+}
+
+/// Exception thrown when download is cancelled
+class DownloadCancelledException implements Exception {
+  @override
+  String toString() => 'Download was cancelled';
 }

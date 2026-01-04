@@ -223,6 +223,27 @@ final sessionImagesProvider =
   return ref.watch(imagesDaoProvider).watchImagesForSession(sessionId);
 });
 
+/// Provider for unique target names derived from sessions
+/// Returns a list of unique session names to use as target filter options
+final sessionTargetNamesProvider = Provider<AsyncValue<List<String>>>((ref) {
+  final sessionsAsync = ref.watch(allSessionsProvider);
+  return sessionsAsync.when(
+    data: (sessions) {
+      // Extract unique non-null session names
+      final uniqueNames = sessions
+          .map((s) => s.name)
+          .where((name) => name != null && name.isNotEmpty)
+          .cast<String>()
+          .toSet()
+          .toList()
+        ..sort();
+      return AsyncValue.data(['All Targets', ...uniqueNames]);
+    },
+    loading: () => const AsyncValue.loading(),
+    error: (e, st) => AsyncValue.error(e, st),
+  );
+});
+
 class _HistoryTab extends ConsumerStatefulWidget {
   @override
   ConsumerState<_HistoryTab> createState() => _HistoryTabState();
@@ -237,6 +258,23 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final sessionsAsyncValue = ref.watch(allSessionsProvider);
+    final targetNamesAsync = ref.watch(sessionTargetNamesProvider);
+
+    // Get target list from sessions, fallback to default if loading/error
+    final targetList = targetNamesAsync.when(
+      data: (targets) => targets,
+      loading: () => const ['All Targets'],
+      error: (_, __) => const ['All Targets'],
+    );
+
+    // Reset target filter if current selection no longer exists
+    if (!targetList.contains(_targetFilter)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() => _targetFilter = 'All Targets');
+        }
+      });
+    }
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -261,7 +299,7 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
               const SizedBox(width: 16),
               NightshadeDropdown(
                 value: _targetFilter,
-                items: const ['All Targets', 'M31', 'M42', 'NGC 7000'],
+                items: targetList,
                 onChanged: (v) => setState(() => _targetFilter = v ?? 'All Targets'),
               ),
             ],
@@ -294,12 +332,25 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                   );
                 }
 
-                // Filter sessions based on search query
+                // Filter sessions based on search query and target filter
                 final filteredSessions = sessions.where((session) {
+                  // Search filter
                   final nameMatch = _searchQuery.isEmpty ||
                       (session.name?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
                           false);
-                  return nameMatch;
+                  // Target filter
+                  final targetMatch = _targetFilter == 'All Targets' ||
+                      session.name == _targetFilter;
+                  // Time filter
+                  bool timeMatch = true;
+                  if (_timeFilter == 'This Month') {
+                    final now = DateTime.now();
+                    timeMatch = session.startTime.year == now.year &&
+                        session.startTime.month == now.month;
+                  } else if (_timeFilter == 'This Year') {
+                    timeMatch = session.startTime.year == DateTime.now().year;
+                  }
+                  return nameMatch && targetMatch && timeMatch;
                 }).toList();
 
                 return ListView.builder(

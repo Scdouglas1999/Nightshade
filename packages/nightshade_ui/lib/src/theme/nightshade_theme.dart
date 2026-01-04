@@ -39,11 +39,9 @@ ThemeData getThemeForMode(AppThemeMode mode, Brightness systemBrightness) {
 class NightshadeTheme {
   NightshadeTheme._();
 
-  // Typography - using JetBrains Mono for a technical feel
+  // Typography - using Inter as the primary font
+  // Monospace fonts (JetBrains Mono) are available via NightshadeTypography.mono* styles
   static const _fontFamily = 'Inter';
-  // TODO: Use mono font family for code/technical displays
-  // ignore: unused_field
-  static const _monoFontFamily = 'JetBrains Mono';
 
   static ThemeData get dark {
     const colors = NightshadeColors.dark;

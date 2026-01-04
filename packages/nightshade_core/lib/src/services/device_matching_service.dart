@@ -100,6 +100,14 @@ class DeviceMatchingService {
           if (grouped.contains(j)) continue;
 
           final candidate = devices[j];
+          
+          // CRITICAL: Never merge devices from the same backend
+          // This prevents two identical cameras (e.g., two ASI294MC Pro) from merging
+          if (primary.backend == candidate.backend) continue;
+          
+          // If names are identical but IDs differ, they're separate physical devices
+          if (primary.name == candidate.name && primary.id != candidate.id) continue;
+          
           final candidateNormalized = normalizeName(candidate.name);
 
           // Check similarity

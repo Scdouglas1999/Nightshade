@@ -20,6 +20,7 @@ class UpdateService {
 
   String? _updateServerUrl;
   String _channel = 'stable';
+  CancelToken? _currentDownloadToken;
 
   UpdateService({
     required String currentVersion,
@@ -32,6 +33,12 @@ class UpdateService {
         _downloader = downloader ?? UpdateDownloader(),
         _verifier = verifier ?? UpdateVerifier(),
         _httpClient = httpClient ?? http.Client();
+
+  /// Cancel any in-progress download
+  void cancelDownload() {
+    _currentDownloadToken?.cancel();
+    _currentDownloadToken = null;
+  }
 
   /// Configure the update server URL and channel
   void configure({required String serverUrl, String channel = 'stable'}) {
@@ -127,13 +134,20 @@ class UpdateService {
     final stagingDir = await _getStagingDirectory();
     final packagePath = path.join(stagingDir.path, 'update.zip');
 
+    // Create cancel token for this download
+    _currentDownloadToken = CancelToken();
+
     // Download the package
     await _downloader.download(
       manifest.downloadUrl,
       packagePath,
       onProgress: onProgress,
       expectedSize: manifest.compressedSize,
+      cancelToken: _currentDownloadToken,
     );
+
+    // Clear cancel token after successful download
+    _currentDownloadToken = null;
 
     // Verify package integrity
     // For now we just check the size, signature verification can be added later

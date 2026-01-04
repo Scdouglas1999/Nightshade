@@ -61,17 +61,18 @@ class TitleBar extends ConsumerWidget {
 
             const Spacer(),
 
-            // Profile button
+            // Profile button - navigates to Settings > Equipment Profiles
             Builder(
               builder: (context) => _TitleBarButton(
                 icon: LucideIcons.user,
                 tooltip: 'Equipment Profiles',
                 onPressed: () {
                   try {
-                    context.go('/profiles');
+                    // Equipment Profiles is in Settings (category index 4)
+                    context.go('/settings');
                   } catch (e) {
                     // Fallback for when router is not available
-                    debugPrint('Could not navigate to profiles: $e');
+                    debugPrint('Could not navigate to settings: $e');
                   }
                 },
               ),

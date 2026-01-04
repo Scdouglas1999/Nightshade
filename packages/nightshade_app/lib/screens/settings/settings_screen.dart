@@ -546,7 +546,62 @@ class _ConnectionSettings extends ConsumerWidget {
           ],
         ),
       );
+    } else {
+      // Show connection dialog
+      _showConnectDialog(context, ref);
     }
+  }
+
+  void _showConnectDialog(BuildContext context, WidgetRef ref) {
+    final hostController = TextEditingController(text: 'localhost');
+    final portController = TextEditingController(text: '8765');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Connect to Server'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: hostController,
+              decoration: const InputDecoration(
+                labelText: 'Host',
+                hintText: 'e.g., localhost or 192.168.1.100',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: portController,
+              decoration: const InputDecoration(
+                labelText: 'Port',
+                hintText: '8765',
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final host = hostController.text.trim();
+              final port = int.tryParse(portController.text.trim()) ?? 8765;
+              if (host.isNotEmpty) {
+                Navigator.pop(ctx);
+                // Connect to server
+                ref.read(backendProvider.notifier).connect(host, port);
+              }
+            },
+            child: const Text('Connect'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1607,6 +1662,31 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
     }
   }
 
+  String _getFailModeDescription(SafetyFailMode mode) {
+    return switch (mode) {
+      SafetyFailMode.failOpen => 'Continue imaging when safety data unavailable',
+      SafetyFailMode.failClosed => 'Park mount when safety data unavailable',
+      SafetyFailMode.warnOnly => 'Show warning but continue imaging',
+    };
+  }
+
+  String _failModeToString(SafetyFailMode mode) {
+    return switch (mode) {
+      SafetyFailMode.failOpen => 'Fail Open (Continue)',
+      SafetyFailMode.failClosed => 'Fail Closed (Park)',
+      SafetyFailMode.warnOnly => 'Warn Only',
+    };
+  }
+
+  SafetyFailMode _stringToFailMode(String value) {
+    return switch (value) {
+      'Fail Open (Continue)' => SafetyFailMode.failOpen,
+      'Fail Closed (Park)' => SafetyFailMode.failClosed,
+      'Warn Only' => SafetyFailMode.warnOnly,
+      _ => SafetyFailMode.failOpen,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
@@ -1649,6 +1729,23 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                       ref.read(appSettingsProvider.notifier).setParkBeforeDawn(value);
                     },
                     colors: widget.colors,
+                  ),
+                  colors: widget.colors,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.alertTriangle,
+                  title: 'Safety fail mode',
+                  subtitle: _getFailModeDescription(settings.safetyFailMode),
+                  trailing: _SettingsDropdown(
+                    value: _failModeToString(settings.safetyFailMode),
+                    items: const ['Fail Open (Continue)', 'Fail Closed (Park)', 'Warn Only'],
+                    onChanged: (value) {
+                      if (value != null) {
+                        ref.read(appSettingsProvider.notifier).setSafetyFailMode(_stringToFailMode(value));
+                      }
+                    },
+                    colors: widget.colors,
+                    width: 180,
                   ),
                   isLast: true,
                   colors: widget.colors,

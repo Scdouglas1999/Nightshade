@@ -48,6 +48,7 @@ use nightshade_sequencer::{DeviceOps, DeviceResult, ImageData, PlateSolveResult,
 use crate::state::SharedAppState;
 use crate::api::*;
 use crate::FitsWriteHeader;
+use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::event::*;
 use std::sync::Arc;
 
@@ -280,9 +281,15 @@ impl DeviceOps for UnifiedDeviceOps {
                 format!("Exposure failed: {}", e)
             })?;
 
-        // Wait for completion with progress updates
-        let poll_interval = std::time::Duration::from_millis(100);
+        // Wait for completion with progress updates using adaptive polling
+        // This reduces CPU/network overhead for long exposures while maintaining
+        // responsiveness at the beginning and end of the exposure
+        let mut poller: AdaptivePoller<bool> = AdaptivePoller::from_preset(PollerPreset::Exposure);
+        let mut last_complete_status = false;
+
         loop {
+            // Get next poll interval (adapts based on status changes)
+            let poll_interval = poller.tick(&last_complete_status);
             tokio::time::sleep(poll_interval).await;
 
             // Calculate and publish progress
@@ -299,8 +306,14 @@ impl DeviceOps for UnifiedDeviceOps {
             );
 
             match mgr.camera_is_exposure_complete(camera_id).await {
-                Ok(true) => break,
-                Ok(false) => continue,
+                Ok(true) => {
+                    last_complete_status = true;
+                    break;
+                }
+                Ok(false) => {
+                    last_complete_status = false;
+                    continue;
+                }
                 Err(e) => {
                     self.app_state.publish_imaging_event(
                         ImagingEvent::ExposureComplete { success: false },
@@ -1005,8 +1018,8 @@ impl DeviceOps for UnifiedDeviceOps {
 
         // Map bayer pattern to sensor_type and bayer_offset
             Err(e) => {
-                tracing::warn!("Failed to check safety monitor {}: {} - assuming safe (fail-open)", device_id, e);
-                Ok(true) // Fail-open for safety
+                tracing::error!("Failed to check safety monitor {}: {} - returning error for fail-mode handling", device_id, e);
+                Err(format!("Safety check failed for {}: {}", device_id, e))
             }
 
         // Map bayer pattern to sensor_type and bayer_offset

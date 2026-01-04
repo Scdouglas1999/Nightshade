@@ -49,6 +49,19 @@ use std::collections::HashMap;
 /// Unique identifier for a sequence node
 pub type NodeId = String;
 
+/// Defines how the safety system behaves when weather/safety devices fail or are unavailable.
+/// This mirrors the Dart-side SafetyFailMode enum in app_settings.dart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum SafetyFailMode {
+    /// Assume safe when device/API fails (continue imaging) - default for experienced users
+    #[default]
+    FailOpen,
+    /// Assume unsafe when device/API fails (pause/park) - conservative choice
+    FailClosed,
+    /// Show warning but continue - user decides
+    WarnOnly,
+}
+
 /// Status of a node execution
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NodeStatus {

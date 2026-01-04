@@ -109,8 +109,7 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
                 ),
                 Text(
                   '${targetTemp.toStringAsFixed(0)}°C',
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: NightshadeTypography.monoSm.copyWith(
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -877,8 +876,7 @@ class _ReadingItem extends StatelessWidget {
         Text(label, style: TextStyle(fontSize: 10, color: colors.textMuted)),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 14,
+          style: NightshadeTypography.mono.copyWith(
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -987,7 +985,9 @@ class _PresetItem extends StatelessWidget {
                   ),
                   Text(
                     'Gain: ${preset.gain}, Offset: ${preset.offset}',
-                    style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                    style: NightshadeTypography.monoXs.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ],
               ),

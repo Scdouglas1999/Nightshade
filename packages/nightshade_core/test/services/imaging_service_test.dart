@@ -1,11 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_core/src/services/imaging_service.dart';
 import 'dart:math' as math;
 
 void main() {
   group('ImagingService Quality Score Tests', () {
-    late ImagingService service;
-
     // Helper to access private method via reflection or re-implementation
     double calculateQualityScore({
       required double? hfr,

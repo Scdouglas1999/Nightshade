@@ -1,12 +1,18 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:nightshade_bridge/src/api.dart' as bridge_api;
+import '../models/autofocus_progress.dart' show StarCrop;
 import '../models/imaging/imaging_models.dart';
 import '../models/equipment_profile.dart';
-import '../models/phd2_models.dart' hide Phd2StarImage;
+import '../models/phd2_models.dart';
 import '../models/settings/app_settings.dart' as models;
 import '../providers/settings_provider.dart' hide AppSettings;
 import 'nightshade_backend.dart';
+
+// Import pure Dart types from backend_types
+import '../models/backend/device_capabilities.dart';
+import '../models/backend/device_status.dart';
+import '../models/backend/autofocus_result.dart';
+import '../models/backend/fits_header.dart';
 
 /// A backend implementation that represents a disconnected state.
 /// 
@@ -18,6 +24,12 @@ class DisconnectedBackend implements NightshadeBackend {
 
   @override
   Stream<NightshadeEvent> get eventStream => _eventController.stream;
+
+  @override
+  void dispose() {
+    _eventController.close();
+    _polarAlignController.close();
+  }
 
   Never _throwNotConnected() {
     throw Exception(
@@ -60,8 +72,8 @@ class DisconnectedBackend implements NightshadeBackend {
     required String deviceId,
     required double exposureTime,
     required FrameType frameType,
-    required int gain,
-    required int offset,
+    int? gain,
+    int? offset,
     int binX = 1,
     int binY = 1,
     int? x,
@@ -169,7 +181,7 @@ class DisconnectedBackend implements NightshadeBackend {
   Future<void> focuserHalt(String deviceId) async {}
 
   @override
-  Future<bridge_api.AutofocusResultApi> autofocusStart({
+  Future<AutofocusResult> autofocusStart({
     required String deviceId,
     required String cameraId,
     required double exposureTime,
@@ -308,6 +320,37 @@ class DisconnectedBackend implements NightshadeBackend {
     _throwNotConnected();
   }
 
+  // =========================================================================
+  // Generic Guiding (driver-agnostic abstraction)
+  // =========================================================================
+
+  @override
+  Future<void> guiderStartGuiding({
+    required String deviceId,
+    double settlePixels = 1.0,
+    double settleTime = 10.0,
+    double settleTimeout = 60.0,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> guiderStopGuiding({required String deviceId}) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> guiderDither({
+    required String deviceId,
+    double amount = 5.0,
+    bool raOnly = false,
+    double settlePixels = 1.0,
+    double settleTime = 10.0,
+    double settleTimeout = 60.0,
+  }) async {
+    _throwNotConnected();
+  }
+
   @override
   Future<PlateSolveResult> plateSolve({
     required String imagePath,
@@ -339,6 +382,16 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> sequencerSkip() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerReset() async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> sequencerLoadJson(String json) async {
     _throwNotConnected();
   }
@@ -356,6 +409,11 @@ class DisconnectedBackend implements NightshadeBackend {
     String? filterwheelId,
     String? rotatorId,
   }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerSetSafetyFailMode(String mode) async {
     _throwNotConnected();
   }
 
@@ -408,22 +466,56 @@ class DisconnectedBackend implements NightshadeBackend {
   // =========================================================================
 
   @override
-  Future<dynamic> getCameraStatus(String deviceId) async {
+  Future<CameraStatus> getCameraStatus(String deviceId) async {
     _throwNotConnected();
   }
 
   @override
-  Future<dynamic> getMountStatus(String deviceId) async {
+  Future<MountStatus> getMountStatus(String deviceId) async {
     _throwNotConnected();
   }
 
   @override
-  Future<dynamic> getFocuserStatus(String deviceId) async {
+  Future<FocuserStatus> getFocuserStatus(String deviceId) async {
     _throwNotConnected();
   }
 
   @override
-  Future<dynamic> getFilterWheelStatus(String deviceId) async {
+  Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<RotatorStatus> getRotatorStatus(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  // =========================================================================
+  // Device Capabilities
+  // =========================================================================
+
+  @override
+  Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<MountCapabilities?> getMountCapabilities(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<FocuserCapabilities?> getFocuserCapabilities(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId) async {
     _throwNotConnected();
   }
 
@@ -513,6 +605,11 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId, {int maxCrops = 5}) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<Uint8List> debayerImage(
     int width,
     int height,
@@ -540,6 +637,10 @@ class DisconnectedBackend implements NightshadeBackend {
     required bool isNorth,
     required bool manualRotation,
     required bool rotateEast,
+    int? gain,
+    int? offset,
+    double? solveTimeout,
+    bool? startFromCurrent,
   }) async {
     _throwNotConnected();
   }
@@ -565,7 +666,7 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<List<int>> getLastRawImageData() async {
+  Future<List<int>> getLastRawImageData(String deviceId) async {
     _throwNotConnected();
   }
 
@@ -575,8 +676,22 @@ class DisconnectedBackend implements NightshadeBackend {
     required int width,
     required int height,
     required List<int> data,
-    required bridge_api.FitsWriteHeader headerData,
+    required FitsWriteHeader headerData,
   }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> saveFitsFromLastCapture({
+    required String deviceId,
+    required String filePath,
+    required FitsWriteHeader headerData,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> clearDeviceImage(String deviceId) async {
     _throwNotConnected();
   }
 

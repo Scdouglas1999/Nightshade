@@ -13,19 +13,32 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
 
   /// Connect to a remote server
   void connect(String host, int port) {
+    // Dispose old backend before switching
+    state.dispose();
     state = NetworkBackend(serverHost: host, serverPort: port);
   }
 
   /// Disconnect from server
   void disconnect() {
+    // Dispose old backend before switching
+    state.dispose();
     state = DisconnectedBackend();
   }
 
   /// Use local FFI backend (for Desktop/Headless)
   void useLocalBackend() {
+    // Dispose old backend before switching
+    state.dispose();
     // Get database instance from provider
     final database = _ref.read(databaseProvider);
     state = FfiBackend(database: database);
+  }
+
+  @override
+  void dispose() {
+    // Dispose current backend when provider is disposed
+    state.dispose();
+    super.dispose();
   }
 }
 
@@ -37,4 +50,11 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
 /// - FfiBackend (default for desktop/headless)
 final backendProvider = StateNotifierProvider<BackendNotifier, NightshadeBackend>((ref) {
   return BackendNotifier(ref);
+});
+
+/// Provider to check if we're in remote (network) mode
+/// When true, file paths refer to the server filesystem, not local
+final isRemoteModeProvider = Provider<bool>((ref) {
+  final backend = ref.watch(backendProvider);
+  return backend is NetworkBackend;
 });

@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
+import 'package:nightshade_core/nightshade_core.dart' show isRemoteModeProvider;
 
 /// Horizontal scrollable strip of image thumbnails
 class ImageThumbnailStrip extends StatelessWidget {
@@ -51,7 +53,7 @@ class ImageThumbnailStrip extends StatelessWidget {
   }
 }
 
-class _ImageThumbnail extends StatelessWidget {
+class _ImageThumbnail extends ConsumerWidget {
   final CapturedImage image;
   final VoidCallback? onTap;
 
@@ -61,8 +63,9 @@ class _ImageThumbnail extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
 
     return Padding(
       padding: const EdgeInsets.only(right: 8.0),
@@ -94,10 +97,10 @@ class _ImageThumbnail extends StatelessWidget {
                   ),
                   child: Stack(
                     children: [
-                      // File exists check
+                      // File exists check - in remote mode, assume file exists on server
                       Center(
                         child: FutureBuilder<bool>(
-                          future: _fileExists(image.filePath),
+                          future: _fileExists(image.filePath, isRemoteMode),
                           builder: (context, snapshot) {
                             if (snapshot.data == true) {
                               return Icon(
@@ -203,7 +206,12 @@ class _ImageThumbnail extends StatelessWidget {
     );
   }
 
-  Future<bool> _fileExists(String path) async {
+  Future<bool> _fileExists(String path, bool isRemoteMode) async {
+    // In remote mode, the file path refers to the server filesystem
+    // We can't check it locally, so assume it exists
+    if (isRemoteMode) {
+      return true;
+    }
     try {
       return await File(path).exists();
     } catch (e) {
