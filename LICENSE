@@ -1,5 +1,5 @@
 NIGHTSHADE SOURCE-AVAILABLE LICENSE
-Version 1.1, January 2025
+Version 1.2, January 2025
 
 Copyright (c) 2025 Sean Douglas. All rights reserved.
 
@@ -82,13 +82,13 @@ TERMS AND CONDITIONS
    If You submit contributions to the Software (including but not limited
    to code, documentation, bug fixes, or feature implementations):
 
-   a) You assign to the Author all right, title, and interest in Your
-      contributions, including all intellectual property rights. Your
-      contributions become the sole property of the Author.
+   a) You grant the Author a perpetual, irrevocable, worldwide, royalty-free,
+      non-exclusive license to use, reproduce, modify, distribute, sublicense,
+      and incorporate Your contributions into the Software in any way the
+      Author sees fit, including under different license terms.
 
-   b) You grant the Author a perpetual, irrevocable, worldwide, royalty-free
-      right to use, modify, distribute, sublicense, and incorporate Your
-      contributions into the Software in any way the Author sees fit.
+   b) You retain ownership of Your contributions, but You agree that the
+      Author may use them without restriction or obligation to You.
 
    c) You represent that You have the right to make such contributions and
       that they do not infringe any third-party rights.
@@ -149,14 +149,11 @@ TERMS AND CONDITIONS
    b) Your rights under this License will terminate automatically and
       immediately if You fail to comply with any of its terms.
 
-   c) The Author may terminate this License at any time by providing
-      notice via the repository or other reasonable means.
-
-   d) Upon termination, You must cease all use of the Software and delete
+   c) Upon termination, You must cease all use of the Software and delete
       any copies in Your possession, except that You may retain Official
       Releases previously obtained for personal archival purposes.
 
-   e) Sections 4, 5, 7, 8, and 10 survive termination.
+   d) Sections 4, 5, 7, 8, and 10 survive termination.
 
 10. GENERAL PROVISIONS
 
@@ -172,9 +169,12 @@ TERMS AND CONDITIONS
     d) GOVERNING LAW: This License shall be governed by the laws of the
        United States, without regard to conflict of law provisions.
 
-    e) AMENDMENTS: The Author may modify this License at any time. Continued
-       use of the Software after modifications constitutes acceptance of
-       the updated terms. Material changes will be noted in the repository.
+    e) AMENDMENTS: The Author may publish updated versions of this License.
+       Any such updates apply only to versions of the Software released
+       after the updated License is published. Your use of previously
+       obtained versions continues under the License terms in effect at
+       the time You obtained them. Material changes will be noted in the
+       repository.
 
 11. CONTACT
 
