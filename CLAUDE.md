@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Specific notes for implementations
+
+You are not to EVER use stubs or placeholders to save time or come back to later. Any instances in which you think a stub or placeholder is appropriate, stop and do the full, real implementation of whatever it is you are working on. It is common for you to write up a stub or placeholder, forget about it, and never come back to finish the implementation, therefore it is imperitive that you simply never write stubs or placeholders. 
+
 ## Project Overview
 
 Nightshade 2.0 is a cross-platform astrophotography suite built with Flutter (Dart) and Rust. It provides imaging sequencing, device control, and sky visualization for Windows, macOS, Linux desktops, and iOS/Android mobile platforms.

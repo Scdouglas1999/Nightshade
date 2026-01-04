@@ -1,7 +1,7 @@
 //! Sequencer API exposed to Dart
 
 use crate::error::NightshadeError;
-use nightshade_sequencer::{get_executor, SequenceDefinition, ExecutorState};
+use nightshade_sequencer::{get_executor, SequenceDefinition, ExecutorState, SafetyFailMode};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,6 +140,32 @@ pub async fn sequencer_set_simulation_mode(enabled: bool) -> Result<(), Nightsha
         exec.set_device_ops(crate::sequencer_ops::create_device_ops());
         tracing::info!("Sequencer simulation mode disabled");
     }
+
+    Ok(())
+}
+
+/// Set the safety fail mode for the sequencer.
+/// This determines behavior when safety devices fail or are unavailable:
+/// - "fail_open": Assume safe and continue imaging (default)
+/// - "fail_closed": Assume unsafe and pause/park
+/// - "warn_only": Show warning but continue
+#[flutter_rust_bridge::frb(sync)]
+pub async fn sequencer_set_safety_fail_mode(mode: String) -> Result<(), NightshadeError> {
+    let fail_mode = match mode.to_lowercase().as_str() {
+        "fail_open" | "failopen" => SafetyFailMode::FailOpen,
+        "fail_closed" | "failclosed" => SafetyFailMode::FailClosed,
+        "warn_only" | "warnonly" => SafetyFailMode::WarnOnly,
+        _ => {
+            return Err(NightshadeError::InvalidParameter(format!(
+                "Invalid safety fail mode: '{}'. Must be 'fail_open', 'fail_closed', or 'warn_only'", mode
+            )));
+        }
+    };
+
+    let executor = get_executor();
+    let mut exec = executor.write().await;
+    exec.set_safety_fail_mode(fail_mode);
+    tracing::info!("Sequencer safety fail mode set to: {:?}", fail_mode);
 
     Ok(())
 }

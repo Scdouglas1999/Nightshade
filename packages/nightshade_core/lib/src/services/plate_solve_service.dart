@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backend/nightshade_backend.dart' as backend_types;
+import '../providers/backend_provider.dart';
 
 /// Plate solve result
 class PlateSolveResult {
@@ -26,6 +28,20 @@ class PlateSolveResult {
 
   factory PlateSolveResult.failed(String message) {
     return PlateSolveResult(success: false, errorMessage: message);
+  }
+
+  /// Convert from backend PlateSolveResult
+  factory PlateSolveResult.fromBackend(backend_types.PlateSolveResult result) {
+    return PlateSolveResult(
+      success: result.success,
+      ra: result.ra,
+      dec: result.dec,
+      rotation: result.rotation,
+      pixelScale: result.pixelScale,
+      fieldWidth: result.fieldWidth,
+      fieldHeight: result.fieldHeight,
+      errorMessage: result.error,
+    );
   }
 }
 
@@ -59,8 +75,33 @@ class PlateSolverConfig {
 
 /// Plate solve service
 class PlateSolveService {
-  /// Solve an image
+  final Ref _ref;
+
+  PlateSolveService(this._ref);
+
+  /// Solve an image using the backend (works for both local and remote)
   Future<PlateSolveResult> solve(
+    String imagePath,
+    PlateSolverConfig config,
+  ) async {
+    try {
+      // Use backend's plateSolve - works for both local (FFI) and remote (Network)
+      final backend = _ref.read(backendProvider);
+      final result = await backend.plateSolve(
+        imagePath: imagePath,
+        ra: config.hintRa,
+        dec: config.hintDec,
+        fovDegrees: config.searchRadius,
+      );
+      return PlateSolveResult.fromBackend(result);
+    } catch (e) {
+      // Fall back to local solving if backend fails (e.g., DisconnectedBackend)
+      return _solveLocally(imagePath, config);
+    }
+  }
+
+  /// Local fallback solver
+  Future<PlateSolveResult> _solveLocally(
     String imagePath,
     PlateSolverConfig config,
   ) async {
@@ -296,7 +337,7 @@ class PlateSolveService {
 
 /// Plate solve service provider
 final plateSolveServiceProvider = Provider<PlateSolveService>((ref) {
-  return PlateSolveService();
+  return PlateSolveService(ref);
 });
 
 /// Active plate solve state

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Typography system for consistent text styling across the app.
 ///
@@ -18,8 +19,9 @@ abstract final class NightshadeTypography {
   /// Primary font for UI text
   static const String fontFamily = 'Inter';
 
-  /// Monospace font for technical displays, code, and numeric values
-  static const String fontFamilyMono = 'JetBrains Mono';
+  /// Monospace font for technical displays, code, and numeric values.
+  /// This is loaded via GoogleFonts for consistent cross-platform rendering.
+  static String get fontFamilyMono => GoogleFonts.jetBrainsMono().fontFamily!;
 
   // ===========================================================================
   // Heading Styles
@@ -203,8 +205,7 @@ abstract final class NightshadeTypography {
 
   /// Mono large - Large numeric values, coordinates
   /// 18px, Regular
-  static const TextStyle monoLg = TextStyle(
-    fontFamily: fontFamilyMono,
+  static TextStyle get monoLg => GoogleFonts.jetBrainsMono(
     fontSize: 18,
     fontWeight: FontWeight.w400,
     height: 1.33,
@@ -213,8 +214,7 @@ abstract final class NightshadeTypography {
 
   /// Mono - Standard technical text, code
   /// 14px, Regular
-  static const TextStyle mono = TextStyle(
-    fontFamily: fontFamilyMono,
+  static TextStyle get mono => GoogleFonts.jetBrainsMono(
     fontSize: 14,
     fontWeight: FontWeight.w400,
     height: 1.43,
@@ -223,8 +223,7 @@ abstract final class NightshadeTypography {
 
   /// Mono small - Small numeric displays
   /// 12px, Regular
-  static const TextStyle monoSm = TextStyle(
-    fontFamily: fontFamilyMono,
+  static TextStyle get monoSm => GoogleFonts.jetBrainsMono(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.33,
@@ -233,8 +232,7 @@ abstract final class NightshadeTypography {
 
   /// Mono tiny - Very small numeric values
   /// 11px, Regular
-  static const TextStyle monoXs = TextStyle(
-    fontFamily: fontFamilyMono,
+  static TextStyle get monoXs => GoogleFonts.jetBrainsMono(
     fontSize: 11,
     fontWeight: FontWeight.w400,
     height: 1.27,
@@ -247,8 +245,7 @@ abstract final class NightshadeTypography {
 
   /// Stat value - Large statistic displays
   /// 36px, Bold
-  static const TextStyle statValue = TextStyle(
-    fontFamily: fontFamilyMono,
+  static TextStyle get statValue => GoogleFonts.jetBrainsMono(
     fontSize: 36,
     fontWeight: FontWeight.w700,
     height: 1.2,
@@ -297,8 +294,7 @@ abstract final class NightshadeTypography {
 
   /// Input numeric (monospace)
   /// 14px, Regular
-  static const TextStyle inputMono = TextStyle(
-    fontFamily: fontFamilyMono,
+  static TextStyle get inputMono => GoogleFonts.jetBrainsMono(
     fontSize: 14,
     fontWeight: FontWeight.w400,
     height: 1.43,

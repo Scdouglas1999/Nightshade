@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 // Flat wizard state providers
@@ -170,10 +172,10 @@ class FlatWizardStateNotifier extends StateNotifier<FlatWizardState> {
       // Change filter if specified
       if (filterName != null) {
         final fwState = ref.read(filterWheelStateProvider);
-        if (fwState.deviceName != null) {
+        if (fwState.deviceId != null) {
           final filterIndex = fwState.filterNames.indexOf(filterName);
           if (filterIndex >= 0) {
-            await backend.filterWheelSetPosition(fwState.deviceName!, filterIndex);
+            await backend.filterWheelSetPosition(fwState.deviceId!, filterIndex);
             // Wait for filter change
             await Future.delayed(const Duration(seconds: 2));
           }
@@ -289,10 +291,10 @@ class FlatWizardStateNotifier extends StateNotifier<FlatWizardState> {
 
           // Change filter if filter wheel is connected
           final fwState = ref.read(filterWheelStateProvider);
-          if (fwState.deviceName != null) {
+          if (fwState.deviceId != null) {
             final filterIndex = fwState.filterNames.indexOf(plan.filterName);
             if (filterIndex >= 0) {
-              await backend.filterWheelSetPosition(fwState.deviceName!, filterIndex);
+              await backend.filterWheelSetPosition(fwState.deviceId!, filterIndex);
               await Future.delayed(const Duration(seconds: 2));
             }
           }
@@ -1490,7 +1492,7 @@ class _FilterDisplay extends ConsumerWidget {
     final filterState = ref.read(filterWheelStateProvider);
     final backend = ref.read(backendProvider);
 
-    if (filterState.deviceName == null) {
+    if (filterState.deviceId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Filter wheel not connected'),
@@ -1605,7 +1607,7 @@ class _FilterDisplay extends ConsumerWidget {
       final filterIndex = filterState.filterNames.indexOf(selectedFilter);
       if (filterIndex >= 0) {
         try {
-          await backend.filterWheelSetPosition(filterState.deviceName!, filterIndex);
+          await backend.filterWheelSetPosition(filterState.deviceId!, filterIndex);
 
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -2165,14 +2167,20 @@ class _SkyBrightnessCard extends ConsumerWidget {
   }
 }
 
-class _SkyTimingCard extends StatelessWidget {
+class _SkyTimingCard extends ConsumerWidget {
   final NightshadeColors colors;
 
   const _SkyTimingCard({required this.colors});
 
+  String _formatTime(DateTime? time) {
+    if (time == null) return '--:--';
+    return DateFormat('HH:mm').format(time);
+  }
+
   @override
-  Widget build(BuildContext context) {
-    // TODO: Get actual astronomical times
+  Widget build(BuildContext context, WidgetRef ref) {
+    final twilight = ref.watch(twilightTimesProvider);
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2184,21 +2192,21 @@ class _SkyTimingCard extends StatelessWidget {
         children: [
           _TimeInfo(
             label: 'Nautical Dawn',
-            time: '05:32',
+            time: _formatTime(twilight.nauticalDawn),
             icon: LucideIcons.sunrise,
             colors: colors,
           ),
           const SizedBox(width: 20),
           _TimeInfo(
             label: 'Civil Dawn',
-            time: '06:04',
+            time: _formatTime(twilight.civilDawn),
             icon: LucideIcons.sun,
             colors: colors,
           ),
           const SizedBox(width: 20),
           _TimeInfo(
             label: 'Sunrise',
-            time: '06:34',
+            time: _formatTime(twilight.sunrise),
             icon: LucideIcons.sunDim,
             colors: colors,
           ),

@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' hide EventCategory, Phd2GuideStats, Phd2StarImage, Phd2CalibrationData;
 import '../backend/nightshade_backend.dart';
 import '../models/equipment/equipment_models.dart';
-import '../models/phd2_models.dart' hide Phd2StarImage;
+import '../models/phd2_models.dart';
 import 'backend_provider.dart';
 import 'equipment_provider.dart';
 

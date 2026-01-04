@@ -11,6 +11,8 @@ enum ProfileConnectionState {
   connected,
   error,
   partiallyConnected,
+  /// Devices are connected but don't match the profile's device IDs
+  mismatch,
 }
 
 /// A chip widget representing an equipment profile
@@ -208,6 +210,8 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
         return (colors.warning, null);
       case ProfileConnectionState.error:
         return (colors.error, LucideIcons.x);
+      case ProfileConnectionState.mismatch:
+        return (colors.warning, LucideIcons.alertTriangle);
     }
   }
 
@@ -217,6 +221,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
         return colors.success.withValues(alpha: 0.15);
       case ProfileConnectionState.partiallyConnected:
       case ProfileConnectionState.connecting:
+      case ProfileConnectionState.mismatch:
         return colors.warning.withValues(alpha: 0.15);
       case ProfileConnectionState.error:
         return colors.error.withValues(alpha: 0.15);
@@ -231,6 +236,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
         return colors.success;
       case ProfileConnectionState.partiallyConnected:
       case ProfileConnectionState.connecting:
+      case ProfileConnectionState.mismatch:
         return colors.warning;
       case ProfileConnectionState.error:
         return colors.error;

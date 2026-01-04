@@ -14,6 +14,7 @@ import 'package:nightshade_planetarium/src/catalogs/catalog_manager.dart'; // Ex
 import '../database/database.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/target/target_models.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
 
@@ -1186,11 +1187,12 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
   if (profile.cameraId != null &&
       cameraState.connectionState == DeviceConnectionState.connected) {
     try {
-      // Query camera status from the bridge
-      final status =
-          await bridge.NativeBridge.getCameraStatus(profile.cameraId!);
+      // Query camera status via backend (works with both local and remote)
+      final backend = ref.watch(backendProvider);
+      final status = await backend.getCameraStatus(profile.cameraId!);
 
       // Use actual sensor dimensions from connected camera
+      // Now returns typed CameraStatus from all backends
       if (status.sensorWidth > 0 && status.sensorHeight > 0) {
         pixelsX = status.sensorWidth;
         pixelsY = status.sensorHeight;

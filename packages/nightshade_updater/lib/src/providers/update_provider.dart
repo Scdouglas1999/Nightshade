@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/update_manifest.dart';
 import '../models/update_state.dart';
+import '../services/update_downloader.dart';
 import '../services/update_service.dart';
 import '../services/lan_push_receiver.dart';
 
@@ -139,12 +140,28 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
         status: UpdateStatus.staged,
         downloadProgress: 1.0,
       );
+    } on DownloadCancelledException {
+      // Download was cancelled - reset to available state
+      state = state.copyWith(
+        status: UpdateStatus.available,
+        downloadProgress: 0,
+        downloadedBytes: 0,
+        errorMessage: null,
+      );
     } catch (e) {
       state = state.copyWith(
         status: UpdateStatus.error,
         errorMessage: e.toString(),
       );
     }
+  }
+
+  /// Cancel an in-progress download
+  void cancelDownload() {
+    if (state.status != UpdateStatus.downloading) return;
+
+    _updateService.cancelDownload();
+    // State will be updated when DownloadCancelledException is caught
   }
 
   /// Apply the staged update (will restart the app)

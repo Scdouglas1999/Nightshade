@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_updater/nightshade_updater.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -159,7 +160,10 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
             downloadedMb: (currentState.downloadedBytes / 1024 / 1024).round(),
             totalMb: (currentState.totalBytes / 1024 / 1024).round(),
             status: 'Downloading...',
-            onCancel: null, // TODO: Implement cancel
+            onCancel: () {
+              ref.read(updateProvider.notifier).cancelDownload();
+              Navigator.of(context).pop();
+            },
           );
         },
       ),
@@ -167,10 +171,15 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
   }
 
   void _showUpdateReadyDialog(UpdateState state) {
+    // Check if a sequence is currently running
+    final sequencerState = ref.read(sequenceExecutionStateProvider);
+    final isSessionActive = sequencerState == SequenceExecutionState.running ||
+        sequencerState == SequenceExecutionState.paused;
+
     UpdateReadyDialog.show(
       context,
       version: state.availableUpdate?.version ?? '',
-      isSessionActive: false, // TODO: Check sequencer status
+      isSessionActive: isSessionActive,
       onRestartNow: () {
         ref.read(updateProvider.notifier).applyUpdate();
       },

@@ -1546,6 +1546,12 @@ class _QuickActionsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch mount capabilities to gate Park button
+    final mountState = ref.watch(mountStateProvider);
+    final mountCapabilitiesAsync = ref.watch(
+        mountCapabilitiesProvider(mountState.deviceId ?? ''));
+    final mountCapabilities = mountCapabilitiesAsync.valueOrNull;
+
     return _GlassCard(
       colors: colors,
       child: Column(
@@ -1698,23 +1704,26 @@ class _QuickActionsCard extends ConsumerWidget {
                   icon: LucideIcons.parkingCircle,
                   label: 'Park',
                   colors: colors,
-                  onTap: () async {
-                    try {
-                      final deviceService = ref.read(deviceServiceProvider);
-                      await deviceService.parkMount();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Mount parked')),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to park mount: $e')),
-                        );
-                      }
-                    }
-                  },
+                  // Gate on canPark capability
+                  onTap: (mountCapabilities?.canPark ?? true)
+                      ? () async {
+                          try {
+                            final deviceService = ref.read(deviceServiceProvider);
+                            await deviceService.parkMount();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Mount parked')),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Failed to park mount: $e')),
+                              );
+                            }
+                          }
+                        }
+                      : null,
                 ),
               ),
             ],
@@ -1867,20 +1876,24 @@ class _CenteringDialogState extends State<_CenteringDialog> {
       final settings = widget.ref.read(appSettingsProvider).value;
       final astapPath = settings?.astapPath ?? '';
 
+      // Use user-configured exposure settings for centering captures
+      final userSettings = widget.ref.read(exposureSettingsProvider);
+      final centeringSettings = ExposureSettings(
+        exposureTime: userSettings.exposureTime > 0 ? userSettings.exposureTime : 5.0,
+        gain: userSettings.gain,
+        offset: userSettings.offset,
+        binningX: userSettings.binningX > 0 ? userSettings.binningX : 2,
+        binningY: userSettings.binningY > 0 ? userSettings.binningY : 2,
+      );
+
       while (_iteration < _maxIterations && _isRunning) {
         _iteration++;
-        
+
         // Step 1: Take an image
         setState(() => _status = 'Capturing image (attempt $_iteration/$_maxIterations)...');
-        
+
         final image = await imagingService.captureImage(
-          settings: const ExposureSettings(
-            exposureTime: 5.0,
-            gain: 100,
-            offset: 10,
-            binningX: 2,
-            binningY: 2,
-          ),
+          settings: centeringSettings,
           targetName: 'center_${widget.targetName}',
         );
         
@@ -1892,13 +1905,9 @@ class _CenteringDialogState extends State<_CenteringDialog> {
         // Step 2: Plate solve
         setState(() => _status = 'Plate solving...');
 
-        // Find ASTAP executable with fallback to common paths
+        // PlateSolveService tries backend.plateSolve() first (works for both local and remote)
+        // Only falls back to local solver if backend fails
         final executablePath = await PlateSolverUtils.findAstapExecutable(astapPath);
-
-        if (executablePath == null) {
-          setState(() => _status = 'ASTAP not found. Please configure in Settings.');
-          return;
-        }
 
         final result = await widget.ref.read(plateSolveServiceProvider).solve(
           image.filePath!,
@@ -1907,7 +1916,8 @@ class _CenteringDialogState extends State<_CenteringDialog> {
             hintRa: widget.targetRa,
             hintDec: widget.targetDec,
             searchRadius: 15.0,
-            executablePath: executablePath,
+            // Provide path for local fallback - backend is tried first
+            executablePath: executablePath ?? '',
           ),
         );
         
@@ -1917,8 +1927,10 @@ class _CenteringDialogState extends State<_CenteringDialog> {
         }
         
         // Step 3: Calculate error
-        final raErrorArcsec = (result.ra! - widget.targetRa) * 3600.0; // degrees to arcsec
-        final decErrorArcsec = (result.dec! - widget.targetDec) * 3600.0;
+        // RA is in hours, Dec is in degrees. Convert both to arcsec for display.
+        // 1 hour RA = 15 degrees = 54000 arcsec
+        final raErrorArcsec = (result.ra! - widget.targetRa) * 15.0 * 3600.0; // hours to arcsec
+        final decErrorArcsec = (result.dec! - widget.targetDec) * 3600.0; // degrees to arcsec
         final totalErrorArcsec = math.sqrt(raErrorArcsec * raErrorArcsec + decErrorArcsec * decErrorArcsec);
         
         setState(() {
@@ -1938,9 +1950,11 @@ class _CenteringDialogState extends State<_CenteringDialog> {
         
         // Step 4: Slew to corrected position
         setState(() => _status = 'Slewing to corrected position...');
-        
-        final newRa = widget.targetRa - (raErrorArcsec / 3600.0); // Correct for offset
-        final newDec = widget.targetDec - (decErrorArcsec / 3600.0);
+
+        // Convert arcsec error back to coordinate units for correction
+        // RA: arcsec / (15 * 3600) = hours, Dec: arcsec / 3600 = degrees
+        final newRa = widget.targetRa - (raErrorArcsec / (15.0 * 3600.0)); // Correct for offset (hours)
+        final newDec = widget.targetDec - (decErrorArcsec / 3600.0); // Correct for offset (degrees)
         
         await deviceService.slewMountToCoordinates(newRa, newDec);
         

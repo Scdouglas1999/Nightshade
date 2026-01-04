@@ -193,17 +193,18 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
 
   Future<void> _handlePlateSolveAndSync() async {
     setState(() => _isSolving = true);
-    
+
     try {
       // 1. Capture Image
       final imagingService = ref.read(imagingServiceProvider);
-      // Use short exposure for plate solving
-      const settings = ExposureSettings(
-        exposureTime: 2.0, // 2 seconds
-        gain: 100,
-        offset: 10,
-        binningX: 2, // Bin 2x2 for speed
-        binningY: 2,
+      // Use user-configured settings with short exposure for plate solving
+      final userSettings = ref.read(exposureSettingsProvider);
+      final settings = ExposureSettings(
+        exposureTime: 2.0, // 2 seconds for quick solve
+        gain: userSettings.gain,
+        offset: userSettings.offset,
+        binningX: userSettings.binningX > 0 ? userSettings.binningX : 2,
+        binningY: userSettings.binningY > 0 ? userSettings.binningY : 2,
         frameType: FrameType.light,
       );
       
@@ -218,17 +219,12 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
       
       // 2. Plate Solve
       final plateSolveService = ref.read(plateSolveServiceProvider);
-      // Use blind solve if we don't have good coordinates, or near solve if we do
-      // For now, let's try blind solve as it's safer if we are lost
-      // But if we have mount coordinates, we should use them as hint
+      // PlateSolveService tries backend.plateSolve() first (works for both local and remote)
+      // Only falls back to local solver if backend fails
 
-      // Get ASTAP path from app settings with fallback to common paths
+      // Get ASTAP path from app settings for local fallback
       final appSettings = ref.read(appSettingsProvider).value;
       final executablePath = await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
-
-      if (executablePath == null) {
-        throw Exception(PlateSolverUtils.getAstapNotFoundMessage());
-      }
 
       PlateSolveResult result;
 
@@ -240,7 +236,8 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
             hintRa: widget.mountState.ra,
             hintDec: widget.mountState.dec,
             searchRadius: 10.0, // 10 degrees search
-            executablePath: executablePath,
+            // Provide path for local fallback - backend is tried first
+            executablePath: executablePath ?? '',
           ),
         );
       } else {
@@ -248,7 +245,8 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
           image.filePath!,
           PlateSolverConfig(
             type: PlateSolverType.astap,
-            executablePath: executablePath,
+            // Provide path for local fallback - backend is tried first
+            executablePath: executablePath ?? '',
             searchRadius: 180.0, // Blind solve
           ),
         );

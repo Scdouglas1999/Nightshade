@@ -3,6 +3,16 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'app_settings.freezed.dart';
 part 'app_settings.g.dart';
 
+/// Defines how the safety system behaves when weather/safety devices fail or are unavailable
+enum SafetyFailMode {
+  /// Assume safe when device/API fails (continue imaging) - default for experienced users
+  failOpen,
+  /// Assume unsafe when device/API fails (pause/park) - conservative choice
+  failClosed,
+  /// Show warning but continue - user decides
+  warnOnly,
+}
+
 @freezed
 class ObserverLocation with _$ObserverLocation {
   const factory ObserverLocation({
@@ -62,6 +72,8 @@ class AppSettings with _$AppSettings {
     @Default('stable') String updateChannel,
     @Default(24) int updateCheckIntervalHours,
     @Default('') String skippedUpdateVersion,
+    // Safety settings
+    @Default(SafetyFailMode.failOpen) SafetyFailMode safetyFailMode,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>

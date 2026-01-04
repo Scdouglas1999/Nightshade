@@ -3,11 +3,17 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/models/settings/app_settings.dart' as models;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
+
+// Import pure Dart types from backend_types for return types
+import '../models/backend/device_capabilities.dart';
+import '../models/backend/device_status.dart';
+import '../models/backend/autofocus_result.dart';
+import '../models/backend/fits_header.dart';
+import '../models/errors/nightshade_error.dart' as dart_error;
 
 /// Backend connection state
 enum BackendConnectionState {
@@ -30,6 +36,11 @@ class NetworkBackend implements NightshadeBackend {
   final StreamController<NightshadeEvent> _eventController =
       StreamController<NightshadeEvent>.broadcast();
 
+  /// Persistent HTTP client for connection reuse.
+  /// Using a single client avoids TCP connection churn and enables
+  /// keep-alive connections for better performance.
+  late final HttpClient _httpClient;
+
   // Connection state management
   BackendConnectionState _connectionState = BackendConnectionState.disconnected;
   final StreamController<BackendConnectionState> _connectionStateController =
@@ -44,6 +55,10 @@ class NetworkBackend implements NightshadeBackend {
     this.webSocketPort = 8080,  // WebSocket is on same port as HTTP
     this.authToken,
   }) {
+    // Initialize persistent HTTP client with connection pooling
+    _httpClient = HttpClient()
+      ..idleTimeout = const Duration(seconds: 30)
+      ..connectionTimeout = const Duration(seconds: 10);
     // Connect WebSocket immediately
     connect();
   }
@@ -67,15 +82,9 @@ class NetworkBackend implements NightshadeBackend {
   Future<bool> testConnection() async {
     try {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/info');
-      final client = HttpClient();
-      
-      try {
-        final request = await client.getUrl(uri).timeout(const Duration(seconds: 3));
-        final response = await request.close().timeout(const Duration(seconds: 3));
-        return response.statusCode == 200;
-      } finally {
-        client.close();
-      }
+      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 3));
+      final response = await request.close().timeout(const Duration(seconds: 3));
+      return response.statusCode == 200;
     } catch (e) {
       debugPrint('Connection test failed: $e');
       return false;
@@ -98,6 +107,11 @@ class NetworkBackend implements NightshadeBackend {
             final json = jsonDecode(message as String) as Map<String, dynamic>;
             final event = _eventFromJson(json);
             _eventController.add(event);
+
+            // Route polar alignment events to the dedicated stream
+            if (event.category == EventCategory.polarAlignment) {
+              _polarAlignController.add(event.data);
+            }
           } catch (e) {
             debugPrint('Error parsing WebSocket message: $e');
           }
@@ -153,11 +167,14 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   /// Dispose resources
+  @override
   void dispose() {
     _reconnectTimer?.cancel();
     _wsChannel?.sink.close();
+    _httpClient.close(force: true);
     _eventController.close();
     _connectionStateController.close();
+    _polarAlignController.close();
   }
 
   @override
@@ -177,6 +194,10 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Determine if an HTTP exception is a transient failure that can be retried
   bool _isTransientFailure(dynamic error) {
+    // Check for structured NightshadeError
+    if (error is dart_error.NightshadeError) {
+      return error.isRecoverable;
+    }
     if (error is SocketException) {
       // Network errors are transient
       return true;
@@ -210,6 +231,56 @@ class NetworkBackend implements NightshadeBackend {
     return statusCode == 408 ||
         statusCode == 429 ||
         statusCode >= 500;
+  }
+
+  /// Parse an error response from the server.
+  ///
+  /// Attempts to parse structured error JSON from the response body.
+  /// Falls back to creating an error from the status code and endpoint.
+  dart_error.NightshadeError _parseErrorResponse(
+    int statusCode,
+    String responseBody,
+    String method,
+    String endpoint,
+  ) {
+    // Try to parse as structured error JSON
+    try {
+      final json = jsonDecode(responseBody);
+      if (json is Map<String, dynamic>) {
+        // Check for full structured error format
+        if (json.containsKey('category') && json.containsKey('message')) {
+          return dart_error.NightshadeError.fromJson(json);
+        }
+
+        // Check for legacy error format: {error: 'message', message: 'details'}
+        if (json.containsKey('error') || json.containsKey('message')) {
+          final errorMsg = json['error'] as String? ?? json['message'] as String? ?? 'Unknown error';
+          final detailMsg = json['message'] as String? ?? json['details'] as String? ?? '';
+          final fullMessage = detailMsg.isNotEmpty && detailMsg != errorMsg
+              ? '$errorMsg: $detailMsg'
+              : errorMsg;
+
+          return dart_error.NightshadeError.fromString(fullMessage);
+        }
+      }
+    } catch (_) {
+      // JSON parsing failed, use fallback
+    }
+
+    // Fallback: create error from HTTP status
+    final isTransient = _isTransientStatusCode(statusCode);
+    return dart_error.NightshadeError(
+      category: statusCode == 404
+          ? dart_error.BackendErrorCategory.connection
+          : statusCode == 400
+              ? dart_error.BackendErrorCategory.validation
+              : statusCode == 408 || statusCode == 504
+                  ? dart_error.BackendErrorCategory.timeout
+                  : dart_error.BackendErrorCategory.system,
+      message: 'HTTP $statusCode: $method $endpoint failed',
+      isRecoverable: isTransient,
+      isTimeout: statusCode == 408 || statusCode == 504,
+    );
   }
 
   /// Retry a request with exponential backoff
@@ -256,100 +327,71 @@ class NetworkBackend implements NightshadeBackend {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint')
           .replace(queryParameters: queryParams?.map((k, v) => MapEntry(k, v.toString())) ?? {});
-      final client = HttpClient();
 
-      try {
-        final request = await client.getUrl(uri);
+      final request = await _httpClient.getUrl(uri);
 
-        // Add authentication headers
-        final headers = _addAuthHeaders({});
-        headers.forEach((key, value) {
-          request.headers.set(key, value);
-        });
+      // Add authentication headers
+      final headers = _addAuthHeaders({});
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
 
-        final response = await request.close();
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
 
-        // Check for transient status codes
-        if (_isTransientStatusCode(response.statusCode)) {
-          throw Exception('HTTP ${response.statusCode}: Transient failure for GET $endpoint');
-        }
-
-        if (response.statusCode != 200) {
-          throw Exception('HTTP ${response.statusCode}: Failed to GET $endpoint');
-        }
-
-        final responseBody = await response.transform(utf8.decoder).join();
-        return jsonDecode(responseBody) as Map<String, dynamic>;
-      } finally {
-        client.close();
+      if (response.statusCode != 200) {
+        throw _parseErrorResponse(response.statusCode, responseBody, 'GET', endpoint);
       }
+
+      return jsonDecode(responseBody) as Map<String, dynamic>;
     });
   }
 
   Future<Map<String, dynamic>> _post(String endpoint, [Map<String, dynamic>? body]) async {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
-      final client = HttpClient();
 
-      try {
-        final request = await client.postUrl(uri);
-        request.headers.contentType = ContentType.json;
+      final request = await _httpClient.postUrl(uri);
+      request.headers.contentType = ContentType.json;
 
-        // Add authentication headers
-        final headers = _addAuthHeaders({});
-        headers.forEach((key, value) {
-          request.headers.set(key, value);
-        });
+      // Add authentication headers
+      final headers = _addAuthHeaders({});
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
 
-        if (body != null) {
-          request.write(jsonEncode(body));
-        }
-
-        final response = await request.close();
-
-        // Check for transient status codes
-        if (_isTransientStatusCode(response.statusCode)) {
-          throw Exception('HTTP ${response.statusCode}: Transient failure for POST $endpoint');
-        }
-
-        if (response.statusCode != 200) {
-          throw Exception('HTTP ${response.statusCode}: Failed to POST $endpoint');
-        }
-
-        final responseBody = await response.transform(utf8.decoder).join();
-        return jsonDecode(responseBody) as Map<String, dynamic>;
-      } finally {
-        client.close();
+      if (body != null) {
+        request.write(jsonEncode(body));
       }
+
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
+
+      if (response.statusCode != 200) {
+        throw _parseErrorResponse(response.statusCode, responseBody, 'POST', endpoint);
+      }
+
+      return jsonDecode(responseBody) as Map<String, dynamic>;
     });
   }
 
   Future<void> _delete(String endpoint) async {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
-      final client = HttpClient();
 
-      try {
-        final request = await client.deleteUrl(uri);
+      final request = await _httpClient.deleteUrl(uri);
 
-        // Add authentication headers
-        final headers = _addAuthHeaders({});
-        headers.forEach((key, value) {
-          request.headers.set(key, value);
-        });
+      // Add authentication headers
+      final headers = _addAuthHeaders({});
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
 
-        final response = await request.close();
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
 
-        // Check for transient status codes
-        if (_isTransientStatusCode(response.statusCode)) {
-          throw Exception('HTTP ${response.statusCode}: Transient failure for DELETE $endpoint');
-        }
-
-        if (response.statusCode != 200) {
-          throw Exception('HTTP ${response.statusCode}: Failed to DELETE $endpoint');
-        }
-      } finally {
-        client.close();
+      if (response.statusCode != 200) {
+        throw _parseErrorResponse(response.statusCode, responseBody, 'DELETE', endpoint);
       }
     });
   }
@@ -516,8 +558,8 @@ class NetworkBackend implements NightshadeBackend {
     required String deviceId,
     required double exposureTime,
     required FrameType frameType,
-    required int gain,
-    required int offset,
+    int? gain,
+    int? offset,
     int binX = 1,
     int binY = 1,
     int? x,
@@ -529,8 +571,8 @@ class NetworkBackend implements NightshadeBackend {
       'deviceId': deviceId,
       'exposureTime': exposureTime,
       'frameType': frameType.name,
-      'gain': gain,
-      'offset': offset,
+      if (gain != null) 'gain': gain,
+      if (offset != null) 'offset': offset,
       'binX': binX,
       'binY': binY,
       if (x != null) 'x': x,
@@ -706,7 +748,7 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
-  Future<bridge_api.AutofocusResultApi> autofocusStart({
+  Future<AutofocusResult> autofocusStart({
     required String deviceId,
     required String cameraId,
     required double exposureTime,
@@ -725,25 +767,8 @@ class NetworkBackend implements NightshadeBackend {
       'binning': binning,
     });
 
-    // Parse focus data points from response
-    final focusDataList = (response['focusData'] as List<dynamic>?)
-        ?.map((item) => bridge_api.FocusDataPoint(
-              position: (item['position'] as num).toInt(),
-              hfr: (item['hfr'] as num).toDouble(),
-              starCount: (item['starCount'] as num?)?.toInt() ?? 0,
-            ))
-        .toList() ?? [];
-
-    return bridge_api.AutofocusResultApi(
-      bestPosition: (response['bestPosition'] as num).toInt(),
-      bestHfr: (response['bestHfr'] as num).toDouble(),
-      focusData: focusDataList,
-      method: response['method'] as String? ?? method,
-      temperature: (response['temperature'] as num?)?.toDouble(),
-      timestamp: (response['timestamp'] as num).toInt(),
-      curveFitQuality: (response['curveFitQuality'] as num?)?.toDouble() ?? 0.0,
-      backlashApplied: response['backlashApplied'] as bool? ?? false,
-    );
+    // Parse using pure Dart types from JSON
+    return AutofocusResult.fromJson(response as Map<String, dynamic>);
   }
 
   @override
@@ -879,14 +904,25 @@ class NetworkBackend implements NightshadeBackend {
 
   @override
   Future<Phd2StarImage> phd2GetStarImage({int size = 50}) async {
-    // TODO: Implement network API for star image
-    throw UnimplementedError('PHD2 star image not yet available over network');
+    final response = await _get('phd2/star-image?size=$size');
+    // Decode pixels from base64
+    final pixelsBase64 = response['pixels'] as String;
+    final pixels = base64Decode(pixelsBase64);
+    return Phd2StarImage(
+      frame: response['frame'] as int,
+      width: response['width'] as int,
+      height: response['height'] as int,
+      starX: (response['starX'] as num).toDouble(),
+      starY: (response['starY'] as num).toDouble(),
+      pixels: Uint8List.fromList(pixels),
+    );
   }
 
   @override
   Future<List<String>> phd2GetAlgoParamNames({required String axis}) async {
-    // TODO: Implement network API
-    throw UnimplementedError('PHD2 brain params not yet available over network');
+    final response = await _get('phd2/algo-params?axis=$axis');
+    final params = response['params'] as List<dynamic>;
+    return params.map((e) => e as String).toList();
   }
 
   @override
@@ -894,8 +930,8 @@ class NetworkBackend implements NightshadeBackend {
     required String axis,
     required String name,
   }) async {
-    // TODO: Implement network API
-    throw UnimplementedError('PHD2 brain params not yet available over network');
+    final response = await _get('phd2/algo-param?axis=$axis&name=${Uri.encodeComponent(name)}');
+    return (response['value'] as num).toDouble();
   }
 
   @override
@@ -904,8 +940,7 @@ class NetworkBackend implements NightshadeBackend {
     required String name,
     required double value,
   }) async {
-    // TODO: Implement network API
-    throw UnimplementedError('PHD2 brain params not yet available over network');
+    await _post('phd2/algo-param', {'axis': axis, 'name': name, 'value': value});
   }
 
   @override
@@ -974,6 +1009,67 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   // =========================================================================
+  // Generic Guiding (driver-agnostic abstraction)
+  // =========================================================================
+
+  @override
+  Future<void> guiderStartGuiding({
+    required String deviceId,
+    double settlePixels = 1.0,
+    double settleTime = 10.0,
+    double settleTimeout = 60.0,
+  }) async {
+    // Route to appropriate guider implementation based on device ID
+    if (deviceId == 'phd2_guider') {
+      await phd2StartGuiding(
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+    } else {
+      // Future: Add network endpoint for other guider types
+      throw UnimplementedError(
+        'Guider "$deviceId" is not yet supported for guiding operations over network.',
+      );
+    }
+  }
+
+  @override
+  Future<void> guiderStopGuiding({required String deviceId}) async {
+    if (deviceId == 'phd2_guider') {
+      await phd2StopGuiding();
+    } else {
+      throw UnimplementedError(
+        'Guider "$deviceId" is not yet supported for guiding operations over network.',
+      );
+    }
+  }
+
+  @override
+  Future<void> guiderDither({
+    required String deviceId,
+    double amount = 5.0,
+    bool raOnly = false,
+    double settlePixels = 1.0,
+    double settleTime = 10.0,
+    double settleTimeout = 60.0,
+  }) async {
+    if (deviceId == 'phd2_guider') {
+      await phd2Dither(
+        amount: amount,
+        raOnly: raOnly,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+    } else {
+      throw UnimplementedError(
+        'Guider "$deviceId" is not yet supported for dithering operations over network.',
+      );
+    }
+  }
+
+  // =========================================================================
   // Plate Solving
   // =========================================================================
 
@@ -1029,6 +1125,16 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> sequencerSkip() async {
+    await _post('sequencer/skip');
+  }
+
+  @override
+  Future<void> sequencerReset() async {
+    await _post('sequencer/reset');
+  }
+
+  @override
   Future<void> sequencerLoadJson(String json) async {
     await _post('sequencer/load', {'json': json});
   }
@@ -1055,6 +1161,11 @@ class NetworkBackend implements NightshadeBackend {
       'rotatorId': rotatorId,
       'filterNames': filterNames,
     });
+  }
+
+  @override
+  Future<void> sequencerSetSafetyFailMode(String mode) async {
+    await _post('sequencer/safety-fail-mode', {'mode': mode});
   }
 
   @override
@@ -1121,27 +1232,110 @@ class NetworkBackend implements NightshadeBackend {
   // =========================================================================
 
   @override
-  Future<dynamic> getCameraStatus(String deviceId) async {
+  Future<CameraStatus> getCameraStatus(String deviceId) async {
     final response = await _get('equipment/camera/status?deviceId=$deviceId');
-    return response;  // Return raw JSON, will be converted by caller
+    return CameraStatus.fromJson(response);
   }
 
   @override
-  Future<dynamic> getMountStatus(String deviceId) async {
+  Future<MountStatus> getMountStatus(String deviceId) async {
     final response = await _get('equipment/mount/status?deviceId=$deviceId');
-    return response;  // Return raw JSON, will be converted by caller
+    return MountStatus.fromJson(response);
   }
 
   @override
-  Future<dynamic> getFocuserStatus(String deviceId) async {
+  Future<FocuserStatus> getFocuserStatus(String deviceId) async {
     final response = await _get('equipment/focuser/status?deviceId=$deviceId');
-    return response;  // Return raw JSON, will be converted by caller
+    return FocuserStatus.fromJson(response);
   }
 
   @override
-  Future<dynamic> getFilterWheelStatus(String deviceId) async {
+  Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
     final response = await _get('equipment/filter-wheel/status?deviceId=$deviceId');
-    return response;  // Return raw JSON, will be converted by caller
+    return FilterWheelStatus.fromJson(response);
+  }
+
+  @override
+  Future<RotatorStatus> getRotatorStatus(String deviceId) async {
+    final response = await _get('equipment/rotator/status?deviceId=$deviceId');
+    return RotatorStatus.fromJson(response);
+  }
+
+  // =========================================================================
+  // Device Capabilities
+  // =========================================================================
+
+  @override
+  Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
+    try {
+      final response = await _get('equipment/camera/capabilities?deviceId=$deviceId');
+      return CameraCapabilities.fromJson(response);
+    } catch (e) {
+      debugPrint('Failed to get camera capabilities: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<MountCapabilities?> getMountCapabilities(String deviceId) async {
+    try {
+      final response = await _get('equipment/mount/capabilities?deviceId=$deviceId');
+      return MountCapabilities.fromJson(response);
+    } catch (e) {
+      debugPrint('Failed to get mount capabilities: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<FocuserCapabilities?> getFocuserCapabilities(String deviceId) async {
+    try {
+      final response = await _get('equipment/focuser/capabilities?deviceId=$deviceId');
+      return FocuserCapabilities.fromJson(response);
+    } catch (e) {
+      debugPrint('Failed to get focuser capabilities: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(String deviceId) async {
+    try {
+      final response = await _get('equipment/filter-wheel/capabilities?deviceId=$deviceId');
+      return FilterWheelCapabilities.fromJson(response);
+    } catch (e) {
+      debugPrint('Failed to get filter wheel capabilities: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId) async {
+    try {
+      final response = await _get('equipment/rotator/capabilities?deviceId=$deviceId');
+      return RotatorCapabilities.fromJson(response);
+    } catch (e) {
+      debugPrint('Failed to get rotator capabilities: $e');
+      return null;
+    }
+  }
+
+  // NOTE: The old _parseXxxCapabilities helpers have been removed.
+  // Pure Dart types now have fromJson() factory constructors.
+
+  // Legacy helper for rotator - kept for reference but no longer used
+  RotatorCapabilities _parseRotatorCapabilities(Map<String, dynamic> json) {
+    return RotatorCapabilities(
+      canReverse: json['canReverse'] ?? false,
+      reverse: json['reverse'] ?? false,
+      stepSize: json['stepSize']?.toDouble(),
+      isMoving: json['isMoving'] ?? false,
+      mechanicalPosition: json['mechanicalPosition']?.toDouble(),
+      position: json['position']?.toDouble(),
+      canMoveAbsolute: json['canMoveAbsolute'] ?? false,
+      canHalt: json['canHalt'] ?? false,
+      canSync: json['canSync'] ?? false,
+    );
   }
 
   // =========================================================================
@@ -1168,6 +1362,7 @@ class NetworkBackend implements NightshadeBackend {
       case 'ascom': return DriverType.ascom;
       case 'alpaca': return DriverType.alpaca;
       case 'indi': return DriverType.indi;
+      case 'native': return DriverType.native;
       case 'simulator': return DriverType.simulator;
       default: throw Exception('Unknown driver type: $str');
     }
@@ -1197,13 +1392,7 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   NightshadeEvent _eventFromJson(Map<String, dynamic> json) {
-    return NightshadeEvent(
-      timestamp: json['timestamp'] as int,
-      severity: _parseSeverity(json['severity'] as String),
-      category: _parseCategory(json['category'] as String),
-      eventType: json['eventType'] as String,
-      data: json['data'] as Map<String, dynamic>,
-    );
+    return NightshadeEvent.fromJson(json);
   }
 
   // =========================================================================
@@ -1292,6 +1481,13 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
+  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId, {int maxCrops = 5}) async {
+    final response = await _get('imaging/star-crops?deviceId=$deviceId&maxCrops=$maxCrops');
+    final crops = response['crops'] as List<dynamic>;
+    return crops.map((crop) => StarCrop.fromJson(crop as Map<String, dynamic>)).toList();
+  }
+
+  @override
   Future<Uint8List> debayerImage(
     int width,
     int height,
@@ -1326,6 +1522,10 @@ class NetworkBackend implements NightshadeBackend {
     required bool isNorth,
     required bool manualRotation,
     required bool rotateEast,
+    int? gain,
+    int? offset,
+    double? solveTimeout,
+    bool? startFromCurrent,
   }) async {
     await _post('polar-alignment/start', {
       'exposure_time': exposureTime,
@@ -1334,6 +1534,10 @@ class NetworkBackend implements NightshadeBackend {
       'is_north': isNorth,
       'manual_rotation': manualRotation,
       'rotate_east': rotateEast,
+      if (gain != null) 'gain': gain,
+      if (offset != null) 'offset': offset,
+      if (solveTimeout != null) 'solve_timeout': solveTimeout,
+      if (startFromCurrent != null) 'start_from_current': startFromCurrent,
     });
   }
 
@@ -1380,63 +1584,53 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<Uint8List> getImageThumbnail(int imageId) async {
     final uri = Uri.parse('http://$serverHost:$serverPort/api/images/$imageId/thumbnail');
-    final client = HttpClient();
-    
-    try {
-      final request = await client.getUrl(uri);
-      final response = await request.close();
-      
-      if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}: Failed to get thumbnail');
-      }
-      
-      final bytes = await consolidateHttpClientResponseBytes(response);
-      return Uint8List.fromList(bytes);
-    } finally {
-      client.close();
+
+    final request = await _httpClient.getUrl(uri);
+    final response = await request.close();
+
+    if (response.statusCode != 200) {
+      throw Exception('HTTP ${response.statusCode}: Failed to get thumbnail');
     }
+
+    final bytes = await consolidateHttpClientResponseBytes(response);
+    return Uint8List.fromList(bytes);
   }
 
   @override
   Future<void> downloadImage(int imageId, String localPath, {void Function(double)? onProgress}) async {
     final uri = Uri.parse('http://$serverHost:$serverPort/api/images/$imageId/download');
-    final client = HttpClient();
-    
-    try {
-      final request = await client.getUrl(uri);
-      final response = await request.close();
-      
-      if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}: Failed to download image');
-      }
-      
-      // Get content length for progress tracking
-      final contentLength = response.contentLength;
-      
-      // Stream to file
-      final file = File(localPath);
-      await file.parent.create(recursive: true);
-      
-      final sink = file.openWrite();
-      int bytesReceived = 0;
-      
-      try {
-        await for (final chunk in response) {
-          sink.add(chunk);
-          bytesReceived += chunk.length;
-          
-          if (onProgress != null && contentLength > 0) {
-            onProgress(bytesReceived / contentLength);
-          }
-        }
-      } finally {
-        await sink.close();
-      }
-      
-      debugPrint('[NetworkBackend] Downloaded image $imageId to $localPath ($bytesReceived bytes)');
-    } finally {
-      client.close();
+
+    final request = await _httpClient.getUrl(uri);
+    final response = await request.close();
+
+    if (response.statusCode != 200) {
+      throw Exception('HTTP ${response.statusCode}: Failed to download image');
     }
+
+    // Get content length for progress tracking
+    final contentLength = response.contentLength;
+
+    // Stream to file
+    final file = File(localPath);
+    await file.parent.create(recursive: true);
+
+    final sink = file.openWrite();
+    int bytesReceived = 0;
+
+    try {
+      await for (final chunk in response) {
+        sink.add(chunk);
+        bytesReceived += chunk.length;
+
+        if (onProgress != null && contentLength > 0) {
+          onProgress(bytesReceived / contentLength);
+        }
+      }
+    } finally {
+      await sink.close();
+    }
+
+    debugPrint('[NetworkBackend] Downloaded image $imageId to $localPath ($bytesReceived bytes)');
   }
 
   FrameType _parseFrameType(String str) {
@@ -1499,37 +1693,32 @@ class NetworkBackend implements NightshadeBackend {
   // =========================================================================
 
   @override
-  Future<List<int>> getLastRawImageData() async {
+  Future<List<int>> getLastRawImageData(String deviceId) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/imaging/raw-data');
-      final client = HttpClient();
+      final uri = Uri.parse('http://$serverHost:$serverPort/api/imaging/raw-data?deviceId=${Uri.encodeComponent(deviceId)}');
 
-      try {
-        final request = await client.getUrl(uri);
+      final request = await _httpClient.getUrl(uri);
 
-        // Add authentication headers
-        final headers = _addAuthHeaders({});
-        headers.forEach((key, value) {
-          request.headers.set(key, value);
-        });
+      // Add authentication headers
+      final headers = _addAuthHeaders({});
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
 
-        final response = await request.close();
+      final response = await request.close();
 
-        // Check for transient status codes
-        if (_isTransientStatusCode(response.statusCode)) {
-          throw Exception('HTTP ${response.statusCode}: Transient failure for GET imaging/raw-data');
-        }
-
-        if (response.statusCode != 200) {
-          throw Exception('HTTP ${response.statusCode}: Failed to GET imaging/raw-data');
-        }
-
-        // Read binary data
-        final bytes = await consolidateHttpClientResponseBytes(response);
-        return bytes;
-      } finally {
-        client.close();
+      // Check for transient status codes
+      if (_isTransientStatusCode(response.statusCode)) {
+        throw Exception('HTTP ${response.statusCode}: Transient failure for GET imaging/raw-data');
       }
+
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}: Failed to GET imaging/raw-data');
+      }
+
+      // Read binary data
+      final bytes = await consolidateHttpClientResponseBytes(response);
+      return bytes;
     });
   }
 
@@ -1539,77 +1728,96 @@ class NetworkBackend implements NightshadeBackend {
     required int width,
     required int height,
     required List<int> data,
-    required bridge_api.FitsWriteHeader headerData,
+    required FitsWriteHeader headerData,
   }) async {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/imaging/save-fits');
-      final client = HttpClient();
 
-      try {
-        final request = await client.postUrl(uri);
-        request.headers.contentType = ContentType.json;
+      final request = await _httpClient.postUrl(uri);
+      request.headers.contentType = ContentType.json;
 
-        // Add authentication headers
-        final headers = _addAuthHeaders({});
-        headers.forEach((key, value) {
-          request.headers.set(key, value);
-        });
+      // Add authentication headers
+      final headers = _addAuthHeaders({});
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
 
-        // Serialize FITS header to JSON
-        final headerJson = {
-          'objectName': headerData.objectName,
-          'exposureTime': headerData.exposureTime,
-          'captureTimestamp': headerData.captureTimestamp,
-          'frameType': headerData.frameType,
-          'filter': headerData.filter,
-          'gain': headerData.gain,
-          'offset': headerData.offset,
-          'ccdTemp': headerData.ccdTemp,
-          'ra': headerData.ra,
-          'dec': headerData.dec,
-          'altitude': headerData.altitude,
-          'telescope': headerData.telescope,
-          'instrument': headerData.instrument,
-          'observer': headerData.observer,
-          'binX': headerData.binX,
-          'binY': headerData.binY,
-          'focalLength': headerData.focalLength,
-          'aperture': headerData.aperture,
-          'pixelSizeX': headerData.pixelSizeX,
-          'pixelSizeY': headerData.pixelSizeY,
-          'siteLatitude': headerData.siteLatitude,
-          'siteLongitude': headerData.siteLongitude,
-          'siteElevation': headerData.siteElevation,
-        };
+      // Build request body - use pure Dart type's toJson()
+      final body = {
+        'filePath': filePath,
+        'width': width,
+        'height': height,
+        'data': data,
+        'headerData': headerData.toJson(),
+      };
 
-        // Build request body
-        final body = {
-          'filePath': filePath,
-          'width': width,
-          'height': height,
-          'data': data,
-          'headerData': headerJson,
-        };
+      request.write(jsonEncode(body));
 
-        request.write(jsonEncode(body));
+      final response = await request.close();
 
-        final response = await request.close();
-
-        // Check for transient status codes
-        if (_isTransientStatusCode(response.statusCode)) {
-          throw Exception('HTTP ${response.statusCode}: Transient failure for POST imaging/save-fits');
-        }
-
-        if (response.statusCode != 200) {
-          throw Exception('HTTP ${response.statusCode}: Failed to POST imaging/save-fits');
-        }
-
-        // Consume response body to complete the request
-        await response.transform(utf8.decoder).join();
-      } finally {
-        client.close();
+      // Check for transient status codes
+      if (_isTransientStatusCode(response.statusCode)) {
+        throw Exception('HTTP ${response.statusCode}: Transient failure for POST imaging/save-fits');
       }
+
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}: Failed to POST imaging/save-fits');
+      }
+
+      // Consume response body to complete the request
+      await response.transform(utf8.decoder).join();
     });
+  }
+
+  @override
+  Future<void> saveFitsFromLastCapture({
+    required String deviceId,
+    required String filePath,
+    required FitsWriteHeader headerData,
+  }) async {
+    // Use the optimized endpoint that saves from server-side stored image
+    // No raw pixel data needs to be transferred
+    return _retryableRequest(() async {
+      final uri = Uri.parse('http://$serverHost:$serverPort/api/imaging/save-fits-from-capture');
+
+      final request = await _httpClient.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+
+      // Add authentication headers
+      final headers = _addAuthHeaders({});
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
+
+      // Build request body - file path, device ID, and header (no pixel data)
+      // Use pure Dart type's toJson() for header serialization
+      final body = {
+        'deviceId': deviceId,
+        'filePath': filePath,
+        'headerData': headerData.toJson(),
+      };
+
+      request.write(jsonEncode(body));
+
+      final response = await request.close();
+
+      // Check for transient status codes
+      if (_isTransientStatusCode(response.statusCode)) {
+        throw Exception('HTTP ${response.statusCode}: Transient failure for POST imaging/save-fits-from-capture');
+      }
+
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}: Failed to POST imaging/save-fits-from-capture');
+      }
+
+      // Consume response body to complete the request
+      await response.transform(utf8.decoder).join();
+    });
+  }
+
+  @override
+  Future<void> clearDeviceImage(String deviceId) async {
+    await _delete('imaging/device-image/${Uri.encodeComponent(deviceId)}');
   }
 }
 

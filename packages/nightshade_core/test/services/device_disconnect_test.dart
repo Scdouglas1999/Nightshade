@@ -1,32 +1,44 @@
 import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mockito/mockito.dart';
-import 'package:mockito/annotations.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart';
+import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 
-// Generate mocks
-@GenerateMocks([NightshadeBackend])
-import 'device_disconnect_test.mocks.dart';
+import '../mocks/mock_backend.dart';
+
+/// A mock BackendNotifier for testing
+class MockBackendNotifier extends Mock implements BackendNotifier {}
 
 void main() {
   late ProviderContainer container;
-  late MockNightshadeBackend mockBackend;
+  late MockBackend mockBackend;
+  late MockBackendNotifier mockNotifier;
   late StreamController<NightshadeEvent> eventStreamController;
 
+  setUpAll(() {
+    registerMocktailFallbackValues();
+  });
+
   setUp(() {
-    mockBackend = MockNightshadeBackend();
+    mockBackend = MockBackend();
+    mockNotifier = MockBackendNotifier();
     eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
     // Configure mock backend
-    when(mockBackend.eventStream).thenAnswer((_) => eventStreamController.stream);
+    when(() => mockBackend.eventStream).thenAnswer((_) => eventStreamController.stream);
+    when(() => mockBackend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+
+    // Configure mock notifier to return our mock backend
+    when(() => mockNotifier.state).thenReturn(mockBackend);
 
     container = ProviderContainer(
       overrides: [
-        backendProvider.overrideWithValue(mockBackend),
+        // Override the backend provider with our mock notifier
+        backendProvider.overrideWith((ref) => mockNotifier),
       ],
     );
   });
@@ -321,13 +333,13 @@ void main() {
   group('Backend Integration', () {
     test('startDeviceHeartbeat is called when camera connects', () async {
       // Configure mock to succeed
-      when(mockBackend.connectDevice(any, any)).thenAnswer((_) async {});
-      when(mockBackend.startDeviceHeartbeat(
-        deviceType: anyNamed('deviceType'),
-        deviceId: anyNamed('deviceId'),
-        intervalMs: anyNamed('intervalMs'),
+      when(() => mockBackend.connectDevice(any(), any())).thenAnswer((_) async {});
+      when(() => mockBackend.startDeviceHeartbeat(
+        deviceType: any(named: 'deviceType'),
+        deviceId: any(named: 'deviceId'),
+        intervalMs: any(named: 'intervalMs'),
       )).thenAnswer((_) async {});
-      when(mockBackend.discoverDevices(any)).thenAnswer(
+      when(() => mockBackend.discoverDevices(any())).thenAnswer(
         (_) async => [
           DeviceInfo(
             id: 'camera-1',
@@ -346,7 +358,7 @@ void main() {
       await deviceService.connectCamera('camera-1');
 
       // Verify heartbeat was started
-      verify(mockBackend.startDeviceHeartbeat(
+      verify(() => mockBackend.startDeviceHeartbeat(
         deviceType: DeviceType.camera,
         deviceId: 'camera-1',
         intervalMs: 10000,
@@ -355,8 +367,8 @@ void main() {
 
     test('stopDeviceHeartbeat is called when camera disconnects', () async {
       // Configure mock
-      when(mockBackend.stopDeviceHeartbeat(any)).thenAnswer((_) async {});
-      when(mockBackend.disconnectDevice(any, any)).thenAnswer((_) async {});
+      when(() => mockBackend.stopDeviceHeartbeat(any())).thenAnswer((_) async {});
+      when(() => mockBackend.disconnectDevice(any(), any())).thenAnswer((_) async {});
 
       // Setup camera state with device ID
       final cameraNotifier = container.read(cameraStateProvider.notifier);
@@ -366,7 +378,7 @@ void main() {
       // Disconnect is more complex as it requires profile data
       // This test would need proper profile mocking
       // For now, verify the mock setup works
-      verify(mockBackend.eventStream).called(greaterThan(0));
+      verify(() => mockBackend.eventStream).called(greaterThan(0));
     });
   });
 }
