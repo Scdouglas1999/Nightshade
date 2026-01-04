@@ -1,283 +1,17 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:nightshade_bridge/src/api.dart' as bridge_api;
+import '../models/autofocus_progress.dart' show StarCrop;
 import '../models/imaging/imaging_models.dart' show FrameType, ImageStats, CapturedImage;
 import '../models/equipment_profile.dart';
-import '../models/phd2_models.dart' hide Phd2StarImage;
+import '../models/phd2_models.dart';
 import '../models/settings/app_settings.dart' as models;
-import '../providers/settings_provider.dart' hide AppSettings;
+import '../providers/settings_provider.dart' show LocationSettings;
 
-/// Re-export Phd2StarImage from bridge for backend compatibility
-typedef Phd2StarImage = bridge_api.Phd2StarImage;
+// Import extracted backend types (pure Dart, no bridge dependency)
+import '../models/backend/backend_types.dart';
 
-/// Event severity levels
-enum EventSeverity {
-  info,
-  warning,
-  error,
-  critical,
-}
-
-/// Event categories
-enum EventCategory {
-  equipment,
-  imaging,
-  guiding,
-  sequencer,
-  safety,
-  system,
-  polarAlignment,
-}
-
-/// Nightshade event
-class NightshadeEvent {
-  final int timestamp;
-  final EventSeverity severity;
-  final EventCategory category;
-  final String eventType;
-  final Map<String, dynamic> data;
-
-  NightshadeEvent({
-    required this.timestamp,
-    required this.severity,
-    required this.category,
-    required this.eventType,
-    required this.data,
-  });
-}
-
-/// Device types supported by Nightshade
-enum DeviceType {
-  camera,
-  mount,
-  focuser,
-  filterWheel,
-  guider,
-  dome,
-  rotator,
-  weather,
-  safetyMonitor,
-  switch_,
-  coverCalibrator,
-}
-
-/// Driver backend type
-enum DriverType {
-  ascom,
-  alpaca,
-  indi,
-  native,
-  simulator,
-}
-
-/// Device connection state
-enum ConnectionState {
-  disconnected,
-  connecting,
-  connected,
-  error,
-}
-
-/// Information about a discovered device
-class DeviceInfo {
-  final String id;
-  final String name;
-  final DeviceType deviceType;
-  final DriverType driverType;
-  final String description;
-  final String driverVersion;
-
-  DeviceInfo({
-    required this.id,
-    required this.name,
-    required this.deviceType,
-    required this.driverType,
-    required this.description,
-    required this.driverVersion,
-  });
-}
-
-/// Camera operational state
-enum CameraState {
-  idle,
-  waiting,
-  exposing,
-  reading,
-  download,
-  error,
-}
-
-// FrameType is now imported from imaging_models.dart
-// This enum definition is kept for backward compatibility but should not be used
-// Import FrameType from 'package:nightshade_core/src/models/imaging/imaging_models.dart' instead
-
-/// Image statistics result
-class ImageStatsResult {
-  final double min;
-  final double max;
-  final double mean;
-  final double median;
-  final double stdDev;
-  final double? hfr;
-  final int starCount;
-
-  ImageStatsResult({
-    required this.min,
-    required this.max,
-    required this.mean,
-    required this.median,
-    required this.stdDev,
-    this.hfr,
-    required this.starCount,
-  });
-}
-
-/// Captured image result
-class CapturedImageResult {
-  final int width;
-  final int height;
-  final List<int> displayData;  // RGB (width*height*3) if isColor=true, grayscale (width*height) if isColor=false
-  final List<int> histogram;
-  final ImageStatsResult stats;
-  final double exposureTime;
-  final String timestamp;
-  final bool isColor;  // true if displayData is RGB, false if grayscale
-
-  CapturedImageResult({
-    required this.width,
-    required this.height,
-    required this.displayData,
-    required this.histogram,
-    required this.stats,
-    required this.exposureTime,
-    required this.timestamp,
-    this.isColor = false,  // default to grayscale for backward compatibility
-  });
-}
-
-/// Side of pier for German Equatorial mounts
-enum PierSide {
-  east,
-  west,
-  unknown,
-}
-
-// TrackingRate is defined in equipment_models.dart
-
-/// PHD2 guiding status
-class Phd2Status {
-  final String state;
-  final bool connected;
-  final double rmsRa;
-  final double rmsDec;
-  final double rmsTotal;
-  final double snr;
-  final double starMass;
-  final double avgDistance;
-
-  Phd2Status({
-    required this.state,
-    required this.connected,
-    this.rmsRa = 0.0,
-    this.rmsDec = 0.0,
-    this.rmsTotal = 0.0,
-    this.snr = 0.0,
-    this.starMass = 0.0,
-    this.avgDistance = 0.0,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'state': state,
-    'connected': connected,
-    'rmsRa': rmsRa,
-    'rmsDec': rmsDec,
-    'rmsTotal': rmsTotal,
-    'snr': snr,
-    'starMass': starMass,
-    'avgDistance': avgDistance,
-  };
-}
-
-/// Plate solve result
-class PlateSolveResult {
-  final bool success;
-  final double ra;
-  final double dec;
-  final double pixelScale;
-  final double rotation;
-  final double fieldWidth;
-  final double fieldHeight;
-  final double solveTimeSecs;
-  final String? error;
-
-  PlateSolveResult({
-    required this.success,
-    required this.ra,
-    required this.dec,
-    required this.pixelScale,
-    required this.rotation,
-    required this.fieldWidth,
-    required this.fieldHeight,
-    required this.solveTimeSecs,
-    this.error,
-  });
-}
-
-/// Sequencer status
-class SequencerStatus {
-  final String state;
-  final String? currentNodeId;
-  final String? currentNodeName;
-  final double progress;
-  final String? message;
-
-  SequencerStatus({
-    required this.state,
-    this.currentNodeId,
-    this.currentNodeName,
-    required this.progress,
-    this.message,
-  });
-}
-
-/// Checkpoint information for crash recovery
-class CheckpointInfo {
-  final String sequenceName;
-  final DateTime timestamp;
-  final int completedExposures;
-  final double completedIntegrationSecs;
-  final bool canResume;
-  final int ageSeconds;
-
-  CheckpointInfo({
-    required this.sequenceName,
-    required this.timestamp,
-    required this.completedExposures,
-    required this.completedIntegrationSecs,
-    required this.canResume,
-    required this.ageSeconds,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'sequenceName': sequenceName,
-    'timestamp': timestamp.toIso8601String(),
-    'completedExposures': completedExposures,
-    'completedIntegrationSecs': completedIntegrationSecs,
-    'canResume': canResume,
-    'ageSeconds': ageSeconds,
-  };
-
-  factory CheckpointInfo.fromJson(Map<String, dynamic> json) {
-    return CheckpointInfo(
-      sequenceName: json['sequenceName'] as String,
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      completedExposures: json['completedExposures'] as int,
-      completedIntegrationSecs: (json['completedIntegrationSecs'] as num).toDouble(),
-      canResume: json['canResume'] as bool,
-      ageSeconds: json['ageSeconds'] as int,
-    );
-  }
-}
+// Re-export backend types for backward compatibility
+export '../models/backend/backend_types.dart';
 
 /// Abstract backend interface for device control
 ///
@@ -289,6 +23,17 @@ abstract class NightshadeBackend {
 
   /// Event stream for polar alignment updates
   Stream<Map<String, dynamic>> get polarAlignmentEvents;
+
+  // =========================================================================
+  // Lifecycle Management
+  // =========================================================================
+
+  /// Dispose of backend resources.
+  ///
+  /// Must be called when the backend is no longer needed to prevent
+  /// memory leaks and ensure proper cleanup of streams, subscriptions,
+  /// and network connections.
+  void dispose();
 
   // =========================================================================
   // Device Discovery & Connection
@@ -317,12 +62,15 @@ abstract class NightshadeBackend {
   // =========================================================================
 
   /// Start a camera exposure
+  /// 
+  /// [gain] and [offset] are optional - if null, the camera's current/default
+  /// settings will be used. This supports cameras that don't have adjustable gain/offset.
   Future<void> cameraStartExposure({
     required String deviceId,
     required double exposureTime,
     required FrameType frameType,
-    required int gain,
-    required int offset,
+    int? gain,
+    int? offset,
     int binX = 1,
     int binY = 1,
     int? x,
@@ -334,11 +82,11 @@ abstract class NightshadeBackend {
   /// Abort current camera exposure
   Future<void> cameraAbortExposure(String deviceId);
 
-  /// Get the last captured image
+  /// Get the last captured image for a specific device
   Future<CapturedImageResult?> cameraGetLastImage(String deviceId);
 
-  /// Get the last captured raw image data (u16 pixels)
-  Future<List<int>> getLastRawImageData();
+  /// Get the last captured raw image data (u16 pixels) for a specific device
+  Future<List<int>> getLastRawImageData(String deviceId);
 
   /// Save FITS file to disk
   Future<void> saveFitsFile({
@@ -346,8 +94,21 @@ abstract class NightshadeBackend {
     required int width,
     required int height,
     required List<int> data,
-    required bridge_api.FitsWriteHeader headerData,
+    required FitsWriteHeader headerData,
   });
+
+  /// Save FITS file directly from the last captured image stored server-side.
+  /// This eliminates raw pixel data transfer across FFI/network boundaries.
+  /// More efficient than saveFitsFile for normal capture workflows.
+  Future<void> saveFitsFromLastCapture({
+    required String deviceId,
+    required String filePath,
+    required FitsWriteHeader headerData,
+  });
+
+  /// Clear stored image data for a specific device
+  /// This frees memory when a camera is disconnected or when explicitly requested
+  Future<void> clearDeviceImage(String deviceId);
 
   /// Set camera cooling
   Future<void> cameraSetCooling({
@@ -417,7 +178,7 @@ abstract class NightshadeBackend {
 
   /// Run autofocus
   /// Returns the full autofocus result including focus curve data
-  Future<bridge_api.AutofocusResultApi> autofocusStart({
+  Future<AutofocusResult> autofocusStart({
     required String deviceId,
     required String cameraId,
     required double exposureTime,
@@ -455,6 +216,7 @@ abstract class NightshadeBackend {
 
   /// Get rotator angle
   Future<double> rotatorGetAngle(String deviceId);
+
 
   /// Halt rotator
   Future<void> rotatorHalt(String deviceId);
@@ -539,6 +301,35 @@ abstract class NightshadeBackend {
   Future<void> phd2DeselectStar();
 
   // =========================================================================
+  // Generic Guiding (driver-agnostic)
+  // =========================================================================
+
+  /// Start guiding using the connected guider
+  /// 
+  /// Routes to appropriate implementation (PHD2, or future guider types) based
+  /// on the device ID. This abstraction allows future guider implementations
+  /// to be added without changing service-level code.
+  Future<void> guiderStartGuiding({
+    required String deviceId,
+    double settlePixels = 1.0,
+    double settleTime = 10.0,
+    double settleTimeout = 60.0,
+  });
+
+  /// Stop guiding on the specified guider
+  Future<void> guiderStopGuiding({required String deviceId});
+
+  /// Dither the guide star
+  Future<void> guiderDither({
+    required String deviceId,
+    double amount = 5.0,
+    bool raOnly = false,
+    double settlePixels = 1.0,
+    double settleTime = 10.0,
+    double settleTimeout = 60.0,
+  });
+
+  // =========================================================================
   // Plate Solving
   // =========================================================================
 
@@ -566,6 +357,12 @@ abstract class NightshadeBackend {
   /// Resume the sequencer
   Future<void> sequencerResume();
 
+  /// Skip the current node in the sequencer
+  Future<void> sequencerSkip();
+
+  /// Reset the sequencer to its initial state
+  Future<void> sequencerReset();
+
   /// Load a sequence definition (JSON) into the sequencer
   Future<void> sequencerLoadJson(String json);
 
@@ -584,6 +381,13 @@ abstract class NightshadeBackend {
     String? rotatorId,
     List<String>? filterNames,
   });
+
+  /// Set the safety fail mode for the sequencer.
+  /// Determines behavior when safety devices fail or are unavailable:
+  /// - "fail_open": Assume safe and continue imaging (default)
+  /// - "fail_closed": Assume unsafe and pause/park
+  /// - "warn_only": Show warning but continue
+  Future<void> sequencerSetSafetyFailMode(String mode);
 
   // =========================================================================
   // Checkpoint / Crash Recovery
@@ -615,17 +419,48 @@ abstract class NightshadeBackend {
   // =========================================================================
 
   /// Get camera status
-  /// Note: Status classes are defined in nightshade_bridge
-  Future<dynamic> getCameraStatus(String deviceId);
+  /// Returns typed CameraStatus with all sensor and cooling information
+  Future<CameraStatus> getCameraStatus(String deviceId);
 
   /// Get mount status
-  Future<dynamic> getMountStatus(String deviceId);
+  /// Returns typed MountStatus with position, tracking, and capability flags
+  Future<MountStatus> getMountStatus(String deviceId);
 
   /// Get focuser status
-  Future<dynamic> getFocuserStatus(String deviceId);
+  /// Returns typed FocuserStatus with position, movement, and temperature info
+  Future<FocuserStatus> getFocuserStatus(String deviceId);
 
   /// Get filter wheel status
-  Future<dynamic> getFilterWheelStatus(String deviceId);
+  /// Returns typed FilterWheelStatus with position and filter names
+  Future<FilterWheelStatus> getFilterWheelStatus(String deviceId);
+
+  /// Get rotator status
+  /// Returns typed RotatorStatus with position and movement info
+  Future<RotatorStatus> getRotatorStatus(String deviceId);
+
+  // =========================================================================
+  // Device Capabilities
+  // =========================================================================
+
+  /// Get camera capabilities
+  /// Returns null if the device is not connected or capabilities unavailable
+  Future<CameraCapabilities?> getCameraCapabilities(String deviceId);
+
+  /// Get mount capabilities
+  /// Returns null if the device is not connected or capabilities unavailable
+  Future<MountCapabilities?> getMountCapabilities(String deviceId);
+
+  /// Get focuser capabilities
+  /// Returns null if the device is not connected or capabilities unavailable
+  Future<FocuserCapabilities?> getFocuserCapabilities(String deviceId);
+
+  /// Get filter wheel capabilities
+  /// Returns null if the device is not connected or capabilities unavailable
+  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(String deviceId);
+
+  /// Get rotator capabilities
+  /// Returns null if the device is not connected or capabilities unavailable
+  Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId);
 
   // =========================================================================
   // Equipment Profiles
@@ -655,6 +490,9 @@ abstract class NightshadeBackend {
   // Image Processing
   Future<ImageStats> getImageStats(int width, int height, Uint16List data);
   Future<Uint8List> autoStretchImage(int width, int height, Uint16List data);
+
+  /// Get star crops from the last captured image for autofocus UI
+  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId, {int maxCrops = 5});
   Future<Uint8List> debayerImage(
     int width,
     int height,
@@ -679,6 +517,10 @@ abstract class NightshadeBackend {
     required bool isNorth,
     required bool manualRotation,
     required bool rotateEast,
+    int? gain,
+    int? offset,
+    double? solveTimeout,
+    bool? startFromCurrent,
   });
 
   /// Stop the polar alignment process

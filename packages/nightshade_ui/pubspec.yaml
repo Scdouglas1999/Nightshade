@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^2.4.9
   lucide_icons: ^0.257.0
+  google_fonts: ^6.1.0
   nightshade_core:
     path: ../nightshade_core
   nightshade_bridge:

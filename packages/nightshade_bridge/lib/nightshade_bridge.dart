@@ -47,3 +47,6 @@ export 'src/phd2_client.dart';
 
 // Export PHD2 utilities
 export 'src/rolling_rms_calculator.dart';
+
+// Export device capabilities
+export 'src/device_capabilities.dart';

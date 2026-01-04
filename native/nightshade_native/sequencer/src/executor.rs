@@ -1,6 +1,6 @@
 //! Sequence execution engine
 
-use crate::{NodeId, NodeStatus, NodeType, SequenceDefinition, NodeDefinition, RecoveryAction};
+use crate::{NodeId, NodeStatus, NodeType, SequenceDefinition, NodeDefinition, RecoveryAction, SafetyFailMode};
 use crate::node::{Node, RuntimeNode, ExecutionContext, ProgressUpdate};
 use crate::device_ops::SharedDeviceOps;
 use crate::triggers::{TriggerManager, TriggerState};
@@ -124,6 +124,8 @@ pub struct SequenceExecutor {
     checkpoint_manager: Option<crate::checkpoint::CheckpointManager>,
     /// Current checkpoint being updated
     current_checkpoint: Option<crate::checkpoint::SessionCheckpoint>,
+    /// Safety fail mode - determines behavior when safety devices fail or are unavailable
+    pub safety_fail_mode: SafetyFailMode,
 }
 
 impl SequenceExecutor {
@@ -155,9 +157,15 @@ impl SequenceExecutor {
             triggers_enabled: true,
             checkpoint_manager: None,
             current_checkpoint: None,
+            safety_fail_mode: SafetyFailMode::default(),
         }
     }
-    
+
+    /// Set the safety fail mode for the sequencer
+    pub fn set_safety_fail_mode(&mut self, mode: SafetyFailMode) {
+        self.safety_fail_mode = mode;
+    }
+
     /// Get the trigger manager for configuration
     pub fn trigger_manager(&self) -> Arc<RwLock<TriggerManager>> {
         self.trigger_manager.clone()
@@ -389,6 +397,7 @@ impl SequenceExecutor {
         // Clone trigger manager for the async task
         let trigger_manager = self.trigger_manager.clone();
         let triggers_enabled = self.triggers_enabled;
+        let safety_fail_mode = self.safety_fail_mode;
 
         // Create shared pause state for context
         let is_paused = Arc::new(AtomicBool::new(false));
@@ -419,6 +428,7 @@ impl SequenceExecutor {
             context.save_path = save_path;
             context.latitude = latitude;
             context.longitude = longitude;
+            context.safety_fail_mode = safety_fail_mode;
             // Set trigger state for HFR tracking and exposure counts
             context.trigger_state = Some(trigger_manager.read().await.state());
             
@@ -596,7 +606,26 @@ impl SequenceExecutor {
                     }
 
                     // Poll weather/safety status and update trigger state
-                    let is_safe = device_ops_for_triggers.safety_is_safe(None).await.unwrap_or(true);
+                    let is_safe = match device_ops_for_triggers.safety_is_safe(None).await {
+                        Ok(safe) => safe,
+                        Err(e) => {
+                            // Handle error based on configured safety fail mode
+                            match safety_fail_mode {
+                                SafetyFailMode::FailOpen => {
+                                    tracing::trace!("Safety poll error: {} - assuming safe (fail-open)", e);
+                                    true
+                                }
+                                SafetyFailMode::FailClosed => {
+                                    tracing::warn!("Safety poll error: {} - assuming UNSAFE (fail-closed)", e);
+                                    false
+                                }
+                                SafetyFailMode::WarnOnly => {
+                                    tracing::trace!("Safety poll error: {} - continuing with warning (warn-only)", e);
+                                    true
+                                }
+                            }
+                        }
+                    };
 
                     // Poll guiding status if guiding is enabled
                     let guiding_rms = device_ops_for_triggers.guider_get_status().await

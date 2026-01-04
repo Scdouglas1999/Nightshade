@@ -126,6 +126,10 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
         isNorth: _isNorthernHemisphere,
         manualRotation: _manualRotation,
         rotateEast: _rotateEast,
+        gain: _gain,
+        offset: _offset,
+        solveTimeout: _solveTimeout,
+        startFromCurrent: _startFromCurrent,
       );
     } catch (e) {
       ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.error;
@@ -147,12 +151,16 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       switch (phase) {
         case 'measuring':
           ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.measuring;
+          break;
         case 'adjusting':
           ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.adjusting;
+          break;
         case 'complete':
           ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.complete;
+          break;
         case 'error':
           ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.error;
+          break;
       }
     }
 

@@ -2022,15 +2022,16 @@ class NativeBridge {
   }
 
   /// Get last captured image
-  static Future<CapturedImageResult?> getLastImage() async {
+  static Future<CapturedImageResult?> getLastImage(
+      {required String deviceId}) async {
     print(
-        '[NativeBridge] getLastImage called, nativeAvailable=$_nativeAvailable');
+        '[NativeBridge] getLastImage called for device $deviceId, nativeAvailable=$_nativeAvailable');
     if (_nativeAvailable) {
       try {
         // Call the Rust API - returns generated CapturedImageResult (with Uint8List)
         print('[NativeBridge] Calling crateApiApiGetLastImage...');
-        final rustResult =
-            await frb.RustLib.instance.api.crateApiApiGetLastImage();
+        final rustResult = await frb.RustLib.instance.api
+            .crateApiApiGetLastImage(deviceId: deviceId);
         print(
             '[NativeBridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}');
 
@@ -3086,6 +3087,23 @@ class NativeBridge {
       }
     }
     print('[NativeBridge Stub] Sequencer devices would be set (stub mode)');
+  }
+
+  /// Set the safety fail mode for the sequencer
+  static Future<void> sequencerSetSafetyFailMode(String mode) async {
+    if (_nativeAvailable) {
+      try {
+        await frb.RustLib.instance.api
+            .crateApiApiSequencerSetSafetyFailMode(mode: mode);
+        print('[NativeBridge] Set sequencer safety fail mode: $mode');
+        return;
+      } catch (e) {
+        print('[NativeBridge] Error setting sequencer safety fail mode: $e');
+        rethrow;
+      }
+    }
+    print(
+        '[NativeBridge Stub] Sequencer safety fail mode would be set to $mode (stub mode)');
   }
 
   /// Start the loaded sequence

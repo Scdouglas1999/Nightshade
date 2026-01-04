@@ -1,3 +1,4 @@
+import 'dart:math' show max;
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -76,7 +77,8 @@ class SessionChart extends StatelessWidget {
     final values = dataPoints.map((p) => p.value).toList();
     final dataMinY = minY ?? values.reduce((a, b) => a < b ? a : b);
     final dataMaxY = maxY ?? values.reduce((a, b) => a > b ? a : b);
-    final yRange = dataMaxY - dataMinY;
+    // Ensure minimum range to avoid division by zero with single datapoint
+    final yRange = max(dataMaxY - dataMinY, 1.0);
     final yPadding = yRange * 0.1;
 
     final chartMinY = dataMinY - yPadding;

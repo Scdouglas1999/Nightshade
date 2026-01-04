@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -116,6 +117,13 @@ void _startBackgroundServices() {
       webServer.cameraSetOffsetHandler = _cameraSetOffsetHandler;
       webServer.cameraStatusHandler = _cameraStatusHandler;
 
+      // Device capabilities handlers
+      webServer.getCameraCapabilitiesHandler = _getCameraCapabilitiesHandler;
+      webServer.getMountCapabilitiesHandler = _getMountCapabilitiesHandler;
+      webServer.getFocuserCapabilitiesHandler = _getFocuserCapabilitiesHandler;
+      webServer.getFilterWheelCapabilitiesHandler = _getFilterWheelCapabilitiesHandler;
+      webServer.getRotatorCapabilitiesHandler = _getRotatorCapabilitiesHandler;
+
       webServer.mountSlewHandler = _mountSlewHandler;
       webServer.mountSyncHandler = _mountSyncHandler;
       webServer.mountParkHandler = _mountParkHandler;
@@ -141,6 +149,10 @@ void _startBackgroundServices() {
       webServer.phd2StartGuidingHandler = _phd2StartGuidingHandler;
       webServer.phd2StopGuidingHandler = _phd2StopGuidingHandler;
       webServer.phd2DitherHandler = _phd2DitherHandler;
+      webServer.phd2GetStarImageHandler = _phd2GetStarImageHandler;
+      webServer.phd2GetAlgoParamNamesHandler = _phd2GetAlgoParamNamesHandler;
+      webServer.phd2GetAlgoParamHandler = _phd2GetAlgoParamHandler;
+      webServer.phd2SetAlgoParamHandler = _phd2SetAlgoParamHandler;
 
       // Extended handlers
       webServer.cameraGetLastImageHandler = _cameraGetLastImageHandler;
@@ -153,6 +165,8 @@ void _startBackgroundServices() {
       webServer.rotatorGetStatusHandler = _rotatorGetStatusHandler;
       webServer.rotatorHaltHandler = _rotatorHaltHandler;
       webServer.plateSolveHandler = _plateSolveHandler;
+      webServer.saveFitsFromCaptureHandler = _saveFitsFromCaptureHandler;
+      webServer.clearDeviceImageHandler = _clearDeviceImageHandler;
       webServer.sequencerStartHandler = _sequencerStartHandler;
       webServer.sequencerStopHandler = _sequencerStopHandler;
       webServer.sequencerPauseHandler = _sequencerPauseHandler;
@@ -173,7 +187,17 @@ void _startBackgroundServices() {
       print('[MAIN] Starting web server...');
       await webServer.start();
       print('[MAIN] Web server started for mobile access on port ${webServer.actualPort}');
-      
+
+      // Wire up event stream forwarding to WebSocket clients
+      webServer.setEventStream(bridge.NativeBridge.eventStream().map((event) => {
+        'timestamp': event.timestamp,
+        'severity': event.severity.name,
+        'category': event.category.name,
+        'eventType': _getEventType(event.payload),
+        'data': _serializeEventData(event.payload),
+      }));
+      print('[MAIN] Event stream forwarding enabled');
+
       // Start UDP broadcasting for auto-discovery
       print('[MAIN] Starting UDP broadcast for auto-discovery...');
       await NightshadeDiscovery.startBroadcasting(
@@ -313,6 +337,13 @@ Future<void> _startHeadlessServices() async {
     webServer.cameraSetOffsetHandler = _cameraSetOffsetHandler;
     webServer.cameraStatusHandler = _cameraStatusHandler;
 
+    // Device capabilities handlers
+    webServer.getCameraCapabilitiesHandler = _getCameraCapabilitiesHandler;
+    webServer.getMountCapabilitiesHandler = _getMountCapabilitiesHandler;
+    webServer.getFocuserCapabilitiesHandler = _getFocuserCapabilitiesHandler;
+    webServer.getFilterWheelCapabilitiesHandler = _getFilterWheelCapabilitiesHandler;
+    webServer.getRotatorCapabilitiesHandler = _getRotatorCapabilitiesHandler;
+
     webServer.mountSlewHandler = _mountSlewHandler;
     webServer.mountSyncHandler = _mountSyncHandler;
     webServer.mountParkHandler = _mountParkHandler;
@@ -338,6 +369,10 @@ Future<void> _startHeadlessServices() async {
     webServer.phd2StartGuidingHandler = _phd2StartGuidingHandler;
     webServer.phd2StopGuidingHandler = _phd2StopGuidingHandler;
     webServer.phd2DitherHandler = _phd2DitherHandler;
+    webServer.phd2GetStarImageHandler = _phd2GetStarImageHandler;
+    webServer.phd2GetAlgoParamNamesHandler = _phd2GetAlgoParamNamesHandler;
+    webServer.phd2GetAlgoParamHandler = _phd2GetAlgoParamHandler;
+    webServer.phd2SetAlgoParamHandler = _phd2SetAlgoParamHandler;
 
     // Extended handlers
     webServer.cameraGetLastImageHandler = _cameraGetLastImageHandler;
@@ -350,6 +385,8 @@ Future<void> _startHeadlessServices() async {
     webServer.rotatorGetStatusHandler = _rotatorGetStatusHandler;
     webServer.rotatorHaltHandler = _rotatorHaltHandler;
     webServer.plateSolveHandler = _plateSolveHandler;
+    webServer.saveFitsFromCaptureHandler = _saveFitsFromCaptureHandler;
+    webServer.clearDeviceImageHandler = _clearDeviceImageHandler;
     webServer.sequencerStartHandler = _sequencerStartHandler;
     webServer.sequencerStopHandler = _sequencerStopHandler;
     webServer.sequencerPauseHandler = _sequencerPauseHandler;
@@ -369,6 +406,16 @@ Future<void> _startHeadlessServices() async {
 
     await webServer.start();
     print('  ✓ Web server started on port ${webServer.actualPort}');
+
+    // Wire up event stream forwarding to WebSocket clients
+    webServer.setEventStream(bridge.NativeBridge.eventStream().map((event) => {
+      'timestamp': event.timestamp,
+      'severity': event.severity.name,
+      'category': event.category.name,
+      'eventType': _getEventType(event.payload),
+      'data': _serializeEventData(event.payload),
+    }));
+    print('  ✓ Event stream forwarding enabled');
 
     // Start discovery broadcasting
     try {
@@ -430,6 +477,68 @@ Future<void> _initializeCatalogManager() async {
   } catch (e) {
     debugPrint('Failed to initialize catalog manager: $e');
   }
+}
+
+/// Get the event type string from the payload for WebSocket transmission
+String _getEventType(bridge.EventPayload payload) {
+  return payload.map(
+    equipment: (e) => e.field0.toString().split('.').last.replaceAll(')', '').split('(').first,
+    imaging: (e) => e.field0.toString().split('.').last.replaceAll(')', '').split('(').first,
+    guiding: (e) => e.field0.toString().split('.').last.replaceAll(')', '').split('(').first,
+    sequencer: (e) => e.field0.toString().split('.').last.replaceAll(')', '').split('(').first,
+    safety: (e) => e.field0.toString().split('.').last.replaceAll(')', '').split('(').first,
+    system: (e) => e.field0.toString().split('.').last.replaceAll(')', '').split('(').first,
+    polarAlignment: (e) => 'PolarAlignmentUpdate',
+    polarAlignmentStatus: (e) => 'PolarAlignmentStatus',
+    polarAlignmentImage: (e) => 'PolarAlignmentImage',
+  );
+}
+
+/// Serialize event payload data to a Map for WebSocket transmission
+Map<String, dynamic> _serializeEventData(bridge.EventPayload payload) {
+  return payload.map(
+    equipment: (e) => {
+      'event': e.field0.toString(),
+    },
+    imaging: (e) => {
+      'event': e.field0.toString(),
+    },
+    guiding: (e) => {
+      'event': e.field0.toString(),
+    },
+    sequencer: (e) => {
+      'event': e.field0.toString(),
+    },
+    safety: (e) => {
+      'event': e.field0.toString(),
+    },
+    system: (e) => {
+      'event': e.field0.toString(),
+    },
+    polarAlignment: (e) => {
+      'azimuthError': e.field0.azimuthError,
+      'altitudeError': e.field0.altitudeError,
+      'totalError': e.field0.totalError,
+      'currentRa': e.field0.currentRa,
+      'currentDec': e.field0.currentDec,
+      'targetRa': e.field0.targetRa,
+      'targetDec': e.field0.targetDec,
+    },
+    polarAlignmentStatus: (e) => {
+      'status': e.field0.status,
+      'phase': e.field0.phase,
+      'point': e.field0.point,
+    },
+    polarAlignmentImage: (e) => {
+      'imageData': e.field0.imageData,
+      'width': e.field0.width,
+      'height': e.field0.height,
+      'solvedRa': e.field0.solvedRa,
+      'solvedDec': e.field0.solvedDec,
+      'point': e.field0.point,
+      'phase': e.field0.phase,
+    },
+  );
 }
 
 /// Handler for /api/devices endpoint
@@ -628,9 +737,14 @@ Future<void> _disconnectDeviceHandler(String deviceType, String deviceId) async 
 /// Handler for /api/devices/connected endpoint
 Future<List<Map<String, dynamic>>> _getConnectedDevicesHandler() async {
   print('[API] Getting connected devices...');
-  // TODO: Implement getting connected devices from bridge
-  // For now, return empty list
-  return [];
+  final connectedDevices = await bridge.NativeBridge.getConnectedDevices();
+  return connectedDevices.map((device) => {
+    'id': device.id,
+    'name': device.name,
+    'deviceType': device.deviceType.toString().split('.').last,
+    'driverType': device.driverType.toString().split('.').last,
+    'description': device.description,
+  }).toList();
 }
 
 /// Handler for /api/phd2/connect endpoint
@@ -714,6 +828,107 @@ Future<Map<String, dynamic>> _cameraStatusHandler(String deviceId) async {
     'gain': status.gain,
     'offset': status.offset,
   };
+}
+
+// ============================================================================
+// Device Capabilities Handlers
+// ============================================================================
+
+/// Handler for /api/equipment/camera/capabilities endpoint
+Future<Map<String, dynamic>?> _getCameraCapabilitiesHandler(String deviceId) async {
+  print('[API] Getting camera capabilities: $deviceId');
+  final caps = await bridge.apiGetCameraCapabilities(deviceId: deviceId);
+  return {
+    'maxWidth': caps.maxWidth,
+    'maxHeight': caps.maxHeight,
+    'bitDepth': caps.bitDepth,
+    'hasShutter': caps.hasShutter,
+    'canSetCcdTemperature': caps.canSetCcdTemperature,
+    'canSetCooler': caps.canSetCooler,
+    'canGetCoolerPower': caps.canGetCoolerPower,
+    'canBin': caps.canBin,
+    'maxBinX': caps.maxBinX,
+    'maxBinY': caps.maxBinY,
+    'canAsymmetricBin': caps.canAsymmetricBin,
+    'offsetMin': caps.offsetMin,
+    'offsetMax': caps.offsetMax,
+    'gainMin': caps.gainMin,
+    'gainMax': caps.gainMax,
+    'sensorType': caps.sensorType,
+    'bayerPattern': caps.bayerPattern,
+    'isColor': caps.isColor,
+    'canSubframe': caps.canSubframe,
+    'pixelSizeX': caps.pixelSizeX,
+    'pixelSizeY': caps.pixelSizeY,
+  };
+}
+
+/// Handler for /api/equipment/mount/capabilities endpoint
+Future<Map<String, dynamic>?> _getMountCapabilitiesHandler(String deviceId) async {
+  print('[API] Getting mount capabilities: $deviceId');
+  final caps = await bridge.apiGetMountCapabilities(deviceId: deviceId);
+  return {
+    'canSlew': caps.canSlew,
+    'canSlewAsync': caps.canSlewAsync,
+    'canSync': caps.canSync,
+    'canPark': caps.canPark,
+    'canUnpark': caps.canUnpark,
+    'canSetTracking': caps.canSetTracking,
+    'canPulseGuide': caps.canPulseGuide,
+    'canMoveAxis': caps.canMoveAxis,
+    'isEquatorial': caps.isEquatorial,
+    'supportsAltAz': caps.supportsAltAz,
+    'canSetSideOfPier': caps.canSetSideOfPier,
+    'canGetSideOfPier': caps.canGetSideOfPier,
+    'canSetTrackingRate': caps.canSetTrackingRate,
+    'canAbortSlew': caps.canAbortSlew,
+    'maxSlewRate': caps.maxSlewRate,
+    'axisCount': caps.axisCount,
+  };
+}
+
+/// Handler for /api/equipment/focuser/capabilities endpoint
+Future<Map<String, dynamic>?> _getFocuserCapabilitiesHandler(String deviceId) async {
+  print('[API] Getting focuser capabilities: $deviceId');
+  final caps = await bridge.apiGetFocuserCapabilities(deviceId: deviceId);
+  return {
+    'maxPosition': caps.maxPosition,
+    'maxIncrement': caps.maxIncrement,
+    'stepSize': caps.stepSize,
+    'absolute': caps.absolute,
+    'tempCompAvailable': caps.tempCompAvailable,
+    'tempComp': caps.tempComp,
+    'temperature': caps.temperature,
+  };
+}
+
+/// Handler for /api/equipment/filter-wheel/capabilities endpoint
+Future<Map<String, dynamic>?> _getFilterWheelCapabilitiesHandler(String deviceId) async {
+  print('[API] Getting filter wheel capabilities: $deviceId');
+  final caps = await bridge.apiGetFilterwheelCapabilities(deviceId: deviceId);
+  return {
+    'positionCount': caps.positionCount,
+    'filterNames': caps.filterNames,
+    'focusOffsets': caps.focusOffsets,
+  };
+}
+
+/// Handler for /api/equipment/rotator/capabilities endpoint
+Future<Map<String, dynamic>?> _getRotatorCapabilitiesHandler(String deviceId) async {
+  print('[API] Getting rotator capabilities: $deviceId');
+  final result = await bridge.apiGetDeviceCapabilities(deviceId: deviceId);
+  // DeviceCapabilities is a union type - check for rotator variant
+  if (result is bridge.DeviceCapabilities_Rotator) {
+    final caps = result.field0;
+    return {
+      'canReverse': caps.canReverse,
+      'reverse': caps.reverse,
+      'stepSize': caps.stepSize,
+      'isMoving': caps.isMoving,
+      'mechanicalPosition': caps.mechanicalPosition,
+    };
+  }
+  return null;
 }
 
 // ============================================================================
@@ -938,6 +1153,41 @@ Future<void> _phd2DitherHandler(Map<String, dynamic> params) async {
   print('[API] Dither requested');
 }
 
+/// Handler for /api/phd2/star-image endpoint
+Future<Map<String, dynamic>> _phd2GetStarImageHandler({int size = 50}) async {
+  print('[API] Getting PHD2 star image: size=$size');
+  final result = await bridge.NativeBridge.phd2GetStarImage(size: size);
+  // Convert pixel data to base64 for JSON transport
+  final pixelsBase64 = base64Encode(result.pixels);
+  return {
+    'frame': result.frame,
+    'width': result.width,
+    'height': result.height,
+    'starX': result.starX,
+    'starY': result.starY,
+    'pixels': pixelsBase64,
+  };
+}
+
+/// Handler for /api/phd2/algo-params endpoint
+Future<List<String>> _phd2GetAlgoParamNamesHandler({required String axis}) async {
+  print('[API] Getting PHD2 algo param names: axis=$axis');
+  return await bridge.NativeBridge.phd2GetAlgoParamNames(axis: axis);
+}
+
+/// Handler for /api/phd2/algo-param GET endpoint
+Future<double> _phd2GetAlgoParamHandler({required String axis, required String name}) async {
+  print('[API] Getting PHD2 algo param: axis=$axis, name=$name');
+  return await bridge.NativeBridge.phd2GetAlgoParam(axis: axis, name: name);
+}
+
+/// Handler for /api/phd2/algo-param POST endpoint
+Future<void> _phd2SetAlgoParamHandler({required String axis, required String name, required double value}) async {
+  print('[API] Setting PHD2 algo param: axis=$axis, name=$name, value=$value');
+  await bridge.NativeBridge.phd2SetAlgoParam(axis: axis, name: name, value: value);
+  print('[API] PHD2 algo param set');
+}
+
 // ============================================================================
 // Camera Extended Handlers
 // ============================================================================
@@ -945,7 +1195,7 @@ Future<void> _phd2DitherHandler(Map<String, dynamic> params) async {
 /// Handler for /api/camera/last-image endpoint
 Future<Map<String, dynamic>?> _cameraGetLastImageHandler(String deviceId) async {
   print('[API] Getting last image for: $deviceId');
-  final result = await bridge.NativeBridge.getLastImage();
+  final result = await bridge.NativeBridge.getLastImage(deviceId: deviceId);
   if (result == null) return null;
   return {
     'width': result.width,
@@ -1108,6 +1358,58 @@ Future<Map<String, dynamic>> _plateSolveHandler(Map<String, dynamic> params) asy
     'solveTimeSecs': result.solveTimeSecs,
     'error': result.error,
   };
+}
+
+// ============================================================================
+// Imaging Handlers
+// ============================================================================
+
+/// Handler for /api/imaging/save-fits-from-capture endpoint
+/// This is the optimized endpoint that saves FITS directly from Rust-side stored image
+Future<void> _saveFitsFromCaptureHandler(String deviceId, String filePath, Map<String, dynamic> headerData) async {
+  print('[API] Saving FITS from last capture for device $deviceId to: $filePath');
+
+  // Convert headerData map to FitsWriteHeader
+  final header = bridge.FitsWriteHeader(
+    objectName: headerData['objectName'] as String?,
+    exposureTime: (headerData['exposureTime'] as num).toDouble(),
+    captureTimestamp: headerData['captureTimestamp'] as String,
+    frameType: headerData['frameType'] as String,
+    filter: headerData['filter'] as String?,
+    gain: headerData['gain'] as int?,
+    offset: headerData['offset'] as int?,
+    ccdTemp: (headerData['ccdTemp'] as num?)?.toDouble(),
+    ra: (headerData['ra'] as num?)?.toDouble(),
+    dec: (headerData['dec'] as num?)?.toDouble(),
+    altitude: (headerData['altitude'] as num?)?.toDouble(),
+    telescope: headerData['telescope'] as String?,
+    instrument: headerData['instrument'] as String?,
+    observer: headerData['observer'] as String?,
+    binX: headerData['binX'] as int,
+    binY: headerData['binY'] as int,
+    focalLength: (headerData['focalLength'] as num?)?.toDouble(),
+    aperture: (headerData['aperture'] as num?)?.toDouble(),
+    pixelSizeX: (headerData['pixelSizeX'] as num?)?.toDouble(),
+    pixelSizeY: (headerData['pixelSizeY'] as num?)?.toDouble(),
+    siteLatitude: (headerData['siteLatitude'] as num?)?.toDouble(),
+    siteLongitude: (headerData['siteLongitude'] as num?)?.toDouble(),
+    siteElevation: (headerData['siteElevation'] as num?)?.toDouble(),
+  );
+
+  await bridge.apiSaveFitsFromLastCapture(
+    deviceId: deviceId,
+    filePath: filePath,
+    headerData: header,
+  );
+  print('[API] FITS saved successfully from last capture');
+}
+
+/// Handler for /api/imaging/device-image/{deviceId} DELETE endpoint
+/// Clears stored image data for a specific device
+Future<void> _clearDeviceImageHandler(String deviceId) async {
+  print('[API] Clearing stored image for device: $deviceId');
+  await bridge.apiClearDeviceImage(deviceId: deviceId);
+  print('[API] Device image cleared successfully');
 }
 
 // ============================================================================

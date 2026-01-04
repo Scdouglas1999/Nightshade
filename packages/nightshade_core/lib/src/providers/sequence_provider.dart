@@ -2,14 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import '../models/sequence/sequence_models.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart';
-import '../models/settings/app_settings.dart' show ObserverLocation;
+import '../models/settings/app_settings.dart' show ObserverLocation, SafetyFailMode;
 import 'equipment_provider.dart';
 import 'database_provider.dart';
 import 'profiles_provider.dart';
@@ -1287,59 +1285,12 @@ class SequenceExecutor {
     // Start checkpoint auto-save timer
     _startCheckpointTimer();
 
-    // Sync filter names from equipment profile to native driver
-    // This ensures user-defined filter names (Ha, OIII, SII) work in sequences
-    await _syncFilterNamesToDriver();
-
     if (_useNativeExecution) {
       // Use native executor
       await _startNativeExecution(sequence);
     } else {
       // Execute with real equipment
       await _executeSequence(sequence);
-    }
-  }
-
-  /// Sync filter names from the active equipment profile to the native filter wheel driver.
-  /// This is called at sequence start to ensure user-defined names are available.
-  Future<void> _syncFilterNamesToDriver() async {
-    try {
-      final activeProfile = _ref.read(activeEquipmentProfileProvider);
-      if (activeProfile == null) {
-        debugPrint('SequenceExecutor: No active profile - skipping filter name sync');
-        return;
-      }
-
-      final filterWheelState = _ref.read(filterWheelStateProvider);
-      if (filterWheelState.connectionState != DeviceConnectionState.connected) {
-        debugPrint('SequenceExecutor: Filter wheel not connected - skipping filter name sync');
-        return;
-      }
-
-      final deviceId = filterWheelState.deviceId;
-      if (deviceId == null) {
-        debugPrint('SequenceExecutor: No filter wheel device ID - skipping filter name sync');
-        return;
-      }
-
-      final profileFilterNames = activeProfile.filterNames;
-      if (profileFilterNames.isEmpty) {
-        debugPrint('SequenceExecutor: Profile has no filter names - skipping sync');
-        return;
-      }
-
-      debugPrint('SequenceExecutor: Syncing ${profileFilterNames.length} filter names to driver: $profileFilterNames');
-
-      // Push filter names to the native driver
-      await bridge.apiFilterwheelSetFilterNames(
-        deviceId: deviceId,
-        names: profileFilterNames,
-      );
-
-      debugPrint('SequenceExecutor: Filter names synced successfully');
-    } catch (e) {
-      // Don't fail sequence start if filter name sync fails - log and continue
-      debugPrint('SequenceExecutor: Failed to sync filter names: $e');
     }
   }
   
@@ -1369,6 +1320,17 @@ class SequenceExecutor {
     // Set simulation mode based on settings
     await backend.sequencerSetSimulationMode(_useSimulationMode);
 
+    // Set safety fail mode from app settings
+    if (settings != null) {
+      final modeString = switch (settings.safetyFailMode) {
+        SafetyFailMode.failOpen => 'fail_open',
+        SafetyFailMode.failClosed => 'fail_closed',
+        SafetyFailMode.warnOnly => 'warn_only',
+      };
+      await backend.sequencerSetSafetyFailMode(modeString);
+      print('[SEQUENCE] Safety fail mode set to: $modeString');
+    }
+
     // Get connected device IDs from equipment providers
     final cameraState = _ref.read(cameraStateProvider);
     final mountState = _ref.read(mountStateProvider);
@@ -1383,27 +1345,12 @@ class SequenceExecutor {
     final filterwheelId = filterwheelState.connectionState == DeviceConnectionState.connected ? filterwheelState.deviceId : null;
     final rotatorId = rotatorState.connectionState == DeviceConnectionState.connected ? rotatorState.deviceId : null;
 
-    // Get filter names - try equipment profile first, then filter wheel state
-    List<String>? filterNames;
-    final activeProfile = _ref.read(activeEquipmentProfileProvider);
-    if (activeProfile != null && activeProfile.filterNames.isNotEmpty) {
-      filterNames = activeProfile.filterNames;
-      debugPrint('SequenceExecutor: Using profile filter names: $filterNames');
-    } else if (filterwheelState.filterNames.isNotEmpty) {
-      // Fall back to filter names from hardware (synced at connection time)
-      filterNames = filterwheelState.filterNames;
-      debugPrint('SequenceExecutor: Using hardware filter names: $filterNames');
-    } else {
-      debugPrint('SequenceExecutor: No filter names available from profile or hardware');
-    }
-
     await backend.sequencerSetDevices(
       cameraId: cameraId,
       mountId: mountId,
       focuserId: focuserId,
       filterwheelId: filterwheelId,
       rotatorId: rotatorId,
-      filterNames: filterNames,
     );
 
     // Convert sequence to JSON and load into native executor via backend
@@ -1428,16 +1375,7 @@ class SequenceExecutor {
     // Log all events to verify handler is being called
     print('[SequenceProvider] Received event: type=${event.eventType}, category=${event.category}');
 
-    // Handle imaging events for image preview during sequences
-    if (event.category == EventCategory.imaging && event.eventType == 'ExposureComplete') {
-      print('[SEQ_PROVIDER] ExposureComplete imaging event received - fetching image for preview');
-      // Get exposure duration from event data if available
-      final durationSecs = (event.data['duration_secs'] as num?)?.toDouble() ?? 2.0;
-      _fetchAndDisplaySequenceImage(durationSecs);
-      return;
-    }
-
-    // Only process sequencer events for progress tracking
+    // Only process sequencer events
     if (event.category != EventCategory.sequencer) return;
 
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
@@ -1484,12 +1422,10 @@ class SequenceExecutor {
         }
         break;
 
-      case 'ExposureComplete':  // Note: NOT 'ExposureCompleted' - event has no 'd'
-        print('[SEQ_PROVIDER] ExposureComplete event received');
+      case 'ExposureCompleted':
         final frame = event.data['frame'] as int? ?? 0;
         final total = event.data['total'] as int? ?? 1;
         final durationSecs = (event.data['duration_secs'] as num?)?.toDouble() ?? 0.0;
-        print('[SEQ_PROVIDER] Frame $frame/$total, duration=${durationSecs}s');
         // Calculate new completed integration time
         final newCompletedIntegration = _ref.read(sequenceProgressProvider).completedIntegrationSecs + durationSecs;
         progressNotifier.updateProgress(
@@ -1604,13 +1540,22 @@ class SequenceExecutor {
   /// Fetch the last captured image and update the UI providers
   /// This ensures sequence images are displayed in the Imaging tab and Dashboard
   void _fetchAndDisplaySequenceImage(double durationSecs) {
-    print('[SEQ_PROVIDER] _fetchAndDisplaySequenceImage called, duration=${durationSecs}s');
     // Run async fetch in a fire-and-forget manner
     Future(() async {
       try {
-        print('[SEQ_PROVIDER] Calling bridge.apiGetLastImage()...');
-        final capturedImage = await bridge.apiGetLastImage();
-        print('[SEQ_PROVIDER] Got image: ${capturedImage.width}x${capturedImage.height}, displayData size: ${capturedImage.displayData.length}');
+        // Get the camera device ID for fetching the last image
+        final cameraState = _ref.read(cameraStateProvider);
+        final cameraDeviceId = cameraState.deviceId;
+        if (cameraDeviceId == null || cameraDeviceId.isEmpty) {
+          print('[SequenceProvider] No camera device ID available, skipping image fetch');
+          return;
+        }
+        final backend = _ref.read(backendProvider);
+        final capturedImage = await backend.cameraGetLastImage(cameraDeviceId);
+        if (capturedImage == null) {
+          print('[SequenceProvider] No image data available from camera');
+          return;
+        }
 
         // Convert to CapturedImageData (same as ImagingService.captureImage does)
         final imageData = CapturedImageData(
@@ -1646,14 +1591,11 @@ class SequenceExecutor {
         );
 
         // Update providers to display the image in UI
-        print('[SEQ_PROVIDER] Setting currentImageProvider with image ${imageData.width}x${imageData.height}');
         _ref.read(currentImageProvider.notifier).state = imageData;
         _ref.read(lastImageStatsProvider.notifier).state = imageData.stats;
-        print('[SEQ_PROVIDER] Providers updated successfully!');
-      } catch (e, stackTrace) {
+      } catch (e) {
         // Log but don't fail - image display is non-critical
-        print('[SEQ_PROVIDER] ERROR: Failed to fetch sequence image for display: $e');
-        print('[SEQ_PROVIDER] Stack trace: $stackTrace');
+        print('Failed to fetch sequence image for display: $e');
       }
     });
   }
@@ -1690,7 +1632,8 @@ class SequenceExecutor {
 
     try {
       if (_useNativeExecution) {
-        await bridge.NativeBridge.sequencerPause();
+        final backend = _ref.read(backendProvider);
+        await backend.sequencerPause();
 
         // Wait for confirmation from event system
         final confirmed = await _awaitStateChange(SequenceExecutionState.paused);
@@ -1726,7 +1669,8 @@ class SequenceExecutor {
 
     try {
       if (_useNativeExecution) {
-        await bridge.NativeBridge.sequencerResume();
+        final backend = _ref.read(backendProvider);
+        await backend.sequencerResume();
 
         // Wait for confirmation from event system
         final confirmed = await _awaitStateChange(SequenceExecutionState.running);
@@ -1763,11 +1707,11 @@ class SequenceExecutor {
     _ref.read(sessionStateProvider.notifier).endSession(status: 'stopped');
 
     if (_useNativeExecution) {
-      await bridge.NativeBridge.sequencerStop();
+      final backend = _ref.read(backendProvider);
+      await backend.sequencerStop();
 
       // Clear checkpoint when stopped gracefully
       try {
-        final backend = _ref.read(backendProvider);
         await backend.discardCheckpoint();
       } catch (e) {
         // Ignore errors during cleanup
@@ -1778,7 +1722,8 @@ class SequenceExecutor {
 
   Future<void> skip() async {
     if (_useNativeExecution) {
-      await bridge.NativeBridge.sequencerSkip();
+      final backend = _ref.read(backendProvider);
+      await backend.sequencerSkip();
     }
   }
 
@@ -1800,9 +1745,10 @@ class SequenceExecutor {
     _ref.read(sequenceProgressProvider.notifier).reset();
 
     // Reset native sequencer if using native execution
+    final backend = _ref.read(backendProvider);
     if (_useNativeExecution) {
       try {
-        await bridge.NativeBridge.sequencerReset();
+        await backend.sequencerReset();
       } catch (e) {
         print('[SequenceExecutor] Error resetting native sequencer: $e');
         // Continue anyway - the Dart-side reset is more important
@@ -1811,7 +1757,6 @@ class SequenceExecutor {
 
     // Clear any checkpoints
     try {
-      final backend = _ref.read(backendProvider);
       await backend.discardCheckpoint();
     } catch (e) {
       print('[SequenceExecutor] Error clearing checkpoint on reset: $e');
@@ -1960,13 +1905,20 @@ class SequenceExecutor {
             message: 'Changing to filter: ${node.filterName}',
             currentFilter: node.filterName,
           );
-          // Find filter position by name
-          final filterNames = filterWheelState.filterNames;
-          final filterIndex = filterNames.indexWhere(
-            (name) => name.toLowerCase() == node.filterName.toLowerCase()
-          );
-          if (filterIndex < 0) {
-            throw Exception('Filter "${node.filterName}" not found');
+          // Prefer filter position if specified, otherwise find by name
+          int filterIndex;
+          if (node.filterPosition != null && node.filterPosition! >= 0) {
+            // Use explicit filter position
+            filterIndex = node.filterPosition!;
+          } else {
+            // Fall back to name lookup
+            final filterNames = filterWheelState.filterNames;
+            filterIndex = filterNames.indexWhere(
+              (name) => name.toLowerCase() == node.filterName.toLowerCase()
+            );
+            if (filterIndex < 0) {
+              throw Exception('Filter "${node.filterName}" not found');
+            }
           }
           final deviceService = _ref.read(deviceServiceProvider);
           await deviceService.setFilterWheelPosition(filterIndex);
@@ -2107,12 +2059,13 @@ class SequenceExecutor {
             
             // Plate solve the image
             // Note: Full plate solving integration requires external solver (ASTAP, etc.)
-            // For now, we use the bridge plate solver
-            final result = await bridge.NativeBridge.plateSolveNear(
-              image.filePath ?? '',
-              targetRa * 15.0, // Convert hours to degrees
-              targetDec,
-              30.0, // Search radius
+            // For now, we use the backend plate solver
+            final backend = _ref.read(backendProvider);
+            final result = await backend.plateSolve(
+              imagePath: image.filePath ?? '',
+              ra: targetRa * 15.0, // Convert hours to degrees
+              dec: targetDec,
+              fovDegrees: 30.0, // Search radius hint
             );
             
             if (!result.success) {
@@ -2227,31 +2180,33 @@ class SequenceExecutor {
             throw Exception(error);
           }
           progressNotifier.updateProgress(message: 'Cooling camera to ${node.targetTemp}°C...');
-          
+
           // Enable cooler with target temperature
-          await bridge.NativeBridge.setCameraCooler(
-            cameraState.deviceName ?? '',
-            true,
-            node.targetTemp,
+          final backend = _ref.read(backendProvider);
+          final deviceId = cameraState.deviceId ?? '';
+          await backend.cameraSetCooling(
+            deviceId: deviceId,
+            enabled: true,
+            targetTemp: node.targetTemp,
           );
-          
+
           // Wait for temperature to stabilize (poll until target reached)
           final timeout = Duration(minutes: (node.durationMins ?? 10).toInt());
           final deadline = DateTime.now().add(timeout);
-          
+
           while (DateTime.now().isBefore(deadline)) {
-            final status = await bridge.NativeBridge.getCameraStatus(cameraState.deviceName ?? '');
+            final status = await backend.getCameraStatus(deviceId);
             final currentTemp = status.sensorTemp ?? 20.0;
-            
+
             progressNotifier.updateProgress(
               message: 'Cooling: ${currentTemp.toStringAsFixed(1)}°C -> ${node.targetTemp}°C',
             );
-            
+
             if (currentTemp <= node.targetTemp + 1.0) {
               // Within 1 degree of target
               break;
             }
-            
+
             await Future.delayed(const Duration(seconds: 5));
           }
         } else if (node is WarmCameraNode) {
@@ -2265,37 +2220,38 @@ class SequenceExecutor {
             throw Exception(error);
           }
           progressNotifier.updateProgress(message: 'Warming camera...');
-          
+
           // Get current temperature
-          final status = await bridge.NativeBridge.getCameraStatus(cameraState.deviceName ?? '');
+          final backend = _ref.read(backendProvider);
+          final deviceId = cameraState.deviceId ?? '';
+          final status = await backend.getCameraStatus(deviceId);
           final startTemp = status.sensorTemp ?? -10.0;
           final ambientTemp = 15.0; // Target to warm up to
-          
+
           // Gradual warming by stepping up temperature
           final rate = node.ratePerMin; // degrees per minute
           var currentTarget = startTemp;
-          
+
           while (currentTarget < ambientTemp) {
             currentTarget = (currentTarget + rate).clamp(startTemp, ambientTemp);
-            
+
             progressNotifier.updateProgress(
               message: 'Warming: target ${currentTarget.toStringAsFixed(1)}°C',
             );
-            
-            await bridge.NativeBridge.setCameraCooler(
-              cameraState.deviceName ?? '',
-              true,
-              currentTarget,
+
+            await backend.cameraSetCooling(
+              deviceId: deviceId,
+              enabled: true,
+              targetTemp: currentTarget,
             );
-            
+
             await Future.delayed(const Duration(minutes: 1));
           }
-          
+
           // Turn off cooler
-          await bridge.NativeBridge.setCameraCooler(
-            cameraState.deviceName ?? '',
-            false,
-            null,
+          await backend.cameraSetCooling(
+            deviceId: deviceId,
+            enabled: false,
           );
         } else if (node is RotatorNode) {
           // Rotator is optional - skip silently if not connected

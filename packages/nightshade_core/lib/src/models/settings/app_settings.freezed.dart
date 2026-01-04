@@ -242,7 +242,9 @@ mixin _$AppSettings {
   String get updateServerUrl => throw _privateConstructorUsedError;
   String get updateChannel => throw _privateConstructorUsedError;
   int get updateCheckIntervalHours => throw _privateConstructorUsedError;
-  String get skippedUpdateVersion => throw _privateConstructorUsedError;
+  String get skippedUpdateVersion =>
+      throw _privateConstructorUsedError; // Safety settings
+  SafetyFailMode get safetyFailMode => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -294,7 +296,8 @@ abstract class $AppSettingsCopyWith<$Res> {
       String updateServerUrl,
       String updateChannel,
       int updateCheckIntervalHours,
-      String skippedUpdateVersion});
+      String skippedUpdateVersion,
+      SafetyFailMode safetyFailMode});
 
   $ObserverLocationCopyWith<$Res>? get location;
 }
@@ -350,6 +353,7 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? updateChannel = null,
     Object? updateCheckIntervalHours = null,
     Object? skippedUpdateVersion = null,
+    Object? safetyFailMode = null,
   }) {
     return _then(_value.copyWith(
       location: freezed == location
@@ -504,6 +508,10 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
           ? _value.skippedUpdateVersion
           : skippedUpdateVersion // ignore: cast_nullable_to_non_nullable
               as String,
+      safetyFailMode: null == safetyFailMode
+          ? _value.safetyFailMode
+          : safetyFailMode // ignore: cast_nullable_to_non_nullable
+              as SafetyFailMode,
     ) as $Val);
   }
 
@@ -566,7 +574,8 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
       String updateServerUrl,
       String updateChannel,
       int updateCheckIntervalHours,
-      String skippedUpdateVersion});
+      String skippedUpdateVersion,
+      SafetyFailMode safetyFailMode});
 
   @override
   $ObserverLocationCopyWith<$Res>? get location;
@@ -621,6 +630,7 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? updateChannel = null,
     Object? updateCheckIntervalHours = null,
     Object? skippedUpdateVersion = null,
+    Object? safetyFailMode = null,
   }) {
     return _then(_$AppSettingsImpl(
       location: freezed == location
@@ -775,6 +785,10 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
           ? _value.skippedUpdateVersion
           : skippedUpdateVersion // ignore: cast_nullable_to_non_nullable
               as String,
+      safetyFailMode: null == safetyFailMode
+          ? _value.safetyFailMode
+          : safetyFailMode // ignore: cast_nullable_to_non_nullable
+              as SafetyFailMode,
     ));
   }
 }
@@ -820,7 +834,8 @@ class _$AppSettingsImpl implements _AppSettings {
       this.updateServerUrl = '',
       this.updateChannel = 'stable',
       this.updateCheckIntervalHours = 24,
-      this.skippedUpdateVersion = ''});
+      this.skippedUpdateVersion = '',
+      this.safetyFailMode = SafetyFailMode.failOpen});
 
   factory _$AppSettingsImpl.fromJson(Map<String, dynamic> json) =>
       _$$AppSettingsImplFromJson(json);
@@ -945,10 +960,14 @@ class _$AppSettingsImpl implements _AppSettings {
   @override
   @JsonKey()
   final String skippedUpdateVersion;
+// Safety settings
+  @override
+  @JsonKey()
+  final SafetyFailMode safetyFailMode;
 
   @override
   String toString() {
-    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion)';
+    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion, safetyFailMode: $safetyFailMode)';
   }
 
   @override
@@ -1030,7 +1049,9 @@ class _$AppSettingsImpl implements _AppSettings {
                     other.updateCheckIntervalHours, updateCheckIntervalHours) ||
                 other.updateCheckIntervalHours == updateCheckIntervalHours) &&
             (identical(other.skippedUpdateVersion, skippedUpdateVersion) ||
-                other.skippedUpdateVersion == skippedUpdateVersion));
+                other.skippedUpdateVersion == skippedUpdateVersion) &&
+            (identical(other.safetyFailMode, safetyFailMode) ||
+                other.safetyFailMode == safetyFailMode));
   }
 
   @JsonKey(ignore: true)
@@ -1074,7 +1095,8 @@ class _$AppSettingsImpl implements _AppSettings {
         updateServerUrl,
         updateChannel,
         updateCheckIntervalHours,
-        skippedUpdateVersion
+        skippedUpdateVersion,
+        safetyFailMode
       ]);
 
   @JsonKey(ignore: true)
@@ -1130,7 +1152,8 @@ abstract class _AppSettings implements AppSettings {
       final String updateServerUrl,
       final String updateChannel,
       final int updateCheckIntervalHours,
-      final String skippedUpdateVersion}) = _$AppSettingsImpl;
+      final String skippedUpdateVersion,
+      final SafetyFailMode safetyFailMode}) = _$AppSettingsImpl;
 
   factory _AppSettings.fromJson(Map<String, dynamic> json) =
       _$AppSettingsImpl.fromJson;
@@ -1212,6 +1235,8 @@ abstract class _AppSettings implements AppSettings {
   int get updateCheckIntervalHours;
   @override
   String get skippedUpdateVersion;
+  @override // Safety settings
+  SafetyFailMode get safetyFailMode;
   @override
   @JsonKey(ignore: true)
   _$$AppSettingsImplCopyWith<_$AppSettingsImpl> get copyWith =>

@@ -208,10 +208,9 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen> {
           ),
           Text(
             '${value.toStringAsFixed(2)}"',
-            style: TextStyle(
+            style: NightshadeTypography.monoSm.copyWith(
               color: color,
               fontWeight: bold ? FontWeight.bold : FontWeight.w500,
-              fontSize: 12,
             ),
           ),
         ],
@@ -463,11 +462,9 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen> {
         const SizedBox(width: 4),
         Text(
           '${value.toStringAsFixed(2)}"',
-          style: TextStyle(
+          style: NightshadeTypography.monoSm.copyWith(
             color: color,
             fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
-            fontSize: 12,
-            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
       ],
@@ -558,7 +555,13 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: TextStyle(color: colors.textSecondary, fontSize: 12)),
-        Text(value, style: TextStyle(color: valueColor, fontWeight: FontWeight.w500, fontSize: 12)),
+        Text(
+          value,
+          style: NightshadeTypography.monoSm.copyWith(
+            color: valueColor,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }

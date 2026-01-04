@@ -59,6 +59,10 @@ typedef Phd2GetStatusHandler = Future<Map<String, dynamic>> Function();
 typedef Phd2StartGuidingHandler = Future<void> Function(Map<String, dynamic> params);
 typedef Phd2StopGuidingHandler = Future<void> Function();
 typedef Phd2DitherHandler = Future<void> Function(Map<String, dynamic> params);
+typedef Phd2GetStarImageHandler = Future<Map<String, dynamic>> Function({int size});
+typedef Phd2GetAlgoParamNamesHandler = Future<List<String>> Function({required String axis});
+typedef Phd2GetAlgoParamHandler = Future<double> Function({required String axis, required String name});
+typedef Phd2SetAlgoParamHandler = Future<void> Function({required String axis, required String name, required double value});
 
 // Settings handlers
 typedef GetSettingsHandler = Future<Map<String, dynamic>> Function();
@@ -74,6 +78,17 @@ typedef SequencerSetSimulationHandler = Future<void> Function(bool enabled);
 
 // Plate solve handler
 typedef PlateSolveHandler = Future<Map<String, dynamic>> Function(Map<String, dynamic> params);
+
+// Device capabilities handlers
+typedef GetCameraCapabilitiesHandler = Future<Map<String, dynamic>?> Function(String deviceId);
+typedef GetMountCapabilitiesHandler = Future<Map<String, dynamic>?> Function(String deviceId);
+typedef GetFocuserCapabilitiesHandler = Future<Map<String, dynamic>?> Function(String deviceId);
+typedef GetFilterWheelCapabilitiesHandler = Future<Map<String, dynamic>?> Function(String deviceId);
+typedef GetRotatorCapabilitiesHandler = Future<Map<String, dynamic>?> Function(String deviceId);
+
+// Imaging handlers
+typedef SaveFitsFromCaptureHandler = Future<void> Function(String deviceId, String filePath, Map<String, dynamic> headerData);
+typedef ClearDeviceImageHandler = Future<void> Function(String deviceId);
 
 // Polar alignment handlers
 typedef PolarAlignmentStartHandler = Future<void> Function(Map<String, dynamic> params);
@@ -155,6 +170,10 @@ class NightshadeWebServer {
   Phd2StartGuidingHandler? _phd2StartGuidingHandler;
   Phd2StopGuidingHandler? _phd2StopGuidingHandler;
   Phd2DitherHandler? _phd2DitherHandler;
+  Phd2GetStarImageHandler? _phd2GetStarImageHandler;
+  Phd2GetAlgoParamNamesHandler? _phd2GetAlgoParamNamesHandler;
+  Phd2GetAlgoParamHandler? _phd2GetAlgoParamHandler;
+  Phd2SetAlgoParamHandler? _phd2SetAlgoParamHandler;
 
   // Settings handlers
   GetSettingsHandler? _getSettingsHandler;
@@ -170,6 +189,17 @@ class NightshadeWebServer {
 
   // Plate solve handler
   PlateSolveHandler? _plateSolveHandler;
+
+  // Device capabilities handlers
+  GetCameraCapabilitiesHandler? _getCameraCapabilitiesHandler;
+  GetMountCapabilitiesHandler? _getMountCapabilitiesHandler;
+  GetFocuserCapabilitiesHandler? _getFocuserCapabilitiesHandler;
+  GetFilterWheelCapabilitiesHandler? _getFilterWheelCapabilitiesHandler;
+  GetRotatorCapabilitiesHandler? _getRotatorCapabilitiesHandler;
+
+  // Imaging handlers
+  SaveFitsFromCaptureHandler? _saveFitsFromCaptureHandler;
+  ClearDeviceImageHandler? _clearDeviceImageHandler;
 
   // Polar alignment handlers
   PolarAlignmentStartHandler? _polarAlignmentStartHandler;
@@ -280,6 +310,10 @@ class NightshadeWebServer {
   set phd2StartGuidingHandler(Phd2StartGuidingHandler? h) => _phd2StartGuidingHandler = h;
   set phd2StopGuidingHandler(Phd2StopGuidingHandler? h) => _phd2StopGuidingHandler = h;
   set phd2DitherHandler(Phd2DitherHandler? h) => _phd2DitherHandler = h;
+  set phd2GetStarImageHandler(Phd2GetStarImageHandler? h) => _phd2GetStarImageHandler = h;
+  set phd2GetAlgoParamNamesHandler(Phd2GetAlgoParamNamesHandler? h) => _phd2GetAlgoParamNamesHandler = h;
+  set phd2GetAlgoParamHandler(Phd2GetAlgoParamHandler? h) => _phd2GetAlgoParamHandler = h;
+  set phd2SetAlgoParamHandler(Phd2SetAlgoParamHandler? h) => _phd2SetAlgoParamHandler = h;
 
   // Settings handlers
   set getSettingsHandler(GetSettingsHandler? h) => _getSettingsHandler = h;
@@ -299,6 +333,17 @@ class NightshadeWebServer {
   // Plate solve handler
   set plateSolveHandler(PlateSolveHandler? h) => _plateSolveHandler = h;
 
+  // Device capabilities handlers
+  set getCameraCapabilitiesHandler(GetCameraCapabilitiesHandler? h) => _getCameraCapabilitiesHandler = h;
+  set getMountCapabilitiesHandler(GetMountCapabilitiesHandler? h) => _getMountCapabilitiesHandler = h;
+  set getFocuserCapabilitiesHandler(GetFocuserCapabilitiesHandler? h) => _getFocuserCapabilitiesHandler = h;
+  set getFilterWheelCapabilitiesHandler(GetFilterWheelCapabilitiesHandler? h) => _getFilterWheelCapabilitiesHandler = h;
+  set getRotatorCapabilitiesHandler(GetRotatorCapabilitiesHandler? h) => _getRotatorCapabilitiesHandler = h;
+
+  // Imaging handlers
+  set saveFitsFromCaptureHandler(SaveFitsFromCaptureHandler? h) => _saveFitsFromCaptureHandler = h;
+  set clearDeviceImageHandler(ClearDeviceImageHandler? h) => _clearDeviceImageHandler = h;
+
   // Polar alignment handlers
   set polarAlignmentStartHandler(PolarAlignmentStartHandler? h) => _polarAlignmentStartHandler = h;
   set polarAlignmentStopHandler(PolarAlignmentStopHandler? h) => _polarAlignmentStopHandler = h;
@@ -309,6 +354,104 @@ class NightshadeWebServer {
   set deleteProfileHandler(DeleteProfileHandler? h) => _deleteProfileHandler = h;
   set loadProfileHandler(LoadProfileHandler? h) => _loadProfileHandler = h;
   set getActiveProfileHandler(GetActiveProfileHandler? h) => _getActiveProfileHandler = h;
+
+  // =========================================================================
+  // Structured Error Response Helpers
+  // =========================================================================
+
+  /// Create a structured error response JSON.
+  ///
+  /// This format is compatible with NightshadeError.fromJson() in nightshade_core.
+  /// Categories: connection, hardware, timeout, validation, unsupported, busy,
+  ///            imaging, io, sequence, driver, system, unknown
+  Map<String, dynamic> _errorResponse(
+    Object error, {
+    String? context,
+    String? category,
+    String? deviceId,
+    bool? isRecoverable,
+    bool? shouldReconnect,
+    bool? isTimeout,
+  }) {
+    final message = error.toString();
+    final lowerMessage = message.toLowerCase();
+
+    // Auto-detect category from error message if not provided
+    String detectedCategory = category ?? 'system';
+    bool detectedIsRecoverable = isRecoverable ?? false;
+    bool detectedShouldReconnect = shouldReconnect ?? false;
+    bool detectedIsTimeout = isTimeout ?? false;
+
+    if (category == null) {
+      if (lowerMessage.contains('timeout') || lowerMessage.contains('timed out')) {
+        detectedCategory = 'timeout';
+        detectedIsTimeout = true;
+        detectedIsRecoverable = true;
+      } else if (lowerMessage.contains('not connected') ||
+                 lowerMessage.contains('connection failed') ||
+                 lowerMessage.contains('disconnected') ||
+                 lowerMessage.contains('device not found')) {
+        detectedCategory = 'connection';
+        detectedShouldReconnect = true;
+        detectedIsRecoverable = true;
+      } else if (lowerMessage.contains('hardware') ||
+                 lowerMessage.contains('communication')) {
+        detectedCategory = 'hardware';
+        detectedIsRecoverable = true;
+      } else if (lowerMessage.contains('busy')) {
+        detectedCategory = 'busy';
+        detectedIsRecoverable = true;
+      } else if (lowerMessage.contains('invalid') ||
+                 lowerMessage.contains('out of range')) {
+        detectedCategory = 'validation';
+      } else if (lowerMessage.contains('not supported') ||
+                 lowerMessage.contains('unsupported')) {
+        detectedCategory = 'unsupported';
+      } else if (lowerMessage.contains('exposure') ||
+                 lowerMessage.contains('camera') ||
+                 lowerMessage.contains('image')) {
+        detectedCategory = 'imaging';
+      } else if (lowerMessage.contains('ascom') ||
+                 lowerMessage.contains('alpaca') ||
+                 lowerMessage.contains('indi')) {
+        detectedCategory = 'driver';
+      }
+    }
+
+    final fullMessage = context != null ? '$context: $message' : message;
+
+    return {
+      'category': detectedCategory,
+      'message': fullMessage,
+      'user_message': fullMessage,
+      'is_recoverable': isRecoverable ?? detectedIsRecoverable,
+      'should_reconnect': shouldReconnect ?? detectedShouldReconnect,
+      'is_timeout': isTimeout ?? detectedIsTimeout,
+      if (deviceId != null) 'device_id': deviceId,
+      // Legacy fields for backward compatibility
+      'error': context ?? 'Error',
+    };
+  }
+
+  /// Write a structured error response to the HTTP response.
+  void _writeErrorResponse(
+    HttpResponse response,
+    Object error, {
+    int statusCode = HttpStatus.internalServerError,
+    String? context,
+    String? category,
+    String? deviceId,
+  }) {
+    response
+      ..statusCode = statusCode
+      ..headers.contentType = ContentType.json
+      ..write(jsonEncode(_errorResponse(
+        error,
+        context: context,
+        category: category,
+        deviceId: deviceId,
+      )));
+  }
 
   /// Start the web server
   Future<void> start() async {
@@ -344,6 +487,10 @@ class NightshadeWebServer {
   /// Stop the web server
   Future<void> stop() async {
     if (!_isRunning) return;
+
+    // Cancel event stream subscription
+    await _eventStreamSubscription?.cancel();
+    _eventStreamSubscription = null;
 
     await _server?.close(force: true);
     _server = null;
@@ -467,13 +614,7 @@ class NightshadeWebServer {
             return;
           } catch (e) {
             print('[WebServer] Handler threw exception: $e');
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to get devices',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to get devices');
             response.close();
             return;
           }
@@ -516,21 +657,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to connect device',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to connect device', category: 'connection');
             response.close();
             return;
           }
         }
-        response
-          ..statusCode = HttpStatus.notImplemented
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Device connection handler not registered'}));
+        _writeErrorResponse(response, 'Device connection handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -553,21 +686,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to disconnect device',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to disconnect device', category: 'connection');
             response.close();
             return;
           }
         }
-        response
-          ..statusCode = HttpStatus.notImplemented
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Device disconnection handler not registered'}));
+        _writeErrorResponse(response, 'Device disconnection handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -584,13 +709,7 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to get connected devices',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to get connected devices');
             response.close();
             return;
           }
@@ -621,21 +740,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to connect to PHD2',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to connect to PHD2', category: 'connection');
             response.close();
             return;
           }
         }
-        response
-          ..statusCode = HttpStatus.notImplemented
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'PHD2 connection handler not registered'}));
+        _writeErrorResponse(response, 'PHD2 connection handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -645,7 +756,7 @@ class NightshadeWebServer {
         if (_phd2DisconnectHandler != null) {
           try {
             await _phd2DisconnectHandler!();
-            
+
             response
               ..statusCode = HttpStatus.ok
               ..headers.contentType = ContentType.json
@@ -653,21 +764,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to disconnect from PHD2',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to disconnect from PHD2', category: 'connection');
             response.close();
             return;
           }
         }
-        response
-          ..statusCode = HttpStatus.notImplemented
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'PHD2 disconnection handler not registered'}));
+        _writeErrorResponse(response, 'PHD2 disconnection handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -690,16 +793,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to start exposure', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to start exposure', category: 'imaging');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Camera expose handler not registered'}));
+        _writeErrorResponse(response, 'Camera expose handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -716,14 +816,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to abort exposure', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to abort exposure', category: 'imaging');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Camera abort handler not registered'}));
+        _writeErrorResponse(response, 'Camera abort handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -739,14 +838,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get last image', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get last image', category: 'imaging');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Camera get last image handler not registered'}));
+        _writeErrorResponse(response, 'Camera get last image handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -767,14 +865,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to set cooling', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to set cooling', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Camera cooling handler not registered'}));
+        _writeErrorResponse(response, 'Camera cooling handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -791,14 +888,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to set gain', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to set gain', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Camera gain handler not registered'}));
+        _writeErrorResponse(response, 'Camera gain handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -815,14 +911,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to set offset', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to set offset', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Camera offset handler not registered'}));
+        _writeErrorResponse(response, 'Camera offset handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -847,14 +942,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to slew mount', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to slew mount', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Mount slew handler not registered'}));
+        _writeErrorResponse(response, 'Mount slew handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -875,14 +969,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to sync mount', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to sync mount', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Mount sync handler not registered'}));
+        _writeErrorResponse(response, 'Mount sync handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -899,14 +992,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to park mount', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to park mount', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Mount park handler not registered'}));
+        _writeErrorResponse(response, 'Mount park handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -923,14 +1015,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to unpark mount', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to unpark mount', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Mount unpark handler not registered'}));
+        _writeErrorResponse(response, 'Mount unpark handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -947,14 +1038,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to set tracking', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to set tracking', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Mount tracking handler not registered'}));
+        _writeErrorResponse(response, 'Mount tracking handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -975,14 +1065,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to pulse guide', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to pulse guide', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Mount pulse guide handler not registered'}));
+        _writeErrorResponse(response, 'Mount pulse guide handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -999,14 +1088,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to abort mount', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to abort mount', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Mount abort handler not registered'}));
+        _writeErrorResponse(response, 'Mount abort handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1022,14 +1110,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get mount status', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get mount status', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Mount status handler not registered'}));
+        _writeErrorResponse(response, 'Mount status handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1050,14 +1137,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to move focuser', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to move focuser', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Focuser move handler not registered'}));
+        _writeErrorResponse(response, 'Focuser move handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1074,14 +1160,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to move focuser', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to move focuser', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Focuser move relative handler not registered'}));
+        _writeErrorResponse(response, 'Focuser move relative handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1098,14 +1183,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to halt focuser', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to halt focuser', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Focuser halt handler not registered'}));
+        _writeErrorResponse(response, 'Focuser halt handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1122,14 +1206,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to start autofocus', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to start autofocus', category: 'imaging');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Autofocus start handler not registered'}));
+        _writeErrorResponse(response, 'Autofocus start handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1144,14 +1227,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to cancel autofocus', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to cancel autofocus', category: 'imaging');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Autofocus cancel handler not registered'}));
+        _writeErrorResponse(response, 'Autofocus cancel handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1172,14 +1254,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to set filter position', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to set filter position', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Filter wheel position handler not registered'}));
+        _writeErrorResponse(response, 'Filter wheel position handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1195,14 +1276,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get filter names', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get filter names', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Filter wheel names handler not registered'}));
+        _writeErrorResponse(response, 'Filter wheel names handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1219,14 +1299,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to set filter', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to set filter', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Filter wheel set by name handler not registered'}));
+        _writeErrorResponse(response, 'Filter wheel set by name handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1247,14 +1326,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to move rotator', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to move rotator', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Rotator move handler not registered'}));
+        _writeErrorResponse(response, 'Rotator move handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1271,14 +1349,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to move rotator', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to move rotator', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Rotator move relative handler not registered'}));
+        _writeErrorResponse(response, 'Rotator move relative handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1294,14 +1371,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get rotator status', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get rotator status', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Rotator status handler not registered'}));
+        _writeErrorResponse(response, 'Rotator status handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1318,14 +1394,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to halt rotator', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to halt rotator', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Rotator halt handler not registered'}));
+        _writeErrorResponse(response, 'Rotator halt handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1345,14 +1420,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get camera status', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get camera status', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Camera status handler not registered'}));
+        _writeErrorResponse(response, 'Camera status handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1368,14 +1442,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get mount status', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get mount status', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Mount status handler not registered'}));
+        _writeErrorResponse(response, 'Mount status handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1391,14 +1464,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get focuser status', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get focuser status', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Focuser status handler not registered'}));
+        _writeErrorResponse(response, 'Focuser status handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1414,14 +1486,152 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get filter wheel status', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get filter wheel status', category: 'hardware');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Filter wheel status handler not registered'}));
+        _writeErrorResponse(response, 'Filter wheel status handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // =====================================================================
+      // Equipment Capabilities Endpoints
+      // =====================================================================
+
+      // GET /api/equipment/camera/capabilities
+      if (apiPath.startsWith('/api/equipment/camera/capabilities') && method == 'GET') {
+        if (_getCameraCapabilitiesHandler != null) {
+          try {
+            final deviceId = request.uri.queryParameters['deviceId'] ?? '';
+            final result = await _getCameraCapabilitiesHandler!(deviceId);
+            if (result != null) {
+              response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+                ..write(jsonEncode(result));
+            } else {
+              _writeErrorResponse(response, 'Capabilities not available for device',
+                  statusCode: HttpStatus.notFound, category: 'hardware');
+            }
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to get camera capabilities', category: 'hardware');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'Camera capabilities handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // GET /api/equipment/mount/capabilities
+      if (apiPath.startsWith('/api/equipment/mount/capabilities') && method == 'GET') {
+        if (_getMountCapabilitiesHandler != null) {
+          try {
+            final deviceId = request.uri.queryParameters['deviceId'] ?? '';
+            final result = await _getMountCapabilitiesHandler!(deviceId);
+            if (result != null) {
+              response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+                ..write(jsonEncode(result));
+            } else {
+              _writeErrorResponse(response, 'Capabilities not available for device',
+                  statusCode: HttpStatus.notFound, category: 'hardware');
+            }
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to get mount capabilities', category: 'hardware');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'Mount capabilities handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // GET /api/equipment/focuser/capabilities
+      if (apiPath.startsWith('/api/equipment/focuser/capabilities') && method == 'GET') {
+        if (_getFocuserCapabilitiesHandler != null) {
+          try {
+            final deviceId = request.uri.queryParameters['deviceId'] ?? '';
+            final result = await _getFocuserCapabilitiesHandler!(deviceId);
+            if (result != null) {
+              response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+                ..write(jsonEncode(result));
+            } else {
+              _writeErrorResponse(response, 'Capabilities not available for device',
+                  statusCode: HttpStatus.notFound, category: 'hardware');
+            }
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to get focuser capabilities', category: 'hardware');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'Focuser capabilities handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // GET /api/equipment/filter-wheel/capabilities
+      if (apiPath.startsWith('/api/equipment/filter-wheel/capabilities') && method == 'GET') {
+        if (_getFilterWheelCapabilitiesHandler != null) {
+          try {
+            final deviceId = request.uri.queryParameters['deviceId'] ?? '';
+            final result = await _getFilterWheelCapabilitiesHandler!(deviceId);
+            if (result != null) {
+              response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+                ..write(jsonEncode(result));
+            } else {
+              _writeErrorResponse(response, 'Capabilities not available for device',
+                  statusCode: HttpStatus.notFound, category: 'hardware');
+            }
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to get filter wheel capabilities', category: 'hardware');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'Filter wheel capabilities handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // GET /api/equipment/rotator/capabilities
+      if (apiPath.startsWith('/api/equipment/rotator/capabilities') && method == 'GET') {
+        if (_getRotatorCapabilitiesHandler != null) {
+          try {
+            final deviceId = request.uri.queryParameters['deviceId'] ?? '';
+            final result = await _getRotatorCapabilitiesHandler!(deviceId);
+            if (result != null) {
+              response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+                ..write(jsonEncode(result));
+            } else {
+              _writeErrorResponse(response, 'Capabilities not available for device',
+                  statusCode: HttpStatus.notFound, category: 'hardware');
+            }
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to get rotator capabilities', category: 'hardware');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'Rotator capabilities handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1440,14 +1650,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get PHD2 status', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get PHD2 status', category: 'connection');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'PHD2 status handler not registered'}));
+        _writeErrorResponse(response, 'PHD2 status handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1464,14 +1673,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to start guiding', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to start guiding');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'PHD2 start guiding handler not registered'}));
+        _writeErrorResponse(response, 'PHD2 start guiding handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1486,14 +1694,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to stop guiding', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to stop guiding');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'PHD2 stop guiding handler not registered'}));
+        _writeErrorResponse(response, 'PHD2 stop guiding handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1510,14 +1717,125 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to dither', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to dither');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'PHD2 dither handler not registered'}));
+        _writeErrorResponse(response, 'PHD2 dither handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // GET /api/phd2/star-image - Get PHD2 star image
+      if (apiPath == '/api/phd2/star-image' && method == 'GET') {
+        if (_phd2GetStarImageHandler != null) {
+          try {
+            final sizeParam = request.uri.queryParameters['size'];
+            final size = sizeParam != null ? int.tryParse(sizeParam) ?? 50 : 50;
+            final result = await _phd2GetStarImageHandler!(size: size);
+            response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+              ..write(jsonEncode(result));
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to get star image');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'PHD2 star image handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // GET /api/phd2/algo-params - Get PHD2 algorithm parameter names
+      if (apiPath == '/api/phd2/algo-params' && method == 'GET') {
+        if (_phd2GetAlgoParamNamesHandler != null) {
+          try {
+            final axis = request.uri.queryParameters['axis'];
+            if (axis == null || axis.isEmpty) {
+              _writeErrorResponse(response, 'Missing required "axis" parameter',
+                  statusCode: HttpStatus.badRequest, category: 'validation');
+              response.close();
+              return;
+            }
+            final result = await _phd2GetAlgoParamNamesHandler!(axis: axis);
+            response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+              ..write(jsonEncode({'params': result}));
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to get algo param names');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'PHD2 algo param names handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // GET /api/phd2/algo-param - Get PHD2 algorithm parameter value
+      if (apiPath == '/api/phd2/algo-param' && method == 'GET') {
+        if (_phd2GetAlgoParamHandler != null) {
+          try {
+            final axis = request.uri.queryParameters['axis'];
+            final name = request.uri.queryParameters['name'];
+            if (axis == null || axis.isEmpty || name == null || name.isEmpty) {
+              _writeErrorResponse(response, 'Missing required "axis" or "name" parameter',
+                  statusCode: HttpStatus.badRequest, category: 'validation');
+              response.close();
+              return;
+            }
+            final result = await _phd2GetAlgoParamHandler!(axis: axis, name: name);
+            response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+              ..write(jsonEncode({'value': result}));
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to get algo param');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'PHD2 algo param handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // POST /api/phd2/algo-param - Set PHD2 algorithm parameter value
+      if (apiPath == '/api/phd2/algo-param' && method == 'POST') {
+        if (_phd2SetAlgoParamHandler != null) {
+          try {
+            final body = await utf8.decoder.bind(request).join();
+            final json = jsonDecode(body) as Map<String, dynamic>;
+            final axis = json['axis'] as String?;
+            final name = json['name'] as String?;
+            final value = (json['value'] as num?)?.toDouble();
+            if (axis == null || name == null || value == null) {
+              _writeErrorResponse(response, 'Missing required "axis", "name", or "value" field',
+                  statusCode: HttpStatus.badRequest, category: 'validation');
+              response.close();
+              return;
+            }
+            await _phd2SetAlgoParamHandler!(axis: axis, name: name, value: value);
+            response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+              ..write(jsonEncode({'status': 'updated'}));
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to set algo param');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'PHD2 set algo param handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1536,14 +1854,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get settings', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get settings');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Get settings handler not registered'}));
+        _writeErrorResponse(response, 'Get settings handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1560,14 +1877,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to update settings', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to update settings');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Update settings handler not registered'}));
+        _writeErrorResponse(response, 'Update settings handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1582,14 +1898,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get location', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get location');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Get location handler not registered'}));
+        _writeErrorResponse(response, 'Get location handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1606,14 +1921,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to set location', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to set location');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Set location handler not registered'}));
+        _writeErrorResponse(response, 'Set location handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1628,8 +1942,7 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get location', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get location');
             response.close();
             return;
           }
@@ -1654,8 +1967,7 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get profiles', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get profiles');
             response.close();
             return;
           }
@@ -1678,14 +1990,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to save profile', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to save profile');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Save profile handler not registered'}));
+        _writeErrorResponse(response, 'Save profile handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1701,14 +2012,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to delete profile', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to delete profile');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Delete profile handler not registered'}));
+        _writeErrorResponse(response, 'Delete profile handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1725,14 +2035,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to load profile', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to load profile');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Load profile handler not registered'}));
+        _writeErrorResponse(response, 'Load profile handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1747,8 +2056,7 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get active profile', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get active profile');
             response.close();
             return;
           }
@@ -1774,14 +2082,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to start sequencer', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to start sequencer', category: 'sequence');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Sequencer start handler not registered'}));
+        _writeErrorResponse(response, 'Sequencer start handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1796,14 +2103,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to stop sequencer', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to stop sequencer', category: 'sequence');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Sequencer stop handler not registered'}));
+        _writeErrorResponse(response, 'Sequencer stop handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1818,14 +2124,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to pause sequencer', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to pause sequencer', category: 'sequence');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Sequencer pause handler not registered'}));
+        _writeErrorResponse(response, 'Sequencer pause handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1840,14 +2145,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to resume sequencer', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to resume sequencer', category: 'sequence');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Sequencer resume handler not registered'}));
+        _writeErrorResponse(response, 'Sequencer resume handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1864,14 +2168,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to load sequence', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to load sequence', category: 'sequence');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Sequencer load handler not registered'}));
+        _writeErrorResponse(response, 'Sequencer load handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1888,14 +2191,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to set simulation mode', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to set simulation mode', category: 'sequence');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Sequencer simulation handler not registered'}));
+        _writeErrorResponse(response, 'Sequencer simulation handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1910,8 +2212,7 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to get sequencer status', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to get sequencer status', category: 'sequence');
             response.close();
             return;
           }
@@ -1938,14 +2239,66 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to plate solve', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to plate solve', category: 'imaging');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Plate solve handler not registered'}));
+        _writeErrorResponse(response, 'Plate solve handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // =====================================================================
+      // Imaging Endpoints
+      // =====================================================================
+
+      // POST /api/imaging/save-fits-from-capture - Save FITS from last captured image
+      // This is the optimized endpoint that saves without transferring pixel data
+      if (apiPath == '/api/imaging/save-fits-from-capture' && method == 'POST') {
+        if (_saveFitsFromCaptureHandler != null) {
+          try {
+            final body = await utf8.decoder.bind(request).join();
+            final json = jsonDecode(body) as Map<String, dynamic>;
+            final deviceId = json['deviceId'] as String;
+            final filePath = json['filePath'] as String;
+            final headerData = json['headerData'] as Map<String, dynamic>;
+            await _saveFitsFromCaptureHandler!(deviceId, filePath, headerData);
+            response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+              ..write(jsonEncode({'status': 'saved', 'filePath': filePath}));
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to save FITS from capture', category: 'io');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'Save FITS from capture handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
+        response.close();
+        return;
+      }
+
+      // DELETE /api/imaging/device-image/{deviceId} - Clear stored image for a device
+      if (apiPath.startsWith('/api/imaging/device-image/') && method == 'DELETE') {
+        if (_clearDeviceImageHandler != null) {
+          try {
+            final deviceId = Uri.decodeComponent(apiPath.substring('/api/imaging/device-image/'.length));
+            await _clearDeviceImageHandler!(deviceId);
+            response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
+              ..write(jsonEncode({'status': 'cleared', 'deviceId': deviceId}));
+            response.close();
+            return;
+          } catch (e) {
+            _writeErrorResponse(response, e, context: 'Failed to clear device image', category: 'imaging');
+            response.close();
+            return;
+          }
+        }
+        _writeErrorResponse(response, 'Clear device image handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1966,14 +2319,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to start polar alignment', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to start polar alignment');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Polar alignment start handler not registered'}));
+        _writeErrorResponse(response, 'Polar alignment start handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -1988,14 +2340,13 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response..statusCode = HttpStatus.internalServerError..headers.contentType = ContentType.json
-              ..write(jsonEncode({'error': 'Failed to stop polar alignment', 'message': e.toString()}));
+            _writeErrorResponse(response, e, context: 'Failed to stop polar alignment');
             response.close();
             return;
           }
         }
-        response..statusCode = HttpStatus.notImplemented..headers.contentType = ContentType.json
-          ..write(jsonEncode({'error': 'Polar alignment stop handler not registered'}));
+        _writeErrorResponse(response, 'Polar alignment stop handler not registered',
+            statusCode: HttpStatus.notImplemented, category: 'system');
         response.close();
         return;
       }
@@ -2012,13 +2363,7 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to get sequence status',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to get sequence status', category: 'sequence');
             response.close();
             return;
           }
@@ -2057,13 +2402,7 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to start sequence',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to start sequence', category: 'sequence');
             response.close();
             return;
           }
@@ -2094,13 +2433,7 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to stop sequence',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to stop sequence', category: 'sequence');
             response.close();
             return;
           }
@@ -2124,7 +2457,7 @@ class NightshadeWebServer {
             // Parse limit query parameter
             final limitParam = request.uri.queryParameters['limit'];
             final limit = limitParam != null ? int.tryParse(limitParam) : null;
-            
+
             final images = await _imagesHandler!(limit: limit);
             response
               ..statusCode = HttpStatus.ok
@@ -2136,13 +2469,7 @@ class NightshadeWebServer {
             response.close();
             return;
           } catch (e) {
-            response
-              ..statusCode = HttpStatus.internalServerError
-              ..headers.contentType = ContentType.json
-              ..write(jsonEncode({
-                'error': 'Failed to get images',
-                'message': e.toString(),
-              }));
+            _writeErrorResponse(response, e, context: 'Failed to get images', category: 'imaging');
             response.close();
             return;
           }
@@ -2160,23 +2487,11 @@ class NightshadeWebServer {
       }
 
       // Not found
-      response
-        ..statusCode = HttpStatus.notFound
-        ..headers.contentType = ContentType.json
-        ..write(jsonEncode({
-          'error': 'Not found',
-          'path': apiPath,
-          'method': method,
-        }));
+      _writeErrorResponse(response, 'Endpoint not found: $apiPath',
+          statusCode: HttpStatus.notFound, category: 'validation');
       response.close();
     } catch (e) {
-      response
-        ..statusCode = HttpStatus.internalServerError
-        ..headers.contentType = ContentType.json
-        ..write(jsonEncode({
-          'error': 'Internal server error',
-          'message': e.toString(),
-        }));
+      _writeErrorResponse(response, e, context: 'Internal server error', category: 'system');
       response.close();
     }
   }
@@ -2308,6 +2623,37 @@ class NightshadeWebServer {
 
   // WebSocket support for real-time updates
   final Set<WebSocket> _webSocketClients = {};
+  StreamSubscription? _eventStreamSubscription;
+
+  /// Set up event stream forwarding to WebSocket clients
+  /// Call this after starting the server with a backend's eventStream
+  void setEventStream(Stream<dynamic> eventStream) {
+    // Cancel any existing subscription
+    _eventStreamSubscription?.cancel();
+
+    // Subscribe to the event stream and forward all events to WebSocket clients
+    _eventStreamSubscription = eventStream.listen((event) {
+      // Convert NightshadeEvent to JSON using its toJson method
+      // Event must have a toJson() method
+      try {
+        final Map<String, dynamic> jsonEvent;
+        if (event is Map<String, dynamic>) {
+          jsonEvent = event;
+        } else {
+          // Assume event has a toJson() method (NightshadeEvent)
+          jsonEvent = (event as dynamic).toJson() as Map<String, dynamic>;
+        }
+        broadcastMessage({
+          'type': 'event',
+          ...jsonEvent,
+        });
+      } catch (e) {
+        print('Error forwarding event to WebSocket: $e');
+      }
+    }, onError: (error) {
+      print('Event stream error: $error');
+    });
+  }
 
   void _handleWebSocketUpgrade(HttpRequest request) {
     WebSocketTransformer.upgrade(request).then((WebSocket webSocket) {

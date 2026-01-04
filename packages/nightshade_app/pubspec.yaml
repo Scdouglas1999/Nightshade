@@ -22,6 +22,8 @@ dependencies:
     path: ../nightshade_planetarium
   nightshade_plugins:
     path: ../nightshade_plugins
+  nightshade_updater:
+    path: ../nightshade_updater
 
   # Other dependencies
   go_router: ^14.0.0

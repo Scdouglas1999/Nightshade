@@ -3,7 +3,7 @@
 use crate::{
     NodeId, NodeStatus, NodeType, NodeDefinition, LoopCondition, ConditionalCheck,
     instructions::*, TargetHeaderConfig, LoopConfig, ParallelConfig, ConditionalConfig,
-    RecoveryConfig, RecoveryAction,
+    RecoveryConfig, RecoveryAction, SafetyFailMode,
     device_ops::{SharedDeviceOps, NullDeviceOps},
     ExposureConfig, TriggerCondition, TriggerAction, AutofocusConfig, AutofocusMethod,
 };
@@ -52,6 +52,8 @@ pub struct ExecutionContext {
     pub completed_integration_secs: Arc<RwLock<f64>>,
     /// Trigger state (for updating during execution)
     pub trigger_state: Option<Arc<RwLock<crate::triggers::TriggerState>>>,
+    /// Safety fail mode - determines behavior when safety devices fail or are unavailable
+    pub safety_fail_mode: SafetyFailMode,
 }
 
 /// Progress update sent during execution
@@ -95,9 +97,15 @@ impl ExecutionContext {
             device_ops: Arc::new(NullDeviceOps),
             completed_integration_secs: Arc::new(RwLock::new(0.0)),
             trigger_state: None,
+            safety_fail_mode: SafetyFailMode::default(),
         }
     }
-    
+
+    pub fn with_safety_fail_mode(mut self, mode: SafetyFailMode) -> Self {
+        self.safety_fail_mode = mode;
+        self
+    }
+
     pub fn with_device_ops(mut self, ops: SharedDeviceOps) -> Self {
         self.device_ops = ops;
         self
@@ -1550,6 +1558,7 @@ impl RuntimeNode {
         let save_path = context.save_path.clone();
         let latitude = context.latitude;
         let longitude = context.longitude;
+        let safety_fail_mode = context.safety_fail_mode;
 
         // Spawn tasks for each child
         let handles: Vec<_> = children.iter().enumerate().map(|(i, child)| {
@@ -1572,6 +1581,7 @@ impl RuntimeNode {
             let dome_id = dome_id.clone();
             let cover_calibrator_id = cover_calibrator_id.clone();
             let save_path = save_path.clone();
+            let safety_fail_mode = safety_fail_mode;
 
             tokio::spawn(async move {
                 // Check for cancellation before starting
@@ -1605,6 +1615,7 @@ impl RuntimeNode {
                     device_ops,
                     completed_integration_secs: completed_integration,
                     trigger_state: None,
+                    safety_fail_mode,
                 };
 
                 // Execute the child with mutex guard
@@ -1702,18 +1713,66 @@ impl RuntimeNode {
                 current_hfr < *threshold
             }
             ConditionalCheck::WeatherSafe => {
-                // Weather safety requires weather station - assume safe if not available
-                // In production, would check connected weather device
-                true
+                // Check weather/safety monitor for safe conditions
+                // Uses the device_ops interface to query connected weather/safety devices
+                match context.device_ops.safety_is_safe(None).await {
+                    Ok(is_safe) => {
+                        if !is_safe {
+                            tracing::warn!("Weather safety check failed - conditions unsafe");
+                        }
+                        is_safe
+                    }
+                    Err(e) => {
+                        // Handle error based on configured safety fail mode
+                        match context.safety_fail_mode {
+                            SafetyFailMode::FailOpen => {
+                                tracing::warn!("Weather safety check error: {} - assuming safe (fail-open)", e);
+                                true
+                            }
+                            SafetyFailMode::FailClosed => {
+                                tracing::warn!("Weather safety check error: {} - assuming UNSAFE (fail-closed)", e);
+                                false
+                            }
+                            SafetyFailMode::WarnOnly => {
+                                tracing::warn!("Weather safety check error: {} - continuing with warning (warn-only)", e);
+                                true
+                            }
+                        }
+                    }
+                }
             }
             ConditionalCheck::MoonSeparationAbove(degrees) => {
                 // Calculate moon separation from target
                 context.calculate_moon_separation().map_or(true, |sep| sep > *degrees)
             }
             ConditionalCheck::SafetyMonitorSafe => {
-                // In production, check actual safety monitor
-                // For now, assume safe
-                true
+                // Check dedicated safety monitor device
+                // Pass None to check the default/profile safety monitor
+                match context.device_ops.safety_is_safe(None).await {
+                    Ok(is_safe) => {
+                        if !is_safe {
+                            tracing::warn!("Safety monitor reports unsafe conditions");
+                        }
+                        is_safe
+                    }
+                    Err(e) => {
+                        // Handle error based on configured safety fail mode
+                        match context.safety_fail_mode {
+                            SafetyFailMode::FailOpen => {
+                                tracing::warn!("Safety monitor check error: {} - assuming safe (fail-open)", e);
+                                true
+                            }
+                            SafetyFailMode::FailClosed => {
+                                tracing::warn!("Safety monitor check error: {} - assuming UNSAFE (fail-closed)", e);
+                                false
+                            }
+                            SafetyFailMode::WarnOnly => {
+                                tracing::warn!("Safety monitor check error: {} - continuing with warning (warn-only)", e);
+                                true
+                            }
+                        }
+                    }
+                }
             }
         };
 

@@ -9,20 +9,28 @@ import 'package:path/path.dart' as path;
 import 'headless_api_server.dart';
 
 /// Headless entry point for Nightshade
-/// 
+///
 /// This entry point runs without a GUI window, suitable for:
 /// - Server/daemon mode
 /// - Background sequence execution
 /// - Remote control via mobile app or API
-/// 
+///
 /// Usage:
 ///   Windows: flutter run -d windows --target=lib/main_headless.dart
 ///   Linux:   flutter run -d linux --target=lib/main_headless.dart
-///   
+///
 ///   Or build and run:
 ///   Windows: .\\build\\windows\\x64\\runner\\Release\\nightshade_desktop.exe --headless
 ///   Linux:   ./build/linux/x64/release/bundle/nightshade_desktop --headless
-void main() async {
+///
+/// Authentication:
+///   --auth-token=<token>  Set a specific authentication token
+///   --require-auth        Generate a random token (printed to console)
+///
+///   Environment variables:
+///   NIGHTSHADE_AUTH_TOKEN  Authentication token
+///   NIGHTSHADE_PORT        Server port (default: 8080)
+void main(List<String> args) async {
   // Initialize Flutter bindings (required for async operations)
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -47,9 +55,17 @@ void main() async {
     container.read(backendProvider.notifier).useLocalBackend();
     print('✓ Services initialized');
 
+    // Parse command-line arguments for auth
+    final authConfig = _parseAuthConfig(args);
+
     // Start headless services
     print('Starting headless API server...');
-    final apiServer = await _startHeadlessServices(container);
+    final apiServer = await _startHeadlessServices(
+      container,
+      authToken: authConfig.token,
+      requireAuth: authConfig.requireAuth,
+      port: authConfig.port,
+    );
     print('✓ Headless API server started');
 
     print('\\nNightshade is running in headless mode.');
@@ -101,7 +117,47 @@ Future<void> _initializeCatalogManager() async {
   }
 }
 
-Future<HeadlessApiServer?> _startHeadlessServices(ProviderContainer container) async {
+/// Authentication configuration parsed from args/environment
+class _AuthConfig {
+  final String? token;
+  final bool requireAuth;
+  final int port;
+
+  _AuthConfig({this.token, this.requireAuth = false, this.port = 8080});
+}
+
+/// Parse authentication configuration from command-line args and environment
+_AuthConfig _parseAuthConfig(List<String> args) {
+  String? token;
+  bool requireAuth = false;
+  int port = 8080;
+
+  // Check environment variables first
+  token = Platform.environment['NIGHTSHADE_AUTH_TOKEN'];
+  if (Platform.environment['NIGHTSHADE_PORT'] != null) {
+    port = int.tryParse(Platform.environment['NIGHTSHADE_PORT']!) ?? 8080;
+  }
+
+  // Command-line args override environment
+  for (final arg in args) {
+    if (arg.startsWith('--auth-token=')) {
+      token = arg.substring('--auth-token='.length);
+    } else if (arg == '--require-auth') {
+      requireAuth = true;
+    } else if (arg.startsWith('--port=')) {
+      port = int.tryParse(arg.substring('--port='.length)) ?? port;
+    }
+  }
+
+  return _AuthConfig(token: token, requireAuth: requireAuth, port: port);
+}
+
+Future<HeadlessApiServer?> _startHeadlessServices(
+  ProviderContainer container, {
+  String? authToken,
+  bool requireAuth = false,
+  int port = 8080,
+}) async {
   // Initialize database for API access
   try {
     final _ = NightshadeDatabase();
@@ -118,15 +174,17 @@ Future<HeadlessApiServer?> _startHeadlessServices(ProviderContainer container) a
     print('  ⚠ Discovery server failed: $e');
   }
 
-  // Start comprehensive API server
+  // Start comprehensive API server with authentication
   final apiServer = HeadlessApiServer(
-    port: 8080,
+    port: port,
     container: container,
+    authToken: authToken,
+    requireAuth: requireAuth,
   );
   
   try {
     await apiServer.start();
-    print('  ✓ API server started on port 8080');
+    print('  ✓ API server started on port $port');
     
     // Get local IP for user info
     try {
@@ -147,7 +205,11 @@ Future<HeadlessApiServer?> _startHeadlessServices(ProviderContainer container) a
       
       if (localIp != null) {
         print('\\n  Mobile devices can connect to:');
-        print('    http://$localIp:8080');
+        print('    http://$localIp:$port');
+        if (apiServer.effectiveAuthToken != null) {
+          print('\\n  Authentication required:');
+          print('    Authorization: Bearer ${apiServer.effectiveAuthToken}');
+        }
         print('');
       }
     } catch (e) {

@@ -7,6 +7,7 @@ use crate::device::*;
 use crate::error::*;
 use crate::event::*;
 use crate::state::*;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -19,6 +20,7 @@ use nightshade_sequencer::DeviceOps;
 use nightshade_imaging::{ImageData, write_fits, FitsHeader, BayerPattern, DebayerAlgorithm, validate_image, calculate_airmass, validate_fits_header};
 use rayon::prelude::*;
 use crate::storage::{AppSettings, ObserverLocation};
+use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use serde::{Serialize, Deserialize};
 use tokio::sync::Mutex;
 
@@ -1309,23 +1311,21 @@ pub async fn cancel_exposure(device_id: String) -> Result<(), NightshadeError> {
     Ok(())
 }
 
-/// Download last image from camera
-/// Returns the image stored by start_exposure/api_camera_start_exposure
+/// Download last image from camera (DEPRECATED - use api_get_last_image with device_id instead)
+/// Returns the first image found in storage, or None if empty
 /// Reads from unified atomic storage to ensure consistency with raw data
+#[deprecated(note = "Use api_get_last_image(device_id) instead for multi-camera support")]
 pub async fn get_last_image() -> Result<Option<CapturedImageResult>, NightshadeError> {
-    tracing::info!("API: get_last_image called");
+    tracing::info!("API: get_last_image called (deprecated, use api_get_last_image with device_id)");
 
-    // Return the stored image from the last exposure (using unified atomic storage)
+    // Return the first stored image from any device (legacy compatibility)
     let storage = get_unified_image_storage().read().await;
-    match &*storage {
-        Some(data) => {
-            tracing::info!("Returning stored image: {}x{}", data.display.width, data.display.height);
-            Ok(Some(data.display.clone()))
-        }
-        None => {
-            tracing::warn!("No image available - exposure may not have completed");
-            Ok(None)
-        }
+    if let Some((_device_id, data)) = storage.iter().next() {
+        tracing::info!("Returning stored image: {}x{}", data.display.width, data.display.height);
+        Ok(Some(data.display.clone()))
+    } else {
+        tracing::warn!("No image available - exposure may not have completed");
+        Ok(None)
     }
 }
 
@@ -2145,23 +2145,6 @@ pub async fn api_filterwheel_set_by_name(device_id: String, name: String) -> Res
     }
 }
 
-/// Set filter names on a filter wheel.
-/// This pushes user-defined filter names from the equipment profile to the native driver.
-/// Should be called after connecting a filter wheel to sync profile names with the driver.
-pub async fn api_filterwheel_set_filter_names(device_id: String, names: Vec<String>) -> Result<(), NightshadeError> {
-    tracing::info!("api_filterwheel_set_filter_names: Called with device_id='{}', names={:?}", device_id, names);
-
-    if device_id.starts_with("sim_") {
-        let mut fw = get_sim_filterwheel().write().await;
-        fw.status.filter_names = names;
-        Ok(())
-    } else {
-        let mgr = get_device_manager();
-        mgr.filter_wheel_set_filter_names(&device_id, names).await
-            .map_err(|e| NightshadeError::OperationFailed(e))
-    }
-}
-
 // =============================================================================
 // Rotator Control (Simulator implementation for now)
 // =============================================================================
@@ -2526,27 +2509,25 @@ pub struct CapturedImageData {
     pub raw_info: RawImageInfo,
 }
 
-/// Unified image storage - all image data updated atomically
-/// This prevents race conditions where the UI might read raw data that doesn't match display data
-static UNIFIED_IMAGE_STORAGE: OnceLock<Arc<RwLock<Option<CapturedImageData>>>> = OnceLock::new();
+/// Per-device image storage - keyed by device ID to support multi-camera operation
+/// Each camera's image data is stored independently, preventing race conditions
+/// where concurrent cameras could overwrite each other's captured images.
+static UNIFIED_IMAGE_STORAGE: OnceLock<Arc<RwLock<HashMap<String, CapturedImageData>>>> = OnceLock::new();
 
-fn get_unified_image_storage() -> &'static Arc<RwLock<Option<CapturedImageData>>> {
-    UNIFIED_IMAGE_STORAGE.get_or_init(|| Arc::new(RwLock::new(None)))
+fn get_unified_image_storage() -> &'static Arc<RwLock<HashMap<String, CapturedImageData>>> {
+    UNIFIED_IMAGE_STORAGE.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
 }
 
-/// Store captured image data atomically
+/// Store captured image data atomically for a specific device
 /// This ensures all image-related data (display, raw, metadata) is updated together,
 /// preventing race conditions where the UI could see inconsistent state.
-///
-/// This function is public so it can be called from UnifiedDeviceOps when the
-/// sequencer captures images (the sequencer uses a different code path than
-/// api_camera_start_exposure, but both need to store images for UI display).
-pub async fn store_captured_image_atomically(
+async fn store_captured_image_atomically(
+    device_id: &str,
     display: CapturedImageResult,
     raw_info: RawImageInfo,
 ) {
     let mut storage = get_unified_image_storage().write().await;
-    *storage = Some(CapturedImageData {
+    storage.insert(device_id.to_string(), CapturedImageData {
         display,
         raw_info,
     });
@@ -2583,12 +2564,17 @@ pub async fn api_camera_start_exposure(
             EventSeverity::Info,
         );
         
-        // Simulate exposure with progress updates
+        // Simulate exposure with progress updates using adaptive polling
+        // This reduces CPU overhead for long simulated exposures while maintaining
+        // responsiveness for progress updates
         let start_time = std::time::Instant::now();
         let duration = std::time::Duration::from_secs_f64(duration_secs);
-        
+        let mut poller: AdaptivePoller<String> = AdaptivePoller::from_preset(PollerPreset::Exposure);
+
         while start_time.elapsed() < duration {
             let progress = start_time.elapsed().as_secs_f64() / duration_secs;
+            let progress_bucket = format!("{:.1}", progress); // Bucket progress for change detection
+
             get_state().publish_imaging_event(
                 ImagingEvent::ExposureProgress {
                     progress,
@@ -2596,7 +2582,10 @@ pub async fn api_camera_start_exposure(
                 },
                 EventSeverity::Info,
             );
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+            // Adaptive polling: backs off when progress isn't changing significantly
+            let poll_interval = poller.tick(&progress_bucket);
+            tokio::time::sleep(poll_interval).await;
         }
         
         // Update camera state to reading
@@ -2641,14 +2630,14 @@ pub async fn api_camera_start_exposure(
             bayer_offset: None,
         };
 
-        store_captured_image_atomically(display_result, raw_info).await;
-        
+        store_captured_image_atomically(&device_id, display_result, raw_info).await;
+
         // Update camera state back to idle
         {
             let mut camera = get_sim_camera().write().await;
             camera.status.state = CameraState::Idle;
         }
-        
+
         // Publish exposure complete event
         get_state().publish_imaging_event(
             ImagingEvent::ExposureComplete {
@@ -2835,7 +2824,7 @@ pub async fn api_camera_start_exposure(
             bayer_offset: seq_image.bayer_offset,
         };
 
-        store_captured_image_atomically(display_result, raw_info).await;
+        store_captured_image_atomically(&device_id, display_result, raw_info).await;
 
         // Note: ExposureComplete event is published by UnifiedDeviceOps
         tracing::info!("Real camera exposure complete, {} stars detected", star_count);
@@ -2843,42 +2832,51 @@ pub async fn api_camera_start_exposure(
     }
 }
 
-/// Get the last captured image (display-ready format)
-/// Reads from unified atomic storage to ensure consistency with raw data
-pub async fn api_get_last_image() -> Result<CapturedImageResult, NightshadeError> {
-    tracing::info!("API: api_get_last_image called");
+/// Get the last captured image for a specific device (display-ready format)
+/// Reads from per-device atomic storage to ensure consistency with raw data
+pub async fn api_get_last_image(device_id: String) -> Result<CapturedImageResult, NightshadeError> {
+    tracing::info!("API: api_get_last_image called for device: {}", device_id);
     let storage = get_unified_image_storage().read().await;
-    match &*storage {
+    match storage.get(&device_id) {
         Some(data) => {
             tracing::info!("API: Returning stored image {}x{}, display_data size: {} bytes",
                 data.display.width, data.display.height, data.display.display_data.len());
             Ok(data.display.clone())
         }
         None => {
-            tracing::warn!("API: No image available in storage");
+            tracing::warn!("API: No image available for device: {}", device_id);
             Err(NightshadeError::NoImageAvailable)
         }
     }
 }
 
-/// Get the last captured raw image data (u16)
+/// Get the last captured raw image data (u16) for a specific device
 /// This is used for saving FITS files with original bit depth
-/// Reads from unified atomic storage to ensure consistency with display data
-pub async fn api_get_last_raw_image_data() -> Result<Vec<u16>, NightshadeError> {
+/// Reads from per-device atomic storage to ensure consistency with display data
+pub async fn api_get_last_raw_image_data(device_id: String) -> Result<Vec<u16>, NightshadeError> {
     let storage = get_unified_image_storage().read().await;
-    storage.as_ref()
+    storage.get(&device_id)
         .map(|data| data.raw_info.data.clone())
         .ok_or(NightshadeError::NoImageAvailable)
 }
 
-/// Get the last captured raw image info with full metadata
+/// Get the last captured raw image info with full metadata for a specific device
 /// This is used by the sequencer for HFR calculation, plate solving, and other analysis
 /// that requires original 16-bit sensor data (not display-stretched 8-bit data)
-/// Reads from unified atomic storage to ensure consistency with display data
+/// Reads from per-device atomic storage to ensure consistency with display data
 #[flutter_rust_bridge::frb(ignore)]
-pub async fn get_last_raw_image_info() -> Result<Option<RawImageInfo>, NightshadeError> {
+pub async fn get_last_raw_image_info(device_id: &str) -> Result<Option<RawImageInfo>, NightshadeError> {
     let storage = get_unified_image_storage().read().await;
-    Ok(storage.as_ref().map(|data| data.raw_info.clone()))
+    Ok(storage.get(device_id).map(|data| data.raw_info.clone()))
+}
+
+/// Clear stored image data for a specific device
+/// This is used to free memory when a camera is disconnected or when explicitly requested
+pub async fn api_clear_device_image(device_id: String) -> Result<(), NightshadeError> {
+    tracing::info!("API: Clearing stored image for device: {}", device_id);
+    let mut storage = get_unified_image_storage().write().await;
+    storage.remove(&device_id);
+    Ok(())
 }
 
 /// Cancel current exposure
@@ -3322,14 +3320,82 @@ pub async fn api_detect_stars_in_file(
     })
 }
 
+/// Star crop data for UI display
+#[derive(Debug, Clone)]
+pub struct StarCropApi {
+    /// Base64-encoded grayscale pixel data
+    pub pixels_base64: String,
+    /// Width of the crop
+    pub width: u32,
+    /// Height of the crop
+    pub height: u32,
+    /// HFR of this star
+    pub hfr: f64,
+    /// SNR of this star
+    pub snr: f64,
+}
+
+/// Get star crops from the last captured image for a device
+///
+/// This extracts the top N brightest stars from the last image and returns
+/// cropped 80x80 pixel regions centered on each star, auto-stretched for display.
+/// Used by the autofocus UI to show star crops for visual feedback.
+pub async fn api_get_star_crops_from_last_image(
+    device_id: String,
+    max_crops: u32,
+) -> Result<Vec<StarCropApi>, NightshadeError> {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    tracing::info!("API: api_get_star_crops_from_last_image for device: {}, max_crops: {}", device_id, max_crops);
+
+    // Get the last raw image for this device
+    let storage = get_unified_image_storage().read().await;
+    let image_data = storage.get(&device_id)
+        .ok_or(NightshadeError::NoImageAvailable)?;
+
+    // Convert to imaging format
+    let img = nightshade_imaging::ImageData::from_u16(
+        image_data.raw_info.width,
+        image_data.raw_info.height,
+        1,
+        &image_data.raw_info.data
+    );
+
+    // Detect stars
+    let config = nightshade_imaging::StarDetectionConfig::default();
+    let stars = nightshade_imaging::detect_stars(&img, &config);
+
+    if stars.is_empty() {
+        tracing::info!("No stars detected for star crop extraction");
+        return Ok(vec![]);
+    }
+
+    // Extract top star crops (80x80 pixels each)
+    let crops = nightshade_imaging::extract_top_star_crops(&img, &stars, max_crops as usize, 80);
+
+    // Convert to API format
+    let result: Vec<StarCropApi> = crops.iter().map(|crop| {
+        StarCropApi {
+            pixels_base64: BASE64.encode(&crop.pixels),
+            width: crop.width,
+            height: crop.height,
+            hfr: crop.hfr,
+            snr: crop.snr,
+        }
+    }).collect();
+
+    tracing::info!("Extracted {} star crops", result.len());
+    Ok(result)
+}
+
 /// Calculate HFR for a FITS file
 pub async fn api_calculate_hfr(file_path: String) -> Result<Option<f64>, NightshadeError> {
     use std::path::Path;
-    
+
     let path = Path::new(&file_path);
     let (image_data, _header) = nightshade_imaging::read_fits(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
-    
+
     Ok(nightshade_imaging::calculate_median_hfr(&image_data))
 }
 
@@ -5021,27 +5087,39 @@ pub async fn api_sequencer_set_devices(
     focuser_id: Option<String>,
     filterwheel_id: Option<String>,
     rotator_id: Option<String>,
-    filter_names: Option<Vec<String>>,
 ) -> Result<(), NightshadeError> {
     tracing::info!(
-        "Setting sequencer devices: camera={:?}, mount={:?}, focuser={:?}, filterwheel={:?}, rotator={:?}, filter_names={:?}",
-        camera_id, mount_id, focuser_id, filterwheel_id, rotator_id, filter_names
+        "Setting sequencer devices: camera={:?}, mount={:?}, focuser={:?}, filterwheel={:?}, rotator={:?}",
+        camera_id, mount_id, focuser_id, filterwheel_id, rotator_id
     );
-
-    // If filter names are provided and a filter wheel is specified, sync them to the native driver
-    if let (Some(ref fw_id), Some(ref names)) = (&filterwheel_id, &filter_names) {
-        if !names.is_empty() {
-            tracing::info!("Syncing {} filter names to native driver: {:?}", names.len(), names);
-            let mgr = get_device_manager();
-            if let Err(e) = mgr.filter_wheel_set_filter_names(fw_id, names.clone()).await {
-                tracing::warn!("Failed to sync filter names to native driver: {}", e);
-                // Don't fail - just log and continue
-            }
-        }
-    }
-
     let mut executor = get_sequence_executor().write().await;
     executor.set_devices(camera_id, mount_id, focuser_id, filterwheel_id, rotator_id);
+    Ok(())
+}
+
+/// Set the safety fail mode for the sequencer.
+/// This determines behavior when safety devices fail or are unavailable:
+/// - "fail_open": Assume safe and continue imaging (default)
+/// - "fail_closed": Assume unsafe and pause/park
+/// - "warn_only": Show warning but continue
+pub async fn api_sequencer_set_safety_fail_mode(mode: String) -> Result<(), NightshadeError> {
+    use nightshade_sequencer::SafetyFailMode;
+
+    let fail_mode = match mode.to_lowercase().as_str() {
+        "fail_open" | "failopen" => SafetyFailMode::FailOpen,
+        "fail_closed" | "failclosed" => SafetyFailMode::FailClosed,
+        "warn_only" | "warnonly" => SafetyFailMode::WarnOnly,
+        _ => {
+            return Err(NightshadeError::InvalidParameter(format!(
+                "Invalid safety fail mode: '{}'. Must be 'fail_open', 'fail_closed', or 'warn_only'", mode
+            )));
+        }
+    };
+
+    tracing::info!("Setting sequencer safety fail mode: {:?}", fail_mode);
+    let mut executor = get_sequence_executor().write().await;
+    executor.set_safety_fail_mode(fail_mode);
+
     Ok(())
 }
 
@@ -5854,6 +5932,10 @@ pub async fn api_start_polar_alignment(
     is_north: bool,
     manual_rotation: bool,
     rotate_east: bool,
+    gain: Option<i32>,
+    offset: Option<i32>,
+    solve_timeout: Option<f64>,
+    start_from_current: Option<bool>,
 ) -> Result<(), NightshadeError> {
     // Check if already running
     if get_polar_align_flag().load(PolarOrdering::Relaxed) {
@@ -5892,6 +5974,11 @@ pub async fn api_start_polar_alignment(
     })?;
 
     // Spawn background task for polar alignment
+    let gain_val = gain.unwrap_or(0);
+    let offset_val = offset.unwrap_or(0);
+    let solve_timeout_val = solve_timeout.unwrap_or(60.0);
+    let _start_from_current_val = start_from_current.unwrap_or(true);
+
     tokio::spawn(async move {
         let result = run_polar_alignment(
             camera_id,
@@ -5902,6 +5989,9 @@ pub async fn api_start_polar_alignment(
             is_north,
             manual_rotation,
             rotate_east,
+            gain_val,
+            offset_val,
+            solve_timeout_val,
         ).await;
 
         if let Err(e) = result {
@@ -5925,6 +6015,9 @@ async fn run_polar_alignment(
     is_north: bool,
     manual_rotation: bool,
     rotate_east: bool,
+    gain: i32,
+    offset: i32,
+    solve_timeout_secs: f64,
 ) -> Result<(), String> {
     let mut solved_points: Vec<(f64, f64)> = Vec::new();
 
@@ -5943,8 +6036,8 @@ async fn run_polar_alignment(
         api_camera_start_exposure(
             camera_id.clone(),
             exposure_time,
-            0, // gain (auto)
-            0, // offset (auto)
+            gain,
+            offset,
             binning,
             binning,
         ).await.map_err(|e| format!("Failed to capture: {:?}", e))?;
@@ -5960,7 +6053,7 @@ async fn run_polar_alignment(
         emit_polar_status(&format!("Plate solving point {}/3...", point), "measuring", point as i32);
 
         // Get the captured image
-        let image = api_get_last_image().await
+        let image = api_get_last_image(camera_id.clone()).await
             .map_err(|e| format!("Failed to get image: {:?}", e))?;
 
         // Emit polar alignment image (before plate solve, no coordinates yet)
@@ -5976,10 +6069,10 @@ async fn run_polar_alignment(
             return Err(format!("Failed to write temp FITS: {}", e));
         }
 
-        // Plate solve with 60 second timeout
+        // Plate solve with configurable timeout
         let solve_future = api_plate_solve_blind(temp_path_str.clone());
         let solve_result = match tokio::time::timeout(
-            tokio::time::Duration::from_secs(60),
+            tokio::time::Duration::from_secs_f64(solve_timeout_secs),
             solve_future
         ).await {
             Ok(Ok(result)) => result,
@@ -6090,7 +6183,7 @@ async fn run_polar_alignment(
         }
 
         // Get the captured image
-        let image = match api_get_last_image().await {
+        let image = match api_get_last_image(camera_id.clone()).await {
             Ok(img) => img,
             Err(e) => {
                 consecutive_failures += 1;
@@ -6577,6 +6670,152 @@ pub async fn api_save_fits_file(
     .map_err(|e| NightshadeError::OperationFailed(format!("Task join error: {}", e)))?
     .map_err(|e| NightshadeError::OperationFailed(format!("Failed to write FITS: {}", e)))?;
     
+    Ok(())
+}
+
+/// Save FITS file directly from the last captured image stored in Rust
+/// This eliminates the need to transfer raw pixel data across the FFI boundary
+/// by using the image data already stored from the last exposure.
+///
+/// Returns an error if no image has been captured yet for the specified device.
+pub async fn api_save_fits_from_last_capture(
+    device_id: String,
+    file_path: String,
+    header_data: FitsWriteHeader,
+) -> Result<(), NightshadeError> {
+    tracing::info!("Saving FITS from last capture for device {} to: {}", device_id, file_path);
+
+    // Get the stored raw image data for this device
+    let storage = get_unified_image_storage().read().await;
+    let captured_data = storage.get(&device_id)
+        .ok_or_else(|| NightshadeError::OperationFailed(
+            format!("No captured image available for device {}. Please capture an image first.", device_id)
+        ))?;
+
+    // Clone the data we need so we can release the lock before the blocking write
+    let width = captured_data.raw_info.width;
+    let height = captured_data.raw_info.height;
+    let data = captured_data.raw_info.data.clone();
+    drop(storage);  // Release the read lock
+
+    // Now save using the existing logic
+    tracing::info!("Saving {}x{} image ({} pixels)", width, height, data.len());
+
+    // Create ImageData
+    let image = ImageData::from_u16(width, height, 1, &data);
+
+    // Validate image data
+    let validation = validate_image(&image, Some(width), Some(height));
+    if !validation.is_valid {
+        tracing::warn!("Image validation failed: {:?}", validation.errors);
+    }
+    for warning in &validation.warnings {
+        tracing::warn!("Image validation warning: {}", warning);
+    }
+
+    // Create FitsHeader
+    let mut header = FitsHeader::new();
+
+    // Core observation metadata
+    header.set_float("EXPTIME", header_data.exposure_time);
+    header.set_string("DATE-OBS", &header_data.capture_timestamp);
+    header.set_string("IMAGETYP", &header_data.frame_type);
+
+    if let Some(name) = header_data.object_name {
+        header.set_string("OBJECT", &name);
+    }
+    if let Some(filter) = header_data.filter {
+        header.set_string("FILTER", &filter);
+    }
+
+    // Camera settings
+    if let Some(gain) = header_data.gain {
+        header.set_int("GAIN", gain as i64);
+    }
+    if let Some(offset) = header_data.offset {
+        header.set_int("OFFSET", offset as i64);
+    }
+    if let Some(temp) = header_data.ccd_temp {
+        header.set_float("CCD-TEMP", temp);
+    }
+
+    header.set_int("XBINNING", header_data.bin_x as i64);
+    header.set_int("YBINNING", header_data.bin_y as i64);
+
+    // Pixel size information
+    if let Some(pixel_x) = header_data.pixel_size_x {
+        header.set_float("PIXSIZE1", pixel_x);
+        header.set_float("XPIXSZ", pixel_x * header_data.bin_x as f64);
+    }
+    if let Some(pixel_y) = header_data.pixel_size_y {
+        header.set_float("PIXSIZE2", pixel_y);
+        header.set_float("YPIXSZ", pixel_y * header_data.bin_y as f64);
+    }
+
+    // Telescope/optics information
+    if let Some(focal_length) = header_data.focal_length {
+        header.set_float("FOCALLEN", focal_length);
+    }
+    if let Some(aperture) = header_data.aperture {
+        header.set_float("APTDIA", aperture);
+    }
+    if let Some(telescope) = header_data.telescope {
+        header.set_string("TELESCOP", &telescope);
+    }
+    if let Some(instrument) = header_data.instrument {
+        header.set_string("INSTRUME", &instrument);
+    }
+
+    // Observer information
+    if let Some(observer) = header_data.observer {
+        header.set_string("OBSERVER", &observer);
+    }
+
+    // Observer location
+    if let Some(lat) = header_data.site_latitude {
+        header.set_float("SITELAT", lat);
+    }
+    if let Some(long) = header_data.site_longitude {
+        header.set_float("SITELONG", long);
+    }
+    if let Some(elev) = header_data.site_elevation {
+        header.set_float("SITEELEV", elev);
+    }
+
+    // Target coordinates and airmass
+    if let Some(ra) = header_data.ra {
+        header.set_float("RA", ra);
+    }
+    if let Some(dec) = header_data.dec {
+        header.set_float("DEC", dec);
+    }
+    if let Some(altitude) = header_data.altitude {
+        let airmass = calculate_airmass(altitude);
+        header.set_float("AIRMASS", airmass);
+    }
+
+    // Validate header completeness
+    let header_validation = validate_fits_header(&header);
+    for warning in &header_validation.warnings {
+        tracing::debug!("FITS header warning: {}", warning);
+    }
+
+    // Ensure directory exists
+    if let Some(parent) = std::path::Path::new(&file_path).parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| NightshadeError::OperationFailed(format!("Failed to create directory: {}", e)))?;
+    }
+
+    // Write file using spawn_blocking
+    let path = std::path::PathBuf::from(file_path);
+
+    tokio::task::spawn_blocking(move || {
+        write_fits(&path, &image, &header)
+    }).await
+    .map_err(|e| NightshadeError::OperationFailed(format!("Task join error: {}", e)))?
+    .map_err(|e| NightshadeError::OperationFailed(format!("Failed to write FITS: {}", e)))?;
+
+    tracing::info!("FITS file saved successfully from last capture");
     Ok(())
 }
 

@@ -164,6 +164,17 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
       case _OverallState.connected:
         // Compact bar handles this
         return const SizedBox.shrink();
+      case _OverallState.mismatch:
+        return _ErrorView(
+          devices: devices,
+          errorDevice: errorDevice,
+          connectedCount: connectedCount,
+          totalCount: totalCount,
+          colors: colors,
+          onRetry: widget.onConnectAll,
+          onSkip: _collapse, // Dismiss mismatch warning and continue
+          isMismatch: true,
+        );
       case _OverallState.partiallyConnected:
       case _OverallState.error:
         return _ErrorView(
@@ -173,7 +184,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
           totalCount: totalCount,
           colors: colors,
           onRetry: widget.onConnectAll,
-          onSkip: () {}, // TODO: Implement skip
+          onSkip: _collapse, // Dismiss error and continue with partial connections
         );
     }
   }
@@ -206,13 +217,21 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
   ) {
     final devices = <_DeviceStatus>[];
 
+    // Helper to check if connected device matches profile
+    bool isDeviceMismatch(String? profileId, String? connectedId, DeviceConnectionState state) {
+      if (state != DeviceConnectionState.connected) return false; // Not connected, no mismatch
+      if (profileId == null || connectedId == null) return false; // No ID to compare
+      return profileId != connectedId;
+    }
+
     if (profile.cameraId != null) {
       devices.add(_DeviceStatus(
         type: 'Camera',
         name: camera.deviceName ?? _formatDeviceId(profile.cameraId!),
         icon: LucideIcons.camera,
         state: camera.connectionState,
-        error: null, // TODO: Get actual error
+        error: camera.lastError?.userMessage,
+        isMismatch: isDeviceMismatch(profile.cameraId, camera.deviceId, camera.connectionState),
       ));
     }
 
@@ -222,7 +241,8 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: mount.deviceName ?? _formatDeviceId(profile.mountId!),
         icon: LucideIcons.compass,
         state: mount.connectionState,
-        error: null,
+        error: mount.lastError?.userMessage,
+        isMismatch: isDeviceMismatch(profile.mountId, mount.deviceId, mount.connectionState),
       ));
     }
 
@@ -232,7 +252,8 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: focuser.deviceName ?? _formatDeviceId(profile.focuserId!),
         icon: LucideIcons.focus,
         state: focuser.connectionState,
-        error: null,
+        error: focuser.lastError?.userMessage,
+        isMismatch: isDeviceMismatch(profile.focuserId, focuser.deviceId, focuser.connectionState),
       ));
     }
 
@@ -242,7 +263,8 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: filterWheel.deviceName ?? _formatDeviceId(profile.filterWheelId!),
         icon: LucideIcons.circle,
         state: filterWheel.connectionState,
-        error: null,
+        error: filterWheel.lastError?.userMessage,
+        isMismatch: isDeviceMismatch(profile.filterWheelId, filterWheel.deviceId, filterWheel.connectionState),
       ));
     }
 
@@ -252,7 +274,8 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: guider.deviceName ?? _formatDeviceId(profile.guiderId!),
         icon: LucideIcons.crosshair,
         state: guider.connectionState,
-        error: null,
+        error: guider.lastError?.userMessage,
+        isMismatch: isDeviceMismatch(profile.guiderId, guider.deviceId, guider.connectionState),
       ));
     }
 
@@ -276,12 +299,19 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
     int connected = 0;
     int connecting = 0;
     int error = 0;
+    int mismatched = 0;
     _DeviceStatus? errorDevice;
+    _DeviceStatus? mismatchDevice;
 
     for (final device in devices) {
       switch (device.state) {
         case DeviceConnectionState.connected:
-          connected++;
+          if (device.isMismatch) {
+            mismatched++;
+            mismatchDevice ??= device;
+          } else {
+            connected++;
+          }
           break;
         case DeviceConnectionState.connecting:
           connecting++;
@@ -299,6 +329,11 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
 
     if (connecting > 0) {
       return (_OverallState.connecting, connected, total, null);
+    }
+
+    // Check for mismatches - connected devices don't match profile
+    if (mismatched > 0) {
+      return (_OverallState.mismatch, connected, total, mismatchDevice);
     }
 
     if (error > 0 && connected == 0) {
@@ -323,6 +358,8 @@ enum _OverallState {
   connected,
   partiallyConnected,
   error,
+  /// Devices are connected but don't match the profile's device IDs
+  mismatch,
 }
 
 class _DeviceStatus {
@@ -331,6 +368,8 @@ class _DeviceStatus {
   final IconData icon;
   final DeviceConnectionState state;
   final String? error;
+  /// Whether the connected device doesn't match the profile's expected device ID
+  final bool isMismatch;
 
   _DeviceStatus({
     required this.type,
@@ -338,6 +377,7 @@ class _DeviceStatus {
     required this.icon,
     required this.state,
     this.error,
+    this.isMismatch = false,
   });
 }
 
@@ -777,6 +817,7 @@ class _ErrorView extends StatelessWidget {
   final NightshadeColors colors;
   final VoidCallback onRetry;
   final VoidCallback onSkip;
+  final bool isMismatch;
 
   const _ErrorView({
     required this.devices,
@@ -786,6 +827,7 @@ class _ErrorView extends StatelessWidget {
     required this.colors,
     required this.onRetry,
     required this.onSkip,
+    this.isMismatch = false,
   });
 
   @override
@@ -795,13 +837,15 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Error header
+          // Error or mismatch header
           Row(
             children: [
               Icon(LucideIcons.alertTriangle, size: 18, color: colors.warning),
               const SizedBox(width: 12),
               Text(
-                '$connectedCount/$totalCount Connected',
+                isMismatch
+                    ? 'Profile Mismatch'
+                    : '$connectedCount/$totalCount Connected',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -817,12 +861,40 @@ class _ErrorView extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
-                child: const Text('Retry'),
+                child: Text(isMismatch ? 'Reconnect' : 'Retry'),
               ),
             ],
           ),
 
-          if (errorDevice != null) ...[
+          // Show mismatch warning
+          if (isMismatch) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.alertTriangle, size: 16, color: colors.warning),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Connected devices don\'t match the profile. Reconnect to use profile devices.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          if (errorDevice != null && !isMismatch) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
