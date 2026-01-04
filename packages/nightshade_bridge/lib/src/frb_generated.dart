@@ -78,7 +78,11 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   @override
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   int get rustContentHash => 1168426990;
+=======
+  int get rustContentHash => 382576679;
+>>>>>>> Stashed changes
 =======
   int get rustContentHash => 382576679;
 >>>>>>> Stashed changes
