@@ -888,25 +888,7 @@ class _ExposureProperties extends ConsumerWidget {
           ),
         ),
 
-        _PropertyField(
-          colors: colors,
-          label: 'Filter',
-          child: _TextInput(
-            colors: colors,
-            value: node.filter ?? '',
-            hint: 'e.g., L, R, G, B, Ha',
-            onChanged: (value) {
-              final filter = value.isEmpty ? null : value;
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(filter: filter),
-              );
-              // Save as default for future nodes
-              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
-                filter: filter,
-              );
-            },
-          ),
-        ),
+        _buildFilterDropdown(ref),
 
         _PropertyField(
           colors: colors,
@@ -1023,6 +1005,91 @@ class _ExposureProperties extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFilterDropdown(WidgetRef ref) {
+    // Get filter names from active profile
+    final profile = ref.watch(activeEquipmentProfileProvider);
+    final filterNames = profile?.filterNames ?? <String>[];
+
+    // Build list of filter options with their indices
+    final filterOptions = <({int index, String name})>[
+      (index: -1, name: ''), // No filter option
+      for (int i = 0; i < filterNames.length; i++)
+        (index: i, name: filterNames[i]),
+    ];
+
+    // Find current selection
+    final currentFilter = filterOptions.firstWhere(
+      (f) => (node.filterIndex != null && f.index == node.filterIndex) ||
+             (node.filterIndex == null && f.name == (node.filter ?? '')),
+      orElse: () => filterOptions.first,
+    );
+
+    return _PropertyField(
+      colors: colors,
+      label: 'Filter',
+      child: filterNames.isEmpty
+          ? _TextInput(
+              colors: colors,
+              value: node.filter ?? '',
+              hint: 'No filters in profile',
+              onChanged: (value) {
+                final filter = value.isEmpty ? null : value;
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(filter: filter),
+                );
+                ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
+                  filter: filter,
+                );
+              },
+            )
+          : Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<({int index, String name})>(
+                  value: currentFilter,
+                  isExpanded: true,
+                  icon: Icon(
+                    LucideIcons.chevronDown,
+                    size: 16,
+                    color: colors.textMuted,
+                  ),
+                  dropdownColor: colors.surface,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colors.textPrimary,
+                  ),
+                  items: filterOptions.map((filter) {
+                    return DropdownMenuItem(
+                      value: filter,
+                      child: Text(filter.index < 0 ? '(None)' : filter.name),
+                    );
+                  }).toList(),
+                  onChanged: (newValue) {
+                    if (newValue != null) {
+                      final filter = newValue.index < 0 ? null : newValue.name;
+                      final filterIndex = newValue.index < 0 ? null : newValue.index;
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(
+                          filter: filter,
+                          filterIndex: filterIndex,
+                        ),
+                      );
+                      ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
+                        filter: filter,
+                      );
+                    }
+                  },
+                ),
+              ),
+            ),
     );
   }
 
@@ -1605,6 +1672,25 @@ class _FilterChangeProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Get filter names from active profile
+    final profile = ref.watch(activeEquipmentProfileProvider);
+    final filterNames = profile?.filterNames ?? <String>[];
+
+    // Build list of filter options with their indices
+    // Each item is a record of (index, name)
+    final filterOptions = <({int index, String name})>[
+      for (int i = 0; i < filterNames.length; i++)
+        (index: i, name: filterNames[i]),
+    ];
+
+    // Find current selection, or default to first if not found
+    final currentFilter = filterOptions.isEmpty
+        ? null
+        : filterOptions.firstWhere(
+            (f) => f.name == node.filterName || f.index == node.filterPosition,
+            orElse: () => filterOptions.first,
+          );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1620,18 +1706,61 @@ class _FilterChangeProperties extends ConsumerWidget {
 
         _PropertyField(
           colors: colors,
-          label: 'Filter Name',
-          child: _TextInput(
-            colors: colors,
-            value: node.filterName,
-            hint: 'e.g., L, R, G, B, Ha',
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(filterName: value),
-              );
-            },
-          ),
+          label: 'Filter',
+          child: filterOptions.isEmpty
+              ? _TextInput(
+                  colors: colors,
+                  value: node.filterName,
+                  hint: 'No filters in profile',
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(filterName: value),
+                    );
+                  },
+                )
+              : Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<({int index, String name})>(
+                      value: currentFilter,
+                      isExpanded: true,
+                      icon: Icon(
+                        LucideIcons.chevronDown,
+                        size: 16,
+                        color: colors.textMuted,
+                      ),
+                      dropdownColor: colors.surface,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.textPrimary,
+                      ),
+                      items: filterOptions.map((filter) {
+                        return DropdownMenuItem(
+                          value: filter,
+                          child: Text(filter.name),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        if (newValue != null) {
+                          // Set BOTH name and position for reliable filter changes
+                          ref.read(currentSequenceProvider.notifier).updateNode(
+                            node.copyWith(
+                              filterName: newValue.name,
+                              filterPosition: newValue.index,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ),
         ),
+
       ],
     );
   }

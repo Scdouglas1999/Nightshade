@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/imaging_provider.dart' show temperatureHistoryProvider;
@@ -1835,7 +1836,9 @@ class DeviceService {
   /// Changes the filter wheel to the specified position and automatically
   /// applies focus offset if configured for the selected filter.
   Future<void> setFilterWheelPosition(int position) async {
+    debugPrint('[DeviceService] setFilterWheelPosition called with position: $position');
     final deviceId = await _getFilterWheelDeviceId();
+    debugPrint('[DeviceService] Filter wheel deviceId: $deviceId');
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No filter wheel connected');
     }
@@ -1845,7 +1848,9 @@ class DeviceService {
 
     try {
       // Move the filter wheel
+      debugPrint('[DeviceService] Calling backend.filterWheelSetPosition($deviceId, $position)');
       await _backend.filterWheelSetPosition(deviceId, position);
+      debugPrint('[DeviceService] Backend call completed, updating position');
       filterWheelNotifier.updatePosition(position);
 
       // Apply focus offset if filter name is available and focuser is connected

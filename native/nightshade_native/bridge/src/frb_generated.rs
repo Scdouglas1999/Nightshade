@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 382576679;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1825717541;
 
 // Section: executor
 
@@ -878,6 +878,7 @@ fn wire__crate__api__api_create_exposure_node_impl(
     duration_secs: impl CstDecode<f64>,
     count: impl CstDecode<u32>,
     filter: impl CstDecode<Option<String>>,
+    filter_index: impl CstDecode<Option<i32>>,
     gain: impl CstDecode<Option<i32>>,
     offset: impl CstDecode<Option<i32>>,
     binning: impl CstDecode<i32>,
@@ -895,6 +896,7 @@ fn wire__crate__api__api_create_exposure_node_impl(
             let api_duration_secs = duration_secs.cst_decode();
             let api_count = count.cst_decode();
             let api_filter = filter.cst_decode();
+            let api_filter_index = filter_index.cst_decode();
             let api_gain = gain.cst_decode();
             let api_offset = offset.cst_decode();
             let api_binning = binning.cst_decode();
@@ -906,6 +908,7 @@ fn wire__crate__api__api_create_exposure_node_impl(
                     api_duration_secs,
                     api_count,
                     api_filter,
+                    api_filter_index,
                     api_gain,
                     api_offset,
                     api_binning,
@@ -1974,6 +1977,34 @@ fn wire__crate__api__api_filterwheel_set_by_name_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::api_filterwheel_set_by_name(api_device_id, api_name)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_filterwheel_set_filter_names_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    names: impl CstDecode<Vec<String>>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_filterwheel_set_filter_names",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_names = names.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_filterwheel_set_filter_names(api_device_id, api_names)
                                 .await?;
                         Ok(output_ok)
                     })()
@@ -4680,6 +4711,7 @@ fn wire__crate__api__api_sequencer_set_devices_impl(
     focuser_id: impl CstDecode<Option<String>>,
     filterwheel_id: impl CstDecode<Option<String>>,
     rotator_id: impl CstDecode<Option<String>>,
+    filter_names: impl CstDecode<Option<Vec<String>>>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -4693,6 +4725,7 @@ fn wire__crate__api__api_sequencer_set_devices_impl(
             let api_focuser_id = focuser_id.cst_decode();
             let api_filterwheel_id = filterwheel_id.cst_decode();
             let api_rotator_id = rotator_id.cst_decode();
+            let api_filter_names = filter_names.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
@@ -4702,6 +4735,7 @@ fn wire__crate__api__api_sequencer_set_devices_impl(
                             api_focuser_id,
                             api_filterwheel_id,
                             api_rotator_id,
+                            api_filter_names,
                         )
                         .await?;
                         Ok(output_ok)
@@ -9047,6 +9081,17 @@ impl SseDecode for Option<u64> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<u64>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<Vec<String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<String>>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -14488,6 +14533,16 @@ impl SseEncode for Option<u64> {
     }
 }
 
+impl SseEncode for Option<Vec<String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<String>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::api::Phd2AlgoParam {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19094,6 +19149,7 @@ mod io {
         duration_secs: f64,
         count: u32,
         filter: *mut wire_cst_list_prim_u_8_strict,
+        filter_index: *mut i32,
         gain: *mut i32,
         offset: *mut i32,
         binning: i32,
@@ -19105,6 +19161,7 @@ mod io {
             duration_secs,
             count,
             filter,
+            filter_index,
             gain,
             offset,
             binning,
@@ -19508,6 +19565,15 @@ mod io {
         name: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__api_filterwheel_set_by_name_impl(port_, device_id, name)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_filterwheel_set_filter_names(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        names: *mut wire_cst_list_String,
+    ) {
+        wire__crate__api__api_filterwheel_set_filter_names_impl(port_, device_id, names)
     }
 
     #[unsafe(no_mangle)]
@@ -20429,6 +20495,7 @@ mod io {
         focuser_id: *mut wire_cst_list_prim_u_8_strict,
         filterwheel_id: *mut wire_cst_list_prim_u_8_strict,
         rotator_id: *mut wire_cst_list_prim_u_8_strict,
+        filter_names: *mut wire_cst_list_String,
     ) {
         wire__crate__api__api_sequencer_set_devices_impl(
             port_,
@@ -20437,6 +20504,7 @@ mod io {
             focuser_id,
             filterwheel_id,
             rotator_id,
+            filter_names,
         )
     }
 

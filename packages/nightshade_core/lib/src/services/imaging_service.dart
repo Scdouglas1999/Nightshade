@@ -64,20 +64,10 @@ class ImagingService {
       // Update state to exposing
       cameraNotifier.setExposing(true, progress: 0.0);
       progressNotifier.startExposure(settings.exposureTime, _frameNumber, null);
-      
-      // Start the real exposure via backend with gain/offset from UI settings
-      await backend.cameraStartExposure(
-        deviceId: deviceId,
-        exposureTime: settings.exposureTime,
-        frameType: settings.frameType,
-        gain: settings.gain,
-        offset: settings.offset,
-        binX: settings.binningX,
-        binY: settings.binningY,
-      );
-      
-      // Use event-driven completion instead of busy-wait loop
-      // Completer signals when exposure is complete or cancelled
+
+      // Set up event listener BEFORE starting exposure to avoid race condition
+      // The exposure call blocks until complete, so events would be missed if
+      // we set up the listener after the call returns
       final exposureCompleter = Completer<bool>();
 
       // Timeout margin: exposure time + 30 seconds for readout/download
@@ -98,6 +88,7 @@ class ImagingService {
             progressNotifier.updateProgress(elapsed, remainingSecs, progress * 100);
           } else if (event.eventType == 'ExposureComplete') {
             // Exposure is complete - signal the completer
+            print('[ImagingService] ExposureComplete event received');
             if (!exposureCompleter.isCompleted) {
               exposureCompleter.complete(true);
             }
@@ -117,6 +108,20 @@ class ImagingService {
       });
 
       try {
+        // Start the real exposure via backend with gain/offset from UI settings
+        // This call may block until the exposure completes (depending on backend)
+        // Events are published during the exposure, so the listener above catches them
+        await backend.cameraStartExposure(
+          deviceId: deviceId,
+          exposureTime: settings.exposureTime,
+          frameType: settings.frameType,
+          gain: settings.gain,
+          offset: settings.offset,
+          binX: settings.binningX,
+          binY: settings.binningY,
+        );
+        print('[ImagingService] cameraStartExposure returned');
+
         // Wait for exposure completion event OR timeout
         // The Completer is completed by the event listener above
         final completed = await exposureCompleter.future.timeout(

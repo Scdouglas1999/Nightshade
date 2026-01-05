@@ -2082,7 +2082,9 @@ pub async fn api_get_filterwheel_status(device_id: String) -> Result<FilterWheel
 
 /// Set filter wheel position
 pub async fn api_filterwheel_set_position(device_id: String, position: i32) -> Result<(), NightshadeError> {
+    tracing::info!("[API] api_filterwheel_set_position called: device_id={}, position={}", device_id, position);
     if device_id.starts_with("sim_") {
+        tracing::info!("[API] Using simulator filter wheel");
         let mut fw = get_sim_filterwheel().write().await;
 
         // Simulate move
@@ -2096,9 +2098,15 @@ pub async fn api_filterwheel_set_position(device_id: String, position: i32) -> R
         Ok(())
     } else {
         // Real device - use DeviceManager for proper driver routing
+        tracing::info!("[API] Using real device via DeviceManager");
         let mgr = get_device_manager();
-        mgr.filter_wheel_set_position(&device_id, position).await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+        let result = mgr.filter_wheel_set_position(&device_id, position).await
+            .map_err(|e| NightshadeError::OperationFailed(e));
+        match &result {
+            Ok(_) => tracing::info!("[API] Filter wheel position set successfully"),
+            Err(e) => tracing::error!("[API] Filter wheel set position failed: {:?}", e),
+        }
+        result
     }
 }
 
@@ -2132,16 +2140,49 @@ pub async fn api_filterwheel_set_by_name(device_id: String, name: String) -> Res
     } else {
         // Real device - find position by name and use DeviceManager
         let mgr = get_device_manager();
-        let (_, filter_names) = mgr.filter_wheel_get_config(&device_id).await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
 
+        // Get filter names from device
+        let (_, filter_names) = mgr.filter_wheel_get_config(&device_id)
+            .await
+            .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get filter config: {}", e)))?;
+
+        // Find filter position by name (case-insensitive)
         let position = filter_names.iter()
             .position(|n| n.eq_ignore_ascii_case(&name))
-            .ok_or_else(|| NightshadeError::OperationFailed(format!("Filter '{}' not found", name)))?;
+            .map(|p| (p + 1) as i32)
+            .ok_or_else(|| NightshadeError::OperationFailed(format!("Filter '{}' not found. Available: {:?}", name, filter_names)))?;
 
-        // Filter positions are 1-indexed in ASCOM/Alpaca
-        mgr.filter_wheel_set_position(&device_id, (position + 1) as i32).await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+        // Set the filter position
+        mgr.filter_wheel_set_position(&device_id, position)
+            .await
+            .map_err(|e| NightshadeError::OperationFailed(format!("Failed to set filter: {}", e)))?;
+
+        Ok(())
+    }
+}
+
+/// Set filter names on a filter wheel
+/// This pushes user-defined filter names from the equipment profile to the hardware driver.
+pub async fn api_filterwheel_set_filter_names(device_id: String, names: Vec<String>) -> Result<(), NightshadeError> {
+    tracing::info!("API: Setting filter names for '{}': {:?}", device_id, names);
+
+    if device_id.starts_with("sim_") {
+        // Simulator - update the simulated filter wheel's names
+        let mut fw = get_sim_filterwheel().write().await;
+        // Only update up to the existing count
+        let count = fw.status.filter_names.len().min(names.len());
+        for i in 0..count {
+            fw.status.filter_names[i] = names[i].clone();
+        }
+        tracing::info!("API: Set {} filter names on simulator", count);
+        Ok(())
+    } else {
+        // Real device - use DeviceManager
+        let mgr = get_device_manager();
+        mgr.filter_wheel_set_filter_names(&device_id, names)
+            .await
+            .map_err(|e| NightshadeError::OperationFailed(format!("Failed to set filter names: {}", e)))?;
+        Ok(())
     }
 }
 
@@ -2521,7 +2562,7 @@ fn get_unified_image_storage() -> &'static Arc<RwLock<HashMap<String, CapturedIm
 /// Store captured image data atomically for a specific device
 /// This ensures all image-related data (display, raw, metadata) is updated together,
 /// preventing race conditions where the UI could see inconsistent state.
-async fn store_captured_image_atomically(
+pub(crate) async fn store_captured_image_atomically(
     device_id: &str,
     display: CapturedImageResult,
     raw_info: RawImageInfo,
@@ -5087,13 +5128,22 @@ pub async fn api_sequencer_set_devices(
     focuser_id: Option<String>,
     filterwheel_id: Option<String>,
     rotator_id: Option<String>,
+    filter_names: Option<Vec<String>>,
 ) -> Result<(), NightshadeError> {
     tracing::info!(
-        "Setting sequencer devices: camera={:?}, mount={:?}, focuser={:?}, filterwheel={:?}, rotator={:?}",
-        camera_id, mount_id, focuser_id, filterwheel_id, rotator_id
+        "Setting sequencer devices: camera={:?}, mount={:?}, focuser={:?}, filterwheel={:?}, rotator={:?}, filter_names={:?}",
+        camera_id, mount_id, focuser_id, filterwheel_id, rotator_id, filter_names
     );
     let mut executor = get_sequence_executor().write().await;
     executor.set_devices(camera_id, mount_id, focuser_id, filterwheel_id, rotator_id);
+
+    // Note: filter_names is logged but not currently used by the sequencer.
+    // The sequencer queries filter names directly from the filter wheel hardware.
+    // This parameter is provided for future use cases like profile-based name mapping.
+    if let Some(names) = &filter_names {
+        tracing::debug!("Profile filter names provided: {:?} (not used - sequencer queries hardware directly)", names);
+    }
+
     Ok(())
 }
 
@@ -5135,6 +5185,7 @@ pub fn api_create_exposure_node(
     duration_secs: f64,
     count: u32,
     filter: Option<String>,
+    filter_index: Option<i32>,
     gain: Option<i32>,
     offset: Option<i32>,
     binning: i32,
@@ -5147,11 +5198,12 @@ pub fn api_create_exposure_node(
         4 => Binning::Four,
         _ => Binning::One,
     };
-    
+
     let config = ExposureConfig {
         duration_secs,
         count,
         filter,
+        filter_index,
         gain,
         offset,
         binning: binning_enum,
