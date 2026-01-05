@@ -1627,6 +1627,7 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__api_create_expos
                                                                                          double duration_secs,
                                                                                          uint32_t count,
                                                                                          struct wire_cst_list_prim_u_8_strict *filter,
+                                                                                         int32_t *filter_index,
                                                                                          int32_t *gain,
                                                                                          int32_t *offset,
                                                                                          int32_t binning,

@@ -284,6 +284,9 @@ pub struct FlatWizardConfig {
     pub panel_location: PanelLocation,
     /// Filter to use (optional)
     pub filter: Option<String>,
+    /// Filter position (0-based index). When specified, used instead of filter name.
+    #[serde(default)]
+    pub filter_index: Option<i32>,
     /// Initial brightness for flat panel (0-255, ignored for sky flats)
     #[serde(default = "default_brightness")]
     pub brightness: i32,
@@ -321,6 +324,7 @@ impl Default for FlatWizardConfig {
             tolerance_percent: 5.0,
             panel_location: PanelLocation::DuskSky,
             filter: None,
+            filter_index: None,
             brightness: 128,
             auto_adjust_brightness: false,
             min_brightness: 10,
@@ -448,6 +452,10 @@ pub struct ExposureConfig {
     pub duration_secs: f64,
     pub count: u32,
     pub filter: Option<String>,
+    /// Filter position (0-based index). When specified, this is used instead of filter name
+    /// for more reliable filter changes that don't depend on name matching.
+    #[serde(default)]
+    pub filter_index: Option<i32>,
     pub gain: Option<i32>,
     pub offset: Option<i32>,
     pub binning: Binning,
@@ -463,6 +471,7 @@ impl Default for ExposureConfig {
             duration_secs: 60.0,
             count: 10,
             filter: None,
+            filter_index: None,
             gain: None,
             offset: None,
             binning: Binning::One,

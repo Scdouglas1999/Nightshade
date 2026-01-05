@@ -763,6 +763,8 @@ class ExposureNode extends SequenceNode {
   final int count;
   final FrameType frameType;
   final String? filter;
+  /// Filter position (0-based index). When set, used instead of filter name for reliability.
+  final int? filterIndex;
   final int? gain;
   final int? offset;
   final BinningMode binning;
@@ -779,6 +781,7 @@ class ExposureNode extends SequenceNode {
     this.count = 10,
     this.frameType = FrameType.light,
     this.filter,
+    this.filterIndex,
     this.gain,
     this.offset,
     this.binning = BinningMode.one,
@@ -812,6 +815,7 @@ class ExposureNode extends SequenceNode {
     int? count,
     FrameType? frameType,
     String? filter,
+    int? filterIndex,
     int? gain,
     int? offset,
     BinningMode? binning,
@@ -828,6 +832,7 @@ class ExposureNode extends SequenceNode {
       count: count ?? this.count,
       frameType: frameType ?? this.frameType,
       filter: filter ?? this.filter,
+      filterIndex: filterIndex ?? this.filterIndex,
       gain: gain ?? this.gain,
       offset: offset ?? this.offset,
       binning: binning ?? this.binning,
@@ -842,6 +847,7 @@ class ExposureNode extends SequenceNode {
     count,
     frameType,
     filter,
+    filterIndex,
     gain,
     offset,
     binning,

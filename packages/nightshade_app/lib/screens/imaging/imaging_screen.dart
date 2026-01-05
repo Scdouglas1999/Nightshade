@@ -2230,11 +2230,15 @@ class _FilterSelectorState extends ConsumerState<_FilterSelector> {
   }
 
   Future<void> _selectFilter(String label, int position) async {
+    debugPrint('[FilterSelector] Selecting filter "$label" at position $position');
     setState(() => _selectedFilter = label);
     try {
       final deviceService = ref.read(deviceServiceProvider);
+      debugPrint('[FilterSelector] Calling setFilterWheelPosition($position)');
       await deviceService.setFilterWheelPosition(position);
+      debugPrint('[FilterSelector] Filter change completed successfully');
     } catch (e) {
+      debugPrint('[FilterSelector] Filter change failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to change filter: $e')),

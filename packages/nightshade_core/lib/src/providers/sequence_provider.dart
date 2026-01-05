@@ -829,14 +829,31 @@ class SequenceExecutor {
     });
   }
   
+  /// Look up filter index from profile by name (case-insensitive)
+  int? _lookupFilterIndex(String? filterName) {
+    if (filterName == null || filterName.isEmpty) return null;
+    final profile = _ref.read(activeEquipmentProfileProvider);
+    if (profile == null) return null;
+    final filterNames = profile.filterNames;
+    for (int i = 0; i < filterNames.length; i++) {
+      if (filterNames[i].toLowerCase() == filterName.toLowerCase()) {
+        return i;
+      }
+    }
+    return null;
+  }
+
   /// Convert a Dart node to native config format
   Map<String, dynamic> _nodeToConfig(SequenceNode node) {
     if (node is ExposureNode) {
+      // Auto-populate filter_index from profile if not set
+      final filterIndex = node.filterIndex ?? _lookupFilterIndex(node.filter);
       return {
         'type': 'TakeExposure',
         'duration_secs': node.durationSecs,
         'count': node.count,
         'filter': node.filter,
+        'filter_index': filterIndex,
         'gain': node.gain,
         'offset': node.offset,
         'binning': _binningToString(node.binning),
@@ -889,10 +906,12 @@ class SequenceExecutor {
     } else if (node is StopGuidingNode) {
       return {'type': 'StopGuiding'};
     } else if (node is FilterChangeNode) {
+      // Auto-populate filter_index from profile if not set
+      final filterIndex = node.filterPosition ?? _lookupFilterIndex(node.filterName);
       return {
         'type': 'ChangeFilter',
         'filter_name': node.filterName,
-        'filter_index': node.filterPosition,
+        'filter_index': filterIndex,
       };
     } else if (node is CoolCameraNode) {
       return {
@@ -1375,7 +1394,16 @@ class SequenceExecutor {
     // Log all events to verify handler is being called
     print('[SequenceProvider] Received event: type=${event.eventType}, category=${event.category}');
 
-    // Only process sequencer events
+    // Handle imaging events for image preview during sequences
+    // This MUST be before the category filter since ExposureComplete has category=imaging
+    if (event.category == EventCategory.imaging && event.eventType == 'ExposureComplete') {
+      print('[SEQ_PROVIDER] ExposureComplete imaging event received - fetching image for preview');
+      final durationSecs = (event.data['duration_secs'] as num?)?.toDouble() ?? 2.0;
+      _fetchAndDisplaySequenceImage(durationSecs);
+      return;
+    }
+
+    // Only process sequencer events for progress tracking
     if (event.category != EventCategory.sequencer) return;
 
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);

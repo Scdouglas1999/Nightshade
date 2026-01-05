@@ -4309,6 +4309,8 @@ impl DeviceManager {
         }
     }
 
+
+
     /// Set filter names on a filter wheel.
     /// This pushes user-defined filter names from the equipment profile to the hardware driver.
     pub async fn filter_wheel_set_filter_names(&self, device_id: &str, names: Vec<String>) -> Result<(), String> {

@@ -503,7 +503,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 bayer_offset,
             };
 
-            store_captured_image_atomically(display_result, raw_info).await;
+            store_captured_image_atomically(camera_id, display_result, raw_info).await;
             tracing::info!("Stored image in unified storage for UI display");
         }
 

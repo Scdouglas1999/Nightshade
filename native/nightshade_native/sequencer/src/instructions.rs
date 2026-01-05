@@ -738,12 +738,21 @@ pub async fn execute_exposure(
         config.duration_secs
     );
 
-    // Change filter if specified
-    if let Some(filter) = &config.filter {
+    // Change filter if specified - prefer index over name for reliability
+    if config.filter.is_some() || config.filter_index.is_some() {
         if let Some(fw_id) = &ctx.filterwheel_id {
-            tracing::info!("Changing to filter: {}", filter);
-            if let Err(e) = ctx.device_ops.filterwheel_set_filter_by_name(fw_id, filter).await {
-                return InstructionResult::failure(format!("Failed to change filter: {}", e));
+            // If filter_index is specified, use it directly (most reliable)
+            if let Some(index) = config.filter_index {
+                tracing::info!("Changing to filter position: {} (name: {:?})", index, config.filter);
+                if let Err(e) = ctx.device_ops.filterwheel_set_position(fw_id, index).await {
+                    return InstructionResult::failure(format!("Failed to change filter: {}", e));
+                }
+            } else if let Some(filter) = &config.filter {
+                // Fall back to name-based lookup
+                tracing::info!("Changing to filter by name: {}", filter);
+                if let Err(e) = ctx.device_ops.filterwheel_set_filter_by_name(fw_id, filter).await {
+                    return InstructionResult::failure(format!("Failed to change filter: {}", e));
+                }
             }
         }
     }

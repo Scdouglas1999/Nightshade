@@ -602,9 +602,8 @@ Future<void> apiFilterwheelSetByName(
     RustLib.instance.api
         .crateApiApiFilterwheelSetByName(deviceId: deviceId, name: name);
 
-/// Set filter names on a filter wheel.
-/// This pushes user-defined filter names from the equipment profile to the native driver.
-/// Should be called after connecting a filter wheel to sync profile names with the driver.
+/// Set filter names on a filter wheel
+/// This pushes user-defined filter names from the equipment profile to the hardware driver.
 Future<void> apiFilterwheelSetFilterNames(
         {required String deviceId, required List<String> names}) =>
     RustLib.instance.api
@@ -1083,6 +1082,7 @@ String apiCreateExposureNode(
         required double durationSecs,
         required int count,
         String? filter,
+        int? filterIndex,
         int? gain,
         int? offset,
         required int binning,
@@ -1093,6 +1093,7 @@ String apiCreateExposureNode(
         durationSecs: durationSecs,
         count: count,
         filter: filter,
+        filterIndex: filterIndex,
         gain: gain,
         offset: offset,
         binning: binning,
