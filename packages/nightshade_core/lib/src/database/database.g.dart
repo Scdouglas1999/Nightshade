@@ -153,6 +153,12 @@ class $EquipmentProfilesTable extends EquipmentProfiles
   late final GeneratedColumn<String> filterFocusOffsets =
       GeneratedColumn<String>('filter_focus_offsets', aliasedName, true,
           type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _meridianFlipOverridesMeta =
+      const VerificationMeta('meridianFlipOverrides');
+  @override
+  late final GeneratedColumn<String> meridianFlipOverrides =
+      GeneratedColumn<String>('meridian_flip_overrides', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -203,6 +209,7 @@ class $EquipmentProfilesTable extends EquipmentProfiles
         defaultCoolingTemp,
         filterNames,
         filterFocusOffsets,
+        meridianFlipOverrides,
         createdAt,
         updatedAt,
         isActive
@@ -330,6 +337,12 @@ class $EquipmentProfilesTable extends EquipmentProfiles
           filterFocusOffsets.isAcceptableOrUnknown(
               data['filter_focus_offsets']!, _filterFocusOffsetsMeta));
     }
+    if (data.containsKey('meridian_flip_overrides')) {
+      context.handle(
+          _meridianFlipOverridesMeta,
+          meridianFlipOverrides.isAcceptableOrUnknown(
+              data['meridian_flip_overrides']!, _meridianFlipOverridesMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -395,6 +408,9 @@ class $EquipmentProfilesTable extends EquipmentProfiles
           .read(DriftSqlType.string, data['${effectivePrefix}filter_names']),
       filterFocusOffsets: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}filter_focus_offsets']),
+      meridianFlipOverrides: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}meridian_flip_overrides']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -434,6 +450,7 @@ class EquipmentProfile extends DataClass
   final double? defaultCoolingTemp;
   final String? filterNames;
   final String? filterFocusOffsets;
+  final String? meridianFlipOverrides;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isActive;
@@ -460,6 +477,7 @@ class EquipmentProfile extends DataClass
       this.defaultCoolingTemp,
       this.filterNames,
       this.filterFocusOffsets,
+      this.meridianFlipOverrides,
       required this.createdAt,
       required this.updatedAt,
       required this.isActive});
@@ -519,6 +537,9 @@ class EquipmentProfile extends DataClass
     }
     if (!nullToAbsent || filterFocusOffsets != null) {
       map['filter_focus_offsets'] = Variable<String>(filterFocusOffsets);
+    }
+    if (!nullToAbsent || meridianFlipOverrides != null) {
+      map['meridian_flip_overrides'] = Variable<String>(meridianFlipOverrides);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -581,6 +602,9 @@ class EquipmentProfile extends DataClass
       filterFocusOffsets: filterFocusOffsets == null && nullToAbsent
           ? const Value.absent()
           : Value(filterFocusOffsets),
+      meridianFlipOverrides: meridianFlipOverrides == null && nullToAbsent
+          ? const Value.absent()
+          : Value(meridianFlipOverrides),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       isActive: Value(isActive),
@@ -616,6 +640,8 @@ class EquipmentProfile extends DataClass
       filterNames: serializer.fromJson<String?>(json['filterNames']),
       filterFocusOffsets:
           serializer.fromJson<String?>(json['filterFocusOffsets']),
+      meridianFlipOverrides:
+          serializer.fromJson<String?>(json['meridianFlipOverrides']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       isActive: serializer.fromJson<bool>(json['isActive']),
@@ -647,6 +673,8 @@ class EquipmentProfile extends DataClass
       'defaultCoolingTemp': serializer.toJson<double?>(defaultCoolingTemp),
       'filterNames': serializer.toJson<String?>(filterNames),
       'filterFocusOffsets': serializer.toJson<String?>(filterFocusOffsets),
+      'meridianFlipOverrides':
+          serializer.toJson<String?>(meridianFlipOverrides),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'isActive': serializer.toJson<bool>(isActive),
@@ -676,6 +704,7 @@ class EquipmentProfile extends DataClass
           Value<double?> defaultCoolingTemp = const Value.absent(),
           Value<String?> filterNames = const Value.absent(),
           Value<String?> filterFocusOffsets = const Value.absent(),
+          Value<String?> meridianFlipOverrides = const Value.absent(),
           DateTime? createdAt,
           DateTime? updatedAt,
           bool? isActive}) =>
@@ -710,6 +739,9 @@ class EquipmentProfile extends DataClass
         filterFocusOffsets: filterFocusOffsets.present
             ? filterFocusOffsets.value
             : this.filterFocusOffsets,
+        meridianFlipOverrides: meridianFlipOverrides.present
+            ? meridianFlipOverrides.value
+            : this.meridianFlipOverrides,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         isActive: isActive ?? this.isActive,
@@ -755,6 +787,9 @@ class EquipmentProfile extends DataClass
       filterFocusOffsets: data.filterFocusOffsets.present
           ? data.filterFocusOffsets.value
           : this.filterFocusOffsets,
+      meridianFlipOverrides: data.meridianFlipOverrides.present
+          ? data.meridianFlipOverrides.value
+          : this.meridianFlipOverrides,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
@@ -786,6 +821,7 @@ class EquipmentProfile extends DataClass
           ..write('defaultCoolingTemp: $defaultCoolingTemp, ')
           ..write('filterNames: $filterNames, ')
           ..write('filterFocusOffsets: $filterFocusOffsets, ')
+          ..write('meridianFlipOverrides: $meridianFlipOverrides, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isActive: $isActive')
@@ -817,6 +853,7 @@ class EquipmentProfile extends DataClass
         defaultCoolingTemp,
         filterNames,
         filterFocusOffsets,
+        meridianFlipOverrides,
         createdAt,
         updatedAt,
         isActive
@@ -847,6 +884,7 @@ class EquipmentProfile extends DataClass
           other.defaultCoolingTemp == this.defaultCoolingTemp &&
           other.filterNames == this.filterNames &&
           other.filterFocusOffsets == this.filterFocusOffsets &&
+          other.meridianFlipOverrides == this.meridianFlipOverrides &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.isActive == this.isActive);
@@ -875,6 +913,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
   final Value<double?> defaultCoolingTemp;
   final Value<String?> filterNames;
   final Value<String?> filterFocusOffsets;
+  final Value<String?> meridianFlipOverrides;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<bool> isActive;
@@ -901,6 +940,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.defaultCoolingTemp = const Value.absent(),
     this.filterNames = const Value.absent(),
     this.filterFocusOffsets = const Value.absent(),
+    this.meridianFlipOverrides = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.isActive = const Value.absent(),
@@ -928,6 +968,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.defaultCoolingTemp = const Value.absent(),
     this.filterNames = const Value.absent(),
     this.filterFocusOffsets = const Value.absent(),
+    this.meridianFlipOverrides = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.isActive = const Value.absent(),
@@ -955,6 +996,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     Expression<double>? defaultCoolingTemp,
     Expression<String>? filterNames,
     Expression<String>? filterFocusOffsets,
+    Expression<String>? meridianFlipOverrides,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<bool>? isActive,
@@ -984,6 +1026,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       if (filterNames != null) 'filter_names': filterNames,
       if (filterFocusOffsets != null)
         'filter_focus_offsets': filterFocusOffsets,
+      if (meridianFlipOverrides != null)
+        'meridian_flip_overrides': meridianFlipOverrides,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (isActive != null) 'is_active': isActive,
@@ -1013,6 +1057,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       Value<double?>? defaultCoolingTemp,
       Value<String?>? filterNames,
       Value<String?>? filterFocusOffsets,
+      Value<String?>? meridianFlipOverrides,
       Value<DateTime>? createdAt,
       Value<DateTime>? updatedAt,
       Value<bool>? isActive}) {
@@ -1039,6 +1084,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       defaultCoolingTemp: defaultCoolingTemp ?? this.defaultCoolingTemp,
       filterNames: filterNames ?? this.filterNames,
       filterFocusOffsets: filterFocusOffsets ?? this.filterFocusOffsets,
+      meridianFlipOverrides:
+          meridianFlipOverrides ?? this.meridianFlipOverrides,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isActive: isActive ?? this.isActive,
@@ -1114,6 +1161,10 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     if (filterFocusOffsets.present) {
       map['filter_focus_offsets'] = Variable<String>(filterFocusOffsets.value);
     }
+    if (meridianFlipOverrides.present) {
+      map['meridian_flip_overrides'] =
+          Variable<String>(meridianFlipOverrides.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1151,6 +1202,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
           ..write('defaultCoolingTemp: $defaultCoolingTemp, ')
           ..write('filterNames: $filterNames, ')
           ..write('filterFocusOffsets: $filterFocusOffsets, ')
+          ..write('meridianFlipOverrides: $meridianFlipOverrides, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isActive: $isActive')
@@ -7539,6 +7591,7 @@ typedef $$EquipmentProfilesTableCreateCompanionBuilder
   Value<double?> defaultCoolingTemp,
   Value<String?> filterNames,
   Value<String?> filterFocusOffsets,
+  Value<String?> meridianFlipOverrides,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
   Value<bool> isActive,
@@ -7567,6 +7620,7 @@ typedef $$EquipmentProfilesTableUpdateCompanionBuilder
   Value<double?> defaultCoolingTemp,
   Value<String?> filterNames,
   Value<String?> filterFocusOffsets,
+  Value<String?> meridianFlipOverrides,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
   Value<bool> isActive,
@@ -7671,6 +7725,10 @@ class $$EquipmentProfilesTableFilterComposer
 
   ColumnFilters<String> get filterFocusOffsets => $composableBuilder(
       column: $table.filterFocusOffsets,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get meridianFlipOverrides => $composableBuilder(
+      column: $table.meridianFlipOverrides,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
@@ -7784,6 +7842,10 @@ class $$EquipmentProfilesTableOrderingComposer
       column: $table.filterFocusOffsets,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get meridianFlipOverrides => $composableBuilder(
+      column: $table.meridianFlipOverrides,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -7869,6 +7931,9 @@ class $$EquipmentProfilesTableAnnotationComposer
   GeneratedColumn<String> get filterFocusOffsets => $composableBuilder(
       column: $table.filterFocusOffsets, builder: (column) => column);
 
+  GeneratedColumn<String> get meridianFlipOverrides => $composableBuilder(
+      column: $table.meridianFlipOverrides, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -7947,6 +8012,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<double?> defaultCoolingTemp = const Value.absent(),
             Value<String?> filterNames = const Value.absent(),
             Value<String?> filterFocusOffsets = const Value.absent(),
+            Value<String?> meridianFlipOverrides = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<bool> isActive = const Value.absent(),
@@ -7974,6 +8040,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             defaultCoolingTemp: defaultCoolingTemp,
             filterNames: filterNames,
             filterFocusOffsets: filterFocusOffsets,
+            meridianFlipOverrides: meridianFlipOverrides,
             createdAt: createdAt,
             updatedAt: updatedAt,
             isActive: isActive,
@@ -8001,6 +8068,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<double?> defaultCoolingTemp = const Value.absent(),
             Value<String?> filterNames = const Value.absent(),
             Value<String?> filterFocusOffsets = const Value.absent(),
+            Value<String?> meridianFlipOverrides = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<bool> isActive = const Value.absent(),
@@ -8028,6 +8096,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             defaultCoolingTemp: defaultCoolingTemp,
             filterNames: filterNames,
             filterFocusOffsets: filterFocusOffsets,
+            meridianFlipOverrides: meridianFlipOverrides,
             createdAt: createdAt,
             updatedAt: updatedAt,
             isActive: isActive,

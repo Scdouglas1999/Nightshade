@@ -55,7 +55,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -144,6 +144,13 @@ class NightshadeDatabase extends _$NightshadeDatabase {
         if (from < 5) {
           await customStatement(
             'ALTER TABLE equipment_profiles ADD COLUMN cover_calibrator_id TEXT',
+          );
+        }
+
+        // Version 6: Add meridian_flip_overrides to equipment_profiles
+        if (from < 6) {
+          await customStatement(
+            'ALTER TABLE equipment_profiles ADD COLUMN meridian_flip_overrides TEXT',
           );
         }
       },
