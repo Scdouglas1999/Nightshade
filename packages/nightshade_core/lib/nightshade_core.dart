@@ -58,6 +58,7 @@ export 'src/providers/filter_offset_provider.dart';
 export 'src/providers/camera_presets_provider.dart';
 export 'src/providers/weather_providers.dart';
 export 'src/providers/capability_provider.dart';
+export 'src/providers/meridian_flip_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;
