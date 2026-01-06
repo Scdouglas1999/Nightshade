@@ -1,0 +1,70 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'meridian_flip_settings.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_$MeridianFlipSettingsImpl _$$MeridianFlipSettingsImplFromJson(
+        Map<String, dynamic> json) =>
+    _$MeridianFlipSettingsImpl(
+      standaloneMonitoringEnabled:
+          json['standaloneMonitoringEnabled'] as bool? ?? false,
+      triggerMethod: $enumDecodeNullable(
+              _$MeridianTriggerMethodEnumMap, json['triggerMethod']) ??
+          MeridianTriggerMethod.minutesPastMeridian,
+      minutesPastMeridian:
+          (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
+      minutesBeforeLimit:
+          (json['minutesBeforeLimit'] as num?)?.toDouble() ?? 10.0,
+      hourAngleThreshold:
+          (json['hourAngleThreshold'] as num?)?.toDouble() ?? 0.5,
+      pauseGuidingBeforeFlip: json['pauseGuidingBeforeFlip'] as bool? ?? true,
+      recenterAfterFlip: json['recenterAfterFlip'] as bool? ?? true,
+      refocusAfterFlip: json['refocusAfterFlip'] as bool? ?? false,
+      settleTimeSeconds:
+          (json['settleTimeSeconds'] as num?)?.toDouble() ?? 10.0,
+      resumeGuidingAfterFlip: json['resumeGuidingAfterFlip'] as bool? ?? true,
+      maxRetries: (json['maxRetries'] as num?)?.toInt() ?? 3,
+      retryDelaysSeconds: (json['retryDelaysSeconds'] as List<dynamic>?)
+              ?.map((e) => (e as num).toDouble())
+              .toList() ??
+          const [30.0, 60.0, 120.0],
+      failureAction: $enumDecodeNullable(
+              _$FlipFailureActionEnumMap, json['failureAction']) ??
+          FlipFailureAction.pauseAndAlert,
+      soundAlertOnFlip: json['soundAlertOnFlip'] as bool? ?? false,
+      pushNotificationOnFlip: json['pushNotificationOnFlip'] as bool? ?? true,
+    );
+
+Map<String, dynamic> _$$MeridianFlipSettingsImplToJson(
+        _$MeridianFlipSettingsImpl instance) =>
+    <String, dynamic>{
+      'standaloneMonitoringEnabled': instance.standaloneMonitoringEnabled,
+      'triggerMethod': _$MeridianTriggerMethodEnumMap[instance.triggerMethod]!,
+      'minutesPastMeridian': instance.minutesPastMeridian,
+      'minutesBeforeLimit': instance.minutesBeforeLimit,
+      'hourAngleThreshold': instance.hourAngleThreshold,
+      'pauseGuidingBeforeFlip': instance.pauseGuidingBeforeFlip,
+      'recenterAfterFlip': instance.recenterAfterFlip,
+      'refocusAfterFlip': instance.refocusAfterFlip,
+      'settleTimeSeconds': instance.settleTimeSeconds,
+      'resumeGuidingAfterFlip': instance.resumeGuidingAfterFlip,
+      'maxRetries': instance.maxRetries,
+      'retryDelaysSeconds': instance.retryDelaysSeconds,
+      'failureAction': _$FlipFailureActionEnumMap[instance.failureAction]!,
+      'soundAlertOnFlip': instance.soundAlertOnFlip,
+      'pushNotificationOnFlip': instance.pushNotificationOnFlip,
+    };
+
+const _$MeridianTriggerMethodEnumMap = {
+  MeridianTriggerMethod.minutesPastMeridian: 'minutesPastMeridian',
+  MeridianTriggerMethod.minutesBeforeLimit: 'minutesBeforeLimit',
+  MeridianTriggerMethod.hourAngleThreshold: 'hourAngleThreshold',
+};
+
+const _$FlipFailureActionEnumMap = {
+  FlipFailureAction.pauseAndAlert: 'pauseAndAlert',
+  FlipFailureAction.abortAndPark: 'abortAndPark',
+};

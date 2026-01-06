@@ -32,6 +32,7 @@ export 'src/models/tutorial/tutorial_models.dart';
 export 'src/models/phd2_models.dart';
 export 'src/models/weather/weather_models.dart';
 export 'src/models/autofocus_progress.dart';
+export 'src/models/meridian_flip_settings.dart';
 
 // Providers
 export 'src/providers/database_provider.dart';
