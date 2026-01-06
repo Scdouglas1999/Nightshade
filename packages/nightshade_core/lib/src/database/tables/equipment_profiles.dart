@@ -37,7 +37,10 @@ class EquipmentProfiles extends Table {
   TextColumn get filterNames => text().nullable()();
   // Filter focus offsets (JSON object mapping filter name to offset)
   TextColumn get filterFocusOffsets => text().nullable()();
-  
+
+  // Meridian flip settings overrides (JSON, nullable - uses global defaults if null)
+  TextColumn get meridianFlipOverrides => text().nullable()();
+
   // Timestamps
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
