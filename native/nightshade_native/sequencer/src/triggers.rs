@@ -69,11 +69,26 @@ impl Trigger {
                     false
                 }
             }
-            TriggerType::MeridianFlip { minutes_before } => {
+            TriggerType::MeridianFlip { config } => {
                 if let Some(flip_time) = state.next_meridian_flip_time {
                     let now = chrono::Utc::now().timestamp();
                     let time_to_flip = (flip_time - now) as f64 / 60.0;
-                    time_to_flip > 0.0 && time_to_flip <= *minutes_before
+                    // Use appropriate trigger timing based on method
+                    let trigger_threshold = match config.trigger_method {
+                        crate::MeridianTriggerMethod::MinutesPastMeridian => {
+                            // For "past meridian" mode, trigger when we're at or past the meridian
+                            // by more than the configured amount (negative time_to_flip means past)
+                            config.minutes_past_meridian
+                        }
+                        crate::MeridianTriggerMethod::MinutesBeforeLimit => {
+                            config.minutes_before_limit
+                        }
+                        crate::MeridianTriggerMethod::HourAngleThreshold => {
+                            // Convert hour angle threshold to minutes
+                            config.hour_angle_threshold * 60.0
+                        }
+                    };
+                    time_to_flip > 0.0 && time_to_flip <= trigger_threshold
                 } else {
                     false
                 }
@@ -498,7 +513,7 @@ impl TriggerManager {
             Trigger::new(
                 "meridian_flip",
                 "Meridian Flip",
-                TriggerType::MeridianFlip { minutes_before: 5.0 },
+                TriggerType::MeridianFlip { config: crate::MeridianFlipConfig::default() },
                 RecoveryAction::Pause,
             ).with_cooldown(600) // 10 minute cooldown
         );

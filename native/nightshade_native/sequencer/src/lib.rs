@@ -697,21 +697,59 @@ pub struct ScriptConfig {
     pub timeout_secs: Option<u32>,
 }
 
+/// Method to determine when meridian flip should trigger
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
+pub enum MeridianTriggerMethod {
+    #[default]
+    MinutesPastMeridian,
+    MinutesBeforeLimit,
+    HourAngleThreshold,
+}
+
+/// Action when flip fails after all retries
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
+pub enum FlipFailureAction {
+    #[default]
+    PauseAndAlert,
+    AbortAndPark,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeridianFlipConfig {
+    // Trigger conditions
+    pub trigger_method: MeridianTriggerMethod,
     pub minutes_past_meridian: f64,
+    pub minutes_before_limit: f64,
+    pub hour_angle_threshold: f64,
+
+    // Flip sequence options
     pub pause_guiding: bool,
     pub auto_center: bool,
+    pub refocus_after: bool,
     pub settle_time: f64,
+    pub resume_guiding: bool,
+
+    // Error handling
+    pub max_retries: u32,
+    pub retry_delays_secs: Vec<f64>,
+    pub failure_action: FlipFailureAction,
 }
 
 impl Default for MeridianFlipConfig {
     fn default() -> Self {
         Self {
+            trigger_method: MeridianTriggerMethod::MinutesPastMeridian,
             minutes_past_meridian: 5.0,
+            minutes_before_limit: 10.0,
+            hour_angle_threshold: 0.5,
             pause_guiding: true,
             auto_center: true,
+            refocus_after: false,
             settle_time: 10.0,
+            resume_guiding: true,
+            max_retries: 3,
+            retry_delays_secs: vec![30.0, 60.0, 120.0],
+            failure_action: FlipFailureAction::PauseAndAlert,
         }
     }
 }
@@ -802,7 +840,9 @@ pub enum TriggerType {
     /// Trigger when HFR increases
     HfrDegraded { threshold_percent: f64 },
     /// Trigger when meridian flip is needed
-    MeridianFlip { minutes_before: f64 },
+    MeridianFlip {
+        config: MeridianFlipConfig,
+    },
     /// Trigger when guiding fails
     GuidingFailed { rms_threshold: f64, duration_secs: f64 },
     /// Trigger when altitude too low
@@ -843,4 +883,6 @@ pub enum RecoveryAction {
     ParkAndAbort,
     /// Execute custom recovery branch
     CustomBranch,
+    /// Execute meridian flip with given config
+    MeridianFlip(MeridianFlipConfig),
 }
