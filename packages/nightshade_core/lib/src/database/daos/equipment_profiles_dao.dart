@@ -92,6 +92,7 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
         defaultCoolingTemp: Value(source.defaultCoolingTemp),
         filterNames: Value(source.filterNames),
         filterFocusOffsets: Value(source.filterFocusOffsets),
+        meridianFlipOverrides: Value(source.meridianFlipOverrides),
       ),
     );
   }
