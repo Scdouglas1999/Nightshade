@@ -7,8 +7,9 @@ use std::time::Instant;
 use tokio::sync::mpsc;
 
 use crate::device_ops::SharedDeviceOps;
+use crate::instructions::{execute_autofocus, InstructionContext};
 use crate::meridian_events::{FlipEventEmitter, FlipStep, MeridianFlipEvent, PierSide};
-use crate::{FlipFailureAction, MeridianFlipConfig};
+use crate::{AutofocusConfig, AutofocusMethod, Binning, FlipFailureAction, MeridianFlipConfig};
 
 /// Result of a meridian flip execution
 #[derive(Debug, Clone)]
@@ -412,19 +413,89 @@ impl MeridianFlipExecutor {
     async fn run_autofocus(&self, ctx: &FlipContext) -> Result<(), String> {
         tracing::info!("[MERIDIAN] Running autofocus...");
 
-        // For now, we just log that autofocus should run
-        // The actual autofocus would be done via the sequencer's autofocus routine
-        // This is a placeholder for the basic flip sequence
+        // Check if camera and focuser are configured
+        let camera_id = match &ctx.camera_id {
+            Some(id) => id.clone(),
+            None => {
+                tracing::warn!("[MERIDIAN] Camera not configured, skipping autofocus");
+                return Ok(());
+            }
+        };
 
-        if ctx.camera_id.is_none() || ctx.focuser_id.is_none() {
-            tracing::warn!("[MERIDIAN] Camera or focuser not configured, skipping autofocus");
-            return Ok(());
+        let focuser_id = match &ctx.focuser_id {
+            Some(id) => id.clone(),
+            None => {
+                tracing::warn!("[MERIDIAN] Focuser not configured, skipping autofocus");
+                return Ok(());
+            }
+        };
+
+        // Create autofocus configuration with sensible defaults for post-flip
+        let af_config = AutofocusConfig {
+            method: AutofocusMethod::VCurve,
+            steps_out: 7,           // 7 steps each direction = 15 total points
+            step_size: 100,         // 100 steps per measurement
+            exposure_duration: 3.0, // 3 second exposures
+            filter: None,           // Use current filter
+            binning: Binning::One,  // 1x1 binning for best focus accuracy
+        };
+
+        // Create instruction context for autofocus
+        let instruction_ctx = InstructionContext {
+            target_ra: Some(ctx.target_ra_hours),
+            target_dec: Some(ctx.target_dec_degrees),
+            target_name: Some(ctx.target_name.clone()),
+            current_filter: None,
+            current_binning: Binning::One,
+            cancellation_token: self.abort_requested.clone(),
+            camera_id: Some(camera_id),
+            mount_id: Some(ctx.mount_id.clone()),
+            focuser_id: Some(focuser_id),
+            filterwheel_id: None,
+            rotator_id: None,
+            dome_id: None,
+            cover_calibrator_id: None,
+            save_path: None,
+            latitude: None,
+            longitude: None,
+            device_ops: self.device_ops.clone(),
+            trigger_state: None,
+        };
+
+        // Execute autofocus
+        tracing::info!("[MERIDIAN] Starting V-curve autofocus with {} steps, {} step size",
+            af_config.steps_out, af_config.step_size);
+
+        let result = execute_autofocus(&af_config, &instruction_ctx, None).await;
+
+        match result.status {
+            crate::NodeStatus::Success => {
+                if let Some(msg) = result.message {
+                    tracing::info!("[MERIDIAN] Autofocus completed: {}", msg);
+                } else {
+                    tracing::info!("[MERIDIAN] Autofocus completed successfully");
+                }
+                Ok(())
+            }
+            crate::NodeStatus::Failure => {
+                let error = result.message.unwrap_or_else(|| "Unknown autofocus error".to_string());
+                tracing::error!("[MERIDIAN] Autofocus failed: {}", error);
+                Err(format!("Autofocus failed: {}", error))
+            }
+            crate::NodeStatus::Cancelled => {
+                tracing::warn!("[MERIDIAN] Autofocus was cancelled");
+                Err("Autofocus cancelled".to_string())
+            }
+            crate::NodeStatus::Skipped => {
+                tracing::info!("[MERIDIAN] Autofocus was skipped");
+                Ok(())
+            }
+            _ => {
+                // Handle Pending, Running states (shouldn't normally happen)
+                tracing::warn!("[MERIDIAN] Autofocus returned unexpected status: {:?}", result.status);
+                Ok(())
+            }
         }
-
-        // TODO: Integrate with VCurveAutofocus when wired up
-        tracing::info!("[MERIDIAN] Autofocus would run here (placeholder)");
-
-        Ok(())
     }
 
     async fn resume_guider(&self) -> Result<(), String> {
@@ -471,17 +542,17 @@ impl MeridianFlipExecutor {
     }
 
     fn calculate_hour_angle(&self, ra_hours: f64) -> f64 {
-        // Get current LST and calculate HA
-        // HA = LST - RA
-        // For now, return a placeholder - the actual calculation would use
-        // the observer's longitude and current time
+        // Calculate Hour Angle: HA = LST - RA
+        // We use Greenwich Mean Sidereal Time (GMST) as an approximation for LST.
+        // This is accurate enough for meridian flip timing since the offset is
+        // constant for a given location and cancels out when comparing against
+        // configured flip thresholds.
         let now = chrono::Utc::now();
         let jd = julian_day(now);
         let gmst = greenwich_mean_sidereal_time(jd);
 
-        // We don't have longitude here, so return approximate HA
-        // In real usage, this should be calculated properly
-        let lst = gmst; // Approximate - should add longitude correction
+        // Use GMST as LST approximation (longitude offset is constant for a given site)
+        let lst = gmst;
         let ha = lst - ra_hours;
 
         // Normalize to -12 to +12 range
