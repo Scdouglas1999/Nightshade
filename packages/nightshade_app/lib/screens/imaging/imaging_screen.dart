@@ -1535,6 +1535,7 @@ class _CompactInput extends StatelessWidget {
   const _CompactInput({
     required this.label,
     required this.value,
+    this.suffix,
     required this.colors,
   });
 
@@ -2229,11 +2230,15 @@ class _FilterSelectorState extends ConsumerState<_FilterSelector> {
   }
 
   Future<void> _selectFilter(String label, int position) async {
+    debugPrint('[FilterSelector] Selecting filter "$label" at position $position');
     setState(() => _selectedFilter = label);
     try {
       final deviceService = ref.read(deviceServiceProvider);
+      debugPrint('[FilterSelector] Calling setFilterWheelPosition($position)');
       await deviceService.setFilterWheelPosition(position);
+      debugPrint('[FilterSelector] Filter change completed successfully');
     } catch (e) {
+      debugPrint('[FilterSelector] Filter change failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to change filter: $e')),
@@ -2436,6 +2441,18 @@ class _CapturePanel extends ConsumerWidget {
     final namingPattern = ref.watch(namingPatternProvider);
     final sessionState = ref.watch(sessionStateProvider);
     final sessionImages = ref.watch(sessionImagesProvider);
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
+    final cameraState = ref.watch(cameraStateProvider);
+
+    // Get binning options based on connected camera's capabilities
+    final binningOptions = ref.watch(
+      cameraBinningOptionsProvider(cameraState.deviceId ?? ''),
+    );
+
+    // Ensure current binning value is valid for available options
+    final currentBinning = binningOptions.contains(exposureSettings.binning)
+        ? exposureSettings.binning
+        : binningOptions.first;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -2481,8 +2498,8 @@ class _CapturePanel extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _DropdownRow(
                   label: 'Binning',
-                  value: exposureSettings.binning,
-                  items: const ['1x1', '2x2', '3x3', '4x4'],
+                  value: currentBinning,
+                  items: binningOptions,
                   colors: colors,
                   onChanged: (value) {
                     if (value != null) {
@@ -2525,28 +2542,42 @@ class _CapturePanel extends ConsumerWidget {
                   },
                 ),
                 const SizedBox(height: 12),
-                _InputRow(
-                  label: 'Save Path',
-                  value: namingPattern.baseDir,
-                  colors: colors,
-                  trailing: GestureDetector(
-                    onTap: () async {
-                      final result = await getDirectoryPath(
-                        confirmButtonText: 'Select',
-                        initialDirectory: namingPattern.baseDir.isNotEmpty
-                            ? namingPattern.baseDir
-                            : null,
-                      );
-                      if (result != null) {
-                        ref
-                            .read(appSettingsProvider.notifier)
-                            .setImageOutputPath(result);
-                      }
+                // In remote mode, show text input for server path
+                // In local mode, show directory picker
+                if (isRemoteMode)
+                  _InputRowEditable(
+                    label: 'Save Path (Server)',
+                    value: namingPattern.baseDir,
+                    colors: colors,
+                    onChanged: (value) {
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setImageOutputPath(value);
                     },
-                    child: Icon(LucideIcons.folderOpen,
-                        size: 14, color: colors.textSecondary),
+                  )
+                else
+                  _InputRow(
+                    label: 'Save Path',
+                    value: namingPattern.baseDir,
+                    colors: colors,
+                    trailing: GestureDetector(
+                      onTap: () async {
+                        final result = await getDirectoryPath(
+                          confirmButtonText: 'Select',
+                          initialDirectory: namingPattern.baseDir.isNotEmpty
+                              ? namingPattern.baseDir
+                              : null,
+                        );
+                        if (result != null) {
+                          ref
+                              .read(appSettingsProvider.notifier)
+                              .setImageOutputPath(result);
+                        }
+                      },
+                      child: Icon(LucideIcons.folderOpen,
+                          size: 14, color: colors.textSecondary),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -2889,6 +2920,21 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
 
+    // Watch camera capabilities to gate UI features
+    final capabilitiesAsync = ref.watch(
+        cameraCapabilitiesProvider(cameraState.deviceId ?? ''));
+    final capabilities = capabilitiesAsync.valueOrNull;
+
+    // Get binning options based on camera capabilities
+    final binningOptions = ref.watch(
+      cameraBinningOptionsProvider(cameraState.deviceId ?? ''),
+    );
+
+    // Ensure current binning value is valid for available options
+    final currentBinning = binningOptions.contains(exposureSettings.binning)
+        ? exposureSettings.binning
+        : binningOptions.first;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -2921,11 +2967,12 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
               ),
             ),
 
-          // Cooling Section
-          _PanelSection(
-            title: 'Cooling',
-            colors: widget.colors,
-            child: Column(
+          // Cooling Section - only show if camera supports cooling
+          if (capabilities?.canSetCcdTemperature ?? false)
+            _PanelSection(
+              title: 'Cooling',
+              colors: widget.colors,
+              child: Column(
               children: [
                 // Current temperature display
                 Row(
@@ -3095,6 +3142,20 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
               ],
             ),
           ),
+          // Show "not supported" message when camera is connected but doesn't support cooling
+          if (isConnected && capabilities != null && !capabilities.canSetCcdTemperature)
+            _PanelSection(
+              title: 'Cooling',
+              colors: widget.colors,
+              child: Text(
+                'Cooling not supported by this camera',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: widget.colors.textSecondary,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
           const SizedBox(height: 20),
 
           // Sensor Settings
@@ -3105,8 +3166,8 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
               children: [
                 _DropdownRow(
                   label: 'Binning',
-                  value: exposureSettings.binning,
-                  items: const ['1x1', '2x2', '3x3', '4x4'],
+                  value: currentBinning,
+                  items: binningOptions,
                   colors: widget.colors,
                   onChanged: isConnected
                       ? (value) {
@@ -3140,40 +3201,54 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
           ),
           const SizedBox(height: 20),
 
-          // Gain/Offset
-          _PanelSection(
-            title: 'Gain / Offset',
-            colors: widget.colors,
-            child: Column(
-              children: [
-                _InputRowEditable(
-                  label: 'Gain',
-                  value: exposureSettings.gain.toString(),
-                  colors: widget.colors,
-                  onChanged: (value) {
-                    final parsed = int.tryParse(value);
-                    if (parsed != null && parsed >= 0) {
-                      ref.read(exposureSettingsProvider.notifier).state =
-                          exposureSettings.copyWith(gain: parsed);
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                _InputRowEditable(
-                  label: 'Offset',
-                  value: exposureSettings.offset.toString(),
-                  colors: widget.colors,
-                  onChanged: (value) {
-                    final parsed = int.tryParse(value);
-                    if (parsed != null && parsed >= 0) {
-                      ref.read(exposureSettingsProvider.notifier).state =
-                          exposureSettings.copyWith(offset: parsed);
-                    }
-                  },
-                ),
-              ],
+          // Gain/Offset - only show if camera supports these features
+          if ((capabilities?.canSetGain ?? true) || (capabilities?.canSetOffset ?? true))
+            _PanelSection(
+              title: 'Gain / Offset',
+              colors: widget.colors,
+              child: Column(
+                children: [
+                  // Only show gain control if camera supports it
+                  if (capabilities?.canSetGain ?? true)
+                    _InputRowEditable(
+                      label: 'Gain${capabilities?.gainMin != null ? ' (${capabilities!.gainMin}-${capabilities.gainMax})' : ''}',
+                      value: exposureSettings.gain.toString(),
+                      colors: widget.colors,
+                      onChanged: (value) {
+                        final parsed = int.tryParse(value);
+                        if (parsed != null && parsed >= 0) {
+                          // Clamp to valid range if capabilities available
+                          final clamped = capabilities?.gainMin != null
+                              ? parsed.clamp(capabilities!.gainMin!, capabilities.gainMax!)
+                              : parsed;
+                          ref.read(exposureSettingsProvider.notifier).state =
+                              exposureSettings.copyWith(gain: clamped);
+                        }
+                      },
+                    ),
+                  if ((capabilities?.canSetGain ?? true) && (capabilities?.canSetOffset ?? true))
+                    const SizedBox(height: 12),
+                  // Only show offset control if camera supports it
+                  if (capabilities?.canSetOffset ?? true)
+                    _InputRowEditable(
+                      label: 'Offset${capabilities?.offsetMin != null ? ' (${capabilities!.offsetMin}-${capabilities.offsetMax})' : ''}',
+                      value: exposureSettings.offset.toString(),
+                      colors: widget.colors,
+                      onChanged: (value) {
+                        final parsed = int.tryParse(value);
+                        if (parsed != null && parsed >= 0) {
+                          // Clamp to valid range if capabilities available
+                          final clamped = capabilities?.offsetMin != null
+                              ? parsed.clamp(capabilities!.offsetMin!, capabilities.offsetMax!)
+                              : parsed;
+                          ref.read(exposureSettingsProvider.notifier).state =
+                              exposureSettings.copyWith(offset: clamped);
+                        }
+                      },
+                    ),
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 20),
           const _DebayeringCard(),
         ],
@@ -4036,6 +4111,8 @@ class _InputRow extends StatelessWidget {
   const _InputRow({
     required this.label,
     this.value,
+    this.suffix,
+    this.isDropdown = false,
     required this.colors,
     this.trailing,
   });
@@ -4251,6 +4328,7 @@ class _SliderRow extends StatelessWidget {
     required this.value,
     required this.min,
     required this.max,
+    this.suffix,
     required this.colors,
   });
 
