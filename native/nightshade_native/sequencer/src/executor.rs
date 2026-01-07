@@ -739,6 +739,74 @@ impl SequenceExecutor {
                                 // Just log it here
                                 tracing::info!("Autofocus trigger action will be executed by sequence");
                             }
+                            RecoveryAction::MeridianFlip(config) => {
+                                // Execute meridian flip
+                                tracing::info!("[MERIDIAN] Trigger fired - executing meridian flip");
+
+                                // Get target info from trigger state
+                                let (target_name, target_ra, target_dec) = {
+                                    let manager = trigger_manager.read().await;
+                                    let state = manager.state();
+                                    let ts = state.read().await;
+                                    (
+                                        ts.current_target_name.clone().unwrap_or_else(|| "Unknown".to_string()),
+                                        ts.target_ra.map(|ra| ra / 15.0), // Convert degrees to hours
+                                        ts.target_dec,
+                                    )
+                                };
+
+                                if let (Some(mount_id), Some(ra), Some(dec)) = (&mount_id_for_triggers, target_ra, target_dec) {
+                                    let flip_ctx = crate::meridian_flip_executor::FlipContext {
+                                        target_name: target_name.clone(),
+                                        target_ra_hours: ra,
+                                        target_dec_degrees: dec,
+                                        mount_id: mount_id.clone(),
+                                        camera_id: camera_id_for_triggers.clone(),
+                                        focuser_id: None, // Could add focuser ID if needed
+                                    };
+
+                                    let mut flip_executor = crate::meridian_flip_executor::MeridianFlipExecutor::new(
+                                        config.clone(),
+                                        device_ops_for_triggers.clone(),
+                                    );
+
+                                    match flip_executor.execute(&flip_ctx).await {
+                                        crate::meridian_flip_executor::FlipResult::Success { new_pier_side, duration_secs } => {
+                                            tracing::info!(
+                                                "[MERIDIAN] Flip completed successfully: new pier side {:?}, took {:.1}s",
+                                                new_pier_side, duration_secs
+                                            );
+
+                                            // Mark flip as performed in trigger state
+                                            let manager = trigger_manager.read().await;
+                                            let state = manager.state();
+                                            let mut ts = state.write().await;
+                                            ts.mark_flip_performed();
+                                        }
+                                        crate::meridian_flip_executor::FlipResult::Failed { error, action_taken } => {
+                                            tracing::error!("[MERIDIAN] Flip failed: {} (action: {:?})", error, action_taken);
+
+                                            // Handle based on configured failure action
+                                            match action_taken {
+                                                crate::FlipFailureAction::PauseAndAlert => {
+                                                    *state_clone.write().await = ExecutorState::Paused;
+                                                    let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                                                }
+                                                crate::FlipFailureAction::AbortAndPark => {
+                                                    is_cancelled_clone.store(true, Ordering::Relaxed);
+                                                    fired_triggers.push((trigger_id.clone(), RecoveryAction::ParkAndAbort));
+                                                    return fired_triggers;
+                                                }
+                                            }
+                                        }
+                                        crate::meridian_flip_executor::FlipResult::Aborted { reason } => {
+                                            tracing::warn!("[MERIDIAN] Flip aborted: {}", reason);
+                                        }
+                                    }
+                                } else {
+                                    tracing::error!("[MERIDIAN] Cannot execute flip: mount not connected or target not set");
+                                }
+                            }
                             _ => {}
                         }
 
@@ -1068,7 +1136,7 @@ mod tests {
             .unwrap();
 
         rt.block_on(async {
-            let progress = executor.get_progress().await;
+            let progress = executor.get_progress();
             assert_eq!(progress.completed_exposures, 0);
             assert_eq!(progress.completed_integration_secs, 0.0);
             assert!(progress.current_node_id.is_none());

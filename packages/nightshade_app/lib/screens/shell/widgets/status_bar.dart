@@ -31,6 +31,144 @@ class _StatusBarState extends ConsumerState<StatusBar> {
     super.dispose();
   }
 
+  /// Format a device ID into a user-friendly display name
+  String _formatDeviceId(String id) {
+    final lowerId = id.toLowerCase();
+
+    // Handle native device IDs: native:vendor:index or native:vendor_type:index
+    if (lowerId.startsWith('native:')) {
+      final parts = id.substring(7).split(':');
+      if (parts.isNotEmpty) {
+        final devicePart = parts[0];
+        final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
+
+        // Handle vendor_type format (e.g., zwo_eaf)
+        if (devicePart.contains('_')) {
+          final subParts = devicePart.split('_');
+          final vendor = _capitalizeVendor(subParts[0]);
+          final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
+          return '$vendor $type';
+        }
+
+        // Simple vendor format
+        final vendor = _capitalizeVendor(devicePart);
+        if (index != null) {
+          return '$vendor #${index + 1}';
+        }
+        return vendor;
+      }
+    }
+
+    // Handle ASCOM device IDs: ascom:ASCOM.Vendor.Type
+    if (lowerId.startsWith('ascom:')) {
+      final ascomId = id.substring(6);
+      final parts = ascomId.split('.');
+      if (parts.length >= 2) {
+        // Extract vendor part (after ASCOM. prefix)
+        final vendorPart = parts.length > 1 ? parts[1] : parts[0];
+        return _formatAscomVendor(vendorPart);
+      }
+    }
+
+    // Handle Alpaca device IDs
+    if (lowerId.startsWith('alpaca:')) {
+      final alpacaPart = id.substring(7);
+      return 'Alpaca: $alpacaPart';
+    }
+
+    // Handle PHD2
+    if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
+      return 'PHD2';
+    }
+
+    // Fallback: try to clean up the ID
+    return _cleanupId(id);
+  }
+
+  /// Capitalize vendor names properly
+  String _capitalizeVendor(String vendor) {
+    final knownVendors = {
+      'zwo': 'ZWO',
+      'asi': 'ZWO ASI',
+      'qhy': 'QHY',
+      'playerone': 'PlayerOne',
+      'svbony': 'SVBony',
+      'atik': 'Atik',
+      'fli': 'FLI',
+      'moravian': 'Moravian',
+      'touptek': 'Touptek',
+      'pegasus': 'Pegasus',
+      'pegasusastro': 'Pegasus Astro',
+      'ioptron': 'iOptron',
+      'skywatcher': 'Sky-Watcher',
+      'celestron': 'Celestron',
+      'meade': 'Meade',
+      'losmandy': 'Losmandy',
+      'moonlite': 'MoonLite',
+      'optec': 'Optec',
+      'lacerta': 'Lacerta',
+      'esatto': 'Esatto',
+      'primaluce': 'PrimaLuce',
+    };
+
+    final lower = vendor.toLowerCase();
+    if (knownVendors.containsKey(lower)) {
+      return knownVendors[lower]!;
+    }
+
+    // Default: capitalize first letter
+    if (vendor.isEmpty) return vendor;
+    return vendor[0].toUpperCase() + vendor.substring(1);
+  }
+
+  /// Format ASCOM vendor string by adding spaces before capitals/numbers
+  String _formatAscomVendor(String vendor) {
+    // Insert spaces before capital letters and numbers
+    final spaced = vendor.replaceAllMapped(
+      RegExp(r'([a-z])([A-Z0-9])'),
+      (m) => '${m.group(1)} ${m.group(2)}',
+    );
+    return spaced;
+  }
+
+  /// Clean up an unrecognized ID for display
+  String _cleanupId(String id) {
+    // Remove common prefixes
+    var cleaned = id;
+    for (final prefix in ['native:', 'ascom:', 'alpaca:', 'ASCOM.']) {
+      if (cleaned.toLowerCase().startsWith(prefix.toLowerCase())) {
+        cleaned = cleaned.substring(prefix.length);
+      }
+    }
+
+    // Replace underscores and dots with spaces
+    cleaned = cleaned.replaceAll('_', ' ').replaceAll('.', ' ');
+
+    // Remove trailing numbers that look like indices
+    cleaned = cleaned.replaceAll(RegExp(r'\s*:\s*\d+$'), '');
+
+    // Capitalize words
+    if (cleaned.isNotEmpty) {
+      cleaned = cleaned.split(' ').map((word) {
+        if (word.isEmpty) return word;
+        return word[0].toUpperCase() + word.substring(1);
+      }).join(' ');
+    }
+
+    return cleaned.isEmpty ? id : cleaned;
+  }
+
+  /// Get display name for a device, preferring deviceName, falling back to formatted deviceId
+  String _getDeviceDisplayName(String? deviceName, String? deviceId, String fallback) {
+    if (deviceName != null && deviceName.isNotEmpty) {
+      return deviceName;
+    }
+    if (deviceId != null && deviceId.isNotEmpty) {
+      return _formatDeviceId(deviceId);
+    }
+    return fallback;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
@@ -85,7 +223,9 @@ class _StatusBarState extends ConsumerState<StatusBar> {
           _StatusPillButton(
             icon: LucideIcons.camera,
             label: 'Camera',
-            value: cameraConnected ? (cameraState.deviceName ?? 'Connected') : 'Disconnected',
+            value: cameraConnected
+                ? _getDeviceDisplayName(cameraState.deviceName, cameraState.deviceId, 'Connected')
+                : 'Disconnected',
             isConnected: cameraConnected,
             colors: colors,
           ),
@@ -93,7 +233,9 @@ class _StatusBarState extends ConsumerState<StatusBar> {
           _StatusPillButton(
             icon: LucideIcons.move3d,
             label: 'Mount',
-            value: mountConnected ? (mountState.deviceName ?? 'Connected') : 'Disconnected',
+            value: mountConnected
+                ? _getDeviceDisplayName(mountState.deviceName, mountState.deviceId, 'Connected')
+                : 'Disconnected',
             isConnected: mountConnected,
             colors: colors,
           ),

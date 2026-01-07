@@ -419,6 +419,11 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> sequencerSetSavePath(String? path) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<SequencerStatus> sequencerGetStatus() async {
     _throwNotConnected();
   }

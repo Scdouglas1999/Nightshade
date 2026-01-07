@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1825717541;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 663443260;
 
 // Section: executor
 
@@ -4763,6 +4763,30 @@ fn wire__crate__api__api_sequencer_set_safety_fail_mode_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::api_sequencer_set_safety_fail_mode(api_mode).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_sequencer_set_save_path_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    path: impl CstDecode<Option<String>>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sequencer_set_save_path",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_path = path.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_sequencer_set_save_path(api_path).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -20514,6 +20538,14 @@ mod io {
         mode: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__api_sequencer_set_safety_fail_mode_impl(port_, mode)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_save_path(
+        port_: i64,
+        path: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_sequencer_set_save_path_impl(port_, path)
     }
 
     #[unsafe(no_mangle)]

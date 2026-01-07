@@ -3,84 +3,38 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
-import 'package:logging/logging.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/models/settings/app_settings.dart'
     as models;
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_bridge/src/api.dart' as bridge_api;
-import 'package:nightshade_bridge/src/device_capabilities.dart' as bridge_caps;
-import 'package:nightshade_bridge/src/device.dart' as bridge_device;
-import 'package:nightshade_bridge/src/error.dart' as bridge_error;
-import 'package:nightshade_core/src/database/database.dart' hide EquipmentProfile, CapturedImage;
-import 'package:nightshade_core/src/database/daos/images_dao.dart';
-
-// Import pure Dart types from backend_types for return types
-import '../models/backend/device_capabilities.dart' as dart_caps;
-import '../models/backend/device_status.dart' as dart_status;
-import '../models/backend/device_types.dart' as dart_types;
-import '../models/errors/nightshade_error.dart' as dart_error;
 
 /// FFI backend implementation that wraps the native Rust bridge
 ///
 /// This backend uses direct FFI calls to the Rust native library
 /// and is used by Desktop and Headless modes.
 class FfiBackend implements NightshadeBackend {
-  static final _logger = Logger('FfiBackend');
   final NightshadeDatabase? _database;
 
   /// Cached broadcast stream for events - allows multiple subscribers
   Stream<NightshadeEvent>? _cachedEventStream;
 
-  /// Subscription to polar alignment events - must be cancelled on dispose
-  StreamSubscription<NightshadeEvent>? _polarAlignSubscription;
-
-  /// Whether this backend has been disposed
-  bool _disposed = false;
-
   FfiBackend({NightshadeDatabase? database}) : _database = database;
 
   @override
-  void dispose() {
-    if (_disposed) return;
-    _disposed = true;
-
-    _polarAlignSubscription?.cancel();
-    _polarAlignSubscription = null;
-    _polarAlignController.close();
-    _cachedEventStream = null;
-
-    _logger.info('FfiBackend disposed');
-  }
-
-  @override
   Stream<NightshadeEvent> get eventStream {
-    if (_disposed) {
-      throw StateError('Cannot access eventStream after dispose');
-    }
-
     // Return cached broadcast stream to allow multiple subscribers
-    if (_cachedEventStream == null) {
-      _cachedEventStream = bridge.NativeBridge.eventStream().map((bridgeEvent) {
-        // Extract eventType and data from the EventPayload
-        final payloadInfo = _extractPayloadInfo(bridgeEvent.payload);
-        return NightshadeEvent(
-          timestamp: bridgeEvent.timestamp,
-          severity: _fromBridgeSeverity(bridgeEvent.severity),
-          category: _fromBridgeCategory(bridgeEvent.category),
-          eventType: payloadInfo.$1,
-          data: payloadInfo.$2,
-        );
-      }).asBroadcastStream();
-
-      // Wire up polar alignment events to the dedicated stream
-      // Store subscription for proper cleanup on dispose
-      _polarAlignSubscription = _cachedEventStream!.listen((event) {
-        if (event.category == EventCategory.polarAlignment) {
-          _polarAlignController.add(event.data);
-        }
-      });
-    }
+    _cachedEventStream ??= bridge.NativeBridge.eventStream().map((bridgeEvent) {
+      // Extract eventType and data from the EventPayload
+      final payloadInfo = _extractPayloadInfo(bridgeEvent.payload);
+      return NightshadeEvent(
+        timestamp: bridgeEvent.timestamp,
+        severity: _fromBridgeSeverity(bridgeEvent.severity),
+        category: _fromBridgeCategory(bridgeEvent.category),
+        eventType: payloadInfo.$1,
+        data: payloadInfo.$2,
+      );
+    }).asBroadcastStream();
     return _cachedEventStream!;
   }
 
@@ -105,42 +59,6 @@ class FfiBackend implements NightshadeBackend {
     // Handle imaging events with proper field extraction
     if (payload is bridge.EventPayload_Imaging) {
       return _extractImagingEventInfo(payload.field0);
-    }
-
-    // Handle polar alignment events
-    if (payload is bridge.EventPayload_PolarAlignment) {
-      final pa = payload.field0;
-      return ('PolarAlignment', {
-        'azimuth_error': pa.azimuthError,
-        'altitude_error': pa.altitudeError,
-        'total_error': pa.totalError,
-        'current_ra': pa.currentRa,
-        'current_dec': pa.currentDec,
-        'target_ra': pa.targetRa,
-        'target_dec': pa.targetDec,
-      });
-    }
-
-    if (payload is bridge.EventPayload_PolarAlignmentStatus) {
-      final status = payload.field0;
-      return ('PolarAlignmentStatus', {
-        'status': status.status,
-        'phase': status.phase,
-        'point': status.point,
-      });
-    }
-
-    if (payload is bridge.EventPayload_PolarAlignmentImage) {
-      final img = payload.field0;
-      return ('PolarAlignmentImage', {
-        'image_data': img.imageData,
-        'width': img.width,
-        'height': img.height,
-        'solved_ra': img.solvedRa,
-        'solved_dec': img.solvedDec,
-        'point': img.point,
-        'phase': img.phase,
-      });
     }
 
     // For other event types, use string parsing as fallback
@@ -529,8 +447,8 @@ class FfiBackend implements NightshadeBackend {
     required String deviceId,
     required double exposureTime,
     required FrameType frameType,
-    int? gain,
-    int? offset,
+    required int gain,
+    required int offset,
     int binX = 1,
     int binY = 1,
     int? x,
@@ -538,12 +456,12 @@ class FfiBackend implements NightshadeBackend {
     int? width,
     int? height,
   }) async {
-    // Use provided gain/offset or fall back to 0 (camera defaults)
+    // Use the gain/offset passed from the UI settings
     await bridge.NativeBridge.startExposure(
       deviceId: deviceId,
       durationSecs: exposureTime,
-      gain: gain ?? 0,
-      offset: offset ?? 0,
+      gain: gain,
+      offset: offset,
       binX: binX,
       binY: binY,
     );
@@ -556,7 +474,8 @@ class FfiBackend implements NightshadeBackend {
 
   @override
   Future<CapturedImageResult?> cameraGetLastImage(String deviceId) async {
-    final bridgeImage = await bridge_api.apiGetLastImage(deviceId: deviceId);
+    final bridgeImage = await bridge.NativeBridge.getLastImage();
+    if (bridgeImage == null) return null;
 
     return CapturedImageResult(
       width: bridgeImage.width,
@@ -574,13 +493,14 @@ class FfiBackend implements NightshadeBackend {
       ),
       exposureTime: bridgeImage.exposureTime,
       timestamp: bridgeImage.timestamp,
-      isColor: bridgeImage.isColor,
+      isColor: bridgeImage.isColor, // Pass isColor from bridge
     );
   }
 
   @override
-  Future<List<int>> getLastRawImageData(String deviceId) async {
-    return await bridge_api.apiGetLastRawImageData(deviceId: deviceId);
+  Future<List<int>> getLastRawImageData() async {
+    // Use the FFI API directly
+    return await bridge_api.apiGetLastRawImageData();
   }
 
   @override
@@ -589,33 +509,16 @@ class FfiBackend implements NightshadeBackend {
     required int width,
     required int height,
     required List<int> data,
-    required FitsWriteHeader headerData,
+    required bridge.FitsWriteHeader headerData,
   }) async {
+    // Convert List<int> to List<int> for u16 data (already correct type)
     await bridge_api.apiSaveFitsFile(
       filePath: filePath,
       width: width,
       height: height,
       data: data,
-      headerData: _toBridgeFitsHeader(headerData),
+      headerData: headerData,
     );
-  }
-
-  @override
-  Future<void> saveFitsFromLastCapture({
-    required String deviceId,
-    required String filePath,
-    required FitsWriteHeader headerData,
-  }) async {
-    await bridge_api.apiSaveFitsFromLastCapture(
-      deviceId: deviceId,
-      filePath: filePath,
-      headerData: _toBridgeFitsHeader(headerData),
-    );
-  }
-
-  @override
-  Future<void> clearDeviceImage(String deviceId) async {
-    await bridge_api.apiClearDeviceImage(deviceId: deviceId);
   }
 
   @override
@@ -720,7 +623,7 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
-  Future<AutofocusResult> autofocusStart({
+  Future<bridge_api.AutofocusResultApi> autofocusStart({
     required String deviceId,
     required String cameraId,
     required double exposureTime,
@@ -736,12 +639,11 @@ class FfiBackend implements NightshadeBackend {
       method: method,
       binning: binning,
     );
-    final bridgeResult = await bridge_api.apiRunAutofocus(
+    return await bridge_api.apiRunAutofocus(
       deviceId: deviceId,
       cameraId: cameraId,
       config: config,
     );
-    return _fromBridgeAutofocusResult(bridgeResult);
   }
 
   @override
@@ -967,68 +869,6 @@ class FfiBackend implements NightshadeBackend {
   }
 
   // =========================================================================
-  // Generic Guiding (driver-agnostic abstraction)
-  // =========================================================================
-
-  @override
-  Future<void> guiderStartGuiding({
-    required String deviceId,
-    double settlePixels = 1.0,
-    double settleTime = 10.0,
-    double settleTimeout = 60.0,
-  }) async {
-    // Route to appropriate guider implementation based on device ID
-    if (deviceId == 'phd2_guider') {
-      await phd2StartGuiding(
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
-    } else {
-      // Future: Add support for other guider types (ASCOM, INDI, custom)
-      throw UnimplementedError(
-        'Guider "$deviceId" is not yet supported for guiding operations. '
-        'Currently only PHD2 guiding is implemented.',
-      );
-    }
-  }
-
-  @override
-  Future<void> guiderStopGuiding({required String deviceId}) async {
-    if (deviceId == 'phd2_guider') {
-      await phd2StopGuiding();
-    } else {
-      throw UnimplementedError(
-        'Guider "$deviceId" is not yet supported for guiding operations.',
-      );
-    }
-  }
-
-  @override
-  Future<void> guiderDither({
-    required String deviceId,
-    double amount = 5.0,
-    bool raOnly = false,
-    double settlePixels = 1.0,
-    double settleTime = 10.0,
-    double settleTimeout = 60.0,
-  }) async {
-    if (deviceId == 'phd2_guider') {
-      await phd2Dither(
-        amount: amount,
-        raOnly: raOnly,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-      );
-    } else {
-      throw UnimplementedError(
-        'Guider "$deviceId" is not yet supported for dithering operations.',
-      );
-    }
-  }
-
-  // =========================================================================
   // Plate Solving
   // =========================================================================
 
@@ -1086,16 +926,6 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
-  Future<void> sequencerSkip() async {
-    await bridge.NativeBridge.sequencerSkip();
-  }
-
-  @override
-  Future<void> sequencerReset() async {
-    await bridge.NativeBridge.sequencerReset();
-  }
-
-  @override
   Future<void> sequencerLoadJson(String json) async {
     await bridge.NativeBridge.sequencerLoadJson(json);
   }
@@ -1112,7 +942,6 @@ class FfiBackend implements NightshadeBackend {
     String? focuserId,
     String? filterwheelId,
     String? rotatorId,
-    List<String>? filterNames,
   }) async {
     await bridge.NativeBridge.sequencerSetDevices(
       cameraId: cameraId,
@@ -1120,13 +949,7 @@ class FfiBackend implements NightshadeBackend {
       focuserId: focuserId,
       filterwheelId: filterwheelId,
       rotatorId: rotatorId,
-      filterNames: filterNames,
     );
-  }
-
-  @override
-  Future<void> sequencerSetSafetyFailMode(String mode) async {
-    await bridge.NativeBridge.sequencerSetSafetyFailMode(mode);
   }
 
   @override
@@ -1227,18 +1050,9 @@ class FfiBackend implements NightshadeBackend {
           elevation: 0.0,
         );
       }
-      throw dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.io,
-        message: 'Failed to fetch location: HTTP ${response.statusCode}',
-        isRecoverable: true,
-      );
+      throw Exception('Failed to fetch location: ${response.statusCode}');
     } catch (e) {
-      if (e is dart_error.NightshadeError) rethrow;
-      throw dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.io,
-        message: 'Error fetching location: $e',
-        isRecoverable: true,
-      );
+      throw Exception('Error fetching location: $e');
     }
   }
 
@@ -1247,219 +1061,23 @@ class FfiBackend implements NightshadeBackend {
   // =========================================================================
 
   @override
-  Future<CameraStatus> getCameraStatus(String deviceId) async {
-    final bridgeStatus = await bridge.NativeBridge.getCameraStatus(deviceId);
-    return _fromBridgeCameraStatus(bridgeStatus);
+  Future<dynamic> getCameraStatus(String deviceId) async {
+    return await bridge.NativeBridge.getCameraStatus(deviceId);
   }
 
   @override
-  Future<MountStatus> getMountStatus(String deviceId) async {
-    final bridgeStatus = await bridge.NativeBridge.getMountStatus(deviceId);
-    return _fromBridgeMountStatus(bridgeStatus);
+  Future<dynamic> getMountStatus(String deviceId) async {
+    return await bridge.NativeBridge.getMountStatus(deviceId);
   }
 
   @override
-  Future<FocuserStatus> getFocuserStatus(String deviceId) async {
-    final bridgeStatus = await bridge.NativeBridge.getFocuserStatus(deviceId);
-    return _fromBridgeFocuserStatus(bridgeStatus);
+  Future<dynamic> getFocuserStatus(String deviceId) async {
+    return await bridge.NativeBridge.getFocuserStatus(deviceId);
   }
 
   @override
-  Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
-    final bridgeStatus = await bridge.NativeBridge.getFilterWheelStatus(deviceId);
-    return _fromBridgeFilterWheelStatus(bridgeStatus);
-  }
-
-  @override
-  Future<RotatorStatus> getRotatorStatus(String deviceId) async {
-    final bridgeStatus = await bridge_api.apiGetRotatorStatus(deviceId: deviceId);
-    return _fromBridgeRotatorStatus(bridgeStatus);
-  }
-
-  // Status conversion helpers
-  dart_status.CameraStatus _fromBridgeCameraStatus(bridge_device.CameraStatus s) {
-    return dart_status.CameraStatus(
-      connected: s.connected,
-      state: _fromBridgeCameraState(s.state),
-      sensorTemp: s.sensorTemp,
-      coolerPower: s.coolerPower,
-      targetTemp: s.targetTemp,
-      coolerOn: s.coolerOn,
-      gain: s.gain,
-      offset: s.offset,
-      binX: s.binX,
-      binY: s.binY,
-      sensorWidth: s.sensorWidth,
-      sensorHeight: s.sensorHeight,
-      pixelSizeX: s.pixelSizeX,
-      pixelSizeY: s.pixelSizeY,
-      maxAdu: s.maxAdu,
-      canCool: s.canCool,
-      canSetGain: s.canSetGain,
-      canSetOffset: s.canSetOffset,
-    );
-  }
-
-  dart_types.CameraState _fromBridgeCameraState(bridge_device.CameraState s) {
-    switch (s) {
-      case bridge_device.CameraState.idle:
-        return dart_types.CameraState.idle;
-      case bridge_device.CameraState.waiting:
-        return dart_types.CameraState.waiting;
-      case bridge_device.CameraState.exposing:
-        return dart_types.CameraState.exposing;
-      case bridge_device.CameraState.reading:
-        return dart_types.CameraState.reading;
-      case bridge_device.CameraState.download:
-        return dart_types.CameraState.download;
-      case bridge_device.CameraState.error:
-        return dart_types.CameraState.error;
-    }
-  }
-
-  dart_status.MountStatus _fromBridgeMountStatus(bridge_device.MountStatus s) {
-    return dart_status.MountStatus(
-      connected: s.connected,
-      tracking: s.tracking,
-      slewing: s.slewing,
-      parked: s.parked,
-      atHome: s.atHome,
-      sideOfPier: _fromBridgePierSide(s.sideOfPier),
-      rightAscension: s.rightAscension,
-      declination: s.declination,
-      altitude: s.altitude,
-      azimuth: s.azimuth,
-      siderealTime: s.siderealTime,
-      trackingRate: _fromBridgeTrackingRate(s.trackingRate),
-      canPark: s.canPark,
-      canSlew: s.canSlew,
-      canSync: s.canSync,
-      canPulseGuide: s.canPulseGuide,
-      canSetTrackingRate: s.canSetTrackingRate,
-    );
-  }
-
-  dart_types.PierSide _fromBridgePierSide(bridge_device.PierSide s) {
-    switch (s) {
-      case bridge_device.PierSide.east:
-        return dart_types.PierSide.east;
-      case bridge_device.PierSide.west:
-        return dart_types.PierSide.west;
-      case bridge_device.PierSide.unknown:
-        return dart_types.PierSide.unknown;
-    }
-  }
-
-  dart_caps.TrackingRate _fromBridgeTrackingRate(bridge_device.TrackingRate r) {
-    switch (r) {
-      case bridge_device.TrackingRate.sidereal:
-        return dart_caps.TrackingRate.sidereal;
-      case bridge_device.TrackingRate.lunar:
-        return dart_caps.TrackingRate.lunar;
-      case bridge_device.TrackingRate.solar:
-        return dart_caps.TrackingRate.solar;
-      case bridge_device.TrackingRate.king:
-        return dart_caps.TrackingRate.king;
-      case bridge_device.TrackingRate.custom:
-        return dart_caps.TrackingRate.custom;
-    }
-  }
-
-  dart_status.FocuserStatus _fromBridgeFocuserStatus(bridge_device.FocuserStatus s) {
-    return dart_status.FocuserStatus(
-      connected: s.connected,
-      position: s.position,
-      moving: s.moving,
-      temperature: s.temperature,
-      maxPosition: s.maxPosition,
-      stepSize: s.stepSize,
-      isAbsolute: s.isAbsolute,
-      hasTemperature: s.hasTemperature,
-    );
-  }
-
-  dart_status.FilterWheelStatus _fromBridgeFilterWheelStatus(bridge_device.FilterWheelStatus s) {
-    return dart_status.FilterWheelStatus(
-      connected: s.connected,
-      position: s.position,
-      moving: s.moving,
-      filterCount: s.filterCount,
-      filterNames: s.filterNames,
-    );
-  }
-
-  dart_status.RotatorStatus _fromBridgeRotatorStatus(bridge_device.RotatorStatus s) {
-    return dart_status.RotatorStatus(
-      connected: s.connected,
-      position: s.position,
-      moving: s.moving,
-      mechanicalPosition: s.mechanicalPosition,
-      isMoving: s.isMoving,
-      canReverse: s.canReverse,
-    );
-  }
-
-  // =========================================================================
-  // Device Capabilities
-  // =========================================================================
-
-  @override
-  Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
-    try {
-      final bridgeCaps = await bridge_api.apiGetCameraCapabilities(deviceId: deviceId);
-      return _fromBridgeCameraCapabilities(bridgeCaps);
-    } catch (e) {
-      _logger.warning('Failed to get camera capabilities: $e');
-      return null;
-    }
-  }
-
-  @override
-  Future<MountCapabilities?> getMountCapabilities(String deviceId) async {
-    try {
-      final bridgeCaps = await bridge_api.apiGetMountCapabilities(deviceId: deviceId);
-      return _fromBridgeMountCapabilities(bridgeCaps);
-    } catch (e) {
-      _logger.warning('Failed to get mount capabilities: $e');
-      return null;
-    }
-  }
-
-  @override
-  Future<FocuserCapabilities?> getFocuserCapabilities(String deviceId) async {
-    try {
-      final bridgeCaps = await bridge_api.apiGetFocuserCapabilities(deviceId: deviceId);
-      return _fromBridgeFocuserCapabilities(bridgeCaps);
-    } catch (e) {
-      _logger.warning('Failed to get focuser capabilities: $e');
-      return null;
-    }
-  }
-
-  @override
-  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(String deviceId) async {
-    try {
-      final bridgeCaps = await bridge_api.apiGetFilterwheelCapabilities(deviceId: deviceId);
-      return _fromBridgeFilterWheelCapabilities(bridgeCaps);
-    } catch (e) {
-      _logger.warning('Failed to get filter wheel capabilities: $e');
-      return null;
-    }
-  }
-
-  @override
-  Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId) async {
-    try {
-      // Use generic device capabilities and extract rotator
-      final result = await bridge_api.apiGetDeviceCapabilities(deviceId: deviceId);
-      if (result is bridge_caps.DeviceCapabilities_Rotator) {
-        return _fromBridgeRotatorCapabilities(result.field0);
-      }
-      return null;
-    } catch (e) {
-      _logger.warning('Failed to get rotator capabilities: $e');
-      return null;
-    }
+  Future<dynamic> getFilterWheelStatus(String deviceId) async {
+    return await bridge.NativeBridge.getFilterWheelStatus(deviceId);
   }
 
   // =========================================================================
@@ -1631,21 +1249,6 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
-  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId, {int maxCrops = 5}) async {
-    final bridgeCrops = await bridge_api.apiGetStarCropsFromLastImage(
-      deviceId: deviceId,
-      maxCrops: maxCrops,
-    );
-    return bridgeCrops.map((crop) => StarCrop(
-      pixelsBase64: crop.pixelsBase64,
-      width: crop.width.toInt(),
-      height: crop.height.toInt(),
-      hfr: crop.hfr,
-      snr: crop.snr,
-    )).toList();
-  }
-
-  @override
   Future<Uint8List> debayerImage(
     int width,
     int height,
@@ -1681,10 +1284,6 @@ class FfiBackend implements NightshadeBackend {
     required bool isNorth,
     required bool manualRotation,
     required bool rotateEast,
-    int? gain,
-    int? offset,
-    double? solveTimeout,
-    bool? startFromCurrent,
   }) async {
     await bridge_api.apiStartPolarAlignment(
       exposureTime: exposureTime,
@@ -1693,10 +1292,6 @@ class FfiBackend implements NightshadeBackend {
       isNorth: isNorth,
       manualRotation: manualRotation,
       rotateEast: rotateEast,
-      gain: gain,
-      offset: offset,
-      solveTimeout: solveTimeout,
-      startFromCurrent: startFromCurrent,
     );
   }
 
@@ -1818,10 +1413,7 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<List<CapturedImage>> getSessionImages(int sessionId) async {
     if (_database == null) {
-      throw dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.system,
-        message: 'Database not available in FFI backend',
-      );
+      throw StateError('Database not available in FFI backend');
     }
 
     try {
@@ -1855,17 +1447,14 @@ class FfiBackend implements NightshadeBackend {
         );
       }).toList();
     } catch (e) {
-      throw _toNightshadeError(e, 'Failed to get session images');
+      throw Exception('Failed to get session images: $e');
     }
   }
 
   @override
   Future<Uint8List> getImageThumbnail(int imageId) async {
     if (_database == null) {
-      throw dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.system,
-        message: 'Database not available in FFI backend',
-      );
+      throw StateError('Database not available in FFI backend');
     }
 
     try {
@@ -1874,19 +1463,13 @@ class FfiBackend implements NightshadeBackend {
       final dbImage = await imagesDao.getImageById(imageId);
 
       if (dbImage == null) {
-        throw dart_error.NightshadeError(
-          category: dart_error.BackendErrorCategory.imaging,
-          message: 'Image not found: $imageId',
-        );
+        throw Exception('Image not found: $imageId');
       }
 
       // Check if file exists
       final file = File(dbImage.filePath);
       if (!await file.exists()) {
-        throw dart_error.NightshadeError(
-          category: dart_error.BackendErrorCategory.io,
-          message: 'Image file not found: ${dbImage.filePath}',
-        );
+        throw Exception('Image file not found: ${dbImage.filePath}');
       }
 
       // Generate thumbnail using Rust FFI function
@@ -1898,7 +1481,7 @@ class FfiBackend implements NightshadeBackend {
 
       return Uint8List.fromList(jpegData);
     } catch (e) {
-      throw _toNightshadeError(e, 'Failed to get image thumbnail');
+      throw Exception('Failed to get image thumbnail: $e');
     }
   }
 
@@ -1906,10 +1489,7 @@ class FfiBackend implements NightshadeBackend {
   Future<void> downloadImage(int imageId, String localPath,
       {void Function(double)? onProgress}) async {
     if (_database == null) {
-      throw dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.system,
-        message: 'Database not available in FFI backend',
-      );
+      throw StateError('Database not available in FFI backend');
     }
 
     try {
@@ -1918,19 +1498,13 @@ class FfiBackend implements NightshadeBackend {
       final dbImage = await imagesDao.getImageById(imageId);
 
       if (dbImage == null) {
-        throw dart_error.NightshadeError(
-          category: dart_error.BackendErrorCategory.imaging,
-          message: 'Image not found: $imageId',
-        );
+        throw Exception('Image not found: $imageId');
       }
 
       // Check if source file exists
       final sourceFile = File(dbImage.filePath);
       if (!await sourceFile.exists()) {
-        throw dart_error.NightshadeError(
-          category: dart_error.BackendErrorCategory.io,
-          message: 'Image file not found: ${dbImage.filePath}',
-        );
+        throw Exception('Image file not found: ${dbImage.filePath}');
       }
 
       // Create destination directory if needed
@@ -1963,7 +1537,7 @@ class FfiBackend implements NightshadeBackend {
         onProgress(1.0);
       }
     } catch (e) {
-      throw _toNightshadeError(e, 'Failed to download image');
+      throw Exception('Failed to download image: $e');
     }
   }
 
@@ -2032,356 +1606,5 @@ class FfiBackend implements NightshadeBackend {
     final timestamp = result.$1.toInt();
     final isHealthy = result.$2;
     return (timestamp, isHealthy);
-  }
-
-  // =========================================================================
-  // FRB->Dart Type Mappers
-  // =========================================================================
-
-  /// Convert pure Dart FitsWriteHeader to bridge FitsWriteHeader
-  bridge.FitsWriteHeader _toBridgeFitsHeader(FitsWriteHeader h) {
-    return bridge.FitsWriteHeader(
-      objectName: h.objectName,
-      exposureTime: h.exposureTime,
-      captureTimestamp: h.captureTimestamp,
-      frameType: h.frameType,
-      filter: h.filter,
-      gain: h.gain,
-      offset: h.offset,
-      ccdTemp: h.ccdTemp,
-      ra: h.ra,
-      dec: h.dec,
-      altitude: h.altitude,
-      telescope: h.telescope,
-      instrument: h.instrument,
-      observer: h.observer,
-      binX: h.binX ?? 1,  // Default to 1x1 binning
-      binY: h.binY ?? 1,
-      focalLength: h.focalLength,
-      aperture: h.aperture,
-      pixelSizeX: h.pixelSizeX,
-      pixelSizeY: h.pixelSizeY,
-      siteLatitude: h.siteLatitude,
-      siteLongitude: h.siteLongitude,
-      siteElevation: h.siteElevation,
-    );
-  }
-
-  /// Convert bridge AutofocusResultApi to pure Dart AutofocusResult
-  AutofocusResult _fromBridgeAutofocusResult(bridge_api.AutofocusResultApi r) {
-    return AutofocusResult(
-      bestPosition: r.bestPosition,
-      bestHfr: r.bestHfr,
-      focusData: r.focusData.map((dp) => FocusDataPoint(
-        position: dp.position,
-        hfr: dp.hfr,
-        fwhm: dp.fwhm,
-        starCount: dp.starCount,
-      )).toList(),
-      method: r.method,
-      temperature: r.temperature,
-      timestamp: r.timestamp,
-      curveFitQuality: r.curveFitQuality,
-      backlashApplied: r.backlashApplied,
-    );
-  }
-
-  /// Convert bridge CameraCapabilities to pure Dart CameraCapabilities
-  CameraCapabilities _fromBridgeCameraCapabilities(bridge_caps.CameraCapabilities c) {
-    return CameraCapabilities(
-      maxWidth: c.maxWidth,
-      maxHeight: c.maxHeight,
-      bitDepth: c.bitDepth,
-      hasShutter: c.hasShutter,
-      canSetCcdTemperature: c.canSetCcdTemperature,
-      canSetCooler: c.canSetCooler,
-      canGetCoolerPower: c.canGetCoolerPower,
-      canBin: c.canBin,
-      maxBinX: c.maxBinX,
-      maxBinY: c.maxBinY,
-      canAsymmetricBin: c.canAsymmetricBin,
-      canSetGain: c.canSetGain,
-      gainMin: c.gainMin,
-      gainMax: c.gainMax,
-      canSetOffset: c.canSetOffset,
-      offsetMin: c.offsetMin,
-      offsetMax: c.offsetMax,
-      canAbortExposure: c.canAbortExposure,
-      canStopExposure: c.canStopExposure,
-      canSubframe: c.canSubframe,
-      pixelSizeX: c.pixelSizeX,
-      pixelSizeY: c.pixelSizeY,
-      isColor: c.isColor,
-      bayerPattern: c.bayerPattern,
-      sensorType: c.sensorType,
-      hasFastReadout: c.hasFastReadout,
-      readoutModes: c.readoutModes,
-      exposureMin: c.exposureMin,
-      exposureMax: c.exposureMax,
-      ccdTemperature: c.ccdTemperature,
-      setCcdTemperature: c.setCcdTemperature,
-      coolerPower: c.coolerPower,
-      coolerOn: c.coolerOn,
-    );
-  }
-
-  /// Convert bridge MountCapabilities to pure Dart MountCapabilities
-  MountCapabilities _fromBridgeMountCapabilities(bridge_caps.MountCapabilities m) {
-    return MountCapabilities(
-      canSlew: m.canSlew,
-      canSlewAsync: m.canSlewAsync,
-      canSync: m.canSync,
-      canPark: m.canPark,
-      canUnpark: m.canUnpark,
-      canSetPark: m.canSetPark,
-      canPulseGuide: m.canPulseGuide,
-      canGetSideOfPier: m.canGetSideOfPier,
-      canSetSideOfPier: m.canSetSideOfPier,
-      canSetTracking: m.canSetTracking,
-      canSetTrackingRate: m.canSetTrackingRate,
-      supportedTrackingRates: m.supportedTrackingRates
-          .map((r) => _fromBridgeTrackingRate(r))
-          .toList(),
-      isEquatorial: m.isEquatorial,
-      supportsAltAz: m.supportsAltAz,
-      canGetPointingState: m.canGetPointingState,
-      canFindHome: m.canFindHome,
-      tracking: m.tracking,
-      trackingRate: m.trackingRate != null ? _fromBridgeTrackingRate(m.trackingRate!) : null,
-      canAbortSlew: m.canAbortSlew,
-      maxSlewRate: m.maxSlewRate,
-      canMoveAxis: m.canMoveAxis,
-      axisCount: m.axisCount,
-    );
-  }
-
-  /// Convert bridge FocuserCapabilities to pure Dart FocuserCapabilities
-  FocuserCapabilities _fromBridgeFocuserCapabilities(bridge_caps.FocuserCapabilities f) {
-    return FocuserCapabilities(
-      maxPosition: f.maxPosition,
-      maxIncrement: f.maxIncrement,
-      stepSize: f.stepSize,
-      absolute: f.absolute,
-      tempCompAvailable: f.tempCompAvailable,
-      tempComp: f.tempComp,
-      temperature: f.temperature,
-      isMoving: f.isMoving,
-      position: f.position,
-      canHalt: f.canHalt,
-      canReverse: f.canReverse,
-      reverse: f.reverse,
-    );
-  }
-
-  /// Convert bridge FilterWheelCapabilities to pure Dart FilterWheelCapabilities
-  FilterWheelCapabilities _fromBridgeFilterWheelCapabilities(bridge_caps.FilterWheelCapabilities fw) {
-    return FilterWheelCapabilities(
-      positionCount: fw.positionCount,
-      currentPosition: fw.currentPosition,
-      filterNames: fw.filterNames,
-      focusOffsets: fw.focusOffsets,
-      isMoving: fw.isMoving,
-      canSetFilterNames: fw.canSetFilterNames,
-      canSetFocusOffsets: fw.canSetFocusOffsets,
-    );
-  }
-
-  /// Convert bridge RotatorCapabilities to pure Dart RotatorCapabilities
-  RotatorCapabilities _fromBridgeRotatorCapabilities(bridge_caps.RotatorCapabilities r) {
-    return RotatorCapabilities(
-      canReverse: r.canReverse,
-      reverse: r.reverse,
-      stepSize: r.stepSize,
-      isMoving: r.isMoving,
-      mechanicalPosition: r.mechanicalPosition,
-      position: r.position,
-      canMoveAbsolute: r.canMoveAbsolute,
-      canHalt: r.canHalt,
-      canSync: r.canSync,
-    );
-  }
-
-  // =========================================================================
-  // Error Conversion
-  // =========================================================================
-
-  /// Convert any exception to a structured NightshadeError.
-  ///
-  /// This handles:
-  /// - FRB-generated NightshadeError (from Rust)
-  /// - AnyhowException (fallback from Rust)
-  /// - Generic Dart exceptions
-  dart_error.NightshadeError _toNightshadeError(Object exception, [String? context]) {
-    // Handle FRB-generated NightshadeError from Rust
-    if (exception is bridge_error.NightshadeError) {
-      return _fromBridgeNightshadeError(exception);
-    }
-
-    // Handle generic exceptions with context
-    final message = context != null
-        ? '$context: ${exception.toString()}'
-        : exception.toString();
-
-    return dart_error.NightshadeError.fromString(message);
-  }
-
-  /// Convert FRB-generated NightshadeError to pure Dart NightshadeError.
-  ///
-  /// This preserves all the structured error information from Rust.
-  dart_error.NightshadeError _fromBridgeNightshadeError(bridge_error.NightshadeError e) {
-    return e.when(
-      // Connection errors
-      deviceNotFound: (deviceId) => dart_error.NightshadeError.deviceNotFound(deviceId),
-      connectionFailed: (deviceId, reason) =>
-          dart_error.NightshadeError.connectionFailed(deviceId, reason),
-      alreadyConnected: (deviceId) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.connection,
-        message: 'Device already connected: $deviceId',
-        userMessage: "'$deviceId' is already connected",
-        deviceId: deviceId,
-      ),
-      notConnected: (deviceId) => dart_error.NightshadeError.notConnected(deviceId),
-      deviceDisconnected: (deviceId, reason) =>
-          dart_error.NightshadeError.deviceDisconnected(deviceId, reason),
-
-      // Hardware errors
-      hardwareError: (deviceId, message, errorCode) =>
-          dart_error.NightshadeError.hardwareError(deviceId, message, errorCode: errorCode),
-      communicationError: (deviceId, message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.hardware,
-        message: 'Communication error: $deviceId - $message',
-        userMessage: "Communication error with '$deviceId'",
-        isRecoverable: true,
-        shouldReconnect: true,
-        deviceId: deviceId,
-      ),
-
-      // Timeout errors
-      timeout: (message) => dart_error.NightshadeError.timeout(message),
-      deviceTimeout: (deviceId, operation, timeoutSecs) =>
-          dart_error.NightshadeError.timeout(operation, deviceId: deviceId, timeoutSecs: timeoutSecs),
-      connectionTimeout: (deviceId, timeoutSecs) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.timeout,
-        message: 'Connection timeout: $deviceId after ${timeoutSecs.toStringAsFixed(1)}s',
-        userMessage: "Connection to '$deviceId' timed out",
-        isRecoverable: true,
-        isTimeout: true,
-        shouldReconnect: true,
-        deviceId: deviceId,
-      ),
-
-      // Validation errors
-      invalidParameter: (message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.validation,
-        message: 'Invalid parameter: $message',
-      ),
-      invalidInput: (message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.validation,
-        message: 'Invalid input: $message',
-      ),
-      invalidDeviceId: (deviceId, reason) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.validation,
-        message: 'Invalid device ID: $deviceId - $reason',
-        deviceId: deviceId,
-      ),
-      parameterOutOfRange: (paramName, value, min, max) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.validation,
-        message: 'Parameter out of range: $paramName = $value (valid: $min to $max)',
-        userMessage: '$paramName value $value is out of range ($min to $max)',
-      ),
-
-      // Operation errors
-      operationFailed: (message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.system,
-        message: 'Operation failed: $message',
-        isRecoverable: true,
-      ),
-      notSupported: (deviceId, operation) =>
-          dart_error.NightshadeError.notSupported(deviceId, operation),
-      deviceBusy: (deviceId, currentOperation) =>
-          dart_error.NightshadeError.deviceBusy(deviceId, currentOperation),
-
-      // Imaging errors
-      imageError: (message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.imaging,
-        message: 'Image error: $message',
-      ),
-      cameraError: (message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.imaging,
-        message: 'Camera error: $message',
-      ),
-      noImageAvailable: () => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.imaging,
-        message: 'No image available',
-      ),
-      exposureCancelled: () => dart_error.NightshadeError.cancelled(),
-      exposureFailed: (cameraId, reason) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.imaging,
-        message: 'Exposure failed: $cameraId - $reason',
-        userMessage: "Exposure failed on '$cameraId'",
-        deviceId: cameraId,
-      ),
-      downloadFailed: (cameraId, reason) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.imaging,
-        message: 'Image download failed: $cameraId - $reason',
-        deviceId: cameraId,
-      ),
-
-      // I/O errors
-      ioError: (message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.io,
-        message: 'I/O error: $message',
-      ),
-      plateSolveError: (message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.io,
-        message: 'Plate solve failed: $message',
-      ),
-
-      // Sequence errors
-      sequenceError: (message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.sequence,
-        message: 'Sequence error: $message',
-      ),
-
-      // Driver-specific errors
-      ascomError: (progId, message, errorCode) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.driver,
-        message: 'ASCOM error: $progId - $message (code: $errorCode)',
-        errorCode: errorCode,
-      ),
-      alpacaError: (baseUrl, deviceNumber, message, errorCode) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.driver,
-        message: 'Alpaca error: $baseUrl device $deviceNumber - $message (code: $errorCode)',
-        errorCode: errorCode,
-      ),
-      indiError: (server, port, deviceName, message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.driver,
-        message: 'INDI error: $server:$port device $deviceName - $message',
-      ),
-      nativeError: (vendor, message, errorCode) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.driver,
-        message: 'Native SDK error: $vendor - $message (code: $errorCode)',
-        errorCode: errorCode,
-      ),
-      comError: (message, hresult) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.driver,
-        message: 'COM error: $message (HRESULT: 0x${hresult.toRadixString(16).padLeft(8, '0')})',
-        errorCode: hresult,
-        shouldReconnect: true,
-      ),
-
-      // System errors
-      internal: (message) => dart_error.NightshadeError.internal(message),
-      cancelled: () => dart_error.NightshadeError.cancelled(),
-      runtimeInitFailed: (message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.system,
-        message: 'Runtime initialization failed: $message',
-      ),
-      resourceExhausted: (resource, message) => dart_error.NightshadeError(
-        category: dart_error.BackendErrorCategory.system,
-        message: 'Resource exhausted: $resource - $message',
-        isRecoverable: true,
-      ),
-    );
   }
 }

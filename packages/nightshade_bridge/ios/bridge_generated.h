@@ -2166,6 +2166,9 @@ void frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_devices(int64_
 void frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_safety_fail_mode(int64_t port_,
                                                                                    struct wire_cst_list_prim_u_8_strict *mode);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_save_path(int64_t port_,
+                                                                            struct wire_cst_list_prim_u_8_strict *path);
+
 void frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_simulation_mode(int64_t port_,
                                                                                   bool enabled);
 
@@ -2769,6 +2772,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_checkpoint_dir);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_devices);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_safety_fail_mode);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_save_path);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_simulation_mode);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_sequencer_skip);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_sequencer_start);

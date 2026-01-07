@@ -4,6 +4,125 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+// ============================================================================
+// Device ID Formatting Helpers
+// ============================================================================
+
+/// Format a device ID into a user-friendly display name
+String _formatDeviceId(String id) {
+  final lowerId = id.toLowerCase();
+
+  // Handle native device IDs: native:vendor:index or native:vendor_type:index
+  if (lowerId.startsWith('native:')) {
+    final parts = id.substring(7).split(':');
+    if (parts.isNotEmpty) {
+      final devicePart = parts[0];
+      final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
+
+      // Handle vendor_type format (e.g., zwo_eaf)
+      if (devicePart.contains('_')) {
+        final subParts = devicePart.split('_');
+        final vendor = _capitalizeVendor(subParts[0]);
+        final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
+        return '$vendor $type';
+      }
+
+      // Simple vendor format
+      final vendor = _capitalizeVendor(devicePart);
+      if (index != null) {
+        return '$vendor #${index + 1}';
+      }
+      return vendor;
+    }
+  }
+
+  // Handle ASCOM device IDs: ascom:ASCOM.Vendor.Type or ASCOM.Vendor.Type
+  if (lowerId.startsWith('ascom:') || lowerId.startsWith('ascom.')) {
+    final ascomId = lowerId.startsWith('ascom:') ? id.substring(6) : id;
+    final parts = ascomId.split('.');
+    if (parts.length >= 2) {
+      final vendorPart = parts.length > 1 ? parts[1] : parts[0];
+      return _formatAscomVendor(vendorPart);
+    }
+  }
+
+  // Handle Alpaca device IDs
+  if (lowerId.startsWith('alpaca:')) {
+    final alpacaPart = id.substring(7);
+    return 'Alpaca: $alpacaPart';
+  }
+
+  // Handle PHD2
+  if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
+    return 'PHD2';
+  }
+
+  // Handle underscore-separated IDs
+  if (id.contains('_')) {
+    return id.split('_').map(_capitalizeWord).join(' ');
+  }
+
+  return id;
+}
+
+String _capitalizeVendor(String vendor) {
+  const knownVendors = {
+    'zwo': 'ZWO',
+    'asi': 'ZWO ASI',
+    'qhy': 'QHY',
+    'playerone': 'PlayerOne',
+    'svbony': 'SVBony',
+    'atik': 'Atik',
+    'fli': 'FLI',
+    'moravian': 'Moravian',
+    'touptek': 'Touptek',
+    'pegasus': 'Pegasus',
+    'pegasusastro': 'Pegasus Astro',
+    'ioptron': 'iOptron',
+    'skywatcher': 'Sky-Watcher',
+    'celestron': 'Celestron',
+    'meade': 'Meade',
+    'losmandy': 'Losmandy',
+    'moonlite': 'MoonLite',
+    'optec': 'Optec',
+    'lacerta': 'Lacerta',
+    'esatto': 'Esatto',
+    'primaluce': 'PrimaLuce',
+  };
+
+  final lower = vendor.toLowerCase();
+  if (knownVendors.containsKey(lower)) {
+    return knownVendors[lower]!;
+  }
+
+  if (vendor.isEmpty) return vendor;
+  return vendor[0].toUpperCase() + vendor.substring(1);
+}
+
+String _formatAscomVendor(String vendor) {
+  final spaced = vendor.replaceAllMapped(
+    RegExp(r'([a-z])([A-Z0-9])'),
+    (m) => '${m.group(1)} ${m.group(2)}',
+  );
+  return spaced;
+}
+
+String _capitalizeWord(String word) {
+  if (word.isEmpty) return word;
+  return word[0].toUpperCase() + word.substring(1).toLowerCase();
+}
+
+/// Get display name for a device, preferring deviceName, falling back to formatted deviceId
+String _getDeviceDisplayName(String? deviceName, String? deviceId) {
+  if (deviceName != null && deviceName.isNotEmpty) {
+    return deviceName;
+  }
+  if (deviceId != null && deviceId.isNotEmpty) {
+    return _formatDeviceId(deviceId);
+  }
+  return 'Unknown';
+}
+
 /// Shows equipment connection status in a compact format for the sequencer
 class EquipmentStatusWidget extends ConsumerWidget {
   final NightshadeColors colors;
@@ -344,7 +463,7 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       cameraState.deviceId != null) {
     devices.add(DeviceInfo(
       id: cameraState.deviceId!,
-      name: cameraState.deviceName ?? cameraState.deviceId!,
+      name: _getDeviceDisplayName(cameraState.deviceName, cameraState.deviceId),
       deviceType: DeviceType.camera,
       driverType: _deriveDriverType(cameraState.deviceId!),
       description: '',
@@ -357,7 +476,7 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       mountState.deviceId != null) {
     devices.add(DeviceInfo(
       id: mountState.deviceId!,
-      name: mountState.deviceName ?? mountState.deviceId!,
+      name: _getDeviceDisplayName(mountState.deviceName, mountState.deviceId),
       deviceType: DeviceType.mount,
       driverType: _deriveDriverType(mountState.deviceId!),
       description: '',
@@ -370,7 +489,7 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       focuserState.deviceId != null) {
     devices.add(DeviceInfo(
       id: focuserState.deviceId!,
-      name: focuserState.deviceName ?? focuserState.deviceId!,
+      name: _getDeviceDisplayName(focuserState.deviceName, focuserState.deviceId),
       deviceType: DeviceType.focuser,
       driverType: _deriveDriverType(focuserState.deviceId!),
       description: '',
@@ -383,7 +502,7 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       filterWheelState.deviceId != null) {
     devices.add(DeviceInfo(
       id: filterWheelState.deviceId!,
-      name: filterWheelState.deviceName ?? filterWheelState.deviceId!,
+      name: _getDeviceDisplayName(filterWheelState.deviceName, filterWheelState.deviceId),
       deviceType: DeviceType.filterWheel,
       driverType: _deriveDriverType(filterWheelState.deviceId!),
       description: '',
@@ -396,7 +515,7 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
       guiderState.deviceId != null) {
     devices.add(DeviceInfo(
       id: guiderState.deviceId!,
-      name: guiderState.deviceName ?? guiderState.deviceId!,
+      name: _getDeviceDisplayName(guiderState.deviceName, guiderState.deviceId),
       deviceType: DeviceType.guider,
       driverType: _deriveDriverType(guiderState.deviceId!),
       description: '',

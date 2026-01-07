@@ -8,6 +8,117 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart' hide sessionProgressProvider;
 import '../../widgets/astro_image_viewer.dart';
 
+// ============================================================================
+// Device ID Formatting Helpers
+// ============================================================================
+
+/// Format a device ID into a user-friendly display name
+String _formatDeviceId(String id) {
+  final lowerId = id.toLowerCase();
+
+  // Handle native device IDs: native:vendor:index or native:vendor_type:index
+  if (lowerId.startsWith('native:')) {
+    final parts = id.substring(7).split(':');
+    if (parts.isNotEmpty) {
+      final devicePart = parts[0];
+      final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
+
+      if (devicePart.contains('_')) {
+        final subParts = devicePart.split('_');
+        final vendor = _capitalizeVendor(subParts[0]);
+        final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
+        return '$vendor $type';
+      }
+
+      final vendor = _capitalizeVendor(devicePart);
+      if (index != null) {
+        return '$vendor #${index + 1}';
+      }
+      return vendor;
+    }
+  }
+
+  // Handle ASCOM device IDs
+  if (lowerId.startsWith('ascom:') || lowerId.startsWith('ascom.')) {
+    final ascomId = lowerId.startsWith('ascom:') ? id.substring(6) : id;
+    final parts = ascomId.split('.');
+    if (parts.length >= 2) {
+      final vendorPart = parts.length > 1 ? parts[1] : parts[0];
+      return _formatAscomVendor(vendorPart);
+    }
+  }
+
+  // Handle Alpaca device IDs
+  if (lowerId.startsWith('alpaca:')) {
+    return 'Alpaca: ${id.substring(7)}';
+  }
+
+  // Handle PHD2
+  if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
+    return 'PHD2';
+  }
+
+  // Handle underscore-separated IDs
+  if (id.contains('_')) {
+    return id.split('_').map(_capitalizeWord).join(' ');
+  }
+
+  return id;
+}
+
+String _capitalizeVendor(String vendor) {
+  const knownVendors = {
+    'zwo': 'ZWO',
+    'asi': 'ZWO ASI',
+    'qhy': 'QHY',
+    'playerone': 'PlayerOne',
+    'svbony': 'SVBony',
+    'atik': 'Atik',
+    'fli': 'FLI',
+    'moravian': 'Moravian',
+    'touptek': 'Touptek',
+    'pegasus': 'Pegasus',
+    'pegasusastro': 'Pegasus Astro',
+    'ioptron': 'iOptron',
+    'skywatcher': 'Sky-Watcher',
+    'celestron': 'Celestron',
+    'meade': 'Meade',
+    'moonlite': 'MoonLite',
+  };
+
+  final lower = vendor.toLowerCase();
+  if (knownVendors.containsKey(lower)) {
+    return knownVendors[lower]!;
+  }
+
+  if (vendor.isEmpty) return vendor;
+  return vendor[0].toUpperCase() + vendor.substring(1);
+}
+
+String _formatAscomVendor(String vendor) {
+  final spaced = vendor.replaceAllMapped(
+    RegExp(r'([a-z])([A-Z0-9])'),
+    (m) => '${m.group(1)} ${m.group(2)}',
+  );
+  return spaced;
+}
+
+String _capitalizeWord(String word) {
+  if (word.isEmpty) return word;
+  return word[0].toUpperCase() + word.substring(1).toLowerCase();
+}
+
+/// Get display name for a device
+String _getDeviceDisplayName(String? deviceName, String? deviceId, String fallback) {
+  if (deviceName != null && deviceName.isNotEmpty) {
+    return deviceName;
+  }
+  if (deviceId != null && deviceId.isNotEmpty) {
+    return _formatDeviceId(deviceId);
+  }
+  return fallback;
+}
+
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -1073,21 +1184,27 @@ class _EquipmentStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Use select() to only rebuild when connection state or device name changes
+    // Use select() to only rebuild when connection state, device name, or device ID changes
     final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
     final cameraName = ref.watch(cameraStateProvider.select((s) => s.deviceName));
+    final cameraId = ref.watch(cameraStateProvider.select((s) => s.deviceId));
 
     final mountConnected = ref.watch(mountStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
     final mountName = ref.watch(mountStateProvider.select((s) => s.deviceName));
+    final mountId = ref.watch(mountStateProvider.select((s) => s.deviceId));
 
     final guiderConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
     final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
+    final guiderName = ref.watch(guiderStateProvider.select((s) => s.deviceName));
+    final guiderId = ref.watch(guiderStateProvider.select((s) => s.deviceId));
 
     final focuserConnected = ref.watch(focuserStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
     final focuserName = ref.watch(focuserStateProvider.select((s) => s.deviceName));
+    final focuserId = ref.watch(focuserStateProvider.select((s) => s.deviceId));
 
     final filterWheelConnected = ref.watch(filterWheelStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
     final filterWheelName = ref.watch(filterWheelStateProvider.select((s) => s.deviceName));
+    final filterWheelId = ref.watch(filterWheelStateProvider.select((s) => s.deviceId));
 
     final connectedCount = [cameraConnected, mountConnected, guiderConnected, focuserConnected, filterWheelConnected]
         .where((c) => c).length;
@@ -1141,14 +1258,18 @@ class _EquipmentStatusCard extends ConsumerWidget {
           _EquipmentItem(
             icon: LucideIcons.camera,
             name: 'Camera',
-            status: cameraConnected ? (cameraName ?? 'Connected') : 'Disconnected',
+            status: cameraConnected
+                ? _getDeviceDisplayName(cameraName, cameraId, 'Connected')
+                : 'Disconnected',
             isConnected: cameraConnected,
             colors: colors,
           ),
           _EquipmentItem(
             icon: LucideIcons.move3d,
             name: 'Mount',
-            status: mountConnected ? (mountName ?? 'Connected') : 'Disconnected',
+            status: mountConnected
+                ? _getDeviceDisplayName(mountName, mountId, 'Connected')
+                : 'Disconnected',
             isConnected: mountConnected,
             colors: colors,
           ),
@@ -1156,7 +1277,7 @@ class _EquipmentStatusCard extends ConsumerWidget {
             icon: LucideIcons.crosshair,
             name: 'Guider',
             status: guiderConnected
-                ? (guiderIsGuiding ? 'Guiding' : 'Connected')
+                ? (guiderIsGuiding ? 'Guiding' : _getDeviceDisplayName(guiderName, guiderId, 'Connected'))
                 : 'Disconnected',
             isConnected: guiderConnected,
             colors: colors,
@@ -1164,14 +1285,18 @@ class _EquipmentStatusCard extends ConsumerWidget {
           _EquipmentItem(
             icon: LucideIcons.focus,
             name: 'Focuser',
-            status: focuserConnected ? (focuserName ?? 'Connected') : 'Disconnected',
+            status: focuserConnected
+                ? _getDeviceDisplayName(focuserName, focuserId, 'Connected')
+                : 'Disconnected',
             isConnected: focuserConnected,
             colors: colors,
           ),
           _EquipmentItem(
             icon: LucideIcons.circle,
             name: 'Filter Wheel',
-            status: filterWheelConnected ? (filterWheelName ?? 'Connected') : 'Disconnected',
+            status: filterWheelConnected
+                ? _getDeviceDisplayName(filterWheelName, filterWheelId, 'Connected')
+                : 'Disconnected',
             isConnected: filterWheelConnected,
             colors: colors,
             isLast: true,

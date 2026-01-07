@@ -8873,6 +8873,25 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__api_sequencer_set_safety_fail_modePtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
+  void wire__crate__api__api_sequencer_set_save_path(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> path,
+  ) {
+    return _wire__crate__api__api_sequencer_set_save_path(port_, path);
+  }
+
+  late final _wire__crate__api__api_sequencer_set_save_pathPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_save_path',
+  );
+  late final _wire__crate__api__api_sequencer_set_save_path =
+      _wire__crate__api__api_sequencer_set_save_pathPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   void wire__crate__api__api_sequencer_set_simulation_mode(
     int port_,
     bool enabled,

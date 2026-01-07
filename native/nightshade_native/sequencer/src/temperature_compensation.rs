@@ -397,7 +397,7 @@ mod tests {
         assert_eq!(expected_steps, 40);
 
         // Small temperature change below threshold
-        let small_delta = 0.3;
+        let small_delta: f64 = 0.3;
         assert!(small_delta.abs() < config.min_temp_change);
     }
 

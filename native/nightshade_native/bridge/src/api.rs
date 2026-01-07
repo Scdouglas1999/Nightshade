@@ -5173,6 +5173,19 @@ pub async fn api_sequencer_set_safety_fail_mode(mode: String) -> Result<(), Nigh
     Ok(())
 }
 
+/// Set the save path for sequencer images.
+/// This is the base directory where captured images will be saved.
+/// If not set (or set to None), images will NOT be saved to disk.
+pub async fn api_sequencer_set_save_path(path: Option<String>) -> Result<(), NightshadeError> {
+    let path_display = path.as_deref().unwrap_or("<none>");
+    tracing::info!("Setting sequencer save path: {}", path_display);
+
+    let mut executor = get_sequence_executor().write().await;
+    executor.set_save_path(path.map(std::path::PathBuf::from));
+
+    Ok(())
+}
+
 // =============================================================================
 // SEQUENCER NODE FACTORY - Create nodes programmatically
 // =============================================================================

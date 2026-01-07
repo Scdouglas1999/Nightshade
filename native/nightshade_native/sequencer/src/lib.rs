@@ -15,6 +15,8 @@ pub mod meridian;
 pub mod autofocus;
 pub mod flat_wizard;
 pub mod temperature_compensation;
+pub mod meridian_events;
+pub mod meridian_flip_executor;
 
 pub use node::*;
 pub use executor::*;
@@ -24,6 +26,8 @@ pub use device_ops::*;
 pub use polar_align::*;
 pub use mosaic::*;
 pub use checkpoint::*;
+pub use meridian_events::*;
+pub use meridian_flip_executor::*;
 
 // Re-export focus prediction types
 pub use focus_prediction::{FocusPredictionEngine, FocusModel, FilterOffset, PredictionResult};

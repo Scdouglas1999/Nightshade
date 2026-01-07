@@ -1745,32 +1745,61 @@ class DeviceService {
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No focuser connected');
     }
-    
+
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
     focuserNotifier.setMoving(true);
-    
+
     try {
       await _backend.focuserMoveTo(deviceId, position);
-      focuserNotifier.updatePosition(position);
+      // Query actual position from device after move completes
+      final status = await _backend.getFocuserStatus(deviceId);
+      focuserNotifier.updatePosition(status.position);
     } finally {
       focuserNotifier.setMoving(false);
     }
   }
-  
+
   /// Move focuser by relative amount
+  /// Uses the backend's native relative move which queries actual device position
   Future<void> moveFocuserRelative(int delta) async {
     final deviceId = await _getFocuserDeviceId();
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No focuser connected');
     }
-    
-    final focuserState = _ref.read(focuserStateProvider);
-    final currentPosition = focuserState.position ?? 0;
-    final targetPosition = currentPosition + delta;
-    
-    await moveFocuserTo(targetPosition);
+
+    final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+    focuserNotifier.setMoving(true);
+
+    try {
+      // Use backend's native relative move which queries actual device position
+      await _backend.focuserMoveRelative(deviceId, delta);
+      // Query actual position from device after move completes
+      final status = await _backend.getFocuserStatus(deviceId);
+      focuserNotifier.updatePosition(status.position);
+    } finally {
+      focuserNotifier.setMoving(false);
+    }
   }
-  
+
+  /// Halt focuser movement
+  Future<void> haltFocuser() async {
+    final deviceId = await _getFocuserDeviceId();
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No focuser connected');
+    }
+
+    final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+
+    try {
+      await _backend.focuserHalt(deviceId);
+      // Query actual position from device after halt
+      final status = await _backend.getFocuserStatus(deviceId);
+      focuserNotifier.updatePosition(status.position);
+    } finally {
+      focuserNotifier.setMoving(false);
+    }
+  }
+
   /// Run autofocus routine
   /// Returns full autofocus result including focus curve data
   Future<AutofocusResult> runAutofocus({

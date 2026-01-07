@@ -389,6 +389,11 @@ abstract class NightshadeBackend {
   /// - "warn_only": Show warning but continue
   Future<void> sequencerSetSafetyFailMode(String mode);
 
+  /// Set the save path for sequencer images.
+  /// This is the base directory where captured images will be saved.
+  /// If null or empty, images will NOT be saved to disk.
+  Future<void> sequencerSetSavePath(String? path);
+
   // =========================================================================
   // Checkpoint / Crash Recovery
   // =========================================================================

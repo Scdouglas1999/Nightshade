@@ -615,6 +615,16 @@ class MockDeviceService extends _i1.Mock implements _i7.DeviceService {
       ) as _i5.Future<void>);
 
   @override
+  _i5.Future<void> haltFocuser() => (super.noSuchMethod(
+        Invocation.method(
+          #haltFocuser,
+          [],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
   _i5.Future<_i3.AutofocusResult> runAutofocus({
     required double? exposureTime,
     required int? stepSize,

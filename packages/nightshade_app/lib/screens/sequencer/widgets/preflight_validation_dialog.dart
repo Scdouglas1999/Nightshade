@@ -4,6 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'mount_unpark_dialog.dart';
+
 /// Validation issue severity
 enum ValidationSeverity {
   error,   // Cannot start sequence
@@ -139,7 +141,7 @@ class SequenceValidator {
   List<ValidationIssue> _checkTargets(Sequence sequence) {
     final issues = <ValidationIssue>[];
 
-    final targets = sequence.targetGroups;
+    final targets = sequence.targetHeaders;
     final exposures = _getExposureNodes(sequence);
     if (targets.isEmpty && exposures.isNotEmpty) {
       issues.add(const ValidationIssue(
@@ -419,6 +421,77 @@ class SequenceValidator {
       ));
     }
 
+    // Check if image output path is configured
+    final appSettingsAsync = ref.read(appSettingsProvider);
+    final appSettings = appSettingsAsync.valueOrNull;
+    if (appSettings == null || appSettings.imageOutputPath.isEmpty) {
+      issues.add(const ValidationIssue(
+        severity: ValidationSeverity.warning,
+        category: 'Settings',
+        title: 'No Image Save Path',
+        description: 'No image output directory is configured. Captured images will NOT be saved to disk.',
+        resolution: 'Configure an image save location in Settings → File Output.',
+      ));
+    }
+
+    // Check for meridian flip trigger in long sequences with targets
+    issues.addAll(_checkMeridianFlipTrigger(sequence));
+
+    return issues;
+  }
+
+  /// Check if sequence should have a meridian flip trigger
+  List<ValidationIssue> _checkMeridianFlipTrigger(Sequence sequence) {
+    final issues = <ValidationIssue>[];
+
+    // Get targets with exposures
+    final targets = sequence.targetHeaders;
+    if (targets.isEmpty) {
+      return issues; // No targets, no need for meridian flip
+    }
+
+    // Check if there's a MeridianFlipNode anywhere in the sequence
+    final hasMeridianFlipNode = sequence.nodes.values.any(
+      (node) => node is MeridianFlipNode && node.isEnabled,
+    );
+
+    // Check if there's a Recovery node with meridian flip trigger
+    final hasRecoveryWithMeridianFlip = sequence.nodes.values.any(
+      (node) => node is RecoveryNode &&
+                node.isEnabled &&
+                node.triggerType == TriggerType.meridianFlip,
+    );
+
+    // If sequence already has meridian flip handling, no warning needed
+    if (hasMeridianFlipNode || hasRecoveryWithMeridianFlip) {
+      return issues;
+    }
+
+    // Calculate total estimated duration from enabled exposure nodes
+    double totalExposureMins = 0;
+    for (final node in sequence.nodes.values) {
+      if (node is ExposureNode && node.isEnabled) {
+        totalExposureMins += (node.durationSecs * node.count) / 60.0;
+      }
+    }
+
+    // If sequence is short (less than 2 hours), likely won't need a flip
+    if (totalExposureMins < 120) {
+      return issues;
+    }
+
+    // For longer sequences with targets, warn about missing meridian flip
+    issues.add(const ValidationIssue(
+      severity: ValidationSeverity.warning,
+      category: 'Mount',
+      title: 'No Meridian Flip Trigger',
+      description:
+          'This sequence has targets and runs for over 2 hours but has no meridian flip trigger. '
+          'If targets cross the meridian during imaging, the mount may hit its tracking limits.',
+      resolution:
+          'Add a MeridianFlip node to the sequence or enable auto meridian flip in Settings → Meridian Flip.',
+    ));
+
     return issues;
   }
 
@@ -497,6 +570,35 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
         _result = result;
         _isValidating = false;
       });
+    }
+  }
+
+  /// Handle starting the sequence, checking for mount parking first
+  Future<void> _handleStartSequence() async {
+    // Check if a mount is connected and parked
+    final mountState = ref.read(mountStateProvider);
+    final isMountConnected = mountState.connectionState == DeviceConnectionState.connected;
+    final isMountParked = mountState.isParked;
+
+    // Close the preflight dialog first
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+
+    // If mount is connected and parked, show the unpark dialog
+    if (isMountConnected && isMountParked) {
+      if (!mounted) return;
+
+      final result = await showMountUnparkDialog(context);
+
+      // Only start the sequence if the user chose to unpark
+      if (result == MountUnparkResult.unparkAndContinue) {
+        widget.onStartSequence?.call();
+      }
+      // If cancelled, do nothing (sequence won't start)
+    } else {
+      // Mount is not parked or not connected, just start the sequence
+      widget.onStartSequence?.call();
     }
   }
 
@@ -947,9 +1049,8 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
 
           // Start button
           ElevatedButton.icon(
-            onPressed: (canStart || hasWarningsOnly) ? () {
-              Navigator.of(context).pop();
-              widget.onStartSequence?.call();
+            onPressed: (canStart || hasWarningsOnly) ? () async {
+              await _handleStartSequence();
             } : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: canStart

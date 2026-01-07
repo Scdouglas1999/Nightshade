@@ -212,6 +212,7 @@ class ImagingService {
         // Now save FITS file and persist to database (non-critical operations)
         String? savedFilePath;
         int? dbImageId;
+        bool isTempFile = false;
 
         try {
           // Get app settings for file path
@@ -227,22 +228,37 @@ class ImagingService {
               frameNumber: _frameNumber,
               timestamp: captureTimestamp,
             );
+          } else {
+            // No output path configured - save to temp directory for annotation/plate solving
+            // This ensures live annotation can still work even without a configured save location
+            final tempDir = Directory.systemTemp;
+            final nightshadeTemp = Directory(path.join(tempDir.path, 'nightshade_captures'));
+            if (!await nightshadeTemp.exists()) {
+              await nightshadeTemp.create(recursive: true);
+            }
+            final timestamp = DateTime.now().millisecondsSinceEpoch;
+            savedFilePath = path.join(nightshadeTemp.path, 'capture_$timestamp.fits');
+            isTempFile = true;
+            print('[ImagingService] No output path configured, saving to temp: $savedFilePath');
+          }
 
-            // Call native FITS save API
-            // Note: This uses the raw data still in memory on the Rust side
-            await _saveFitsFile(
-              deviceId: deviceId,
-              filePath: savedFilePath,
-              width: capturedImage.width,
-              height: capturedImage.height,
-              capturedImage: capturedImage,
-              exposureSettings: settings,
-              appSettings: appSettings,
-              targetName: targetName,
-              timestamp: captureTimestamp,
-            );
+          // Call native FITS save API
+          // Note: This uses the raw data still in memory on the Rust side
+          await _saveFitsFile(
+            deviceId: deviceId,
+            filePath: savedFilePath,
+            width: capturedImage.width,
+            height: capturedImage.height,
+            capturedImage: capturedImage,
+            exposureSettings: settings,
+            appSettings: appSettings,
+            targetName: targetName,
+            timestamp: captureTimestamp,
+          );
 
-            // Insert into database
+          // Insert into database only for permanent saves (not temp files)
+          // When !isTempFile, appSettings is guaranteed non-null (we checked it above)
+          if (!isTempFile && appSettings != null) {
             dbImageId = await _saveToDatabase(
               filePath: savedFilePath,
               capturedImage: capturedImage,
@@ -251,23 +267,23 @@ class ImagingService {
               targetName: targetName,
               timestamp: captureTimestamp,
             );
-
-            // Update imageData with file path (create new instance since it's immutable)
-            imageData = CapturedImageData(
-              width: imageData.width,
-              height: imageData.height,
-              displayData: imageData.displayData,
-              histogram: imageData.histogram,
-              stats: imageData.stats,
-              capturedAt: imageData.capturedAt,
-              settings: imageData.settings,
-              targetName: imageData.targetName,
-              isColor: imageData.isColor,
-              filePath: savedFilePath,
-            );
-            // Update provider with file path
-            _ref.read(currentImageProvider.notifier).state = imageData;
           }
+
+          // Update imageData with file path (create new instance since it's immutable)
+          imageData = CapturedImageData(
+            width: imageData.width,
+            height: imageData.height,
+            displayData: imageData.displayData,
+            histogram: imageData.histogram,
+            stats: imageData.stats,
+            capturedAt: imageData.capturedAt,
+            settings: imageData.settings,
+            targetName: imageData.targetName,
+            isColor: imageData.isColor,
+            filePath: savedFilePath,
+          );
+          // Update provider with file path
+          _ref.read(currentImageProvider.notifier).state = imageData;
         } catch (e) {
           // Log error but don't fail the capture - image is already displayed!
           print('[ImagingService] Error saving image: $e');
@@ -443,7 +459,7 @@ class ImagingService {
     required int height,
     required CapturedImageResult capturedImage,
     required ExposureSettings exposureSettings,
-    required AppSettings appSettings,
+    AppSettings? appSettings,
     String? targetName,
     required DateTime timestamp,
   }) async {
@@ -477,9 +493,9 @@ class ImagingService {
       aperture: activeProfile?.aperture,
       pixelSizeX: null, // Pixel size not stored in profile yet
       pixelSizeY: null, // Pixel size not stored in profile yet
-      siteLatitude: appSettings.latitude != 0.0 ? appSettings.latitude : null,
-      siteLongitude: appSettings.longitude != 0.0 ? appSettings.longitude : null,
-      siteElevation: appSettings.elevation != 0.0 ? appSettings.elevation : null,
+      siteLatitude: appSettings != null && appSettings.latitude != 0.0 ? appSettings.latitude : null,
+      siteLongitude: appSettings != null && appSettings.longitude != 0.0 ? appSettings.longitude : null,
+      siteElevation: appSettings != null && appSettings.elevation != 0.0 ? appSettings.elevation : null,
     );
 
     // Use the optimized API that saves directly from Rust-side stored image data

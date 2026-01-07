@@ -121,7 +121,7 @@ class AnnotationService {
   }
 
   void _initListener() {
-    // Listen to new images
+    // Listen to new images and trigger annotation processing
     _ref.listen<CapturedImageData?>(currentImageProvider, (previous, next) {
       if (next != null && next.filePath != null && next.filePath != _lastProcessedImagePath) {
         _lastProcessedImagePath = next.filePath;

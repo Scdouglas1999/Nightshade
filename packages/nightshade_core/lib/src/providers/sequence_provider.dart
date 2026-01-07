@@ -1350,6 +1350,16 @@ class SequenceExecutor {
       print('[SEQUENCE] Safety fail mode set to: $modeString');
     }
 
+    // Set save path for captured images
+    final savePath = settings?.imageOutputPath;
+    if (savePath != null && savePath.isNotEmpty) {
+      await backend.sequencerSetSavePath(savePath);
+      print('[SEQUENCE] Save path set to: $savePath');
+    } else {
+      await backend.sequencerSetSavePath(null);
+      print('[SEQUENCE] WARNING: No save path configured - images will NOT be saved to disk!');
+    }
+
     // Get connected device IDs from equipment providers
     final cameraState = _ref.read(cameraStateProvider);
     final mountState = _ref.read(mountStateProvider);

@@ -218,10 +218,121 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
     final devices = <_DeviceStatus>[];
 
     // Helper to check if connected device matches profile
+    // Uses flexible matching that handles different ID formats while still
+    // distinguishing between different models (e.g., ASI1600 vs ASI178)
     bool isDeviceMismatch(String? profileId, String? connectedId, DeviceConnectionState state) {
       if (state != DeviceConnectionState.connected) return false; // Not connected, no mismatch
       if (profileId == null || connectedId == null) return false; // No ID to compare
-      return profileId != connectedId;
+
+      // Debug logging
+      debugPrint('[MISMATCH CHECK] Profile: "$profileId" vs Connected: "$connectedId"');
+
+      final p = profileId.trim().toLowerCase();
+      final c = connectedId.trim().toLowerCase();
+
+      // Direct match
+      if (p == c) {
+        debugPrint('[MISMATCH CHECK] Direct match - no mismatch');
+        return false;
+      }
+
+      // Normalize by removing all non-alphanumeric characters
+      final normP = p.replaceAll(RegExp(r'[^a-z0-9]'), '');
+      final normC = c.replaceAll(RegExp(r'[^a-z0-9]'), '');
+      if (normP == normC) {
+        debugPrint('[MISMATCH CHECK] Normalized match - no mismatch');
+        return false;
+      }
+
+      // One contains the other (handles "ZWO EAF" containing "eaf")
+      if (normP.contains(normC) || normC.contains(normP)) {
+        debugPrint('[MISMATCH CHECK] Containment match - no mismatch');
+        return false;
+      }
+
+      // Split into words first to preserve word boundaries
+      // This ensures "phd2_guider" splits into ["phd2", "guider"] not ["phd2guider"]
+      final profileWords = p.split(RegExp(r'[_\-\s:\.]+'))
+          .map((w) => w.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+          .where((w) => w.isNotEmpty)
+          .toList();
+      final connectedWords = c.split(RegExp(r'[_\-\s:\.]+'))
+          .map((w) => w.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+          .where((w) => w.isNotEmpty)
+          .toList();
+
+      debugPrint('[MISMATCH CHECK] Profile words: $profileWords, Connected words: $connectedWords');
+
+      // Find words that contain numbers (most distinguishing identifiers)
+      final profileNumbered = profileWords.where((w) => RegExp(r'\d').hasMatch(w)).toSet();
+      final connectedNumbered = connectedWords.where((w) => RegExp(r'\d').hasMatch(w)).toSet();
+
+      debugPrint('[MISMATCH CHECK] Profile numbered: $profileNumbered, Connected numbered: $connectedNumbered');
+
+      // If both have numbered identifiers, they must share at least one
+      // This ensures ASI1600 doesn't match ASI178, but phd2 matches phd2
+      if (profileNumbered.isNotEmpty && connectedNumbered.isNotEmpty) {
+        if (profileNumbered.intersection(connectedNumbered).isNotEmpty) {
+          debugPrint('[MISMATCH CHECK] Numbered identifier match - no mismatch');
+          return false; // Match - same model number
+        }
+        // Check if one model contains another (e.g., "asi1600mmcool" contains "asi1600")
+        for (final pm in profileNumbered) {
+          for (final cm in connectedNumbered) {
+            if (pm.contains(cm) || cm.contains(pm)) {
+              debugPrint('[MISMATCH CHECK] Numbered containment match: $pm / $cm - no mismatch');
+              return false;
+            }
+          }
+        }
+        debugPrint('[MISMATCH CHECK] Different numbered identifiers - MISMATCH');
+        return true; // Different model numbers = different devices
+      }
+
+      // Use the words we already split for token matching
+      final pTokens = profileWords.where((t) => t.length >= 2).toSet();
+      final cTokens = connectedWords.where((t) => t.length >= 2).toSet();
+
+      if (pTokens.isEmpty || cTokens.isEmpty) {
+        debugPrint('[MISMATCH CHECK] Empty token sets - assuming mismatch');
+        return true;
+      }
+
+      // Check for matching tokens (handles "guider" vs "guiding" via common stem)
+      int matches = 0;
+      for (final pt in pTokens) {
+        for (final ct in cTokens) {
+          if (pt == ct || pt.contains(ct) || ct.contains(pt)) {
+            matches++;
+            break;
+          }
+          // Check for common stem (4+ chars) for word variations like "guider" vs "guiding"
+          if (pt.length >= 4 && ct.length >= 4) {
+            // Find longest common prefix
+            int commonLen = 0;
+            final minLen = pt.length < ct.length ? pt.length : ct.length;
+            for (int i = 0; i < minLen; i++) {
+              if (pt[i] == ct[i]) {
+                commonLen++;
+              } else {
+                break;
+              }
+            }
+            // If they share a stem of 4+ characters, consider it a match
+            if (commonLen >= 4) {
+              debugPrint('[MISMATCH CHECK] Token stem match: "$pt" and "$ct" share ${commonLen}-char prefix');
+              matches++;
+              break;
+            }
+          }
+        }
+      }
+
+      // Require significant overlap
+      final minTokens = pTokens.length < cTokens.length ? pTokens.length : cTokens.length;
+      final isMismatch = matches < (minTokens * 0.5).ceil(); // Mismatch if < 50% overlap
+      debugPrint('[MISMATCH CHECK] Token match result: $matches/$minTokens tokens matched, isMismatch=$isMismatch');
+      return isMismatch;
     }
 
     if (profile.cameraId != null) {
@@ -282,11 +393,124 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
     return devices;
   }
 
+  /// Extracts a user-friendly name from a device ID
+  /// Handles formats like:
+  /// - native:zwo:1 → "ZWO #2"
+  /// - native:zwo_eaf:0 → "ZWO EAF"
+  /// - ascom:ASCOM.PegasusAstroNYX101.Telescope → "PegasusAstro NYX101"
+  /// - phd2_guider → "PHD2 Guider"
   String _formatDeviceId(String id) {
-    if (id.contains('.')) {
-      return id.split('.').last;
+    final lowerId = id.toLowerCase();
+
+    // Handle native device IDs (native:vendor:index or native:vendor_type:index)
+    if (lowerId.startsWith('native:')) {
+      final parts = id.substring(7).split(':'); // Remove "native:" prefix
+      if (parts.isNotEmpty) {
+        final devicePart = parts[0]; // e.g., "zwo", "zwo_eaf", "zwo_efw"
+        final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
+
+        // Parse vendor_type format
+        if (devicePart.contains('_')) {
+          final subParts = devicePart.split('_');
+          final vendor = _capitalizeVendor(subParts[0]);
+          final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
+          return '$vendor $type';
+        }
+
+        // Just vendor with index
+        final vendor = _capitalizeVendor(devicePart);
+        if (index != null) {
+          return '$vendor #${index + 1}';
+        }
+        return vendor;
+      }
     }
+
+    // Handle ASCOM device IDs (ascom:ASCOM.Vendor.Type)
+    if (lowerId.startsWith('ascom:')) {
+      final ascomId = id.substring(6); // Remove "ascom:" prefix
+      final parts = ascomId.split('.');
+      if (parts.length >= 2) {
+        // Try to extract vendor and model from ASCOM ID
+        // e.g., "ASCOM.PegasusAstroNYX101.Telescope" → "PegasusAstro NYX101"
+        // e.g., "ASCOM.ASICamera2.Camera" → "ASI Camera"
+        final vendorPart = parts.length > 1 ? parts[1] : parts[0];
+        return _formatAscomVendor(vendorPart);
+      }
+    }
+
+    // Handle Alpaca device IDs
+    if (lowerId.startsWith('alpaca:')) {
+      final parts = id.substring(7).split(':');
+      if (parts.isNotEmpty) {
+        final type = _capitalizeWord(parts[0]);
+        final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
+        if (index != null) {
+          return 'Alpaca $type #${index + 1}';
+        }
+        return 'Alpaca $type';
+      }
+    }
+
+    // Handle special IDs like phd2_guider
+    if (lowerId.contains('phd2')) {
+      return 'PHD2 Guiding';
+    }
+
+    // Handle dot-separated IDs (fallback for ASCOM-style)
+    if (id.contains('.')) {
+      final parts = id.split('.');
+      return _formatAscomVendor(parts[parts.length > 1 ? 1 : 0]);
+    }
+
+    // Handle underscore-separated IDs
+    if (id.contains('_')) {
+      return id.split('_').map(_capitalizeWord).join(' ');
+    }
+
+    // Return as-is if no pattern matched
     return id;
+  }
+
+  String _capitalizeVendor(String vendor) {
+    final lower = vendor.toLowerCase();
+    // Known vendor name capitalizations
+    const vendors = {
+      'zwo': 'ZWO',
+      'qhy': 'QHY',
+      'asi': 'ASI',
+      'svbony': 'SVBony',
+      'atik': 'Atik',
+      'fli': 'FLI',
+      'moravian': 'Moravian',
+      'touptek': 'Touptek',
+      'playerone': 'Player One',
+      'pegasus': 'Pegasus',
+      'skywatcher': 'Sky-Watcher',
+      'ioptron': 'iOptron',
+    };
+    return vendors[lower] ?? _capitalizeWord(vendor);
+  }
+
+  String _formatAscomVendor(String vendorPart) {
+    // Insert spaces before capital letters and clean up
+    // "PegasusAstroNYX101" → "Pegasus Astro NYX101"
+    // "ASICamera2" → "ASI Camera 2"
+    final spaced = vendorPart.replaceAllMapped(
+      RegExp(r'([a-z])([A-Z])'),
+      (m) => '${m[1]} ${m[2]}',
+    );
+    // Also handle number transitions
+    final withNumbers = spaced.replaceAllMapped(
+      RegExp(r'([A-Za-z])(\d)'),
+      (m) => '${m[1]} ${m[2]}',
+    );
+    return withNumbers.replaceAll(RegExp(r'_+'), ' ').trim();
+  }
+
+  String _capitalizeWord(String word) {
+    if (word.isEmpty) return word;
+    return word[0].toUpperCase() + word.substring(1).toLowerCase();
   }
 
   (_OverallState, int, int, _DeviceStatus?) _calculateOverallState(

@@ -54,12 +54,7 @@ class _FocusTabState extends ConsumerState<FocusTab> {
 
   Future<void> _haltFocuser() async {
     try {
-      // DeviceService doesn't have a convenience haltFocuser method,
-      // so we'll move to current position to stop
-      final focuserState = ref.read(focuserStateProvider);
-      if (focuserState.position != null) {
-        await ref.read(deviceServiceProvider).moveFocuserTo(focuserState.position!);
-      }
+      await ref.read(deviceServiceProvider).haltFocuser();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
