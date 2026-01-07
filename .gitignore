@@ -203,3 +203,4 @@ lcov.info
 *.d
 .melos_tool/
 nightshade.db
+.worktrees/
