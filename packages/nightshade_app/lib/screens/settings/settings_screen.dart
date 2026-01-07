@@ -1640,25 +1640,48 @@ class _SequencerSettings extends ConsumerStatefulWidget {
 }
 
 class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
-  final _meridianController = TextEditingController();
+  // Sequencer settings controllers
   final _autoFocusController = TextEditingController();
   final _ditherController = TextEditingController();
+
+  // Meridian flip settings controllers
+  final _minutesPastMeridianController = TextEditingController();
+  final _minutesBeforeLimitController = TextEditingController();
+  final _hourAngleThresholdController = TextEditingController();
+  final _settleTimeController = TextEditingController();
+  final _maxRetriesController = TextEditingController();
+
   bool _initialized = false;
+  bool _meridianInitialized = false;
 
   @override
   void dispose() {
-    _meridianController.dispose();
     _autoFocusController.dispose();
     _ditherController.dispose();
+    _minutesPastMeridianController.dispose();
+    _minutesBeforeLimitController.dispose();
+    _hourAngleThresholdController.dispose();
+    _settleTimeController.dispose();
+    _maxRetriesController.dispose();
     super.dispose();
   }
 
   void _initControllers(AppSettings settings) {
     if (!_initialized) {
-      _meridianController.text = settings.meridianFlipMinutes.toString();
       _autoFocusController.text = settings.autoFocusEveryMinutes.toString();
       _ditherController.text = settings.ditherEveryFrames.toString();
       _initialized = true;
+    }
+  }
+
+  void _initMeridianControllers(MeridianFlipSettings settings) {
+    if (!_meridianInitialized) {
+      _minutesPastMeridianController.text = settings.minutesPastMeridian.toString();
+      _minutesBeforeLimitController.text = settings.minutesBeforeLimit.toString();
+      _hourAngleThresholdController.text = settings.hourAngleThreshold.toString();
+      _settleTimeController.text = settings.settleTimeSeconds.toString();
+      _maxRetriesController.text = settings.maxRetries.toString();
+      _meridianInitialized = true;
     }
   }
 
@@ -1687,16 +1710,261 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
     };
   }
 
+  Widget _buildMeridianFlipSection(MeridianFlipSettings flipSettings) {
+    final notifier = ref.read(globalMeridianFlipSettingsProvider.notifier);
+
+    return _SettingsSection(
+      title: 'Meridian Flip',
+      colors: widget.colors,
+      children: [
+        // Standalone monitoring
+        _SettingRow(
+          icon: LucideIcons.eye,
+          title: 'Standalone monitoring',
+          subtitle: 'Monitor meridian even when no sequence is running',
+          trailing: _SettingsSwitch(
+            value: flipSettings.standaloneMonitoringEnabled,
+            onChanged: (value) {
+              notifier.setStandaloneMonitoringEnabled(value);
+            },
+            colors: widget.colors,
+          ),
+          colors: widget.colors,
+        ),
+        // Trigger method
+        _SettingRow(
+          icon: LucideIcons.crosshair,
+          title: 'Trigger method',
+          subtitle: flipSettings.triggerMethod.description,
+          trailing: _SettingsDropdown(
+            value: flipSettings.triggerMethod.displayName,
+            items: MeridianTriggerMethod.values.map((e) => e.displayName).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                final method = MeridianTriggerMethod.values
+                    .firstWhere((e) => e.displayName == value);
+                notifier.setTriggerMethod(method);
+              }
+            },
+            colors: widget.colors,
+            width: 200,
+          ),
+          colors: widget.colors,
+        ),
+        // Trigger value - minutes past meridian
+        if (flipSettings.triggerMethod == MeridianTriggerMethod.minutesPastMeridian)
+          _SettingRow(
+            icon: LucideIcons.timer,
+            title: 'Minutes past meridian',
+            subtitle: 'Flip after target crosses meridian by this amount',
+            trailing: _NumberInput(
+              controller: _minutesPastMeridianController,
+              suffix: 'min',
+              min: 0,
+              max: 120,
+              decimals: 1,
+              onChanged: (value) {
+                notifier.setMinutesPastMeridian(value);
+              },
+              colors: widget.colors,
+            ),
+            colors: widget.colors,
+          ),
+        // Trigger value - minutes before limit
+        if (flipSettings.triggerMethod == MeridianTriggerMethod.minutesBeforeLimit)
+          _SettingRow(
+            icon: LucideIcons.timer,
+            title: 'Minutes before limit',
+            subtitle: 'Flip before mount reaches tracking limit',
+            trailing: _NumberInput(
+              controller: _minutesBeforeLimitController,
+              suffix: 'min',
+              min: 0,
+              max: 120,
+              decimals: 1,
+              onChanged: (value) {
+                notifier.setMinutesBeforeLimit(value);
+              },
+              colors: widget.colors,
+            ),
+            colors: widget.colors,
+          ),
+        // Trigger value - hour angle threshold
+        if (flipSettings.triggerMethod == MeridianTriggerMethod.hourAngleThreshold)
+          _SettingRow(
+            icon: LucideIcons.timer,
+            title: 'Hour angle threshold',
+            subtitle: 'Flip when hour angle exceeds this value',
+            trailing: _NumberInput(
+              controller: _hourAngleThresholdController,
+              suffix: 'h',
+              min: 0,
+              max: 6,
+              decimals: 2,
+              onChanged: (value) {
+                notifier.setHourAngleThreshold(value);
+              },
+              colors: widget.colors,
+            ),
+            colors: widget.colors,
+          ),
+        // Flip sequence - pause guiding
+        _SettingRow(
+          icon: LucideIcons.pause,
+          title: 'Pause guiding before flip',
+          subtitle: 'Temporarily stop autoguider during flip',
+          trailing: _SettingsSwitch(
+            value: flipSettings.pauseGuidingBeforeFlip,
+            onChanged: (value) {
+              notifier.setPauseGuidingBeforeFlip(value);
+            },
+            colors: widget.colors,
+          ),
+          colors: widget.colors,
+        ),
+        // Flip sequence - recenter
+        _SettingRow(
+          icon: LucideIcons.crosshair,
+          title: 'Recenter after flip',
+          subtitle: 'Plate solve and re-center target after flip',
+          trailing: _SettingsSwitch(
+            value: flipSettings.recenterAfterFlip,
+            onChanged: (value) {
+              notifier.setRecenterAfterFlip(value);
+            },
+            colors: widget.colors,
+          ),
+          colors: widget.colors,
+        ),
+        // Flip sequence - refocus
+        _SettingRow(
+          icon: LucideIcons.focus,
+          title: 'Refocus after flip',
+          subtitle: 'Run autofocus after flip completes',
+          trailing: _SettingsSwitch(
+            value: flipSettings.refocusAfterFlip,
+            onChanged: (value) {
+              notifier.setRefocusAfterFlip(value);
+            },
+            colors: widget.colors,
+          ),
+          colors: widget.colors,
+        ),
+        // Flip sequence - resume guiding
+        _SettingRow(
+          icon: LucideIcons.play,
+          title: 'Resume guiding after flip',
+          subtitle: 'Restart autoguider if it was running',
+          trailing: _SettingsSwitch(
+            value: flipSettings.resumeGuidingAfterFlip,
+            onChanged: (value) {
+              notifier.setResumeGuidingAfterFlip(value);
+            },
+            colors: widget.colors,
+          ),
+          colors: widget.colors,
+        ),
+        // Settle time
+        _SettingRow(
+          icon: LucideIcons.clock,
+          title: 'Settle time',
+          subtitle: 'Wait time after flip before resuming',
+          trailing: _NumberInput(
+            controller: _settleTimeController,
+            suffix: 'sec',
+            min: 0,
+            max: 300,
+            decimals: 0,
+            onChanged: (value) {
+              notifier.setSettleTimeSeconds(value);
+            },
+            colors: widget.colors,
+          ),
+          colors: widget.colors,
+        ),
+        // Error handling - max retries
+        _SettingRow(
+          icon: LucideIcons.repeat,
+          title: 'Max retries',
+          subtitle: 'Number of retry attempts if flip fails',
+          trailing: _NumberInput(
+            controller: _maxRetriesController,
+            suffix: '',
+            min: 0,
+            max: 10,
+            decimals: 0,
+            onChanged: (value) {
+              notifier.setMaxRetries(value.toInt());
+            },
+            colors: widget.colors,
+          ),
+          colors: widget.colors,
+        ),
+        // Error handling - failure action
+        _SettingRow(
+          icon: LucideIcons.alertTriangle,
+          title: 'On failure',
+          subtitle: flipSettings.failureAction.description,
+          trailing: _SettingsDropdown(
+            value: flipSettings.failureAction.displayName,
+            items: FlipFailureAction.values.map((e) => e.displayName).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                final action = FlipFailureAction.values
+                    .firstWhere((e) => e.displayName == value);
+                notifier.setFailureAction(action);
+              }
+            },
+            colors: widget.colors,
+            width: 160,
+          ),
+          colors: widget.colors,
+        ),
+        // Notifications - sound
+        _SettingRow(
+          icon: LucideIcons.volume2,
+          title: 'Sound alert',
+          subtitle: 'Play sound when flip starts/completes/fails',
+          trailing: _SettingsSwitch(
+            value: flipSettings.soundAlertOnFlip,
+            onChanged: (value) {
+              notifier.setSoundAlertOnFlip(value);
+            },
+            colors: widget.colors,
+          ),
+          colors: widget.colors,
+        ),
+        // Notifications - push
+        _SettingRow(
+          icon: LucideIcons.bell,
+          title: 'Push notification',
+          subtitle: 'Send notification to mobile app',
+          trailing: _SettingsSwitch(
+            value: flipSettings.pushNotificationOnFlip,
+            onChanged: (value) {
+              notifier.setPushNotificationOnFlip(value);
+            },
+            colors: widget.colors,
+          ),
+          isLast: true,
+          colors: widget.colors,
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+    final flipSettings = ref.watch(globalMeridianFlipSettingsProvider);
+    _initMeridianControllers(flipSettings);
+
     return settingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
       data: (settings) {
         _initControllers(settings);
-        
+
         return _SettingsPage(
           title: 'Sequencer',
           description: 'Automation and sequence settings',
@@ -1752,30 +2020,7 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                 ),
               ],
             ),
-            _SettingsSection(
-              title: 'Meridian Flip',
-              colors: widget.colors,
-              children: [
-                _SettingRow(
-                  icon: LucideIcons.rotateCw,
-                  title: 'Flip before meridian',
-                  subtitle: 'Minutes before meridian to perform flip',
-                  trailing: _NumberInput(
-                    controller: _meridianController,
-                    suffix: 'min',
-                    min: 0,
-                    max: 60,
-                    decimals: 0,
-                    onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setMeridianFlipMinutes(value.toInt());
-                    },
-                    colors: widget.colors,
-                  ),
-                  isLast: true,
-                  colors: widget.colors,
-                ),
-              ],
-            ),
+            _buildMeridianFlipSection(flipSettings),
             _SettingsSection(
               title: 'Auto Focus',
               colors: widget.colors,

@@ -138,10 +138,99 @@ class QuickConnectBar extends ConsumerWidget {
     int mismatchDevices = 0;
 
     // Helper to check if connected device matches profile
+    // Uses flexible matching that handles different ID formats while still
+    // distinguishing between different models (e.g., ASI1600 vs ASI178)
     bool isDeviceMatch(String? profileId, String? connectedId, DeviceConnectionState state) {
       if (state != DeviceConnectionState.connected) return true; // Not connected, no mismatch
       if (profileId == null || connectedId == null) return true; // No ID to compare
-      return profileId == connectedId;
+
+      final p = profileId.trim().toLowerCase();
+      final c = connectedId.trim().toLowerCase();
+
+      // Direct match
+      if (p == c) return true;
+
+      // Normalize by removing all non-alphanumeric characters
+      final normP = p.replaceAll(RegExp(r'[^a-z0-9]'), '');
+      final normC = c.replaceAll(RegExp(r'[^a-z0-9]'), '');
+      if (normP == normC) return true;
+
+      // One contains the other (handles "ZWO EAF" containing "eaf")
+      if (normP.contains(normC) || normC.contains(normP)) return true;
+
+      // Extract model identifiers - alphanumeric sequences containing numbers
+      // These uniquely identify devices: "asi1600", "phd2", "nyx101", "eaf", "efw"
+      final modelPattern = RegExp(r'[a-z]*\d+[a-z0-9]*|[a-z]{2,}');
+
+      final profileModels = modelPattern.allMatches(normP).map((m) => m.group(0)!).toSet();
+      final connectedModels = modelPattern.allMatches(normC).map((m) => m.group(0)!).toSet();
+
+      // Find models that contain numbers (most distinguishing)
+      final profileNumberedModels = profileModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
+      final connectedNumberedModels = connectedModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
+
+      // If both have numbered model identifiers, they must share at least one
+      // This ensures ASI1600 doesn't match ASI178
+      if (profileNumberedModels.isNotEmpty && connectedNumberedModels.isNotEmpty) {
+        if (profileNumberedModels.intersection(connectedNumberedModels).isNotEmpty) {
+          return true; // Match - same model number
+        }
+        // Check if one model contains another (e.g., "asi1600mmcool" contains "asi1600")
+        for (final pm in profileNumberedModels) {
+          for (final cm in connectedNumberedModels) {
+            if (pm.contains(cm) || cm.contains(pm)) return true;
+          }
+        }
+        return false; // Different model numbers = different devices
+      }
+
+      // If only one has numbered models, check token overlap for the rest
+      // Tokenize and check for significant overlap
+      final pTokens = p.split(RegExp(r'[_\-\s:]+'))
+          .where((t) => t.length >= 2)
+          .map((t) => t.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+          .where((t) => t.isNotEmpty)
+          .toSet();
+      final cTokens = c.split(RegExp(r'[_\-\s:]+'))
+          .where((t) => t.length >= 2)
+          .map((t) => t.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+          .where((t) => t.isNotEmpty)
+          .toSet();
+
+      if (pTokens.isEmpty || cTokens.isEmpty) return false;
+
+      // Check for matching tokens (handles "guider" vs "guiding" via common stem)
+      int matches = 0;
+      for (final pt in pTokens) {
+        for (final ct in cTokens) {
+          if (pt == ct || pt.contains(ct) || ct.contains(pt)) {
+            matches++;
+            break;
+          }
+          // Check for common stem (4+ chars) for word variations like "guider" vs "guiding"
+          if (pt.length >= 4 && ct.length >= 4) {
+            // Find longest common prefix
+            int commonLen = 0;
+            final minLen = pt.length < ct.length ? pt.length : ct.length;
+            for (int i = 0; i < minLen; i++) {
+              if (pt[i] == ct[i]) {
+                commonLen++;
+              } else {
+                break;
+              }
+            }
+            // If they share a stem of 4+ characters, consider it a match
+            if (commonLen >= 4) {
+              matches++;
+              break;
+            }
+          }
+        }
+      }
+
+      // Require significant overlap
+      final minTokens = pTokens.length < cTokens.length ? pTokens.length : cTokens.length;
+      return matches >= (minTokens * 0.5).ceil(); // Match if >= 50% overlap
     }
 
     // Check each device type

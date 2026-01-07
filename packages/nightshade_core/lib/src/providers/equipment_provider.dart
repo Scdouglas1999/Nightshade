@@ -324,7 +324,7 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
       setDisconnected();
     } catch (e) {
       state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceName),
+        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
       );
     }
   }
@@ -365,7 +365,7 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
   void setError(Object error) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.error,
-      lastError: DeviceError.fromException(error, deviceId: state.deviceName),
+      lastError: DeviceError.fromException(error, deviceId: state.deviceId),
     );
   }
 }

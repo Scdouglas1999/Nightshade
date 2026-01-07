@@ -1,6 +1,6 @@
 //! Trigger system for the sequencer
 
-use crate::{RecoveryAction, TriggerType};
+use crate::{RecoveryAction, TriggerType, PierSide};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -70,27 +70,64 @@ impl Trigger {
                 }
             }
             TriggerType::MeridianFlip { config } => {
-                if let Some(flip_time) = state.next_meridian_flip_time {
-                    let now = chrono::Utc::now().timestamp();
-                    let time_to_flip = (flip_time - now) as f64 / 60.0;
-                    // Use appropriate trigger timing based on method
-                    let trigger_threshold = match config.trigger_method {
-                        crate::MeridianTriggerMethod::MinutesPastMeridian => {
-                            // For "past meridian" mode, trigger when we're at or past the meridian
-                            // by more than the configured amount (negative time_to_flip means past)
-                            config.minutes_past_meridian
+                // Don't trigger if we've already flipped for this target
+                if state.has_flipped_this_target {
+                    return false;
+                }
+
+                // Need to know the current hour angle for the primary trigger methods
+                match config.trigger_method {
+                    crate::MeridianTriggerMethod::MinutesPastMeridian => {
+                        // Trigger when target is past meridian by specified minutes
+                        // Hour angle > 0 means west of meridian (past meridian for northern hemisphere)
+                        if let Some(ha) = state.current_hour_angle {
+                            // Convert hour angle to minutes (1h = 60min)
+                            let minutes_past = ha * 60.0;
+                            // Trigger when positive HA exceeds threshold (target past meridian)
+                            // and we're on the pre-flip pier side (typically West when target is East)
+                            let on_pre_flip_side = match state.pier_side {
+                                Some(PierSide::West) => ha > 0.0, // Target has crossed
+                                Some(PierSide::East) => false,    // Already flipped
+                                _ => ha > 0.0, // Unknown - use HA sign
+                            };
+                            on_pre_flip_side && minutes_past >= config.minutes_past_meridian
+                        } else {
+                            false
                         }
-                        crate::MeridianTriggerMethod::MinutesBeforeLimit => {
-                            config.minutes_before_limit
+                    }
+                    crate::MeridianTriggerMethod::MinutesBeforeLimit => {
+                        // Trigger based on time until mount hits its tracking limit
+                        // This requires the mount to report its limit time
+                        if let Some(limit_time) = state.mount_tracking_limit_time {
+                            let now = chrono::Utc::now().timestamp();
+                            let minutes_to_limit = (limit_time - now) as f64 / 60.0;
+                            // Trigger when we're within the threshold of hitting the limit
+                            minutes_to_limit > 0.0 && minutes_to_limit <= config.minutes_before_limit
+                        } else if let Some(ha) = state.current_hour_angle {
+                            // Fallback: estimate limit time from HA if mount doesn't report it
+                            // Assume typical limit is around HA = +6h (6 hours past meridian)
+                            let assumed_limit_ha = 6.0; // hours
+                            let hours_to_limit = assumed_limit_ha - ha;
+                            let minutes_to_limit = hours_to_limit * 60.0;
+                            minutes_to_limit > 0.0 && minutes_to_limit <= config.minutes_before_limit
+                        } else {
+                            false
                         }
-                        crate::MeridianTriggerMethod::HourAngleThreshold => {
-                            // Convert hour angle threshold to minutes
-                            config.hour_angle_threshold * 60.0
+                    }
+                    crate::MeridianTriggerMethod::HourAngleThreshold => {
+                        // Trigger when absolute hour angle exceeds threshold
+                        if let Some(ha) = state.current_hour_angle {
+                            // Use the threshold directly (configured in hours)
+                            let on_pre_flip_side = match state.pier_side {
+                                Some(PierSide::West) => ha > 0.0,
+                                Some(PierSide::East) => false,
+                                _ => ha > 0.0,
+                            };
+                            on_pre_flip_side && ha >= config.hour_angle_threshold
+                        } else {
+                            false
                         }
-                    };
-                    time_to_flip > 0.0 && time_to_flip <= trigger_threshold
-                } else {
-                    false
+                    }
                 }
             }
             TriggerType::GuidingFailed { rms_threshold, duration_secs } => {
@@ -234,7 +271,18 @@ pub struct TriggerState {
     pub baseline_hfr: Option<f64>,
     pub current_hfr: Option<f64>,
 
-    // Meridian flip
+    // Meridian flip - enhanced fields
+    /// Current hour angle of the target in hours (negative = east, positive = west of meridian)
+    pub current_hour_angle: Option<f64>,
+    /// Current pier side of the mount
+    pub pier_side: Option<PierSide>,
+    /// Unix timestamp when mount will hit its tracking limit (if reported by mount)
+    pub mount_tracking_limit_time: Option<i64>,
+    /// Whether we've already flipped for the current target (prevents double-flip)
+    pub has_flipped_this_target: bool,
+    /// Target name for the current meridian flip tracking
+    pub current_target_name: Option<String>,
+    /// Legacy field - Unix timestamp for flip (deprecated, use current_hour_angle instead)
     pub next_meridian_flip_time: Option<i64>,
 
     // Guiding
@@ -416,6 +464,73 @@ impl TriggerState {
     pub fn reset_mount_tracking_state(&mut self) {
         self.mount_tracking_lost = false;
     }
+
+    // ========================================================================
+    // Meridian Flip State Management
+    // ========================================================================
+
+    /// Update the current hour angle (call periodically from mount polling)
+    pub fn update_hour_angle(&mut self, hour_angle: f64) {
+        self.current_hour_angle = Some(hour_angle);
+    }
+
+    /// Update the current pier side
+    pub fn update_pier_side(&mut self, pier_side: PierSide) {
+        self.pier_side = Some(pier_side);
+    }
+
+    /// Update mount tracking limit time (if mount reports it)
+    pub fn update_tracking_limit_time(&mut self, limit_time: i64) {
+        self.mount_tracking_limit_time = Some(limit_time);
+    }
+
+    /// Set the current target for meridian flip tracking
+    /// This also resets the has_flipped flag for the new target
+    pub fn set_meridian_target(&mut self, target_name: String) {
+        if self.current_target_name.as_ref() != Some(&target_name) {
+            self.current_target_name = Some(target_name);
+            self.has_flipped_this_target = false;
+        }
+    }
+
+    /// Mark that a meridian flip has been performed for the current target
+    pub fn mark_flip_performed(&mut self) {
+        self.has_flipped_this_target = true;
+        tracing::info!(
+            "[MERIDIAN] Flip marked as completed for target: {:?}",
+            self.current_target_name
+        );
+    }
+
+    /// Clear meridian flip state (call when target changes or sequence resets)
+    pub fn clear_meridian_state(&mut self) {
+        self.current_hour_angle = None;
+        self.pier_side = None;
+        self.mount_tracking_limit_time = None;
+        self.has_flipped_this_target = false;
+        self.current_target_name = None;
+        self.next_meridian_flip_time = None;
+    }
+
+    /// Check if a meridian flip might be needed based on current state
+    /// Returns (needs_flip, minutes_past_meridian) for diagnostic purposes
+    pub fn meridian_flip_status(&self) -> (bool, Option<f64>) {
+        if self.has_flipped_this_target {
+            return (false, None);
+        }
+
+        if let Some(ha) = self.current_hour_angle {
+            let minutes_past = ha * 60.0;
+            let on_pre_flip_side = match self.pier_side {
+                Some(PierSide::West) => ha > 0.0,
+                Some(PierSide::East) => false,
+                _ => ha > 0.0,
+            };
+            (on_pre_flip_side && ha > 0.0, Some(minutes_past))
+        } else {
+            (false, None)
+        }
+    }
 }
 
 /// Manager for all active triggers
@@ -508,14 +623,14 @@ impl TriggerManager {
             ).with_cooldown(300) // 5 minute cooldown
         );
 
-        // Meridian flip trigger
+        // Meridian flip trigger - uses MeridianFlip recovery action
         self.add_trigger(
             Trigger::new(
                 "meridian_flip",
                 "Meridian Flip",
                 TriggerType::MeridianFlip { config: crate::MeridianFlipConfig::default() },
-                RecoveryAction::Pause,
-            ).with_cooldown(600) // 10 minute cooldown
+                RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
+            ).with_cooldown(600) // 10 minute cooldown to prevent double-flip
         );
 
         // Guiding failure trigger

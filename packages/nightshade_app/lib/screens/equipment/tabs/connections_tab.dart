@@ -9,6 +9,148 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../dialogs/indi_server_dialog.dart';
 import '../widgets/backend_selector_chips.dart';
 
+// ============================================================================
+// Device ID Formatting Helpers
+// ============================================================================
+
+/// Format a device ID into a user-friendly display name
+String _formatDeviceId(String id) {
+  final lowerId = id.toLowerCase();
+
+  // Handle native device IDs: native:vendor:index or native:vendor_type:index
+  if (lowerId.startsWith('native:')) {
+    final parts = id.substring(7).split(':');
+    if (parts.isNotEmpty) {
+      final devicePart = parts[0];
+      final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
+
+      // Handle vendor_type format (e.g., zwo_eaf)
+      if (devicePart.contains('_')) {
+        final subParts = devicePart.split('_');
+        final vendor = _capitalizeVendor(subParts[0]);
+        final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
+        return '$vendor $type';
+      }
+
+      // Simple vendor format
+      final vendor = _capitalizeVendor(devicePart);
+      if (index != null) {
+        return '$vendor #${index + 1}';
+      }
+      return vendor;
+    }
+  }
+
+  // Handle ASCOM device IDs: ascom:ASCOM.Vendor.Type
+  if (lowerId.startsWith('ascom:')) {
+    final ascomId = id.substring(6);
+    final parts = ascomId.split('.');
+    if (parts.length >= 2) {
+      // Extract vendor part (after ASCOM. prefix)
+      final vendorPart = parts.length > 1 ? parts[1] : parts[0];
+      return _formatAscomVendor(vendorPart);
+    }
+  }
+
+  // Handle Alpaca device IDs
+  if (lowerId.startsWith('alpaca:')) {
+    final alpacaPart = id.substring(7);
+    return 'Alpaca: $alpacaPart';
+  }
+
+  // Handle PHD2
+  if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
+    return 'PHD2';
+  }
+
+  // Fallback: try to clean up the ID
+  return _cleanupId(id);
+}
+
+/// Capitalize vendor names properly
+String _capitalizeVendor(String vendor) {
+  const knownVendors = {
+    'zwo': 'ZWO',
+    'asi': 'ZWO ASI',
+    'qhy': 'QHY',
+    'playerone': 'PlayerOne',
+    'svbony': 'SVBony',
+    'atik': 'Atik',
+    'fli': 'FLI',
+    'moravian': 'Moravian',
+    'touptek': 'Touptek',
+    'pegasus': 'Pegasus',
+    'pegasusastro': 'Pegasus Astro',
+    'ioptron': 'iOptron',
+    'skywatcher': 'Sky-Watcher',
+    'celestron': 'Celestron',
+    'meade': 'Meade',
+    'losmandy': 'Losmandy',
+    'moonlite': 'MoonLite',
+    'optec': 'Optec',
+    'lacerta': 'Lacerta',
+    'esatto': 'Esatto',
+    'primaluce': 'PrimaLuce',
+  };
+
+  final lower = vendor.toLowerCase();
+  if (knownVendors.containsKey(lower)) {
+    return knownVendors[lower]!;
+  }
+
+  // Default: capitalize first letter
+  if (vendor.isEmpty) return vendor;
+  return vendor[0].toUpperCase() + vendor.substring(1);
+}
+
+/// Format ASCOM vendor string by adding spaces before capitals/numbers
+String _formatAscomVendor(String vendor) {
+  // Insert spaces before capital letters and numbers
+  final spaced = vendor.replaceAllMapped(
+    RegExp(r'([a-z])([A-Z0-9])'),
+    (m) => '${m.group(1)} ${m.group(2)}',
+  );
+  return spaced;
+}
+
+/// Clean up an unrecognized ID for display
+String _cleanupId(String id) {
+  // Remove common prefixes
+  var cleaned = id;
+  for (final prefix in ['native:', 'ascom:', 'alpaca:', 'ASCOM.']) {
+    if (cleaned.toLowerCase().startsWith(prefix.toLowerCase())) {
+      cleaned = cleaned.substring(prefix.length);
+    }
+  }
+
+  // Replace underscores and dots with spaces
+  cleaned = cleaned.replaceAll('_', ' ').replaceAll('.', ' ');
+
+  // Remove trailing numbers that look like indices
+  cleaned = cleaned.replaceAll(RegExp(r'\s*:\s*\d+$'), '');
+
+  // Capitalize words
+  if (cleaned.isNotEmpty) {
+    cleaned = cleaned.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1);
+    }).join(' ');
+  }
+
+  return cleaned.isEmpty ? id : cleaned;
+}
+
+/// Get display name for a device, preferring deviceName, falling back to formatted deviceId
+String _getDeviceDisplayName(String? deviceName, String? deviceId, String fallback) {
+  if (deviceName != null && deviceName.isNotEmpty) {
+    return deviceName;
+  }
+  if (deviceId != null && deviceId.isNotEmpty) {
+    return _formatDeviceId(deviceId);
+  }
+  return fallback;
+}
+
 /// Device type enum for the save to profile dialog
 enum DeviceCategory { camera, mount, focuser, filterWheel, guider, rotator }
 
@@ -920,7 +1062,7 @@ class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> {
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.camera,
       title: 'Camera',
-      subtitle: widget.cameraState.deviceName ?? 'Main imaging camera',
+      subtitle: _getDeviceDisplayName(widget.cameraState.deviceName, widget.cameraState.deviceId, 'Main imaging camera'),
       isConnected: _isConnected,
       isConnecting: _isConnecting || widget.cameraState.connectionState == DeviceConnectionState.connecting,
       statusLabel: _getStatusLabel(),
@@ -1032,7 +1174,7 @@ class _MountDeviceCardState extends ConsumerState<_MountDeviceCard> {
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.compass,
       title: 'Mount',
-      subtitle: widget.mountState.deviceName ?? 'Telescope mount',
+      subtitle: _getDeviceDisplayName(widget.mountState.deviceName, widget.mountState.deviceId, 'Telescope mount'),
       isConnected: _isConnected,
       isConnecting: _isConnecting || widget.mountState.connectionState == DeviceConnectionState.connecting,
       statusLabel: widget.mountState.isSlewing ? 'Slewing' : (_isConnected ? 'Ready' : 'Idle'),
@@ -1132,7 +1274,7 @@ class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard> {
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.focus,
       title: 'Focuser',
-      subtitle: widget.focuserState.deviceName ?? 'Motor focuser',
+      subtitle: _getDeviceDisplayName(widget.focuserState.deviceName, widget.focuserState.deviceId, 'Motor focuser'),
       isConnected: _isConnected,
       isConnecting: _isConnecting || widget.focuserState.connectionState == DeviceConnectionState.connecting,
       statusLabel: _isConnected ? 'Ready' : 'Idle',
@@ -1233,7 +1375,7 @@ class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard> 
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.circle,
       title: 'Filter Wheel',
-      subtitle: widget.filterWheelState.deviceName ?? 'Electronic filter wheel',
+      subtitle: _getDeviceDisplayName(widget.filterWheelState.deviceName, widget.filterWheelState.deviceId, 'Electronic filter wheel'),
       isConnected: _isConnected,
       isConnecting: _isConnecting || widget.filterWheelState.connectionState == DeviceConnectionState.connecting,
       statusLabel: _isConnected ? 'Ready' : 'Idle',
@@ -1333,7 +1475,7 @@ class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> {
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.crosshair,
       title: 'Guider',
-      subtitle: widget.guiderState.deviceName ?? 'Autoguiding camera',
+      subtitle: _getDeviceDisplayName(widget.guiderState.deviceName, widget.guiderState.deviceId, 'Autoguiding camera'),
       isConnected: _isConnected,
       isConnecting: _isConnecting || widget.guiderState.connectionState == DeviceConnectionState.connecting,
       statusLabel: _getStatusLabel(),
@@ -1443,7 +1585,7 @@ class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> {
     return _UnifiedBaseDeviceCard(
       icon: LucideIcons.rotateCw,
       title: 'Rotator',
-      subtitle: widget.rotatorState.deviceName ?? 'Field rotator',
+      subtitle: _getDeviceDisplayName(widget.rotatorState.deviceName, widget.rotatorState.deviceId, 'Field rotator'),
       isConnected: _isConnected,
       isConnecting: _isConnecting || widget.rotatorState.connectionState == DeviceConnectionState.connecting,
       statusLabel: widget.rotatorState.isMoving ? 'Moving' : (_isConnected ? 'Ready' : 'Idle'),

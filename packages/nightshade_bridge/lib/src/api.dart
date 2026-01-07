@@ -1075,6 +1075,12 @@ Future<void> apiSequencerSetDevices(
 Future<void> apiSequencerSetSafetyFailMode({required String mode}) =>
     RustLib.instance.api.crateApiApiSequencerSetSafetyFailMode(mode: mode);
 
+/// Set the save path for sequencer images.
+/// This is the base directory where captured images will be saved.
+/// If not set (or set to None), images will NOT be saved to disk.
+Future<void> apiSequencerSetSavePath({String? path}) =>
+    RustLib.instance.api.crateApiApiSequencerSetSavePath(path: path);
+
 /// Create an exposure node configuration
 String apiCreateExposureNode(
         {required String id,

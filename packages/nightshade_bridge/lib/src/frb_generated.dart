@@ -76,7 +76,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1825717541;
+  int get rustContentHash => 663443260;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -701,6 +701,8 @@ abstract class RustLibApi extends BaseApi {
       List<String>? filterNames});
 
   Future<void> crateApiApiSequencerSetSafetyFailMode({required String mode});
+
+  Future<void> crateApiApiSequencerSetSavePath({String? path});
 
   Future<void> crateApiApiSequencerSetSimulationMode({required bool enabled});
 
@@ -5728,6 +5730,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_sequencer_set_safety_fail_mode",
         argNames: ["mode"],
+      );
+
+  @override
+  Future<void> crateApiApiSequencerSetSavePath({String? path}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_opt_String(path);
+        return wire.wire__crate__api__api_sequencer_set_save_path(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSequencerSetSavePathConstMeta,
+      argValues: [path],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSequencerSetSavePathConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sequencer_set_save_path",
+        argNames: ["path"],
       );
 
   @override

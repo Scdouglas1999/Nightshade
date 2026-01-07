@@ -1169,6 +1169,11 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> sequencerSetSavePath(String? path) async {
+    await _post('sequencer/save-path', {'path': path});
+  }
+
+  @override
   Future<SequencerStatus> sequencerGetStatus() async {
     final response = await _get('sequencer/status');
     return SequencerStatus(

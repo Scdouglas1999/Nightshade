@@ -3106,6 +3106,23 @@ class NativeBridge {
         '[NativeBridge Stub] Sequencer safety fail mode would be set to $mode (stub mode)');
   }
 
+  /// Set the save path for sequencer images
+  static Future<void> sequencerSetSavePath({String? path}) async {
+    if (_nativeAvailable) {
+      try {
+        await frb.RustLib.instance.api
+            .crateApiApiSequencerSetSavePath(path: path);
+        print('[NativeBridge] Set sequencer save path: ${path ?? "<none>"}');
+        return;
+      } catch (e) {
+        print('[NativeBridge] Error setting sequencer save path: $e');
+        rethrow;
+      }
+    }
+    print(
+        '[NativeBridge Stub] Sequencer save path would be set to ${path ?? "<none>"} (stub mode)');
+  }
+
   /// Start the loaded sequence
   static Future<void> sequencerStart() async {
     // Ensure event subscription is set up before starting
