@@ -146,6 +146,8 @@ Build anything from simple single-target sequences to multi-target nights with a
 +--------------------------+-------------------------+------------------+
 ```
 
+> **Note on drivers (native or otherwise)**: I have attempted to build both native drivers as well as full ASCOM/INDI/Alpaca support for as many manufacturers as I possibly could. Unfortunately, I only have one specific set of hardware to test on. While none of these drivers should be expected to be dangerous to run on other hardware, it is absolutely possible (and possibly even likely) that some native drivers may not work at all, while ASCOM/INDI/Alpaca may not work with some hardware for some reason. The attempt here was to make the code as driver agnostic as possible, but there could definitely be edge cases I simply can't test. 
+
 ### Native Camera SDKs
 
 Direct SDK integration for maximum performance (bypasses ASCOM/INDI overhead):
