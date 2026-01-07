@@ -1,7 +1,10 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:nightshade_core/src/models/backend/device_types.dart';
 
 part 'meridian_flip_event.freezed.dart';
 part 'meridian_flip_event.g.dart';
+
+// Note: PierSide is imported from device_types.dart to avoid duplication
 
 /// Steps in the meridian flip sequence
 enum FlipStep {
@@ -61,50 +64,6 @@ extension FlipStepExtension on FlipStep {
         return 'Restarting autoguiding';
       case FlipStep.settling:
         return 'Waiting for mount to settle';
-    }
-  }
-}
-
-/// Pier side of the mount
-enum PierSide {
-  east,
-  west,
-  unknown,
-}
-
-/// Extension for PierSide display
-extension PierSideExtension on PierSide {
-  String get displayName {
-    switch (this) {
-      case PierSide.east:
-        return 'East';
-      case PierSide.west:
-        return 'West';
-      case PierSide.unknown:
-        return 'Unknown';
-    }
-  }
-
-  String get abbreviation {
-    switch (this) {
-      case PierSide.east:
-        return 'E';
-      case PierSide.west:
-        return 'W';
-      case PierSide.unknown:
-        return '?';
-    }
-  }
-
-  /// Get the opposite pier side
-  PierSide get opposite {
-    switch (this) {
-      case PierSide.east:
-        return PierSide.west;
-      case PierSide.west:
-        return PierSide.east;
-      case PierSide.unknown:
-        return PierSide.unknown;
     }
   }
 }
