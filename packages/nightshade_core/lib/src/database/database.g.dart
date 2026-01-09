@@ -7385,6 +7385,643 @@ class WeatherSettingsCompanion extends UpdateCompanion<WeatherSettingRow> {
   }
 }
 
+class $FlatHistoryTable extends FlatHistory
+    with TableInfo<$FlatHistoryTable, FlatHistoryEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FlatHistoryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _equipmentProfileIdMeta =
+      const VerificationMeta('equipmentProfileId');
+  @override
+  late final GeneratedColumn<int> equipmentProfileId = GeneratedColumn<int>(
+      'equipment_profile_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _filterNameMeta =
+      const VerificationMeta('filterName');
+  @override
+  late final GeneratedColumn<String> filterName = GeneratedColumn<String>(
+      'filter_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _exposureTimeMeta =
+      const VerificationMeta('exposureTime');
+  @override
+  late final GeneratedColumn<double> exposureTime = GeneratedColumn<double>(
+      'exposure_time', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _histogramTargetMeta =
+      const VerificationMeta('histogramTarget');
+  @override
+  late final GeneratedColumn<double> histogramTarget = GeneratedColumn<double>(
+      'histogram_target', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _actualAduMeta =
+      const VerificationMeta('actualAdu');
+  @override
+  late final GeneratedColumn<int> actualAdu = GeneratedColumn<int>(
+      'actual_adu', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _panelBrightnessMeta =
+      const VerificationMeta('panelBrightness');
+  @override
+  late final GeneratedColumn<int> panelBrightness = GeneratedColumn<int>(
+      'panel_brightness', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _skyAduRateMeta =
+      const VerificationMeta('skyAduRate');
+  @override
+  late final GeneratedColumn<double> skyAduRate = GeneratedColumn<double>(
+      'sky_adu_rate', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _twilightPhaseMeta =
+      const VerificationMeta('twilightPhase');
+  @override
+  late final GeneratedColumn<String> twilightPhase = GeneratedColumn<String>(
+      'twilight_phase', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _gainMeta = const VerificationMeta('gain');
+  @override
+  late final GeneratedColumn<int> gain = GeneratedColumn<int>(
+      'gain', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _binningMeta =
+      const VerificationMeta('binning');
+  @override
+  late final GeneratedColumn<int> binning = GeneratedColumn<int>(
+      'binning', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _timestampMeta =
+      const VerificationMeta('timestamp');
+  @override
+  late final GeneratedColumn<DateTime> timestamp = GeneratedColumn<DateTime>(
+      'timestamp', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        equipmentProfileId,
+        filterName,
+        exposureTime,
+        histogramTarget,
+        actualAdu,
+        panelBrightness,
+        skyAduRate,
+        twilightPhase,
+        gain,
+        binning,
+        timestamp
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'flat_history';
+  @override
+  VerificationContext validateIntegrity(Insertable<FlatHistoryEntry> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('equipment_profile_id')) {
+      context.handle(
+          _equipmentProfileIdMeta,
+          equipmentProfileId.isAcceptableOrUnknown(
+              data['equipment_profile_id']!, _equipmentProfileIdMeta));
+    }
+    if (data.containsKey('filter_name')) {
+      context.handle(
+          _filterNameMeta,
+          filterName.isAcceptableOrUnknown(
+              data['filter_name']!, _filterNameMeta));
+    } else if (isInserting) {
+      context.missing(_filterNameMeta);
+    }
+    if (data.containsKey('exposure_time')) {
+      context.handle(
+          _exposureTimeMeta,
+          exposureTime.isAcceptableOrUnknown(
+              data['exposure_time']!, _exposureTimeMeta));
+    } else if (isInserting) {
+      context.missing(_exposureTimeMeta);
+    }
+    if (data.containsKey('histogram_target')) {
+      context.handle(
+          _histogramTargetMeta,
+          histogramTarget.isAcceptableOrUnknown(
+              data['histogram_target']!, _histogramTargetMeta));
+    } else if (isInserting) {
+      context.missing(_histogramTargetMeta);
+    }
+    if (data.containsKey('actual_adu')) {
+      context.handle(_actualAduMeta,
+          actualAdu.isAcceptableOrUnknown(data['actual_adu']!, _actualAduMeta));
+    } else if (isInserting) {
+      context.missing(_actualAduMeta);
+    }
+    if (data.containsKey('panel_brightness')) {
+      context.handle(
+          _panelBrightnessMeta,
+          panelBrightness.isAcceptableOrUnknown(
+              data['panel_brightness']!, _panelBrightnessMeta));
+    }
+    if (data.containsKey('sky_adu_rate')) {
+      context.handle(
+          _skyAduRateMeta,
+          skyAduRate.isAcceptableOrUnknown(
+              data['sky_adu_rate']!, _skyAduRateMeta));
+    }
+    if (data.containsKey('twilight_phase')) {
+      context.handle(
+          _twilightPhaseMeta,
+          twilightPhase.isAcceptableOrUnknown(
+              data['twilight_phase']!, _twilightPhaseMeta));
+    }
+    if (data.containsKey('gain')) {
+      context.handle(
+          _gainMeta, gain.isAcceptableOrUnknown(data['gain']!, _gainMeta));
+    }
+    if (data.containsKey('binning')) {
+      context.handle(_binningMeta,
+          binning.isAcceptableOrUnknown(data['binning']!, _binningMeta));
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(_timestampMeta,
+          timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FlatHistoryEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FlatHistoryEntry(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      equipmentProfileId: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}equipment_profile_id']),
+      filterName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}filter_name'])!,
+      exposureTime: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}exposure_time'])!,
+      histogramTarget: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}histogram_target'])!,
+      actualAdu: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}actual_adu'])!,
+      panelBrightness: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}panel_brightness']),
+      skyAduRate: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}sky_adu_rate']),
+      twilightPhase: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}twilight_phase']),
+      gain: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}gain'])!,
+      binning: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}binning'])!,
+      timestamp: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}timestamp'])!,
+    );
+  }
+
+  @override
+  $FlatHistoryTable createAlias(String alias) {
+    return $FlatHistoryTable(attachedDatabase, alias);
+  }
+}
+
+class FlatHistoryEntry extends DataClass
+    implements Insertable<FlatHistoryEntry> {
+  final int id;
+
+  /// Reference to equipment profile used
+  final int? equipmentProfileId;
+
+  /// Filter name (e.g., "L", "R", "Ha")
+  final String filterName;
+
+  /// Optimal exposure time found (seconds)
+  final double exposureTime;
+
+  /// Target histogram percentage (0-100)
+  final double histogramTarget;
+
+  /// Actual ADU value achieved
+  final int actualAdu;
+
+  /// Panel brightness used (0-255, null for sky flats)
+  final int? panelBrightness;
+
+  /// For sky flats: ADU change rate (ADU/second)
+  final double? skyAduRate;
+
+  /// Twilight phase: 'dawn', 'dusk', or null for panel
+  final String? twilightPhase;
+
+  /// Gain setting used
+  final int gain;
+
+  /// Binning used
+  final int binning;
+
+  /// When this calibration was performed
+  final DateTime timestamp;
+  const FlatHistoryEntry(
+      {required this.id,
+      this.equipmentProfileId,
+      required this.filterName,
+      required this.exposureTime,
+      required this.histogramTarget,
+      required this.actualAdu,
+      this.panelBrightness,
+      this.skyAduRate,
+      this.twilightPhase,
+      required this.gain,
+      required this.binning,
+      required this.timestamp});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || equipmentProfileId != null) {
+      map['equipment_profile_id'] = Variable<int>(equipmentProfileId);
+    }
+    map['filter_name'] = Variable<String>(filterName);
+    map['exposure_time'] = Variable<double>(exposureTime);
+    map['histogram_target'] = Variable<double>(histogramTarget);
+    map['actual_adu'] = Variable<int>(actualAdu);
+    if (!nullToAbsent || panelBrightness != null) {
+      map['panel_brightness'] = Variable<int>(panelBrightness);
+    }
+    if (!nullToAbsent || skyAduRate != null) {
+      map['sky_adu_rate'] = Variable<double>(skyAduRate);
+    }
+    if (!nullToAbsent || twilightPhase != null) {
+      map['twilight_phase'] = Variable<String>(twilightPhase);
+    }
+    map['gain'] = Variable<int>(gain);
+    map['binning'] = Variable<int>(binning);
+    map['timestamp'] = Variable<DateTime>(timestamp);
+    return map;
+  }
+
+  FlatHistoryCompanion toCompanion(bool nullToAbsent) {
+    return FlatHistoryCompanion(
+      id: Value(id),
+      equipmentProfileId: equipmentProfileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(equipmentProfileId),
+      filterName: Value(filterName),
+      exposureTime: Value(exposureTime),
+      histogramTarget: Value(histogramTarget),
+      actualAdu: Value(actualAdu),
+      panelBrightness: panelBrightness == null && nullToAbsent
+          ? const Value.absent()
+          : Value(panelBrightness),
+      skyAduRate: skyAduRate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(skyAduRate),
+      twilightPhase: twilightPhase == null && nullToAbsent
+          ? const Value.absent()
+          : Value(twilightPhase),
+      gain: Value(gain),
+      binning: Value(binning),
+      timestamp: Value(timestamp),
+    );
+  }
+
+  factory FlatHistoryEntry.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FlatHistoryEntry(
+      id: serializer.fromJson<int>(json['id']),
+      equipmentProfileId: serializer.fromJson<int?>(json['equipmentProfileId']),
+      filterName: serializer.fromJson<String>(json['filterName']),
+      exposureTime: serializer.fromJson<double>(json['exposureTime']),
+      histogramTarget: serializer.fromJson<double>(json['histogramTarget']),
+      actualAdu: serializer.fromJson<int>(json['actualAdu']),
+      panelBrightness: serializer.fromJson<int?>(json['panelBrightness']),
+      skyAduRate: serializer.fromJson<double?>(json['skyAduRate']),
+      twilightPhase: serializer.fromJson<String?>(json['twilightPhase']),
+      gain: serializer.fromJson<int>(json['gain']),
+      binning: serializer.fromJson<int>(json['binning']),
+      timestamp: serializer.fromJson<DateTime>(json['timestamp']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'equipmentProfileId': serializer.toJson<int?>(equipmentProfileId),
+      'filterName': serializer.toJson<String>(filterName),
+      'exposureTime': serializer.toJson<double>(exposureTime),
+      'histogramTarget': serializer.toJson<double>(histogramTarget),
+      'actualAdu': serializer.toJson<int>(actualAdu),
+      'panelBrightness': serializer.toJson<int?>(panelBrightness),
+      'skyAduRate': serializer.toJson<double?>(skyAduRate),
+      'twilightPhase': serializer.toJson<String?>(twilightPhase),
+      'gain': serializer.toJson<int>(gain),
+      'binning': serializer.toJson<int>(binning),
+      'timestamp': serializer.toJson<DateTime>(timestamp),
+    };
+  }
+
+  FlatHistoryEntry copyWith(
+          {int? id,
+          Value<int?> equipmentProfileId = const Value.absent(),
+          String? filterName,
+          double? exposureTime,
+          double? histogramTarget,
+          int? actualAdu,
+          Value<int?> panelBrightness = const Value.absent(),
+          Value<double?> skyAduRate = const Value.absent(),
+          Value<String?> twilightPhase = const Value.absent(),
+          int? gain,
+          int? binning,
+          DateTime? timestamp}) =>
+      FlatHistoryEntry(
+        id: id ?? this.id,
+        equipmentProfileId: equipmentProfileId.present
+            ? equipmentProfileId.value
+            : this.equipmentProfileId,
+        filterName: filterName ?? this.filterName,
+        exposureTime: exposureTime ?? this.exposureTime,
+        histogramTarget: histogramTarget ?? this.histogramTarget,
+        actualAdu: actualAdu ?? this.actualAdu,
+        panelBrightness: panelBrightness.present
+            ? panelBrightness.value
+            : this.panelBrightness,
+        skyAduRate: skyAduRate.present ? skyAduRate.value : this.skyAduRate,
+        twilightPhase:
+            twilightPhase.present ? twilightPhase.value : this.twilightPhase,
+        gain: gain ?? this.gain,
+        binning: binning ?? this.binning,
+        timestamp: timestamp ?? this.timestamp,
+      );
+  FlatHistoryEntry copyWithCompanion(FlatHistoryCompanion data) {
+    return FlatHistoryEntry(
+      id: data.id.present ? data.id.value : this.id,
+      equipmentProfileId: data.equipmentProfileId.present
+          ? data.equipmentProfileId.value
+          : this.equipmentProfileId,
+      filterName:
+          data.filterName.present ? data.filterName.value : this.filterName,
+      exposureTime: data.exposureTime.present
+          ? data.exposureTime.value
+          : this.exposureTime,
+      histogramTarget: data.histogramTarget.present
+          ? data.histogramTarget.value
+          : this.histogramTarget,
+      actualAdu: data.actualAdu.present ? data.actualAdu.value : this.actualAdu,
+      panelBrightness: data.panelBrightness.present
+          ? data.panelBrightness.value
+          : this.panelBrightness,
+      skyAduRate:
+          data.skyAduRate.present ? data.skyAduRate.value : this.skyAduRate,
+      twilightPhase: data.twilightPhase.present
+          ? data.twilightPhase.value
+          : this.twilightPhase,
+      gain: data.gain.present ? data.gain.value : this.gain,
+      binning: data.binning.present ? data.binning.value : this.binning,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FlatHistoryEntry(')
+          ..write('id: $id, ')
+          ..write('equipmentProfileId: $equipmentProfileId, ')
+          ..write('filterName: $filterName, ')
+          ..write('exposureTime: $exposureTime, ')
+          ..write('histogramTarget: $histogramTarget, ')
+          ..write('actualAdu: $actualAdu, ')
+          ..write('panelBrightness: $panelBrightness, ')
+          ..write('skyAduRate: $skyAduRate, ')
+          ..write('twilightPhase: $twilightPhase, ')
+          ..write('gain: $gain, ')
+          ..write('binning: $binning, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      equipmentProfileId,
+      filterName,
+      exposureTime,
+      histogramTarget,
+      actualAdu,
+      panelBrightness,
+      skyAduRate,
+      twilightPhase,
+      gain,
+      binning,
+      timestamp);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FlatHistoryEntry &&
+          other.id == this.id &&
+          other.equipmentProfileId == this.equipmentProfileId &&
+          other.filterName == this.filterName &&
+          other.exposureTime == this.exposureTime &&
+          other.histogramTarget == this.histogramTarget &&
+          other.actualAdu == this.actualAdu &&
+          other.panelBrightness == this.panelBrightness &&
+          other.skyAduRate == this.skyAduRate &&
+          other.twilightPhase == this.twilightPhase &&
+          other.gain == this.gain &&
+          other.binning == this.binning &&
+          other.timestamp == this.timestamp);
+}
+
+class FlatHistoryCompanion extends UpdateCompanion<FlatHistoryEntry> {
+  final Value<int> id;
+  final Value<int?> equipmentProfileId;
+  final Value<String> filterName;
+  final Value<double> exposureTime;
+  final Value<double> histogramTarget;
+  final Value<int> actualAdu;
+  final Value<int?> panelBrightness;
+  final Value<double?> skyAduRate;
+  final Value<String?> twilightPhase;
+  final Value<int> gain;
+  final Value<int> binning;
+  final Value<DateTime> timestamp;
+  const FlatHistoryCompanion({
+    this.id = const Value.absent(),
+    this.equipmentProfileId = const Value.absent(),
+    this.filterName = const Value.absent(),
+    this.exposureTime = const Value.absent(),
+    this.histogramTarget = const Value.absent(),
+    this.actualAdu = const Value.absent(),
+    this.panelBrightness = const Value.absent(),
+    this.skyAduRate = const Value.absent(),
+    this.twilightPhase = const Value.absent(),
+    this.gain = const Value.absent(),
+    this.binning = const Value.absent(),
+    this.timestamp = const Value.absent(),
+  });
+  FlatHistoryCompanion.insert({
+    this.id = const Value.absent(),
+    this.equipmentProfileId = const Value.absent(),
+    required String filterName,
+    required double exposureTime,
+    required double histogramTarget,
+    required int actualAdu,
+    this.panelBrightness = const Value.absent(),
+    this.skyAduRate = const Value.absent(),
+    this.twilightPhase = const Value.absent(),
+    this.gain = const Value.absent(),
+    this.binning = const Value.absent(),
+    this.timestamp = const Value.absent(),
+  })  : filterName = Value(filterName),
+        exposureTime = Value(exposureTime),
+        histogramTarget = Value(histogramTarget),
+        actualAdu = Value(actualAdu);
+  static Insertable<FlatHistoryEntry> custom({
+    Expression<int>? id,
+    Expression<int>? equipmentProfileId,
+    Expression<String>? filterName,
+    Expression<double>? exposureTime,
+    Expression<double>? histogramTarget,
+    Expression<int>? actualAdu,
+    Expression<int>? panelBrightness,
+    Expression<double>? skyAduRate,
+    Expression<String>? twilightPhase,
+    Expression<int>? gain,
+    Expression<int>? binning,
+    Expression<DateTime>? timestamp,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (equipmentProfileId != null)
+        'equipment_profile_id': equipmentProfileId,
+      if (filterName != null) 'filter_name': filterName,
+      if (exposureTime != null) 'exposure_time': exposureTime,
+      if (histogramTarget != null) 'histogram_target': histogramTarget,
+      if (actualAdu != null) 'actual_adu': actualAdu,
+      if (panelBrightness != null) 'panel_brightness': panelBrightness,
+      if (skyAduRate != null) 'sky_adu_rate': skyAduRate,
+      if (twilightPhase != null) 'twilight_phase': twilightPhase,
+      if (gain != null) 'gain': gain,
+      if (binning != null) 'binning': binning,
+      if (timestamp != null) 'timestamp': timestamp,
+    });
+  }
+
+  FlatHistoryCompanion copyWith(
+      {Value<int>? id,
+      Value<int?>? equipmentProfileId,
+      Value<String>? filterName,
+      Value<double>? exposureTime,
+      Value<double>? histogramTarget,
+      Value<int>? actualAdu,
+      Value<int?>? panelBrightness,
+      Value<double?>? skyAduRate,
+      Value<String?>? twilightPhase,
+      Value<int>? gain,
+      Value<int>? binning,
+      Value<DateTime>? timestamp}) {
+    return FlatHistoryCompanion(
+      id: id ?? this.id,
+      equipmentProfileId: equipmentProfileId ?? this.equipmentProfileId,
+      filterName: filterName ?? this.filterName,
+      exposureTime: exposureTime ?? this.exposureTime,
+      histogramTarget: histogramTarget ?? this.histogramTarget,
+      actualAdu: actualAdu ?? this.actualAdu,
+      panelBrightness: panelBrightness ?? this.panelBrightness,
+      skyAduRate: skyAduRate ?? this.skyAduRate,
+      twilightPhase: twilightPhase ?? this.twilightPhase,
+      gain: gain ?? this.gain,
+      binning: binning ?? this.binning,
+      timestamp: timestamp ?? this.timestamp,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (equipmentProfileId.present) {
+      map['equipment_profile_id'] = Variable<int>(equipmentProfileId.value);
+    }
+    if (filterName.present) {
+      map['filter_name'] = Variable<String>(filterName.value);
+    }
+    if (exposureTime.present) {
+      map['exposure_time'] = Variable<double>(exposureTime.value);
+    }
+    if (histogramTarget.present) {
+      map['histogram_target'] = Variable<double>(histogramTarget.value);
+    }
+    if (actualAdu.present) {
+      map['actual_adu'] = Variable<int>(actualAdu.value);
+    }
+    if (panelBrightness.present) {
+      map['panel_brightness'] = Variable<int>(panelBrightness.value);
+    }
+    if (skyAduRate.present) {
+      map['sky_adu_rate'] = Variable<double>(skyAduRate.value);
+    }
+    if (twilightPhase.present) {
+      map['twilight_phase'] = Variable<String>(twilightPhase.value);
+    }
+    if (gain.present) {
+      map['gain'] = Variable<int>(gain.value);
+    }
+    if (binning.present) {
+      map['binning'] = Variable<int>(binning.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<DateTime>(timestamp.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FlatHistoryCompanion(')
+          ..write('id: $id, ')
+          ..write('equipmentProfileId: $equipmentProfileId, ')
+          ..write('filterName: $filterName, ')
+          ..write('exposureTime: $exposureTime, ')
+          ..write('histogramTarget: $histogramTarget, ')
+          ..write('actualAdu: $actualAdu, ')
+          ..write('panelBrightness: $panelBrightness, ')
+          ..write('skyAduRate: $skyAduRate, ')
+          ..write('twilightPhase: $twilightPhase, ')
+          ..write('gain: $gain, ')
+          ..write('binning: $binning, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NightshadeDatabase extends GeneratedDatabase {
   _$NightshadeDatabase(QueryExecutor e) : super(e);
   $NightshadeDatabaseManager get managers => $NightshadeDatabaseManager(this);
@@ -7402,6 +8039,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $WeatherSettingsTable weatherSettings =
       $WeatherSettingsTable(this);
+  late final $FlatHistoryTable flatHistory = $FlatHistoryTable(this);
   late final Index idxProfilesName = Index('idx_profiles_name',
       'CREATE INDEX idx_profiles_name ON equipment_profiles (name)');
   late final Index idxProfilesActive = Index('idx_profiles_active',
@@ -7461,6 +8099,12 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       'CREATE INDEX idx_metadata_image ON image_metadata (image_id)');
   late final Index idxMetadataKey = Index('idx_metadata_key',
       'CREATE INDEX idx_metadata_key ON image_metadata ("key")');
+  late final Index idxFlatHistoryProfile = Index('idx_flat_history_profile',
+      'CREATE INDEX idx_flat_history_profile ON flat_history (equipment_profile_id)');
+  late final Index idxFlatHistoryFilter = Index('idx_flat_history_filter',
+      'CREATE INDEX idx_flat_history_filter ON flat_history (filter_name)');
+  late final Index idxFlatHistoryTimestamp = Index('idx_flat_history_timestamp',
+      'CREATE INDEX idx_flat_history_timestamp ON flat_history (timestamp)');
   late final ImagesDao imagesDao = ImagesDao(this as NightshadeDatabase);
   late final EquipmentProfilesDao equipmentProfilesDao =
       EquipmentProfilesDao(this as NightshadeDatabase);
@@ -7473,6 +8117,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final SettingsDao settingsDao = SettingsDao(this as NightshadeDatabase);
   late final WeatherSettingsDao weatherSettingsDao =
       WeatherSettingsDao(this as NightshadeDatabase);
+  late final FlatHistoryDao flatHistoryDao =
+      FlatHistoryDao(this as NightshadeDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7488,6 +8134,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         imageMetadata,
         appSettings,
         weatherSettings,
+        flatHistory,
         idxProfilesName,
         idxProfilesActive,
         idxSessionsTarget,
@@ -7516,7 +8163,10 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         idxImagesAccepted,
         idxImagesSessionFrame,
         idxMetadataImage,
-        idxMetadataKey
+        idxMetadataKey,
+        idxFlatHistoryProfile,
+        idxFlatHistoryFilter,
+        idxFlatHistoryTimestamp
       ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
@@ -12213,6 +12863,287 @@ typedef $$WeatherSettingsTableProcessedTableManager = ProcessedTableManager<
     ),
     WeatherSettingRow,
     PrefetchHooks Function()>;
+typedef $$FlatHistoryTableCreateCompanionBuilder = FlatHistoryCompanion
+    Function({
+  Value<int> id,
+  Value<int?> equipmentProfileId,
+  required String filterName,
+  required double exposureTime,
+  required double histogramTarget,
+  required int actualAdu,
+  Value<int?> panelBrightness,
+  Value<double?> skyAduRate,
+  Value<String?> twilightPhase,
+  Value<int> gain,
+  Value<int> binning,
+  Value<DateTime> timestamp,
+});
+typedef $$FlatHistoryTableUpdateCompanionBuilder = FlatHistoryCompanion
+    Function({
+  Value<int> id,
+  Value<int?> equipmentProfileId,
+  Value<String> filterName,
+  Value<double> exposureTime,
+  Value<double> histogramTarget,
+  Value<int> actualAdu,
+  Value<int?> panelBrightness,
+  Value<double?> skyAduRate,
+  Value<String?> twilightPhase,
+  Value<int> gain,
+  Value<int> binning,
+  Value<DateTime> timestamp,
+});
+
+class $$FlatHistoryTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $FlatHistoryTable> {
+  $$FlatHistoryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get equipmentProfileId => $composableBuilder(
+      column: $table.equipmentProfileId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get filterName => $composableBuilder(
+      column: $table.filterName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get exposureTime => $composableBuilder(
+      column: $table.exposureTime, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get histogramTarget => $composableBuilder(
+      column: $table.histogramTarget,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get actualAdu => $composableBuilder(
+      column: $table.actualAdu, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get panelBrightness => $composableBuilder(
+      column: $table.panelBrightness,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get skyAduRate => $composableBuilder(
+      column: $table.skyAduRate, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get twilightPhase => $composableBuilder(
+      column: $table.twilightPhase, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get gain => $composableBuilder(
+      column: $table.gain, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get binning => $composableBuilder(
+      column: $table.binning, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnFilters(column));
+}
+
+class $$FlatHistoryTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $FlatHistoryTable> {
+  $$FlatHistoryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get equipmentProfileId => $composableBuilder(
+      column: $table.equipmentProfileId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get filterName => $composableBuilder(
+      column: $table.filterName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get exposureTime => $composableBuilder(
+      column: $table.exposureTime,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get histogramTarget => $composableBuilder(
+      column: $table.histogramTarget,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get actualAdu => $composableBuilder(
+      column: $table.actualAdu, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get panelBrightness => $composableBuilder(
+      column: $table.panelBrightness,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get skyAduRate => $composableBuilder(
+      column: $table.skyAduRate, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get twilightPhase => $composableBuilder(
+      column: $table.twilightPhase,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get gain => $composableBuilder(
+      column: $table.gain, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get binning => $composableBuilder(
+      column: $table.binning, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnOrderings(column));
+}
+
+class $$FlatHistoryTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $FlatHistoryTable> {
+  $$FlatHistoryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get equipmentProfileId => $composableBuilder(
+      column: $table.equipmentProfileId, builder: (column) => column);
+
+  GeneratedColumn<String> get filterName => $composableBuilder(
+      column: $table.filterName, builder: (column) => column);
+
+  GeneratedColumn<double> get exposureTime => $composableBuilder(
+      column: $table.exposureTime, builder: (column) => column);
+
+  GeneratedColumn<double> get histogramTarget => $composableBuilder(
+      column: $table.histogramTarget, builder: (column) => column);
+
+  GeneratedColumn<int> get actualAdu =>
+      $composableBuilder(column: $table.actualAdu, builder: (column) => column);
+
+  GeneratedColumn<int> get panelBrightness => $composableBuilder(
+      column: $table.panelBrightness, builder: (column) => column);
+
+  GeneratedColumn<double> get skyAduRate => $composableBuilder(
+      column: $table.skyAduRate, builder: (column) => column);
+
+  GeneratedColumn<String> get twilightPhase => $composableBuilder(
+      column: $table.twilightPhase, builder: (column) => column);
+
+  GeneratedColumn<int> get gain =>
+      $composableBuilder(column: $table.gain, builder: (column) => column);
+
+  GeneratedColumn<int> get binning =>
+      $composableBuilder(column: $table.binning, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+}
+
+class $$FlatHistoryTableTableManager extends RootTableManager<
+    _$NightshadeDatabase,
+    $FlatHistoryTable,
+    FlatHistoryEntry,
+    $$FlatHistoryTableFilterComposer,
+    $$FlatHistoryTableOrderingComposer,
+    $$FlatHistoryTableAnnotationComposer,
+    $$FlatHistoryTableCreateCompanionBuilder,
+    $$FlatHistoryTableUpdateCompanionBuilder,
+    (
+      FlatHistoryEntry,
+      BaseReferences<_$NightshadeDatabase, $FlatHistoryTable, FlatHistoryEntry>
+    ),
+    FlatHistoryEntry,
+    PrefetchHooks Function()> {
+  $$FlatHistoryTableTableManager(
+      _$NightshadeDatabase db, $FlatHistoryTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FlatHistoryTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FlatHistoryTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FlatHistoryTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int?> equipmentProfileId = const Value.absent(),
+            Value<String> filterName = const Value.absent(),
+            Value<double> exposureTime = const Value.absent(),
+            Value<double> histogramTarget = const Value.absent(),
+            Value<int> actualAdu = const Value.absent(),
+            Value<int?> panelBrightness = const Value.absent(),
+            Value<double?> skyAduRate = const Value.absent(),
+            Value<String?> twilightPhase = const Value.absent(),
+            Value<int> gain = const Value.absent(),
+            Value<int> binning = const Value.absent(),
+            Value<DateTime> timestamp = const Value.absent(),
+          }) =>
+              FlatHistoryCompanion(
+            id: id,
+            equipmentProfileId: equipmentProfileId,
+            filterName: filterName,
+            exposureTime: exposureTime,
+            histogramTarget: histogramTarget,
+            actualAdu: actualAdu,
+            panelBrightness: panelBrightness,
+            skyAduRate: skyAduRate,
+            twilightPhase: twilightPhase,
+            gain: gain,
+            binning: binning,
+            timestamp: timestamp,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int?> equipmentProfileId = const Value.absent(),
+            required String filterName,
+            required double exposureTime,
+            required double histogramTarget,
+            required int actualAdu,
+            Value<int?> panelBrightness = const Value.absent(),
+            Value<double?> skyAduRate = const Value.absent(),
+            Value<String?> twilightPhase = const Value.absent(),
+            Value<int> gain = const Value.absent(),
+            Value<int> binning = const Value.absent(),
+            Value<DateTime> timestamp = const Value.absent(),
+          }) =>
+              FlatHistoryCompanion.insert(
+            id: id,
+            equipmentProfileId: equipmentProfileId,
+            filterName: filterName,
+            exposureTime: exposureTime,
+            histogramTarget: histogramTarget,
+            actualAdu: actualAdu,
+            panelBrightness: panelBrightness,
+            skyAduRate: skyAduRate,
+            twilightPhase: twilightPhase,
+            gain: gain,
+            binning: binning,
+            timestamp: timestamp,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$FlatHistoryTableProcessedTableManager = ProcessedTableManager<
+    _$NightshadeDatabase,
+    $FlatHistoryTable,
+    FlatHistoryEntry,
+    $$FlatHistoryTableFilterComposer,
+    $$FlatHistoryTableOrderingComposer,
+    $$FlatHistoryTableAnnotationComposer,
+    $$FlatHistoryTableCreateCompanionBuilder,
+    $$FlatHistoryTableUpdateCompanionBuilder,
+    (
+      FlatHistoryEntry,
+      BaseReferences<_$NightshadeDatabase, $FlatHistoryTable, FlatHistoryEntry>
+    ),
+    FlatHistoryEntry,
+    PrefetchHooks Function()>;
 
 class $NightshadeDatabaseManager {
   final _$NightshadeDatabase _db;
@@ -12237,4 +13168,6 @@ class $NightshadeDatabaseManager {
       $$AppSettingsTableTableManager(_db, _db.appSettings);
   $$WeatherSettingsTableTableManager get weatherSettings =>
       $$WeatherSettingsTableTableManager(_db, _db.weatherSettings);
+  $$FlatHistoryTableTableManager get flatHistory =>
+      $$FlatHistoryTableTableManager(_db, _db.flatHistory);
 }

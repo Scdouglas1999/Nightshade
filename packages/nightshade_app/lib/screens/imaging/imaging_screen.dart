@@ -996,8 +996,9 @@ class _OverlayIconButtonState extends State<_OverlayIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return NightshadeTooltip(
       message: widget.tooltip,
+      position: NightshadeTooltipPosition.bottom,
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),

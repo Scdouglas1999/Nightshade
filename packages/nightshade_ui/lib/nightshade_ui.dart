@@ -22,6 +22,10 @@ export 'src/components/responsive_card_grid.dart';
 export 'src/components/shimmer_loading.dart';
 export 'src/components/animated_icon_button.dart';
 export 'src/components/histogram_display.dart';
+export 'src/components/animated_value.dart';
+export 'src/components/nightshade_tooltip.dart';
+export 'src/components/focus_ring.dart';
+export 'src/components/screen_header.dart';
 
 // Widgets
 export 'src/widgets/polar_alignment_wizard.dart';

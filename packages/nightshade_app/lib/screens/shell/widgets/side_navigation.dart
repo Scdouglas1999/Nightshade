@@ -74,22 +74,81 @@ class SideNavigation extends StatelessWidget {
     ),
   ];
 
+  Widget _buildNavButton(
+    BuildContext context, {
+    required NavItem tab,
+    required int index,
+    required bool isSelected,
+  }) {
+    final button = _NavButton(
+      key: tutorialKeys != null && index < tutorialKeys!.length
+          ? tutorialKeys![index]
+          : null,
+      icon: tab.icon,
+      label: tab.label,
+      description: tab.description,
+      isSelected: isSelected,
+      isExpanded: isExpanded,
+      onTap: () => onTabSelected(index),
+    );
+
+    // When collapsed, wrap with tooltip to show label
+    if (!isExpanded) {
+      return NightshadeTooltip(
+        message: tab.label,
+        richMessage: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tab.label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              tab.description,
+              style: TextStyle(
+                fontSize: 11,
+                color: Theme.of(context).extension<NightshadeColors>()!.textMuted,
+              ),
+            ),
+          ],
+        ),
+        position: NightshadeTooltipPosition.right,
+        child: button,
+      );
+    }
+
+    return button;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      width: isExpanded ? 220 : 72,
+      duration: NightshadeTokens.durationSmooth,
+      curve: NightshadeTokens.curveSnappy,
+      width: isExpanded ? NightshadeTokens.sidebarExpanded : NightshadeTokens.sidebarCollapsed,
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
           right: BorderSide(
-            color: colors.border,
+            color: colors.border.withValues(alpha: 0.5),
             width: 1,
           ),
         ),
+        // Level 1 elevation shadow on right edge
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: const Offset(2, 0),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -115,16 +174,11 @@ class SideNavigation extends StatelessWidget {
                         offset: Offset((1 - value) * 10, 0),
                         child: Padding(
                           padding: const EdgeInsets.only(bottom: 4),
-                          child: _NavButton(
-                            key: tutorialKeys != null && index < tutorialKeys!.length
-                                ? tutorialKeys![index]
-                                : null,
-                            icon: tab.icon,
-                            label: tab.label,
-                            description: tab.description,
+                          child: _buildNavButton(
+                            context,
+                            tab: tab,
+                            index: index,
                             isSelected: isSelected,
-                            isExpanded: isExpanded,
-                            onTap: () => onTabSelected(index),
                           ),
                         ),
                       ),
@@ -196,19 +250,19 @@ class _NavButtonState extends State<_NavButton>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 100),
+      duration: NightshadeTokens.durationFast,
     );
     _selectionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: NightshadeTokens.durationSmooth,
     );
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.98).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
+      CurvedAnimation(parent: _animController, curve: NightshadeTokens.curveSnappy),
     );
     _selectionScaleAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
       CurvedAnimation(
         parent: _selectionController,
-        curve: Curves.easeOutCubic,
+        curve: NightshadeTokens.curveSettle, // Overshoot for satisfying snap
       ),
     );
     if (widget.isSelected) {
@@ -255,8 +309,8 @@ class _NavButtonState extends State<_NavButton>
           child: ScaleTransition(
             scale: _selectionScaleAnimation,
             child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
+            duration: NightshadeTokens.durationNormal,
+            curve: NightshadeTokens.curveSnappy,
             padding: EdgeInsets.symmetric(
               horizontal: horizontalPadding,
               vertical: widget.isExpanded ? 12 : 10,
@@ -296,8 +350,8 @@ class _NavButtonState extends State<_NavButton>
                 children: [
                   // Icon with glow effect when selected
                   AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
+                    duration: NightshadeTokens.durationSmooth,
+                    curve: NightshadeTokens.curveSnappy,
                     padding: EdgeInsets.all(iconPadding),
                     decoration: BoxDecoration(
                       color: widget.isSelected

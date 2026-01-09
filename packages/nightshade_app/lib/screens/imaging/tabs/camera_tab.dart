@@ -863,8 +863,13 @@ class _DownloadSettingsCard extends ConsumerWidget {
 class _ReadingItem extends StatelessWidget {
   final String label;
   final String value;
+  final bool animate;
 
-  const _ReadingItem({required this.label, required this.value});
+  const _ReadingItem({
+    required this.label,
+    required this.value,
+    this.animate = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -874,13 +879,23 @@ class _ReadingItem extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(fontSize: 10, color: colors.textMuted)),
-        Text(
-          value,
-          style: NightshadeTypography.mono.copyWith(
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
+        if (animate)
+          AnimatedValue(
+            value: value,
+            style: ValueAnimationStyle.directional,
+            textStyle: NightshadeTypography.mono.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          )
+        else
+          Text(
+            value,
+            style: NightshadeTypography.mono.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
           ),
-        ),
       ],
     );
   }

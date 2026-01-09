@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
 
 /// A shimmer loading effect for skeleton screens
 class ShimmerLoading extends StatefulWidget {
   final Widget child;
   final bool isLoading;
   final Duration duration;
+  final bool useAccentTint;
 
   const ShimmerLoading({
     super.key,
     required this.child,
     this.isLoading = true,
-    this.duration = const Duration(milliseconds: 1500),
+    this.duration = NightshadeTokens.durationShimmer,
+    this.useAccentTint = true,
   });
 
   @override
@@ -49,13 +52,25 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Cache colors when theme changes
+    _updateCachedColors();
+  }
+
+  void _updateCachedColors() {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    _cachedColors = [
-      colors.surfaceAlt,
-      colors.surfaceHover,
-      colors.surfaceAlt,
-    ];
+    if (widget.useAccentTint) {
+      // Subtle accent-tinted shimmer for premium feel
+      _cachedColors = [
+        colors.surfaceAlt,
+        Color.lerp(colors.surfaceHover, colors.primary, 0.08)!,
+        colors.surfaceAlt,
+      ];
+    } else {
+      _cachedColors = [
+        colors.surfaceAlt,
+        colors.surfaceHover,
+        colors.surfaceAlt,
+      ];
+    }
   }
 
   @override
@@ -72,8 +87,8 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
 
     // Ensure colors are cached
     _cachedColors ??= () {
-      final colors = Theme.of(context).extension<NightshadeColors>()!;
-      return [colors.surfaceAlt, colors.surfaceHover, colors.surfaceAlt];
+      _updateCachedColors();
+      return _cachedColors!;
     }();
 
     return AnimatedBuilder(

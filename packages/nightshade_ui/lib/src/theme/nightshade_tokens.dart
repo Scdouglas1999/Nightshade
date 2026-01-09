@@ -117,23 +117,35 @@ abstract final class NightshadeTokens {
   // Animation Durations
   // ===========================================================================
 
-  /// 100ms - Instant feedback (hover, active states)
+  /// 100ms - Micro interactions (hover color changes)
+  static const Duration durationMicro = Duration(milliseconds: 100);
+
+  /// 100ms - Instant feedback (hover, active states) - alias for durationMicro
   static const Duration durationFast = Duration(milliseconds: 100);
 
-  /// 150ms - Quick transitions (button presses, toggles)
+  /// 150ms - Quick transitions (button presses)
   static const Duration durationQuick = Duration(milliseconds: 150);
 
-  /// 200ms - Normal transitions (most UI animations)
+  /// 200ms - Normal transitions (card hovers, toggles)
   static const Duration durationNormal = Duration(milliseconds: 200);
 
-  /// 300ms - Slow transitions (expanding panels, modals)
+  /// 300ms - Smooth transitions (page transitions, expanding panels)
+  static const Duration durationSmooth = Duration(milliseconds: 300);
+
+  /// 300ms - Slow transitions - alias for durationSmooth
   static const Duration durationSlow = Duration(milliseconds: 300);
+
+  /// 400ms - Cinematic transitions (modal appearances)
+  static const Duration durationCinematic = Duration(milliseconds: 400);
 
   /// 500ms - Very slow transitions (complex animations)
   static const Duration durationSluggish = Duration(milliseconds: 500);
 
   /// 1500ms - Shimmer/loading animation cycle
   static const Duration durationShimmer = Duration(milliseconds: 1500);
+
+  /// 2000ms - Pulse animation cycle (status indicators)
+  static const Duration durationPulse = Duration(milliseconds: 2000);
 
   // ===========================================================================
   // Animation Curves
@@ -148,11 +160,20 @@ abstract final class NightshadeTokens {
   /// Acceleration curve for exiting elements
   static const Curve curveAccelerate = Curves.easeIn;
 
-  /// Bouncy curve for playful interactions
+  /// Bouncy curve for playful interactions (use sparingly)
   static const Curve curveBounce = Curves.elasticOut;
 
   /// Sharp curve for snappy feedback
   static const Curve curveSharp = Curves.easeOutCubic;
+
+  /// Snappy curve for responsive UI feedback (buttons, hovers)
+  static const Curve curveSnappy = Curves.easeOutCubic;
+
+  /// Precise curve for state transitions
+  static const Curve curvePrecise = Curves.easeInOutCubic;
+
+  /// Settle curve with slight overshoot for toggles/switches
+  static const Curve curveSettle = Curves.easeOutBack;
 
   // ===========================================================================
   // Icon Sizes
@@ -257,6 +278,71 @@ abstract final class NightshadeTokens {
       color: color.withValues(alpha: 0.3),
       blurRadius: 12,
       spreadRadius: 2,
+    ),
+  ];
+
+  // ===========================================================================
+  // Elevation System (Dark Theme Optimized)
+  // ===========================================================================
+
+  /// Level 1 - Base elevation for cards, panels, sidebar
+  /// Barely lifted, creates separation from background
+  static const List<BoxShadow> elevationLevel1 = [
+    BoxShadow(
+      color: Color(0x4D000000), // 30% opacity
+      blurRadius: 8,
+      offset: Offset(0, 2),
+    ),
+  ];
+
+  /// Level 2 - Raised elevation for hovered cards, dropdowns, active panels
+  /// Noticeable lift with layered shadows for depth
+  static const List<BoxShadow> elevationLevel2 = [
+    BoxShadow(
+      color: Color(0x66000000), // 40% opacity
+      blurRadius: 16,
+      offset: Offset(0, 4),
+    ),
+    BoxShadow(
+      color: Color(0x33000000), // 20% opacity
+      blurRadius: 4,
+      offset: Offset(0, 1),
+    ),
+  ];
+
+  /// Level 3 - Floating elevation for modals, dialogs, tooltips
+  /// Prominent shadow with subtle accent glow
+  static List<BoxShadow> elevationLevel3(Color accentColor) => [
+    const BoxShadow(
+      color: Color(0x80000000), // 50% opacity
+      blurRadius: 32,
+      offset: Offset(0, 8),
+    ),
+    BoxShadow(
+      color: accentColor.withValues(alpha: 0.1),
+      blurRadius: 24,
+      spreadRadius: -4,
+    ),
+  ];
+
+  /// Inset shadow for recessed elements (input fields, wells)
+  /// Creates depth by appearing pressed into the surface
+  static const List<BoxShadow> elevationInset = [
+    BoxShadow(
+      color: Color(0x66000000), // 40% opacity
+      blurRadius: 4,
+      offset: Offset(0, 2),
+      blurStyle: BlurStyle.inner,
+    ),
+  ];
+
+  /// Transition shadow from level 1 to level 2 (for hover animations)
+  /// Use with AnimatedContainer for smooth elevation changes
+  static const List<BoxShadow> elevationLevel1to2 = [
+    BoxShadow(
+      color: Color(0x59000000), // 35% opacity (between L1 and L2)
+      blurRadius: 12,
+      offset: Offset(0, 3),
     ),
   ];
 

@@ -3,7 +3,7 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 
-enum ButtonVariant { primary, outline, ghost }
+enum ButtonVariant { primary, outline, ghost, destructive }
 enum ButtonSize { small, medium, large }
 
 class NightshadeButton extends StatefulWidget {
@@ -28,8 +28,53 @@ class NightshadeButton extends StatefulWidget {
   State<NightshadeButton> createState() => _NightshadeButtonState();
 }
 
-class _NightshadeButtonState extends State<NightshadeButton> {
+class _NightshadeButtonState extends State<NightshadeButton>
+    with SingleTickerProviderStateMixin {
   bool _isHovered = false;
+  bool _isPressed = false;
+
+  late AnimationController _pressController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _pressController = AnimationController(
+      duration: NightshadeTokens.durationFast,
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.98).animate(
+      CurvedAnimation(parent: _pressController, curve: NightshadeTokens.curveSnappy),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pressController.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) {
+    if (widget.onPressed != null && !widget.isLoading) {
+      setState(() => _isPressed = true);
+      _pressController.forward();
+    }
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    _releasePress();
+  }
+
+  void _handleTapCancel() {
+    _releasePress();
+  }
+
+  void _releasePress() {
+    if (_isPressed) {
+      setState(() => _isPressed = false);
+      _pressController.reverse();
+    }
+  }
 
   EdgeInsets get _padding {
     return switch (widget.size) {
@@ -64,32 +109,91 @@ class _NightshadeButtonState extends State<NightshadeButton> {
     };
   }
 
+  /// Creates a slightly lighter shade of the given color
+  Color _lightenColor(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness + amount).clamp(0.0, 1.0)).toColor();
+  }
+
+  /// Creates a slightly darker shade of the given color
+  Color _darkenColor(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final isDisabled = widget.onPressed == null || widget.isLoading;
 
-    final (backgroundColor, foregroundColor, borderColor) = switch (widget.variant) {
-      ButtonVariant.primary => (
-          isDisabled
-              ? colors.primary.withValues(alpha: NightshadeTokens.opacityDisabled + 0.12)
-              : _isHovered
-                  ? colors.primary.withValues(alpha: 0.9)
-                  : colors.primary,
-          Colors.white,
-          Colors.transparent,
-        ),
-      ButtonVariant.outline => (
-          _isHovered ? colors.surfaceHover : Colors.transparent,
-          isDisabled ? colors.textMuted : colors.textPrimary,
-          colors.border,
-        ),
-      ButtonVariant.ghost => (
-          _isHovered ? colors.surfaceHover : Colors.transparent,
-          isDisabled ? colors.textMuted : colors.textSecondary,
-          Colors.transparent,
-        ),
-    };
+    // Determine colors based on variant
+    final Color baseColor;
+    final Color foregroundColor;
+    final Color borderColor;
+    final bool useGradient;
+    final bool showGlow;
+
+    switch (widget.variant) {
+      case ButtonVariant.primary:
+        baseColor = isDisabled
+            ? colors.primary.withValues(alpha: NightshadeTokens.opacityDisabled + 0.12)
+            : _isPressed
+                ? _darkenColor(colors.primary, 0.1)
+                : colors.primary;
+        foregroundColor = Colors.white;
+        borderColor = Colors.transparent;
+        useGradient = !isDisabled && !_isPressed;
+        showGlow = _isHovered && !isDisabled && !_isPressed;
+      case ButtonVariant.destructive:
+        baseColor = isDisabled
+            ? colors.error.withValues(alpha: NightshadeTokens.opacityDisabled + 0.12)
+            : _isPressed
+                ? _darkenColor(colors.error, 0.1)
+                : colors.error;
+        foregroundColor = Colors.white;
+        borderColor = Colors.transparent;
+        useGradient = !isDisabled && !_isPressed;
+        showGlow = _isHovered && !isDisabled && !_isPressed;
+      case ButtonVariant.outline:
+        baseColor = _isHovered
+            ? colors.primary.withValues(alpha: 0.08)
+            : Colors.transparent;
+        foregroundColor = isDisabled ? colors.textMuted : colors.textPrimary;
+        borderColor = _isHovered && !isDisabled
+            ? colors.primary.withValues(alpha: 0.5)
+            : colors.border;
+        useGradient = false;
+        showGlow = false;
+      case ButtonVariant.ghost:
+        baseColor = _isHovered ? colors.surfaceHover : Colors.transparent;
+        foregroundColor = isDisabled ? colors.textMuted : colors.textSecondary;
+        borderColor = Colors.transparent;
+        useGradient = false;
+        showGlow = false;
+    }
+
+    // Build gradient for primary/destructive buttons
+    final Gradient? gradient = useGradient
+        ? LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              _lightenColor(baseColor, 0.05),
+              baseColor,
+            ],
+          )
+        : null;
+
+    // Build glow shadow for hover state
+    final List<BoxShadow>? boxShadow = showGlow
+        ? [
+            BoxShadow(
+              color: baseColor.withValues(alpha: 0.3),
+              blurRadius: 12,
+              spreadRadius: 0,
+            ),
+          ]
+        : null;
 
     return Semantics(
       button: true,
@@ -97,24 +201,34 @@ class _NightshadeButtonState extends State<NightshadeButton> {
       label: widget.label,
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
+        onExit: (_) {
+          setState(() => _isHovered = false);
+          _releasePress();
+        },
         cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
-        child: AnimatedContainer(
-          duration: NightshadeTokens.durationQuick,
-          curve: NightshadeTokens.curveStandard,
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: NightshadeTokens.borderRadiusSm,
-            border: Border.all(color: borderColor),
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: InkWell(
-              onTap: isDisabled ? null : widget.onPressed,
-              borderRadius: NightshadeTokens.borderRadiusSm,
-              hoverColor: Colors.transparent, // Handled by AnimatedContainer
-              highlightColor: foregroundColor.withValues(alpha: 0.1),
-              splashColor: foregroundColor.withValues(alpha: 0.1),
+        child: GestureDetector(
+          onTapDown: _handleTapDown,
+          onTapUp: _handleTapUp,
+          onTapCancel: _handleTapCancel,
+          onTap: isDisabled ? null : widget.onPressed,
+          child: AnimatedBuilder(
+            animation: _scaleAnimation,
+            builder: (context, child) {
+              return Transform.scale(
+                scale: _scaleAnimation.value,
+                child: child,
+              );
+            },
+            child: AnimatedContainer(
+              duration: NightshadeTokens.durationQuick,
+              curve: NightshadeTokens.curveSnappy,
+              decoration: BoxDecoration(
+                color: gradient == null ? baseColor : null,
+                gradient: gradient,
+                borderRadius: NightshadeTokens.borderRadiusSm,
+                border: Border.all(color: borderColor),
+                boxShadow: boxShadow,
+              ),
               child: Padding(
                 padding: _padding,
                 child: Row(
