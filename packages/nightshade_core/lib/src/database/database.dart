@@ -12,6 +12,7 @@ import 'tables/sequences.dart';
 import 'tables/captured_images.dart';
 import 'tables/settings.dart';
 import 'tables/weather_settings.dart';
+import 'tables/flat_history.dart';
 import 'daos/images_dao.dart';
 import 'daos/equipment_profiles_dao.dart';
 import 'daos/sessions_dao.dart';
@@ -20,6 +21,7 @@ import 'daos/sequence_checkpoints_dao.dart';
 import 'daos/targets_dao.dart';
 import 'daos/settings_dao.dart';
 import 'daos/weather_settings_dao.dart';
+import 'daos/flat_history_dao.dart';
 
 part 'database.g.dart';
 
@@ -36,6 +38,7 @@ part 'database.g.dart';
     ImageMetadata,
     AppSettings,
     WeatherSettings,
+    FlatHistory,
   ],
   daos: [
     ImagesDao,
@@ -46,6 +49,7 @@ part 'database.g.dart';
     TargetsDao,
     SettingsDao,
     WeatherSettingsDao,
+    FlatHistoryDao,
   ],
 )
 class NightshadeDatabase extends _$NightshadeDatabase {
@@ -55,7 +59,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration {
@@ -152,6 +156,17 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           await customStatement(
             'ALTER TABLE equipment_profiles ADD COLUMN meridian_flip_overrides TEXT',
           );
+        }
+
+        // Version 7: Add flat history table
+        if (from < 7) {
+          await m.createTable(flatHistory);
+          await m.createIndex(Index('idx_flat_history_profile',
+              'CREATE INDEX idx_flat_history_profile ON flat_history (equipment_profile_id)'));
+          await m.createIndex(Index('idx_flat_history_filter',
+              'CREATE INDEX idx_flat_history_filter ON flat_history (filter_name)'));
+          await m.createIndex(Index('idx_flat_history_timestamp',
+              'CREATE INDEX idx_flat_history_timestamp ON flat_history (timestamp)'));
         }
       },
     );

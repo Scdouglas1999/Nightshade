@@ -333,18 +333,36 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                   Row(
                     children: [
                       Text(
-                        'Position: $position',
+                        'Position: ',
                         style: TextStyle(
                           fontSize: 12,
                           color: colors.textSecondary,
                         ),
                       ),
+                      AnimatedValue(
+                        value: '$position',
+                        style: ValueAnimationStyle.flash,
+                        textStyle: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
                       const SizedBox(width: 24),
                       Text(
-                        'Temperature: ${temperature.toStringAsFixed(1)}°C',
+                        'Temperature: ',
                         style: TextStyle(
                           fontSize: 12,
                           color: colors.textSecondary,
+                        ),
+                      ),
+                      AnimatedValue(
+                        value: '${temperature.toStringAsFixed(1)}°C',
+                        style: ValueAnimationStyle.directional,
+                        textStyle: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
                         ),
                       ),
                       const Spacer(),

@@ -223,8 +223,9 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen> {
     final errorHistory = ref.watch(targetDisplayHistoryProvider);
     final currentError = errorHistory.isNotEmpty ? errorHistory.last : null;
 
-    return Column(
-      children: [
+    return SingleChildScrollView(
+      child: Column(
+        children: [
         // Star view
         _buildGlassCard(
           colors,
@@ -300,7 +301,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen> {
             ],
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 

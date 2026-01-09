@@ -14,6 +14,7 @@ export 'src/database/daos/sequences_dao.dart';
 export 'src/database/daos/sequence_checkpoints_dao.dart';
 export 'src/database/daos/settings_dao.dart';
 export 'src/database/daos/weather_settings_dao.dart';
+export 'src/database/daos/flat_history_dao.dart';
 
 // Data models (domain models, distinct from DB entities)
 // Hide TrackingRate from equipment_models - canonical version is in backend/device_capabilities
@@ -34,6 +35,8 @@ export 'src/models/weather/weather_models.dart';
 export 'src/models/autofocus_progress.dart';
 export 'src/models/meridian_flip_settings.dart';
 export 'src/models/meridian_flip_event.dart';
+export 'src/models/flat_wizard/flat_wizard_settings.dart';
+export 'src/models/flat_wizard/flat_wizard_state.dart';
 
 // Providers
 export 'src/providers/database_provider.dart';
@@ -59,12 +62,15 @@ export 'src/providers/camera_presets_provider.dart';
 export 'src/providers/weather_providers.dart';
 export 'src/providers/capability_provider.dart';
 export 'src/providers/meridian_flip_provider.dart';
+export 'src/providers/flat_wizard_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;
 export 'src/backend/ffi_backend.dart';
 export 'src/backend/network_backend.dart';
 export 'src/backend/disconnected_backend.dart';
+export 'src/models/backend/fits_header.dart';
+export 'src/models/backend/image_result.dart';
 
 // Services
 export 'src/services/device_service.dart';
@@ -83,6 +89,8 @@ export 'src/services/focus_model_service.dart' hide FocusDataPoint;
 export 'src/services/logging_service.dart';
 export 'src/services/error_service.dart';
 export 'src/services/flat_wizard_service.dart';
+export 'src/services/sky_brightness_tracker.dart';
+export 'src/services/flat_exposure_calculator.dart';
 export 'src/services/backup_service.dart';
 export 'src/services/auto_save_service.dart';
 export 'src/services/notification_service.dart';

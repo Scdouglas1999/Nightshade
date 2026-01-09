@@ -7,6 +7,8 @@ import '../backend/nightshade_backend.dart';
 import '../models/sequence/sequence_models.dart';
 import '../models/imaging/imaging_models.dart';
 import '../providers/backend_provider.dart';
+import 'sky_brightness_tracker.dart';
+import 'flat_exposure_calculator.dart';
 
 /// Result of a flat frame calibration for a single filter
 class FlatResult {
@@ -258,6 +260,145 @@ class FlatWizardService {
       success: false,
       iterations: maxIterations,
       errorMessage: 'Max iterations reached without convergence',
+    );
+  }
+
+  /// Calibrate filter with rate tracking for sky flats
+  ///
+  /// Uses predictive exposure calculation based on sky brightness rate
+  Future<FlatResult> calibrateFilterWithRateTracking({
+    required String deviceId,
+    required String filter,
+    required double targetAdu,
+    required double tolerance,
+    required double minExposure,
+    required double maxExposure,
+    required SkyBrightnessTracker brightnessTracker,
+    double? historicalExposure,
+    int maxIterations = 3, // Fewer iterations for sky flats (speed matters)
+    int binX = 1,
+    int binY = 1,
+    void Function(int iteration, double exposure, double adu, String status)? onProgress,
+  }) async {
+    // Get starting exposure
+    double exposure = FlatExposureCalculator.getStartingExposure(
+      historicalExposure: historicalExposure,
+      minExposure: minExposure,
+      maxExposure: maxExposure,
+      currentSkyAduRate: brightnessTracker.calculateRate(),
+    );
+
+    double? lastAdu;
+    int iteration = 0;
+
+    for (iteration = 1; iteration <= maxIterations; iteration++) {
+      onProgress?.call(iteration, exposure, lastAdu ?? 0, 'Testing exposure');
+
+      // Capture test frame
+      final adu = await captureTestFrame(
+        deviceId: deviceId,
+        exposureTime: exposure,
+        filterName: filter,
+        binX: binX,
+        binY: binY,
+      );
+
+      if (adu == null) {
+        return FlatResult(
+          filter: filter,
+          exposure: exposure,
+          adu: lastAdu ?? 0,
+          success: false,
+          iterations: iteration,
+          errorMessage: 'Failed to capture test frame',
+        );
+      }
+
+      lastAdu = adu;
+
+      // Update brightness tracker
+      brightnessTracker.addSample(
+        adu: adu,
+        exposureTime: exposure,
+        timestamp: DateTime.now(),
+      );
+
+      // Check if within tolerance
+      final toleranceAdu = targetAdu * tolerance / 100.0;
+      if ((adu - targetAdu).abs() <= toleranceAdu) {
+        onProgress?.call(iteration, exposure, adu, 'On target');
+        return FlatResult(
+          filter: filter,
+          exposure: exposure,
+          adu: adu,
+          success: true,
+          iterations: iteration,
+        );
+      }
+
+      // Calculate next exposure using rate-aware prediction
+      final predictedExposure = brightnessTracker.calculateOptimalExposure(
+        targetAdu: targetAdu,
+        minExposure: minExposure,
+        maxExposure: maxExposure,
+      );
+
+      if (predictedExposure != null) {
+        exposure = predictedExposure;
+      } else {
+        // Fall back to capped proportional adjustment
+        exposure = FlatExposureCalculator.calculateNextExposure(
+          currentExposure: exposure,
+          currentAdu: adu,
+          targetAdu: targetAdu,
+          minExposure: minExposure,
+          maxExposure: maxExposure,
+        );
+      }
+
+      // Check limits
+      final limitStatus = FlatExposureCalculator.checkLimits(
+        exposure: exposure,
+        measuredAdu: adu,
+        targetAdu: targetAdu,
+        minExposure: minExposure,
+        maxExposure: maxExposure,
+        tolerancePercent: tolerance,
+      );
+
+      if (limitStatus == ExposureLimitStatus.maxExposureReached) {
+        onProgress?.call(iteration, exposure, adu, 'Max exposure reached');
+        return FlatResult(
+          filter: filter,
+          exposure: exposure,
+          adu: adu,
+          success: false,
+          iterations: iteration,
+          errorMessage: 'Max exposure reached but still under target',
+        );
+      }
+
+      if (limitStatus == ExposureLimitStatus.minExposureReached) {
+        onProgress?.call(iteration, exposure, adu, 'Min exposure reached');
+        return FlatResult(
+          filter: filter,
+          exposure: exposure,
+          adu: adu,
+          success: false,
+          iterations: iteration,
+          errorMessage: 'Min exposure reached but still over target',
+        );
+      }
+    }
+
+    // Return best effort
+    return FlatResult(
+      filter: filter,
+      exposure: exposure,
+      adu: lastAdu ?? 0,
+      success: false,
+      iterations: iteration,
+      errorMessage: 'Did not converge within $maxIterations iterations',
     );
   }
 

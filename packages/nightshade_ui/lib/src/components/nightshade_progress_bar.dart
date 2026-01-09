@@ -186,7 +186,7 @@ class NightshadeProgressBar extends StatelessWidget {
   }
 }
 
-class _StandardProgressBar extends StatelessWidget {
+class _StandardProgressBar extends StatefulWidget {
   const _StandardProgressBar({
     required this.value,
     required this.height,
@@ -202,32 +202,120 @@ class _StandardProgressBar extends StatelessWidget {
   final Duration animationDuration;
 
   @override
+  State<_StandardProgressBar> createState() => _StandardProgressBarState();
+}
+
+class _StandardProgressBarState extends State<_StandardProgressBar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _completionController;
+  late Animation<double> _glowAnimation;
+  bool _wasComplete = false;
+
+  /// Creates a slightly lighter shade of the given color
+  Color _lightenColor(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness + amount).clamp(0.0, 1.0)).toColor();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _completionController = AnimationController(
+      duration: NightshadeTokens.durationSmooth,
+      vsync: this,
+    );
+    _glowAnimation = Tween<double>(begin: 0.0, end: 0.5).animate(
+      CurvedAnimation(parent: _completionController, curve: Curves.easeOut),
+    );
+    _wasComplete = widget.value >= 1.0;
+  }
+
+  @override
+  void didUpdateWidget(_StandardProgressBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Trigger completion glow when progress reaches 100%
+    final isComplete = widget.value >= 1.0;
+    if (isComplete && !_wasComplete) {
+      _completionController.forward().then((_) {
+        if (mounted) _completionController.reverse();
+      });
+    }
+    _wasComplete = isComplete;
+  }
+
+  @override
+  void dispose() {
+    _completionController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(height / 2),
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            children: [
-              AnimatedContainer(
-                duration: animationDuration,
-                curve: NightshadeTokens.curveStandard,
-                width: constraints.maxWidth * value.clamp(0.0, 1.0),
-                height: height,
-                decoration: BoxDecoration(
-                  color: foregroundColor,
-                  borderRadius: BorderRadius.circular(height / 2),
-                ),
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final isComplete = widget.value >= 1.0;
+
+    // Shift to success color on completion
+    final effectiveFgColor = isComplete ? colors.success : widget.foregroundColor;
+
+    return AnimatedBuilder(
+      animation: _glowAnimation,
+      builder: (context, child) {
+        return Container(
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: widget.backgroundColor,
+            borderRadius: BorderRadius.circular(widget.height / 2),
+            // Inner shadow for depth (recessed track)
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 2,
+                offset: const Offset(0, 1),
+                blurStyle: BlurStyle.inner,
               ),
             ],
-          );
-        },
-      ),
+          ),
+          clipBehavior: Clip.hardEdge,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Stack(
+                children: [
+                  AnimatedContainer(
+                    duration: widget.animationDuration,
+                    curve: NightshadeTokens.curvePrecise,
+                    width: constraints.maxWidth * widget.value.clamp(0.0, 1.0),
+                    height: widget.height,
+                    decoration: BoxDecoration(
+                      // Gradient fill
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          _lightenColor(effectiveFgColor, 0.1),
+                          effectiveFgColor,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(widget.height / 2),
+                      // Completion glow
+                      boxShadow: _glowAnimation.value > 0
+                          ? [
+                              BoxShadow(
+                                color: effectiveFgColor.withValues(
+                                  alpha: _glowAnimation.value,
+                                ),
+                                blurRadius: 8,
+                                spreadRadius: 2,
+                              ),
+                            ]
+                          : null,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
