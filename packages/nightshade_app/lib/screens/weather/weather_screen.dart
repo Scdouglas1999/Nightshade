@@ -113,8 +113,8 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
       opacity: _fadeAnimation,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth > 1200;
-          final isMedium = constraints.maxWidth > 800;
+          final isWide = constraints.maxWidth > NightshadeTokens.breakpointDesktopLg;
+          final isMedium = constraints.maxWidth > NightshadeTokens.breakpointTablet;
 
           return Scaffold(
             backgroundColor: colors.background,
@@ -434,7 +434,7 @@ class _WeatherHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: colors.info.withOpacity(0.1),
+              color: colors.info.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -538,7 +538,7 @@ class _OpacitySlider extends StatelessWidget {
                 activeTrackColor: colors.primary,
                 inactiveTrackColor: colors.surfaceAlt,
                 thumbColor: colors.primary,
-                overlayColor: colors.primary.withOpacity(0.2),
+                overlayColor: colors.primary.withValues(alpha: 0.2),
                 trackHeight: 4,
               ),
               child: Slider(
@@ -591,7 +591,7 @@ class _NoLocationContent extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: colors.warning.withOpacity(0.1),
+                color: colors.warning.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -669,8 +669,8 @@ class _WeatherSafetyCard extends ConsumerWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: isSafe
-                      ? colors.success.withOpacity(0.1)
-                      : colors.error.withOpacity(0.1),
+                      ? colors.success.withValues(alpha: 0.1)
+                      : colors.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -801,7 +801,7 @@ class _WeatherSettingsCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: colors.primary.withOpacity(0.1),
+                  color: colors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -883,7 +883,7 @@ class _SettingRow extends StatelessWidget {
             ? null
             : Border(
                 bottom: BorderSide(
-                  color: colors.border.withOpacity(0.5),
+                  color: colors.border.withValues(alpha: 0.5),
                 ),
               ),
       ),
@@ -965,7 +965,7 @@ class _CloudCoverCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: coverColor.withOpacity(0.1),
+              color: coverColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -1074,13 +1074,13 @@ class _HardwareSensorsCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.primary.withOpacity(0.3)),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
             colors.surface,
-            colors.primary.withOpacity(0.05),
+            colors.primary.withValues(alpha: 0.05),
           ],
         ),
       ),
@@ -1093,7 +1093,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: colors.primary.withOpacity(0.1),
+                  color: colors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -1218,7 +1218,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               'Last updated: ${_formatTime(weatherState.lastUpdated!)}',
               style: TextStyle(
                 fontSize: 10,
-                color: colors.textSecondary.withOpacity(0.7),
+                color: colors.textSecondary.withValues(alpha: 0.7),
               ),
             ),
           ],
@@ -1276,7 +1276,7 @@ class _SensorRow extends StatelessWidget {
                   deviceName!,
                   style: TextStyle(
                     fontSize: 9,
-                    color: colors.textSecondary.withOpacity(0.6),
+                    color: colors.textSecondary.withValues(alpha: 0.6),
                   ),
                 ),
             ],

@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 663443260;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1955720529;
 
 // Section: executor
 
@@ -2306,6 +2306,32 @@ fn wire__crate__api__api_get_connected_devices_impl(
         },
     )
 }
+fn wire__crate__api__api_get_cover_calibrator_capabilities_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_cover_calibrator_capabilities",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_get_cover_calibrator_capabilities(api_device_id)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__api_get_current_log_file_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
@@ -2413,6 +2439,31 @@ fn wire__crate__api__api_get_device_heartbeat_info_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::api_get_device_heartbeat_info(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_get_dome_capabilities_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_dome_capabilities",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_get_dome_capabilities(api_device_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2824,6 +2875,31 @@ fn wire__crate__api__api_get_qhy_discovery_status_impl(
         },
     )
 }
+fn wire__crate__api__api_get_rotator_capabilities_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_rotator_capabilities",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_get_rotator_capabilities(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__api_get_rotator_status_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
@@ -2840,6 +2916,31 @@ fn wire__crate__api__api_get_rotator_status_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok = crate::api::api_get_rotator_status(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_get_safety_monitor_capabilities_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_safety_monitor_capabilities",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_get_safety_monitor_capabilities(api_device_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -2917,6 +3018,31 @@ fn wire__crate__api__api_get_star_crops_from_last_image_impl(
         },
     )
 }
+fn wire__crate__api__api_get_switch_capabilities_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_switch_capabilities",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_get_switch_capabilities(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__api_get_version_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
@@ -2930,6 +3056,31 @@ fn wire__crate__api__api_get_version_impl(
                 let output_ok = Result::<_, ()>::Ok(crate::api::api_get_version())?;
                 Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__api_get_weather_capabilities_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_weather_capabilities",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_get_weather_capabilities(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
         },
     )
 }
@@ -5265,6 +5416,288 @@ fn wire__crate__api__api_stop_polar_alignment_impl(
         },
     )
 }
+fn wire__crate__api__api_switch_can_write_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    switch_id: impl CstDecode<i32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_can_write",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_switch_id = switch_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_switch_can_write(api_device_id, api_switch_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_switch_get_description_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    switch_id: impl CstDecode<i32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_get_description",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_switch_id = switch_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_switch_get_description(api_device_id, api_switch_id)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_switch_get_max_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_get_max",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_switch_get_max(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_switch_get_max_value_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    switch_id: impl CstDecode<i32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_get_max_value",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_switch_id = switch_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_switch_get_max_value(api_device_id, api_switch_id)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_switch_get_min_value_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    switch_id: impl CstDecode<i32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_get_min_value",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_switch_id = switch_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_switch_get_min_value(api_device_id, api_switch_id)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_switch_get_name_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    switch_id: impl CstDecode<i32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_get_name",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_switch_id = switch_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_switch_get_name(api_device_id, api_switch_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_switch_get_state_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    switch_id: impl CstDecode<i32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_get_state",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_switch_id = switch_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_switch_get_state(api_device_id, api_switch_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_switch_get_value_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    switch_id: impl CstDecode<i32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_get_value",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_switch_id = switch_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_switch_get_value(api_device_id, api_switch_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_switch_set_state_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    switch_id: impl CstDecode<i32>,
+    state: impl CstDecode<bool>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_set_state",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_switch_id = switch_id.cst_decode();
+            let api_state = state.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_switch_set_state(
+                            api_device_id,
+                            api_switch_id,
+                            api_state,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_switch_set_value_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    switch_id: impl CstDecode<i32>,
+    value: impl CstDecode<f64>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_switch_set_value",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_switch_id = switch_id.cst_decode();
+            let api_value = value.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_switch_set_value(
+                            api_device_id,
+                            api_switch_id,
+                            api_value,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__api_update_settings_impl(
     settings: impl CstDecode<crate::storage::AppSettings>,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
@@ -5797,26 +6230,6 @@ fn wire__crate__api__get_camera_status_impl(
         },
     )
 }
-fn wire__crate__api__get_last_image_impl(port_: flutter_rust_bridge::for_generated::MessagePort) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "get_last_image",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            move |context| async move {
-                transform_result_dco::<_, _, crate::error::NightshadeError>(
-                    (move || async move {
-                        let output_ok = crate::api::get_last_image().await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
 fn wire__crate__api__indi_autofocus_config_api_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
@@ -5879,6 +6292,30 @@ fn wire__crate__api__mount_abort_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok = crate::api::mount_abort(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__mount_can_park_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "mount_can_park",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::mount_can_park(api_device_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6120,6 +6557,30 @@ fn wire__crate__api__mount_slew_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::mount_slew(api_device_id, api_ra, api_dec).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__mount_stop_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "mount_stop",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::mount_stop(api_device_id).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -8947,17 +9408,6 @@ impl SseDecode for Option<crate::device::CalibratorState> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::device::CalibratorState>::sse_decode(deserializer));
-        } else {
-            return None;
-        }
-    }
-}
-
-impl SseDecode for Option<crate::api::CapturedImageResult> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<crate::api::CapturedImageResult>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -14417,16 +14867,6 @@ impl SseEncode for Option<crate::device::CalibratorState> {
     }
 }
 
-impl SseEncode for Option<crate::api::CapturedImageResult> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <crate::api::CapturedImageResult>::sse_encode(value, serializer);
-        }
-    }
-}
-
 impl SseEncode for Option<crate::api::CheckpointInfoApi> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15375,13 +15815,6 @@ mod io {
         fn cst_decode(self) -> crate::device_capabilities::CameraCapabilities {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<crate::device_capabilities::CameraCapabilities>::cst_decode(*wrap).into()
-        }
-    }
-    impl CstDecode<crate::api::CapturedImageResult> for *mut wire_cst_captured_image_result {
-        // Codec=Cst (C-struct based), see doc to use other codecs
-        fn cst_decode(self) -> crate::api::CapturedImageResult {
-            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
-            CstDecode::<crate::api::CapturedImageResult>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::api::CheckpointInfoApi> for *mut wire_cst_checkpoint_info_api {
@@ -19713,6 +20146,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_cover_calibrator_capabilities(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_get_cover_calibrator_capabilities_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_current_log_file(
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
         wire__crate__api__api_get_current_log_file_impl()
@@ -19748,6 +20189,14 @@ mod io {
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__api_get_device_heartbeat_info_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_dome_capabilities(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_get_dome_capabilities_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -19890,11 +20339,27 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_rotator_capabilities(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_get_rotator_capabilities_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_rotator_status(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__api_get_rotator_status_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_safety_monitor_capabilities(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_get_safety_monitor_capabilities_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -19918,9 +20383,25 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_switch_capabilities(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_get_switch_capabilities_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_version(
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
         wire__crate__api__api_get_version_impl()
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_weather_capabilities(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_get_weather_capabilities_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -20719,6 +21200,97 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_can_write(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        switch_id: i32,
+    ) {
+        wire__crate__api__api_switch_can_write_impl(port_, device_id, switch_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_get_description(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        switch_id: i32,
+    ) {
+        wire__crate__api__api_switch_get_description_impl(port_, device_id, switch_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_get_max(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_switch_get_max_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_get_max_value(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        switch_id: i32,
+    ) {
+        wire__crate__api__api_switch_get_max_value_impl(port_, device_id, switch_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_get_min_value(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        switch_id: i32,
+    ) {
+        wire__crate__api__api_switch_get_min_value_impl(port_, device_id, switch_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_get_name(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        switch_id: i32,
+    ) {
+        wire__crate__api__api_switch_get_name_impl(port_, device_id, switch_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_get_state(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        switch_id: i32,
+    ) {
+        wire__crate__api__api_switch_get_state_impl(port_, device_id, switch_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_get_value(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        switch_id: i32,
+    ) {
+        wire__crate__api__api_switch_get_value_impl(port_, device_id, switch_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_set_state(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        switch_id: i32,
+        state: bool,
+    ) {
+        wire__crate__api__api_switch_set_state_impl(port_, device_id, switch_id, state)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_switch_set_value(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        switch_id: i32,
+        value: f64,
+    ) {
+        wire__crate__api__api_switch_set_value_impl(port_, device_id, switch_id, value)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_update_settings(
         settings: *mut wire_cst_app_settings,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
@@ -20894,11 +21466,6 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__get_last_image(port_: i64) {
-        wire__crate__api__get_last_image_impl(port_)
-    }
-
-    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__indi_autofocus_config_api_default(
         port_: i64,
     ) {
@@ -20919,6 +21486,14 @@ mod io {
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__mount_abort_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__mount_can_park(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__mount_can_park_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -20999,6 +21574,14 @@ mod io {
         dec: f64,
     ) {
         wire__crate__api__mount_slew_impl(port_, device_id, ra, dec)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__mount_stop(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__mount_stop_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -21187,14 +21770,6 @@ mod io {
     ) -> *mut wire_cst_camera_capabilities {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
             wire_cst_camera_capabilities::new_with_null_ptr(),
-        )
-    }
-
-    #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_captured_image_result(
-    ) -> *mut wire_cst_captured_image_result {
-        flutter_rust_bridge::for_generated::new_leak_box_ptr(
-            wire_cst_captured_image_result::new_with_null_ptr(),
         )
     }
 

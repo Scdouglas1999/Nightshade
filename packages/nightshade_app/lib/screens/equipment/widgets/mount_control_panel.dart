@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -6,11 +5,13 @@ import 'package:nightshade_core/nightshade_core.dart' hide DeviceType, PlateSolv
 import 'package:nightshade_core/src/services/plate_solve_service.dart' show PlateSolveResult;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../services/mount_command_service.dart';
+import '../../../utils/snackbar_helper.dart';
 import 'device_card.dart';
 
 class MountControlPanel extends ConsumerStatefulWidget {
   final MountState mountState;
-  final AsyncValue<List<AvailableDevice>> availableMounts;
+  final AsyncValue<List<DeviceInfo>> availableMounts;
   final NightshadeColors colors;
 
   const MountControlPanel({
@@ -26,8 +27,6 @@ class MountControlPanel extends ConsumerStatefulWidget {
 
 class _MountControlPanelState extends ConsumerState<MountControlPanel> {
   String? _selectedDeviceId;
-  final bool _isHovered = false;
-  bool _isConnecting = false;
   bool _isSolving = false;
 
   bool get _isConnected =>
@@ -104,7 +103,7 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
                   label: widget.mountState.isParked ? 'Unpark' : 'Park',
                   icon: LucideIcons.parkingSquare,
                   variant: ButtonVariant.outline,
-                  onPressed: _togglePark,
+                  onPressed: () => ref.read(mountCommandServiceProvider).togglePark(context),
                 ),
               ),
               const SizedBox(width: 12),
@@ -113,7 +112,7 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
                   label: widget.mountState.isTracking ? 'Stop Track' : 'Track',
                   icon: LucideIcons.activity,
                   variant: widget.mountState.isTracking ? ButtonVariant.primary : ButtonVariant.outline,
-                  onPressed: _toggleTracking,
+                  onPressed: () => ref.read(mountCommandServiceProvider).toggleTracking(context),
                 ),
               ),
             ],
@@ -144,51 +143,18 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
 
   Future<void> _handleConnect() async {
     if (_selectedDeviceId == null) return;
-    
-    setState(() => _isConnecting = true);
+
     try {
       await ref.read(deviceServiceProvider).connectMount(_selectedDeviceId!);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect: $e')),
-        );
+        context.showErrorSnackBar('Failed to connect: $e');
       }
-    } finally {
-      if (mounted) setState(() => _isConnecting = false);
     }
   }
 
   Future<void> _handleDisconnect() async {
     await ref.read(deviceServiceProvider).disconnectMount();
-  }
-
-  Future<void> _togglePark() async {
-    try {
-      if (widget.mountState.isParked) {
-        await ref.read(deviceServiceProvider).unparkMount();
-      } else {
-        await ref.read(deviceServiceProvider).parkMount();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to park/unpark: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _toggleTracking() async {
-    try {
-      await ref.read(deviceServiceProvider).setMountTracking(!widget.mountState.isTracking);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to toggle tracking: $e')),
-        );
-      }
-    }
   }
 
   Future<void> _handlePlateSolveAndSync() async {
@@ -259,27 +225,13 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
       if (result.ra == null || result.dec == null) {
          throw Exception('Plate solving succeeded but returned null coordinates');
       }
-      
-      // 3. Sync Mount
-      await ref.read(deviceServiceProvider).syncMountToCoordinates(result.ra!, result.dec!);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Synced to RA: ${result.ra!.toStringAsFixed(2)}h, Dec: ${result.dec!.toStringAsFixed(1)}°'),
-            backgroundColor: widget.colors.success,
-          ),
-        );
-      }
+
+      // 3. Sync Mount using the service (service shows its own success message)
+      await ref.read(mountCommandServiceProvider).sync(context, result.ra!, result.dec!);
       
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: widget.colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Error: $e');
       }
     } finally {
       if (mounted) setState(() => _isSolving = false);

@@ -106,6 +106,9 @@ final annotationStateProvider = StateProvider<AnnotationState>((ref) => const An
 class AnnotationService {
   final Ref _ref;
   final CatalogManager _catalogManager;
+  AnnotationCatalog? _annotationCatalog;
+  String? _annotationCatalogPath;
+  String? _dsoCatalogPath;
   
   // External providers
   final _simbadProvider = SimbadProvider();
@@ -128,6 +131,61 @@ class AnnotationService {
         _processNewImage(next);
       }
     });
+  }
+
+  Future<AnnotationCatalog?> _loadAnnotationCatalog() async {
+    final annotationStatus = await _catalogManager.getAnnotationCatalogStatus();
+    if (!annotationStatus.isInstalled || annotationStatus.installedPath == null) {
+      return null;
+    }
+
+    final dsoStatus = await _catalogManager.getDsoCatalogStatus();
+    final annotationPath = annotationStatus.installedPath!;
+    final dsoPath = dsoStatus.installedPath;
+
+    if (_annotationCatalog != null &&
+        _annotationCatalogPath == annotationPath &&
+        _dsoCatalogPath == dsoPath) {
+      return _annotationCatalog;
+    }
+
+    final gladeLoader = GladePlusCatalogLoader(annotationPath);
+    final ngcLoader = dsoPath != null ? OpenNgcCatalogLoader(dsoPath) : null;
+
+    _annotationCatalog = AnnotationCatalog(
+      ngcLoader: ngcLoader,
+      gladeLoader: gladeLoader,
+    );
+    _annotationCatalogPath = annotationPath;
+    _dsoCatalogPath = dsoPath;
+
+    return _annotationCatalog;
+  }
+
+  ObjectType _mapAnnotationObjectType(AnnotationObjectType type) {
+    switch (type) {
+      case AnnotationObjectType.galaxy:
+        return ObjectType.galaxy;
+      case AnnotationObjectType.nebula:
+      case AnnotationObjectType.emissionNebula:
+      case AnnotationObjectType.reflectionNebula:
+      case AnnotationObjectType.darkNebula:
+      case AnnotationObjectType.hiiRegion:
+        return ObjectType.nebula;
+      case AnnotationObjectType.planetaryNebula:
+        return ObjectType.planetaryNebula;
+      case AnnotationObjectType.openCluster:
+      case AnnotationObjectType.globularCluster:
+      case AnnotationObjectType.starCluster:
+        return ObjectType.starCluster;
+      case AnnotationObjectType.doubleStar:
+        return ObjectType.doubleStar;
+      case AnnotationObjectType.asterism:
+        return ObjectType.asterism;
+      case AnnotationObjectType.supernovaRemnant:
+      case AnnotationObjectType.other:
+        return ObjectType.unknown;
+    }
   }
 
   Future<void> _processNewImage(CapturedImageData image) async {
@@ -173,18 +231,20 @@ class AnnotationService {
       // =====================================================================
       final dsoStatus = await _catalogManager.getDsoCatalogStatus();
       final starStatus = await _catalogManager.getStarCatalogStatus();
+      final annotationStatus = await _catalogManager.getAnnotationCatalogStatus();
 
       final hasDsoCatalog = dsoStatus.isInstalled;
       final hasStarCatalog = starStatus.isInstalled;
+      final hasAnnotationCatalog = annotationStatus.isInstalled;
 
-      if (!hasDsoCatalog && !hasStarCatalog) {
-        print('[ANNOTATION] No catalogs installed - DSO: $hasDsoCatalog, Stars: $hasStarCatalog');
+      if (!hasDsoCatalog && !hasStarCatalog && !hasAnnotationCatalog) {
+        print('[ANNOTATION] No catalogs installed - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog');
         _ref.read(annotationStateProvider.notifier).state =
             const AnnotationState.catalogsNotInstalled();
         return;
       }
 
-      print('[ANNOTATION] Catalogs available - DSO: $hasDsoCatalog, Stars: $hasStarCatalog');
+      print('[ANNOTATION] Catalogs available - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog');
 
       // =====================================================================
       // PRE-FLIGHT CHECK 3: Verify backend is available
@@ -371,52 +431,100 @@ class AnnotationService {
 
     print('[ANNOTATION] Searching DSO catalog within $searchRadius degrees of RA=${plateSolve.ra}, Dec=${plateSolve.dec}');
 
-    // Query DSO catalog
-    try {
-      final dsos = await _catalogManager.searchDsoNearby(
-        ra: plateSolve.ra,
-        dec: plateSolve.dec,
-        radiusDegrees: searchRadius,
-        maxMagnitude: minMagnitude,
-      );
+    final annotationCatalog = await _loadAnnotationCatalog();
+    if (annotationCatalog != null && annotationCatalog.isAvailable) {
+      try {
+        final objects = await annotationCatalog.searchNearby(
+          ra: plateSolve.ra,
+          dec: plateSolve.dec,
+          radiusDegrees: searchRadius,
+          maxMagnitude: minMagnitude,
+        );
 
-      print('[ANNOTATION] Found ${dsos.length} DSOs in search area');
+        print('[ANNOTATION] Found ${objects.length} annotation objects in search area');
 
-      for (final dso in dsos) {
-        // Filter by size (skip very small objects)
-        if (dso.majorAxis != null && dso.majorAxis! < minSize) {
-          continue;
+        for (final obj in objects) {
+          if (obj.majorAxis != null && obj.majorAxis! < minSize) {
+            continue;
+          }
+
+          final pixelCoords = plateSolve.skyToPixel(obj.ra, obj.dec);
+          if (pixelCoords == null) {
+            continue;
+          }
+
+          if (pixelCoords.x < 0 || pixelCoords.x >= plateSolve.imageWidth ||
+              pixelCoords.y < 0 || pixelCoords.y >= plateSolve.imageHeight) {
+            continue;
+          }
+
+          final altName = obj.alternateNames.isNotEmpty ? obj.alternateNames.first : null;
+
+          annotations.add(CelestialObjectAnnotation(
+            id: obj.id,
+            name: obj.primaryName,
+            type: _mapAnnotationObjectType(obj.type),
+            ra: obj.ra,
+            dec: obj.dec,
+            x: pixelCoords.x,
+            y: pixelCoords.y,
+            catalogId: altName ?? obj.primaryName,
+            commonName: altName != null && altName != obj.primaryName ? altName : null,
+            magnitude: obj.magnitude,
+            size: obj.majorAxis,
+          ));
         }
-
-        // Convert RA/Dec to pixel coordinates
-        final pixelCoords = plateSolve.skyToPixel(dso.ra, dso.dec);
-        if (pixelCoords == null) {
-          continue;
-        }
-
-        // Check if pixel coordinates are within image bounds
-        if (pixelCoords.x < 0 || pixelCoords.x >= plateSolve.imageWidth ||
-            pixelCoords.y < 0 || pixelCoords.y >= plateSolve.imageHeight) {
-          continue;
-        }
-
-        final objectType = _inferObjectType(dso.type);
-
-        annotations.add(CelestialObjectAnnotation(
-          id: 'dso_${dso.name}',
-          name: dso.displayName,
-          type: objectType,
-          ra: dso.ra,
-          dec: dso.dec,
-          x: pixelCoords.x,
-          y: pixelCoords.y,
-          catalogId: dso.name,
-          magnitude: dso.magnitude,
-          size: dso.majorAxis,
-        ));
+      } catch (e) {
+        print('[ANNOTATION] Error querying annotation catalog: $e');
       }
-    } catch (e) {
-      print('[ANNOTATION] Error querying DSO catalog: $e');
+    } else {
+      // Query DSO catalog
+      try {
+        final dsos = await _catalogManager.searchDsoNearby(
+          ra: plateSolve.ra,
+          dec: plateSolve.dec,
+          radiusDegrees: searchRadius,
+          maxMagnitude: minMagnitude,
+        );
+
+        print('[ANNOTATION] Found ${dsos.length} DSOs in search area');
+
+        for (final dso in dsos) {
+          // Filter by size (skip very small objects)
+          if (dso.majorAxis != null && dso.majorAxis! < minSize) {
+            continue;
+          }
+
+          // Convert RA/Dec to pixel coordinates
+          final pixelCoords = plateSolve.skyToPixel(dso.ra, dso.dec);
+          if (pixelCoords == null) {
+            continue;
+          }
+
+          // Check if pixel coordinates are within image bounds
+          if (pixelCoords.x < 0 || pixelCoords.x >= plateSolve.imageWidth ||
+              pixelCoords.y < 0 || pixelCoords.y >= plateSolve.imageHeight) {
+            continue;
+          }
+
+          final objectType = _inferObjectType(dso.type);
+
+          annotations.add(CelestialObjectAnnotation(
+            id: 'dso_${dso.name}',
+            name: dso.displayName,
+            type: objectType,
+            ra: dso.ra,
+            dec: dso.dec,
+            x: pixelCoords.x,
+            y: pixelCoords.y,
+            catalogId: dso.name,
+            magnitude: dso.magnitude,
+            size: dso.majorAxis,
+          ));
+        }
+      } catch (e) {
+        print('[ANNOTATION] Error querying DSO catalog: $e');
+      }
     }
 
     // Optionally include bright stars
@@ -629,14 +737,6 @@ class AnnotationService {
     if (lower.contains('double') || lower.contains('multiple')) return ObjectType.doubleStar;
     if (lower.contains('asterism')) return ObjectType.asterism;
     return ObjectType.unknown;
-  }
-
-  String? _formatCatalogId(dynamic dso) {
-    if (dso.ngc != null) return 'NGC ${dso.ngc}';
-    if (dso.ic != null) return 'IC ${dso.ic}';
-    if (dso.messier != null) return 'M ${dso.messier}';
-    if (dso.commonName != null) return dso.commonName;
-    return null;
   }
 
   /// Parse spectral type from string to SpectralClass enum

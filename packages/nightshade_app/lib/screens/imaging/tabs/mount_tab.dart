@@ -4,12 +4,13 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     show
-        deviceServiceProvider,
         mountStateProvider,
         mountCapabilitiesProvider,
         slewCoordinatesProvider,
         CoordinateParser,
         DeviceConnectionState;
+import '../../../services/mount_command_service.dart';
+import '../../../utils/snackbar_helper.dart';
 import '../centering_dialog.dart';
 import '../../polar_alignment/polar_alignment_screen.dart';
 
@@ -63,117 +64,26 @@ class _MountTabState extends ConsumerState<MountTab> {
     super.dispose();
   }
 
-  bool _isConnected() {
-    final mountState = ref.read(mountStateProvider);
-    return mountState.connectionState == DeviceConnectionState.connected;
-  }
-
-  Future<void> _toggleTracking(bool enabled) async {
-    if (!_isConnected()) {
-      _showError("No mount connected");
-      return;
-    }
-    try {
-      await ref.read(deviceServiceProvider).setMountTracking(enabled);
-    } catch (e) {
-      _showError("Failed to set tracking: $e");
-    }
-  }
-
-  Future<void> _abortSlew() async {
-    if (!_isConnected()) {
-      _showError("No mount connected");
-      return;
-    }
-    try {
-      await ref.read(deviceServiceProvider).abortMountSlew();
-    } catch (e) {
-      _showError("Failed to abort: $e");
-    }
-  }
-
-  Future<void> _park() async {
-    if (!_isConnected()) {
-      _showError("No mount connected");
-      return;
-    }
-    try {
-      await ref.read(deviceServiceProvider).parkMount();
-    } catch (e) {
-      _showError("Failed to park: $e");
-    }
-  }
-
-  Future<void> _unpark() async {
-    if (!_isConnected()) {
-      _showError("No mount connected");
-      return;
-    }
-    try {
-      await ref.read(deviceServiceProvider).unparkMount();
-    } catch (e) {
-      _showError("Failed to unpark: $e");
-    }
-  }
-
-  Future<void> _slew() async {
-    if (!_isConnected()) {
-      _showError("No mount connected. Please check equipment profile.");
-      return;
-    }
-    // Parse RA/Dec using CoordinateParser which supports HMS/DMS formats
+  /// Slew to coordinates from text fields with validation
+  void _handleSlew() {
     final ra = CoordinateParser.parseRa(_raController.text);
     final dec = CoordinateParser.parseDec(_decController.text);
     if (ra == null || dec == null) {
-      _showError("Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
+      context.showErrorSnackBar("Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
       return;
     }
-    try {
-      await ref.read(deviceServiceProvider).slewMountToCoordinates(ra, dec);
-    } catch (e) {
-      _showError("Slew failed: $e");
-    }
+    ref.read(mountCommandServiceProvider).slewTo(context, ra, dec);
   }
 
-  Future<void> _sync() async {
-    if (!_isConnected()) {
-      _showError("No mount connected");
-      return;
-    }
-    // Parse RA/Dec using CoordinateParser which supports HMS/DMS formats
+  /// Sync mount to coordinates from text fields with validation
+  void _handleSync() {
     final ra = CoordinateParser.parseRa(_raController.text);
     final dec = CoordinateParser.parseDec(_decController.text);
     if (ra == null || dec == null) {
-      _showError("Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
+      context.showErrorSnackBar("Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
       return;
     }
-    try {
-      await ref.read(deviceServiceProvider).syncMountToCoordinates(ra, dec);
-    } catch (e) {
-      _showError("Sync failed: $e");
-    }
-  }
-
-  Future<void> _pulseGuide(String direction) async {
-    if (!_isConnected()) {
-      _showError("No mount connected");
-      return;
-    }
-    try {
-      await ref.read(deviceServiceProvider).pulseGuidMount(
-        direction: direction,
-        durationMs: 500,
-      );
-    } catch (e) {
-      _showError("Pulse guide failed: $e");
-    }
-  }
-
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
+    ref.read(mountCommandServiceProvider).sync(context, ra, dec);
   }
 
   @override
@@ -282,7 +192,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                               (mountState.isParked
                                   ? (capabilities?.canUnpark ?? true)
                                   : (capabilities?.canPark ?? true))
-                              ? (mountState.isParked ? _unpark : _park)
+                              ? () => ref.read(mountCommandServiceProvider).togglePark(context)
                               : null,
                         ),
                       ),
@@ -294,7 +204,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                           variant: mountState.isTracking ? ButtonVariant.outline : ButtonVariant.primary,
                           // Gate on canSetTracking capability
                           onPressed: isConnected && (capabilities?.canSetTracking ?? true)
-                              ? () => _toggleTracking(!mountState.isTracking)
+                              ? () => ref.read(mountCommandServiceProvider).setTracking(context, !mountState.isTracking)
                               : null,
                         ),
                       ),
@@ -307,7 +217,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                       label: 'ABORT SLEW',
                       icon: LucideIcons.octagon,
                       variant: ButtonVariant.primary,
-                      onPressed: isConnected ? _abortSlew : null,
+                      onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).abortSlew(context) : null,
                     ),
                   ),
                 ],
@@ -410,7 +320,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                         child: NightshadeButton(
                           label: 'Slew',
                           icon: LucideIcons.move,
-                          onPressed: _slew,
+                          onPressed: _handleSlew,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -419,7 +329,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                           label: 'Sync',
                           icon: LucideIcons.refreshCw,
                           variant: ButtonVariant.outline,
-                          onPressed: _sync,
+                          onPressed: _handleSync,
                         ),
                       ),
                     ],
@@ -472,16 +382,16 @@ class _MountTabState extends ConsumerState<MountTab> {
                   Center(
                     child: Column(
                       children: [
-                        _PulseButton(icon: LucideIcons.chevronUp, label: "N", onPressed: () => _pulseGuide("North")),
+                        _PulseButton(icon: LucideIcons.chevronUp, label: "N", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide(context, "North")),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _PulseButton(icon: LucideIcons.chevronLeft, label: "W", onPressed: () => _pulseGuide("West")),
+                            _PulseButton(icon: LucideIcons.chevronLeft, label: "W", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide(context, "West")),
                             const SizedBox(width: 48),
-                            _PulseButton(icon: LucideIcons.chevronRight, label: "E", onPressed: () => _pulseGuide("East")),
+                            _PulseButton(icon: LucideIcons.chevronRight, label: "E", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide(context, "East")),
                           ],
                         ),
-                        _PulseButton(icon: LucideIcons.chevronDown, label: "S", onPressed: () => _pulseGuide("South")),
+                        _PulseButton(icon: LucideIcons.chevronDown, label: "S", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide(context, "South")),
                       ],
                     ),
                   ),

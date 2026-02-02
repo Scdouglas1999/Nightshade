@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../celestial_object.dart';
@@ -9,6 +7,7 @@ import '../coordinate_system.dart';
 import '../catalogs/star_catalog.dart';
 import '../catalogs/constellation_data.dart';
 import '../catalogs/catalog.dart';
+import '../catalogs/spatial_index.dart';
 import '../astronomy/astronomy_calculations.dart';
 import '../astronomy/planetary_positions.dart';
 import '../astronomy/milky_way_data.dart';
@@ -569,15 +568,37 @@ final loadedDsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
   return OpenNgcDsoCatalog(magnitudeLimit: 14.0).loadObjects();
 });
 
+/// Spatial index for stars to avoid scanning full catalogs per frame.
+final starSpatialIndexProvider = FutureProvider<StarSpatialIndex>((ref) async {
+  final stars = await ref.watch(loadedStarsProvider.future);
+  final index = StarSpatialIndex();
+  index.addAll(stars);
+  return index;
+});
+
+/// Spatial index for DSOs to avoid scanning full catalogs per frame.
+final dsoSpatialIndexProvider = FutureProvider<DsoSpatialIndex>((ref) async {
+  final dsos = await ref.watch(loadedDsosProvider.future);
+  final index = DsoSpatialIndex();
+  index.addAll(dsos);
+  return index;
+});
+
 /// Stars filtered by dynamic magnitude limit based on current FOV
 /// As the user zooms in (narrower FOV), fainter stars become visible.
 /// This provider should be used by the sky renderer for FOV-aware star display.
 final fovFilteredStarsProvider = Provider<AsyncValue<List<Star>>>((ref) {
-  final starsAsync = ref.watch(loadedStarsProvider);
+  final indexAsync = ref.watch(starSpatialIndexProvider);
   final (starMagLimit, _) = ref.watch(dynamicMagnitudeLimitsProvider);
+  final viewState = ref.watch(skyViewStateProvider);
 
-  return starsAsync.whenData((stars) {
-    return stars.where((star) => (star.magnitude ?? 99) <= starMagLimit).toList();
+  return indexAsync.whenData((index) {
+    return index.queryViewportFiltered(
+      viewState.centerRA,
+      viewState.centerDec,
+      viewState.fieldOfView,
+      maxMagnitude: starMagLimit,
+    );
   });
 });
 
@@ -585,11 +606,17 @@ final fovFilteredStarsProvider = Provider<AsyncValue<List<Star>>>((ref) {
 /// As the user zooms in (narrower FOV), fainter DSOs become visible.
 /// This provider should be used by the sky renderer for FOV-aware DSO display.
 final fovFilteredDsosProvider = Provider<AsyncValue<List<DeepSkyObject>>>((ref) {
-  final dsosAsync = ref.watch(loadedDsosProvider);
+  final indexAsync = ref.watch(dsoSpatialIndexProvider);
   final (_, dsoMagLimit) = ref.watch(dynamicMagnitudeLimitsProvider);
+  final viewState = ref.watch(skyViewStateProvider);
 
-  return dsosAsync.whenData((dsos) {
-    return dsos.where((dso) => (dso.magnitude ?? 99) <= dsoMagLimit).toList();
+  return indexAsync.whenData((index) {
+    return index.queryViewportFiltered(
+      viewState.centerRA,
+      viewState.centerDec,
+      viewState.fieldOfView,
+      maxMagnitude: dsoMagLimit,
+    );
   });
 });
 
@@ -1325,12 +1352,8 @@ final objectSearchProvider = StateNotifierProvider<ObjectSearchNotifier, ObjectS
 /// Calculates density hotspots for crowded regions when zoomed out.
 /// Returns list of (ra, dec, visibleCount, hiddenCount) for areas with many hidden objects.
 /// This helps users know when to zoom in to reveal more objects.
-final densityHotspotsProvider = Provider<List<(double, double, int, int)>>((ref) {
-  final viewState = ref.watch(skyViewStateProvider);
+final densityHotspotsDataProvider = Provider<List<(double, double, int, int)>>((ref) {
   final (starMagLimit, _) = ref.watch(dynamicMagnitudeLimitsProvider);
-
-  // Only show density indicators when zoomed out (FOV > 30 degrees)
-  if (viewState.fieldOfView < 30) return [];
 
   // Get all loaded stars (not the filtered ones - we need the full set to count hidden)
   final starsAsync = ref.watch(loadedStarsProvider);
@@ -1374,5 +1397,14 @@ final densityHotspotsProvider = Provider<List<(double, double, int, int)>>((ref)
         return (ra, dec, e.value.$1, e.value.$2);
       })
       .toList();
+});
+
+final densityHotspotsProvider = Provider<List<(double, double, int, int)>>((ref) {
+  final fieldOfView = ref.watch(skyViewStateProvider.select((state) => state.fieldOfView));
+
+  // Only show density indicators when zoomed out (FOV > 30 degrees)
+  if (fieldOfView < 30) return [];
+
+  return ref.watch(densityHotspotsDataProvider);
 });
 

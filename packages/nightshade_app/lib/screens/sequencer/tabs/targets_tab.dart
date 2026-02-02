@@ -7,6 +7,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:intl/intl.dart';
 
+import '../../../utils/snackbar_helper.dart';
+
 class TargetsTab extends ConsumerWidget {
   const TargetsTab({super.key});
 
@@ -45,7 +47,7 @@ class TargetsTab extends ConsumerWidget {
                 ],
               ),
               const Spacer(),
-              if (sequence != null && sequence.targetGroups.length > 1)
+              if (sequence != null && sequence.targetHeaders.length > 1)
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: NightshadeButton(
@@ -56,7 +58,7 @@ class TargetsTab extends ConsumerWidget {
                       showDialog(
                         context: context,
                         builder: (context) => _OptimizeOrderDialog(
-                          targets: sequence.targetGroups,
+                          targets: sequence.targetHeaders,
                         ),
                       );
                     },
@@ -108,7 +110,7 @@ class TargetsTab extends ConsumerWidget {
           // Active Target List
           Expanded(
             flex: 3,
-            child: sequence == null || sequence.targetGroups.isEmpty
+            child: sequence == null || sequence.targetHeaders.isEmpty
                 ? _EmptyState(colors: colors)
                 : _ActiveTargetList(colors: colors, sequence: sequence),
           ),
@@ -133,7 +135,7 @@ class _NightTimeline extends ConsumerWidget {
     final start = DateTime(now.year, now.month, now.day, 18);
     final end = start.add(const Duration(hours: 12));
 
-    final targetGroups = sequence?.targetGroups ?? [];
+    final targetGroups = sequence?.targetHeaders ?? [];
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -157,7 +159,7 @@ class _TimelinePainter extends CustomPainter {
   final NightshadeColors colors;
   final DateTime startTime;
   final DateTime endTime;
-  final List<TargetGroupNode> targets;
+  final List<TargetHeaderNode> targets;
   final double latitude;
   final double longitude;
 
@@ -319,7 +321,7 @@ class _TimelinePainter extends CustomPainter {
     }
   }
 
-  void _drawAltitudeCurve(Canvas canvas, Size size, TargetGroupNode target, Color color) {
+  void _drawAltitudeCurve(Canvas canvas, Size size, TargetHeaderNode target, Color color) {
     final path = Path();
     final paint = Paint()
       ..color = color
@@ -454,7 +456,7 @@ class _ActiveTargetList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ReorderableListView.builder(
-      itemCount: sequence.targetGroups.length,
+      itemCount: sequence.targetHeaders.length,
       proxyDecorator: (child, index, animation) {
         return Material(
           color: Colors.transparent,
@@ -462,7 +464,7 @@ class _ActiveTargetList extends ConsumerWidget {
         );
       },
       itemBuilder: (context, index) {
-        final target = sequence.targetGroups[index];
+        final target = sequence.targetHeaders[index];
         // Use index-based color matching the chart
         final color = [
           colors.primary,
@@ -492,7 +494,7 @@ class _ActiveTargetList extends ConsumerWidget {
 
 class _TargetListItem extends StatelessWidget {
   final NightshadeColors colors;
-  final TargetGroupNode target;
+  final TargetHeaderNode target;
   final Color color;
   final int index;
   final VoidCallback onDelete;
@@ -631,15 +633,21 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        width: 500,
-        height: 600,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Add Target to Session',
+      child: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 500,
+          preferredHeight: 600,
+          minWidth: 350,
+          minHeight: 400,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Add Target to Session',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -705,23 +713,24 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                                 size: ButtonSize.small,
                                 onPressed: () {
                                   ref.read(currentSequenceProvider.notifier).addNode(
-                                    TargetGroupNode(
+                                    TargetHeaderNode(
                                       targetName: obj.name,
                                       raHours: obj.coordinates.ra,
                                       decDegrees: obj.coordinates.dec,
                                     ),
                                   );
                                   Navigator.pop(context);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Added ${obj.name} to sequence')),
-                                  );
+                                  if (context.mounted) {
+                                    context.showSuccessSnackBar('Added ${obj.name} to sequence');
+                                  }
                                 },
                               ),
                             );
                           },
                         ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -729,7 +738,7 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
 }
 
 class _OptimizeOrderDialog extends ConsumerStatefulWidget {
-  final List<TargetGroupNode> targets;
+  final List<TargetHeaderNode> targets;
 
   const _OptimizeOrderDialog({required this.targets});
 
@@ -741,7 +750,7 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
   OptimizationStrategy _strategy = OptimizationStrategy.settingFirst;
   double _minAltitude = 30.0;
   List<AltitudeData>? _previewData;
-  List<TargetGroupNode>? _optimizedOrder;
+  List<TargetHeaderNode>? _optimizedOrder;
 
   @override
   void initState() {
@@ -789,9 +798,9 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
     }
 
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Target order optimized')),
-    );
+    if (context.mounted) {
+      context.showSuccessSnackBar('Target order optimized');
+    }
   }
 
   @override
@@ -802,19 +811,25 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        width: 700,
-        height: 600,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.sparkles, color: colors.primary),
-                const SizedBox(width: 12),
-                Text(
-                  'Optimize Target Order',
+      child: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 700,
+          preferredHeight: 600,
+          minWidth: 500,
+          minHeight: 450,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(LucideIcons.sparkles, color: colors.primary),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Optimize Target Order',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -963,7 +978,8 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

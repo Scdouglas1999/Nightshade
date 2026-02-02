@@ -18,9 +18,7 @@ enum AscomCoverCalibratorCommand {
     GetCoverState(oneshot::Sender<Result<i32, String>>),
     GetCalibratorState(oneshot::Sender<Result<i32, String>>),
     GetBrightness(oneshot::Sender<Result<i32, String>>),
-    SetBrightness(i32, oneshot::Sender<Result<(), String>>),
     GetMaxBrightness(oneshot::Sender<Result<i32, String>>),
-    GetName(oneshot::Sender<Result<String, String>>),
     // Version query commands
     GetInterfaceVersion(oneshot::Sender<Result<i32, String>>),
     GetDriverVersion(oneshot::Sender<Result<String, String>>),
@@ -107,14 +105,8 @@ impl AscomCoverCalibratorWrapper {
                     AscomCoverCalibratorCommand::GetBrightness(reply) => {
                         let _ = reply.send(cover_cal.brightness());
                     }
-                    AscomCoverCalibratorCommand::SetBrightness(brightness, reply) => {
-                        let _ = reply.send(cover_cal.set_brightness(brightness));
-                    }
                     AscomCoverCalibratorCommand::GetMaxBrightness(reply) => {
                         let _ = reply.send(cover_cal.max_brightness());
-                    }
-                    AscomCoverCalibratorCommand::GetName(reply) => {
-                        let _ = reply.send(cover_cal.name());
                     }
                     AscomCoverCalibratorCommand::GetInterfaceVersion(reply) => {
                         let _ = reply.send(cover_cal.interface_version());
@@ -230,37 +222,11 @@ impl AscomCoverCalibratorWrapper {
         Self::recv_with_timeout(rx, Timeouts::property_read(), "brightness").await
     }
 
-    pub async fn set_brightness(&mut self, brightness: i32) -> Result<(), String> {
-        let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::SetBrightness(brightness, tx)).await
-            .map_err(|e| format!("Send error: {}", e))?;
-        Self::recv_with_timeout(rx, Timeouts::property_write(), "set_brightness").await
-    }
-
     pub async fn max_brightness(&self) -> Result<i32, String> {
         let (tx, rx) = oneshot::channel();
         self.sender.send(AscomCoverCalibratorCommand::GetMaxBrightness(tx)).await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "max_brightness").await
-    }
-
-    pub async fn name(&self) -> Result<String, String> {
-        let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::GetName(tx)).await
-            .map_err(|e| format!("Send error: {}", e))?;
-        Self::recv_with_timeout(rx, Timeouts::property_read(), "name").await
-    }
-
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    pub fn cached_name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn cached_max_brightness(&self) -> i32 {
-        self.max_brightness
     }
 
     /// Get the ASCOM interface version number

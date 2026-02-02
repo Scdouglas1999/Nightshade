@@ -85,7 +85,7 @@ class _MotionIndicatorPainter extends CustomPainter {
     final arrowPaint = Paint()
       ..shader = LinearGradient(
         colors: [
-          colors.info.withOpacity(0.7),
+          colors.info.withValues(alpha: 0.7),
           colors.info,
         ],
         begin: Alignment.centerLeft,
@@ -103,7 +103,7 @@ class _MotionIndicatorPainter extends CustomPainter {
 
     // Draw arrow border for definition
     final borderPaint = Paint()
-      ..color = colors.info.withOpacity(0.9)
+      ..color = colors.info.withValues(alpha: 0.9)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
@@ -114,14 +114,14 @@ class _MotionIndicatorPainter extends CustomPainter {
 
     // Draw circular background for better visibility
     final backgroundPaint = Paint()
-      ..color = colors.surface.withOpacity(0.6)
+      ..color = colors.surface.withValues(alpha: 0.6)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(center, size.width * 0.35, backgroundPaint);
 
     // Draw outer ring
     final ringPaint = Paint()
-      ..color = colors.info.withOpacity(0.3)
+      ..color = colors.info.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 

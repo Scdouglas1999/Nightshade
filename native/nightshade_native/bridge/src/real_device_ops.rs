@@ -8,13 +8,12 @@ use crate::state::SharedAppState;
 use crate::devices::DeviceManager;
 use crate::api::get_device_manager;
 use crate::device::FilterWheelStatus;
-use crate::device_id::{ParsedDeviceId, ConnectionInfo, parse_device_id_cached};
+use crate::device_id::{ConnectionInfo, parse_device_id_cached};
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 use chrono::{Datelike, Timelike};
-use nightshade_native::traits::NativeCamera;
 use nightshade_native::camera::ExposureParams;
 
 #[cfg(windows)]
@@ -248,7 +247,7 @@ impl RealDeviceOps {
 
         // If we have no cached profile and we're in an async context,
         // we need to be careful about blocking. Check if we have a runtime.
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        if tokio::runtime::Handle::try_current().is_ok() {
             // We have a runtime handle - use spawn_blocking to avoid deadlock
             // But since this is sync, we need to block on the result
             // This is still potentially problematic, so prefer async version
@@ -1561,7 +1560,7 @@ impl DeviceOps for RealDeviceOps {
         // Native focuser
         if focuser_id.starts_with("native:") {
             let native_focusers = self.device_manager.native_focusers.read().await;
-            if let Some(focuser) = native_focusers.get(focuser_id) {
+            if native_focusers.contains_key(focuser_id) {
                 // We need mutable access, so drop the read lock and get write lock
                 drop(native_focusers);
                 let mut native_focusers = self.device_manager.native_focusers.write().await;
@@ -1732,7 +1731,7 @@ impl DeviceOps for RealDeviceOps {
         // Native focuser
         if focuser_id.starts_with("native:") {
             let native_focusers = self.device_manager.native_focusers.read().await;
-            if let Some(_focuser) = native_focusers.get(focuser_id) {
+            if native_focusers.contains_key(focuser_id) {
                 drop(native_focusers);
                 let mut native_focusers = self.device_manager.native_focusers.write().await;
                 if let Some(focuser) = native_focusers.get_mut(focuser_id) {

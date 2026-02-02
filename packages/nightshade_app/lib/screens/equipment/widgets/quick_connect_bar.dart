@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../utils/snackbar_helper.dart';
 import 'profile_chip.dart';
 
 /// A horizontal scrollable bar of profile chips for quick profile selection
@@ -403,13 +404,13 @@ class QuickConnectBar extends ConsumerWidget {
       ],
     ).then((value) async {
       if (value == null) return;
+      if (!context.mounted) return;
 
       final profileService = ref.read(profileServiceProvider);
 
       switch (value) {
         case 'edit':
           // Show rename dialog for the profile
-          if (!context.mounted) return;
           final nameController = TextEditingController(text: profile.name);
           final newName = await showDialog<String>(
             context: context,
@@ -451,75 +452,40 @@ class QuickConnectBar extends ConsumerWidget {
                 name: newName,
                 updatedAt: DateTime.now(),
               ));
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Renamed to "$newName"'),
-                    backgroundColor: colors.success,
-                  ),
-                );
-              }
+              if (!context.mounted) return;
+              context.showSuccessSnackBar('Renamed to "$newName"');
             } catch (e) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to rename: $e'),
-                    backgroundColor: colors.error,
-                  ),
-                );
-              }
+              if (!context.mounted) return;
+              context.showErrorSnackBar('Failed to rename: $e');
             }
           }
           break;
         case 'duplicate':
           try {
             await profileService.duplicateProfile(profile.id, '${profile.name} Copy');
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Duplicated "${profile.name}"'),
-                  backgroundColor: colors.success,
-                ),
-              );
-            }
+            if (!context.mounted) return;
+            context.showSuccessSnackBar('Duplicated "${profile.name}"');
           } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Failed to duplicate: $e'),
-                  backgroundColor: colors.error,
-                ),
-              );
-            }
+            if (!context.mounted) return;
+            context.showErrorSnackBar('Failed to duplicate: $e');
           }
           break;
         case 'default':
           try {
             final dao = ref.read(equipmentProfilesDaoProvider);
             await dao.setActiveProfile(profile.id);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('"${profile.name}" set as default'),
-                  backgroundColor: colors.success,
-                ),
-              );
-            }
+            if (!context.mounted) return;
+            context.showSuccessSnackBar('"${profile.name}" set as default');
           } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Failed to set default: $e'),
-                  backgroundColor: colors.error,
-                ),
-              );
-            }
+            if (!context.mounted) return;
+            context.showErrorSnackBar('Failed to set default: $e');
           }
           break;
         case 'delete':
+          if (!context.mounted) return;
           final confirmed = await showDialog<bool>(
             context: context,
-            builder: (context) => AlertDialog(
+            builder: (dialogContext) => AlertDialog(
               backgroundColor: colors.surface,
               title: Text('Delete Profile', style: TextStyle(color: colors.textPrimary)),
               content: Text(
@@ -528,11 +494,11 @@ class QuickConnectBar extends ConsumerWidget {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context, false),
+                  onPressed: () => Navigator.pop(dialogContext, false),
                   child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
                 ),
                 TextButton(
-                  onPressed: () => Navigator.pop(context, true),
+                  onPressed: () => Navigator.pop(dialogContext, true),
                   child: Text('Delete', style: TextStyle(color: colors.error)),
                 ),
               ],
@@ -542,23 +508,11 @@ class QuickConnectBar extends ConsumerWidget {
           if (confirmed == true) {
             try {
               await profileService.deleteProfile(profile.id);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Deleted "${profile.name}"'),
-                    backgroundColor: colors.success,
-                  ),
-                );
-              }
+              if (!context.mounted) return;
+              context.showSuccessSnackBar('Deleted "${profile.name}"');
             } catch (e) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to delete: $e'),
-                    backgroundColor: colors.error,
-                  ),
-                );
-              }
+              if (!context.mounted) return;
+              context.showErrorSnackBar('Failed to delete: $e');
             }
           }
           break;

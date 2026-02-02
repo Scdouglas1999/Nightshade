@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import '../services/device_service.dart';
+import '../models/backend/autofocus_result.dart';
 import '../models/equipment/equipment_models.dart';
 import 'profiles_provider.dart';
 
@@ -418,34 +419,49 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     }
   }
 
-  /// Sync filter names from the active equipment profile to the native driver.
-  /// This is called after filter wheel connection to ensure user-defined names work.
+  /// Sync filter names to the native driver on connection.
+  ///
+  /// Filter names are resolved in this priority order:
+  /// 1. Active profile filter names (if profile exists and has filter names configured)
+  /// 2. Session filter names (if set via sessionFilterNamesProvider)
+  /// 3. Driver-reported names (from the backend/hardware) - no sync needed
+  ///
+  /// This allows users to set filter names without creating an equipment profile.
   Future<void> _syncProfileFilterNamesToDriver(String deviceId) async {
     try {
+      // Priority 1: Check active profile filter names
       final activeProfile = _ref.read(activeEquipmentProfileProvider);
-      if (activeProfile == null) {
-        debugPrint('FilterWheelStateNotifier: No active profile - skipping filter name sync');
+      if (activeProfile != null && activeProfile.filterNames.isNotEmpty) {
+        final profileFilterNames = activeProfile.filterNames;
+        debugPrint('FilterWheelStateNotifier: Syncing ${profileFilterNames.length} filter names from profile: $profileFilterNames');
+
+        await bridge_api.apiFilterwheelSetFilterNames(
+          deviceId: deviceId,
+          names: profileFilterNames,
+        );
+
+        state = state.copyWith(filterNames: profileFilterNames);
+        debugPrint('FilterWheelStateNotifier: Profile filter names synced successfully');
         return;
       }
 
-      final profileFilterNames = activeProfile.filterNames;
-      if (profileFilterNames.isEmpty) {
-        debugPrint('FilterWheelStateNotifier: Profile has no filter names - skipping sync');
+      // Priority 2: Check session filter names
+      final sessionFilterNames = _ref.read(sessionFilterNamesProvider);
+      if (sessionFilterNames != null && sessionFilterNames.isNotEmpty) {
+        debugPrint('FilterWheelStateNotifier: Syncing ${sessionFilterNames.length} filter names from session: $sessionFilterNames');
+
+        await bridge_api.apiFilterwheelSetFilterNames(
+          deviceId: deviceId,
+          names: sessionFilterNames,
+        );
+
+        state = state.copyWith(filterNames: sessionFilterNames);
+        debugPrint('FilterWheelStateNotifier: Session filter names synced successfully');
         return;
       }
 
-      debugPrint('FilterWheelStateNotifier: Syncing ${profileFilterNames.length} filter names to driver: $profileFilterNames');
-
-      // Push filter names to the native driver
-      await bridge_api.apiFilterwheelSetFilterNames(
-        deviceId: deviceId,
-        names: profileFilterNames,
-      );
-
-      // Update our local state with the synced filter names
-      state = state.copyWith(filterNames: profileFilterNames);
-
-      debugPrint('FilterWheelStateNotifier: Filter names synced successfully');
+      // Priority 3: Use driver-reported names (no sync needed, they're already there)
+      debugPrint('FilterWheelStateNotifier: No profile or session filter names - using driver-reported names');
     } catch (e) {
       // Don't fail connection if filter name sync fails - log and continue
       debugPrint('FilterWheelStateNotifier: Failed to sync filter names: $e');
@@ -509,6 +525,52 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       connectionState: DeviceConnectionState.error,
       lastError: DeviceError.fromException(error, deviceId: state.deviceId),
     );
+  }
+
+  /// Set session-level filter names (without requiring an equipment profile).
+  ///
+  /// This allows users to name their filters for the current session without
+  /// creating or modifying an equipment profile. The names are stored in
+  /// [sessionFilterNamesProvider] and will be used when:
+  /// - No equipment profile is active, OR
+  /// - The active equipment profile has no filter names configured
+  ///
+  /// If [syncToDriver] is true and a filter wheel is connected, the names
+  /// will be immediately synced to the native driver.
+  Future<void> setSessionFilterNames(
+    List<String> names, {
+    bool syncToDriver = true,
+  }) async {
+    // Store in the session provider
+    _ref.read(sessionFilterNamesProvider.notifier).state = names;
+
+    // Update local state
+    state = state.copyWith(filterNames: names);
+
+    // Optionally sync to driver if connected
+    if (syncToDriver &&
+        state.connectionState == DeviceConnectionState.connected &&
+        state.deviceId != null) {
+      try {
+        debugPrint('FilterWheelStateNotifier: Syncing session filter names to driver: $names');
+        await bridge_api.apiFilterwheelSetFilterNames(
+          deviceId: state.deviceId!,
+          names: names,
+        );
+        debugPrint('FilterWheelStateNotifier: Session filter names synced to driver');
+      } catch (e) {
+        debugPrint('FilterWheelStateNotifier: Failed to sync session filter names to driver: $e');
+        // Don't throw - the names are still stored locally
+      }
+    }
+  }
+
+  /// Clear session-level filter names.
+  ///
+  /// This will cause the filter wheel to fall back to profile names (if available)
+  /// or driver-reported names on the next connection.
+  void clearSessionFilterNames() {
+    _ref.read(sessionFilterNamesProvider.notifier).state = null;
   }
 }
 
@@ -1185,4 +1247,20 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
 
 /// Provider for the last autofocus result
 /// This stores the most recent autofocus run result for display in the UI
-final autofocusResultProvider = StateProvider<bridge_api.AutofocusResultApi?>((ref) => null);
+final autofocusResultProvider = StateProvider<AutofocusResult?>((ref) => null);
+
+// =============================================================================
+// Session Filter Names Provider
+// =============================================================================
+
+/// Session-only filter names (no profile required).
+///
+/// These are used when no equipment profile is active but user wants to name filters.
+/// When a filter wheel connects, filter names are resolved in this priority order:
+/// 1. Active profile filter names (if profile exists and has filter names configured)
+/// 2. Session filter names (if set via this provider)
+/// 3. Driver-reported names (from the backend/hardware)
+///
+/// This allows users to set filter names without creating an equipment profile,
+/// which is useful for quick sessions or testing.
+final sessionFilterNamesProvider = StateProvider<List<String>?>((ref) => null);

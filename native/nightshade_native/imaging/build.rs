@@ -37,7 +37,7 @@ fn main() {
             println!("cargo:warning=libraw.lib not found at: {}", libraw_lib.display());
             println!("cargo:warning=Set LIBRAW_DIR environment variable or place libraw.lib in workspace root");
         } else {
-            println!("cargo:warning=LibRaw found at: {}", search_dir.display());
+            println!("cargo:rustc-env=LIBRAW_PATH={}", search_dir.display());
         }
     }
 

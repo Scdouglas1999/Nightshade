@@ -6,6 +6,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../../widgets/operation_status_bar.dart';
+
 class StatusBar extends ConsumerStatefulWidget {
   const StatusBar({super.key});
 
@@ -253,12 +255,15 @@ class _StatusBarState extends ConsumerState<StatusBar> {
           _StatusPillButton(
             icon: LucideIcons.focus,
             label: 'Focus',
-            value: focuserConnected 
+            value: focuserConnected
                 ? (focuserState.position?.toString() ?? 'Ready')
                 : '---',
             isConnected: focuserConnected,
             colors: colors,
           ),
+
+          // Operation progress indicator (when operations are active)
+          const OperationStatusBar(),
 
           const Spacer(),
 

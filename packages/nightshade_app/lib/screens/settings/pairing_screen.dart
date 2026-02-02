@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_webrtc/nightshade_webrtc.dart';
 
+import '../../utils/snackbar_helper.dart';
+
 /// Provider for pairing state management
 final pairingProvider = StateNotifierProvider<PairingNotifier, PairingState>((ref) {
   return PairingNotifier();
@@ -257,10 +259,8 @@ class PairingScreen extends ConsumerWidget {
                     onPressed: () {
                       Clipboard.setData(
                           ClipboardData(text: state.pairingCode!));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Pairing code copied to clipboard')),
-                      );
+                      context.showSuccessSnackBar(
+                          'Pairing code copied to clipboard');
                     },
                     icon: const Icon(Icons.copy),
                     tooltip: 'Copy code',

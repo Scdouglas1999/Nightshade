@@ -9,10 +9,6 @@ import '../providers/settings_provider.dart' hide AppSettings;
 import 'nightshade_backend.dart';
 
 // Import pure Dart types from backend_types
-import '../models/backend/device_capabilities.dart';
-import '../models/backend/device_status.dart';
-import '../models/backend/autofocus_result.dart';
-import '../models/backend/fits_header.dart';
 
 /// A backend implementation that represents a disconnected state.
 /// 

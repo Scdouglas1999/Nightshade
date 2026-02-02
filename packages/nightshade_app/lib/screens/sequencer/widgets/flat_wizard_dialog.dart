@@ -62,22 +62,28 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      child: Container(
-        width: 700,
-        height: 600,
-        decoration: BoxDecoration(
-          color: colors.background.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.border, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
+      child: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 700,
+          preferredHeight: 600,
+          minWidth: 500,
+          minHeight: 450,
         ),
-        child: Column(
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.background.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.border, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
           children: [
             // Header
             Container(
@@ -267,6 +273,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

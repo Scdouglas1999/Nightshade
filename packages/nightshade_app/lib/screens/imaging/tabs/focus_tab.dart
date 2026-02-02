@@ -4,6 +4,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/focuser_controls.dart';
+
 class FocusTab extends ConsumerStatefulWidget {
   const FocusTab({super.key});
 
@@ -16,51 +19,11 @@ class _FocusTabState extends ConsumerState<FocusTab> {
   bool _isRunningAf = false;
   String? _afStatus;
 
-  Future<void> _moveIn(int steps) async {
-    try {
-      await ref.read(deviceServiceProvider).moveFocuserRelative(-steps);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to move in: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _moveOut(int steps) async {
-    try {
-      await ref.read(deviceServiceProvider).moveFocuserRelative(steps);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to move out: $e')),
-        );
-      }
-    }
-  }
-
   Future<void> _moveTo(int position) async {
     try {
       await ref.read(deviceServiceProvider).moveFocuserTo(position);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to move to position: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _haltFocuser() async {
-    try {
-      await ref.read(deviceServiceProvider).haltFocuser();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to halt: $e')),
-        );
-      }
+      if (mounted) context.showErrorSnackBar('Failed to move to position: $e');
     }
   }
 
@@ -87,21 +50,14 @@ class _FocusTabState extends ConsumerState<FocusTab> {
         setState(() {
           _afStatus = 'Complete. HFR: ${result.bestHfr.toStringAsFixed(2)}';
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        context.showSuccessSnackBar('Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}');
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _afStatus = 'Failed';
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Autofocus failed: $e'), backgroundColor: Colors.red),
-        );
+        context.showErrorSnackBar('Autofocus failed: $e');
       }
     } finally {
       if (mounted) {
@@ -200,35 +156,20 @@ class _FocusTabState extends ConsumerState<FocusTab> {
 
     // Check if filter wheel is connected
     if (filterWheelState.connectionState != DeviceConnectionState.connected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Filter wheel must be connected to measure offsets.'),
-          backgroundColor: colors.warning,
-        ),
-      );
+      context.showWarningSnackBar('Filter wheel must be connected to measure offsets.');
       return;
     }
 
     // Check if focuser is connected
     final focuserState = ref.read(focuserStateProvider);
     if (focuserState.connectionState != DeviceConnectionState.connected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Focuser must be connected to measure offsets.'),
-          backgroundColor: colors.warning,
-        ),
-      );
+      context.showWarningSnackBar('Focuser must be connected to measure offsets.');
       return;
     }
 
     final filters = filterWheelState.filterNames;
     if (filters.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('No filters available in filter wheel.'),
-          backgroundColor: colors.warning,
-        ),
-      );
+      context.showWarningSnackBar('No filters available in filter wheel.');
       return;
     }
 
@@ -262,14 +203,8 @@ class _FocusTabState extends ConsumerState<FocusTab> {
             await notifier.setFilterOffset(entry.key, entry.value);
           }
 
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Filter offsets measured and saved for ${offsets.length} filters.'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
+          if (!mounted) return;
+          context.showSuccessSnackBar('Filter offsets measured and saved for ${offsets.length} filters.');
         },
       ),
     );
@@ -378,50 +313,25 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      _FocusButton(
-                        icon: LucideIcons.chevronsLeft,
-                        onPressed: isConnected ? () => _moveIn(focusSettings.stepSize * 10) : null,
-                      ),
-                      const SizedBox(width: 4),
-                      _FocusButton(
-                        icon: LucideIcons.chevronLeft,
-                        onPressed: isConnected ? () => _moveIn(focusSettings.stepSize) : null,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: SliderTheme(
-                          data: SliderThemeData(
-                            activeTrackColor: colors.primary,
-                            inactiveTrackColor: colors.surfaceAlt,
-                            thumbColor: colors.primary,
-                          ),
-                          child: Slider(
-                            value: position.toDouble().clamp(0.0, maxPosition.toDouble()),
-                            min: 0,
-                            max: maxPosition.toDouble(),
-                            onChanged: isConnected ? (value) => _moveTo(value.toInt()) : null,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _FocusButton(
-                        icon: LucideIcons.chevronRight,
-                        onPressed: isConnected ? () => _moveOut(focusSettings.stepSize) : null,
-                      ),
-                      const SizedBox(width: 4),
-                      _FocusButton(
-                        icon: LucideIcons.chevronsRight,
-                        onPressed: isConnected ? () => _moveOut(focusSettings.stepSize * 10) : null,
-                      ),
-                      const SizedBox(width: 8),
-                      _FocusButton(
-                        icon: LucideIcons.octagon, 
-                        color: colors.error,
-                        onPressed: isConnected ? _haltFocuser : null,
-                      ),
-                    ],
+                  // Movement buttons - using shared FocuserControls widget
+                  const FocuserControls(
+                    compact: true,
+                    showAutofocus: false,
+                  ),
+                  const SizedBox(height: 12),
+                  // Position slider
+                  SliderTheme(
+                    data: SliderThemeData(
+                      activeTrackColor: colors.primary,
+                      inactiveTrackColor: colors.surfaceAlt,
+                      thumbColor: colors.primary,
+                    ),
+                    child: Slider(
+                      value: position.toDouble().clamp(0.0, maxPosition.toDouble()),
+                      min: 0,
+                      max: maxPosition.toDouble(),
+                      onChanged: isConnected ? (value) => _moveTo(value.toInt()) : null,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -793,33 +703,6 @@ class _FocusTabState extends ConsumerState<FocusTab> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _FocusButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final Color? color;
-
-  const _FocusButton({required this.icon, required this.onPressed, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
-    return Material(
-      color: colors.surfaceAlt,
-      borderRadius: BorderRadius.circular(4),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(4),
-        child: SizedBox(
-          width: 32,
-          height: 32,
-          child: Icon(icon, size: 16, color: color ?? colors.textSecondary),
-        ),
       ),
     );
   }

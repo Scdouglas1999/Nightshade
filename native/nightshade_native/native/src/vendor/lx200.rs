@@ -57,9 +57,6 @@ mod commands {
     pub const SET_RATE_GUIDE: &str = ":RG#";
 
     // OnStep tracking rate commands
-    pub const ONSTEP_SET_RATE_SIDEREAL: &str = ":TQ#";
-    pub const ONSTEP_SET_RATE_LUNAR: &str = ":TL#";
-    pub const ONSTEP_SET_RATE_SOLAR: &str = ":TS#";
     pub const ONSTEP_SET_RATE_KING: &str = ":TK#";
 
     pub const GET_PRODUCT_NAME: &str = ":GVP#";
@@ -72,7 +69,6 @@ mod commands {
     pub const ONSTEP_TRACK_ENABLE: &str = ":Te#";
     pub const ONSTEP_TRACK_DISABLE: &str = ":Td#";
     pub const ONSTEP_UNPARK: &str = ":hR#";
-    pub const ONSTEP_GET_PIER_SIDE: &str = ":Gm#";
     // OnStep pulse guide format: :Mgdnnnn# where d=n/s/e/w, nnnn=milliseconds
     pub const ONSTEP_PULSE_GUIDE_PREFIX: &str = ":Mg";
 }
@@ -197,7 +193,6 @@ pub struct Lx200Mount {
     is_slewing: Mutex<bool>,
     tracking_rate: Mutex<TrackingRate>,
     product_name: Mutex<String>,
-    firmware_version: String,
 }
 
 impl std::fmt::Debug for Lx200Mount {
@@ -240,7 +235,6 @@ impl Lx200Mount {
             is_slewing: Mutex::new(false),
             tracking_rate: Mutex::new(TrackingRate::Sidereal),
             product_name: Mutex::new(String::new()),
-            firmware_version: String::new(),
         }
     }
 

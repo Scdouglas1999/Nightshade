@@ -7,6 +7,8 @@ import 'package:nightshade_ui/nightshade_ui.dart' as ui
     show Phd2GuidingState, GuideErrorPoint, GuideTargetDisplay, GuideControlsPanel;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
+import 'package:nightshade_app/widgets/phd2_connection_dialog.dart';
+import 'package:nightshade_app/utils/phd2_helper.dart';
 
 /// Full PHD2 guiding interface screen
 ///
@@ -165,7 +167,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen> {
               label: 'Connect',
               icon: LucideIcons.plug,
               size: ButtonSize.small,
-              onPressed: () => _connect(),
+              onPressed: () => connectPhd2(ref, context: context),
             )
           else
             NightshadeButton(
@@ -173,7 +175,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen> {
               icon: LucideIcons.plugZap,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
-              onPressed: () => ref.read(phd2ControllerProvider).disconnect(),
+              onPressed: () => disconnectPhd2(ref),
             ),
           const SizedBox(width: 8),
           Container(
@@ -638,72 +640,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen> {
     }
   }
 
-  Future<void> _connect() async {
-    final settings = await ref.read(appSettingsProvider.future);
-    ref.read(phd2ControllerProvider).connect(settings.phd2Host, settings.phd2Port);
-  }
-
-  void _showConnectionDialog() async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final settings = await ref.read(appSettingsProvider.future);
-    final hostController = TextEditingController(text: settings.phd2Host);
-    final portController = TextEditingController(text: settings.phd2Port.toString());
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text('PHD2 Connection', style: TextStyle(color: colors.textPrimary)),
-        content: SizedBox(
-          width: 360,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: hostController,
-                style: TextStyle(color: colors.textPrimary),
-                decoration: InputDecoration(
-                  labelText: 'Host',
-                  labelStyle: TextStyle(color: colors.textMuted),
-                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: colors.border)),
-                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: colors.primary)),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: portController,
-                style: TextStyle(color: colors.textPrimary),
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Port',
-                  labelStyle: TextStyle(color: colors.textMuted),
-                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: colors.border)),
-                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: colors.primary)),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final host = hostController.text;
-              final port = int.tryParse(portController.text) ?? 4400;
-              await ref.read(appSettingsProvider.notifier).setPhd2Host(host);
-              await ref.read(appSettingsProvider.notifier).setPhd2Port(port);
-              ref.read(phd2ControllerProvider).connect(host, port);
-            },
-            style: FilledButton.styleFrom(backgroundColor: colors.primary),
-            child: const Text('Connect'),
-          ),
-        ],
-      ),
-    );
+  void _showConnectionDialog() {
+    Phd2ConnectionDialog.show(context, ref);
   }
 
   void _selectStar(double x, double y) {

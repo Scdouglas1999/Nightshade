@@ -302,12 +302,6 @@ Future<void> startExposure(
 Future<void> cancelExposure({required String deviceId}) =>
     RustLib.instance.api.crateApiCancelExposure(deviceId: deviceId);
 
-/// Download last image from camera (DEPRECATED - use api_get_last_image with device_id instead)
-/// Returns the first image found in storage, or None if empty
-/// Reads from unified atomic storage to ensure consistency with raw data
-Future<CapturedImageResult?> getLastImage() =>
-    RustLib.instance.api.crateApiGetLastImage();
-
 /// Get camera status
 Future<CameraStatus> getCameraStatus({required String deviceId}) =>
     RustLib.instance.api.crateApiGetCameraStatus(deviceId: deviceId);
@@ -345,6 +339,14 @@ Future<(double, double)> mountGetCoordinates({required String deviceId}) =>
 /// Abort mount slew
 Future<void> mountAbort({required String deviceId}) =>
     RustLib.instance.api.crateApiMountAbort(deviceId: deviceId);
+
+/// Stop mount motion (abort slew without disconnecting)
+Future<void> mountStop({required String deviceId}) =>
+    RustLib.instance.api.crateApiMountStop(deviceId: deviceId);
+
+/// Query whether a mount supports parking
+Future<bool> mountCanPark({required String deviceId}) =>
+    RustLib.instance.api.crateApiMountCanPark(deviceId: deviceId);
 
 /// Set mount tracking
 Future<void> mountSetTracking(
@@ -471,6 +473,68 @@ Future<int> apiDomeGetShutterStatus({required String deviceId}) =>
 /// Check if dome is slewing
 Future<bool> apiDomeIsSlewing({required String deviceId}) =>
     RustLib.instance.api.crateApiApiDomeIsSlewing(deviceId: deviceId);
+
+/// Get the number of switches exposed by a switch device
+Future<int> apiSwitchGetMax({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiSwitchGetMax(deviceId: deviceId);
+
+/// Get the boolean state of a switch
+Future<bool> apiSwitchGetState(
+        {required String deviceId, required int switchId}) =>
+    RustLib.instance.api
+        .crateApiApiSwitchGetState(deviceId: deviceId, switchId: switchId);
+
+/// Set the boolean state of a switch
+Future<void> apiSwitchSetState(
+        {required String deviceId,
+        required int switchId,
+        required bool state}) =>
+    RustLib.instance.api.crateApiApiSwitchSetState(
+        deviceId: deviceId, switchId: switchId, state: state);
+
+/// Get the name of a switch
+Future<String> apiSwitchGetName(
+        {required String deviceId, required int switchId}) =>
+    RustLib.instance.api
+        .crateApiApiSwitchGetName(deviceId: deviceId, switchId: switchId);
+
+/// Get the description of a switch
+Future<String> apiSwitchGetDescription(
+        {required String deviceId, required int switchId}) =>
+    RustLib.instance.api.crateApiApiSwitchGetDescription(
+        deviceId: deviceId, switchId: switchId);
+
+/// Get the numeric value of a switch
+Future<double> apiSwitchGetValue(
+        {required String deviceId, required int switchId}) =>
+    RustLib.instance.api
+        .crateApiApiSwitchGetValue(deviceId: deviceId, switchId: switchId);
+
+/// Set the numeric value of a switch
+Future<void> apiSwitchSetValue(
+        {required String deviceId,
+        required int switchId,
+        required double value}) =>
+    RustLib.instance.api.crateApiApiSwitchSetValue(
+        deviceId: deviceId, switchId: switchId, value: value);
+
+/// Get the minimum value for a switch
+Future<double> apiSwitchGetMinValue(
+        {required String deviceId, required int switchId}) =>
+    RustLib.instance.api
+        .crateApiApiSwitchGetMinValue(deviceId: deviceId, switchId: switchId);
+
+/// Get the maximum value for a switch
+Future<double> apiSwitchGetMaxValue(
+        {required String deviceId, required int switchId}) =>
+    RustLib.instance.api
+        .crateApiApiSwitchGetMaxValue(deviceId: deviceId, switchId: switchId);
+
+/// Check if a switch can be written to
+Future<bool> apiSwitchCanWrite(
+        {required String deviceId, required int switchId}) =>
+    RustLib.instance.api
+        .crateApiApiSwitchCanWrite(deviceId: deviceId, switchId: switchId);
 
 /// Open cover calibrator dust cover
 Future<void> apiCoverCalibratorOpenCover({required String deviceId}) =>
@@ -1643,6 +1707,85 @@ Future<FilterWheelCapabilities> apiGetFilterwheelCapabilities(
         {required String deviceId}) =>
     RustLib.instance.api
         .crateApiApiGetFilterwheelCapabilities(deviceId: deviceId);
+
+/// Get rotator capabilities for a specific rotator device.
+///
+/// This is a convenience wrapper that returns only rotator capabilities.
+///
+/// # Arguments
+/// * `device_id` - The rotator device ID
+///
+/// # Returns
+/// * `RotatorCapabilities` - Rotator-specific capability information
+Future<RotatorCapabilities> apiGetRotatorCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGetRotatorCapabilities(deviceId: deviceId);
+
+/// Get dome capabilities for a specific dome device.
+///
+/// This is a convenience wrapper that returns only dome capabilities.
+///
+/// # Arguments
+/// * `device_id` - The dome device ID
+///
+/// # Returns
+/// * `DomeCapabilities` - Dome-specific capability information
+Future<DomeCapabilities> apiGetDomeCapabilities({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGetDomeCapabilities(deviceId: deviceId);
+
+/// Get cover calibrator capabilities for a specific cover calibrator device.
+///
+/// This is a convenience wrapper that returns only cover calibrator capabilities.
+///
+/// # Arguments
+/// * `device_id` - The cover calibrator device ID
+///
+/// # Returns
+/// * `CoverCalibratorCapabilities` - Cover calibrator-specific capability information
+Future<CoverCalibratorCapabilities> apiGetCoverCalibratorCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiApiGetCoverCalibratorCapabilities(deviceId: deviceId);
+
+/// Get weather capabilities for a specific weather/observing conditions device.
+///
+/// This is a convenience wrapper that returns only weather capabilities.
+///
+/// # Arguments
+/// * `device_id` - The weather device ID
+///
+/// # Returns
+/// * `WeatherCapabilities` - Weather-specific capability information
+Future<WeatherCapabilities> apiGetWeatherCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGetWeatherCapabilities(deviceId: deviceId);
+
+/// Get safety monitor capabilities for a specific safety monitor device.
+///
+/// This is a convenience wrapper that returns only safety monitor capabilities.
+///
+/// # Arguments
+/// * `device_id` - The safety monitor device ID
+///
+/// # Returns
+/// * `SafetyMonitorCapabilities` - Safety monitor-specific capability information
+Future<SafetyMonitorCapabilities> apiGetSafetyMonitorCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiApiGetSafetyMonitorCapabilities(deviceId: deviceId);
+
+/// Get switch capabilities for a specific switch device.
+///
+/// This is a convenience wrapper that returns only switch capabilities.
+///
+/// # Arguments
+/// * `device_id` - The switch device ID
+///
+/// # Returns
+/// * `SwitchCapabilities` - Switch-specific capability information
+Future<SwitchCapabilities> apiGetSwitchCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGetSwitchCapabilities(deviceId: deviceId);
 
 /// Check if QHY camera discovery is enabled.
 ///

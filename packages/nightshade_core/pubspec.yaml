@@ -47,6 +47,9 @@ dev_dependencies:
   mocktail: ^1.0.0
   mockito: ^5.4.4
 
+flutter:
+  uses-material-design: true
+
 # Workaround for build_runner "Cannot recurse at later or equal phase" bug
 # See: https://github.com/dart-lang/build/issues/3822
 dependency_overrides:

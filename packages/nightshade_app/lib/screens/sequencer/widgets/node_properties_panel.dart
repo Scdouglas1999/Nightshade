@@ -219,8 +219,8 @@ class _NodeEditor extends ConsumerWidget {
     if (node is ExposureNode) {
       return _ExposureProperties(colors: colors, node: node as ExposureNode);
     }
-    if (node is TargetGroupNode) {
-      return _TargetGroupProperties(colors: colors, node: node as TargetGroupNode);
+    if (node is TargetHeaderNode) {
+      return _TargetGroupProperties(colors: colors, node: node as TargetHeaderNode);
     }
     if (node is LoopNode) {
       return _LoopProperties(colors: colors, node: node as LoopNode);
@@ -1102,7 +1102,7 @@ class _ExposureProperties extends ConsumerWidget {
 
 class _TargetGroupProperties extends ConsumerWidget {
   final NightshadeColors colors;
-  final TargetGroupNode node;
+  final TargetHeaderNode node;
 
   const _TargetGroupProperties({required this.colors, required this.node});
 
@@ -2116,13 +2116,13 @@ class _SlewProperties extends ConsumerWidget {
           Builder(
             builder: (context) {
               final sequence = ref.watch(currentSequenceProvider);
-              TargetGroupNode? targetGroup;
+              TargetHeaderNode? targetGroup;
               
               if (sequence != null) {
                 // Try to find parent target group first
                 try {
                   targetGroup = sequence.nodes.values
-                      .whereType<TargetGroupNode>()
+                      .whereType<TargetHeaderNode>()
                       .where((n) => n.childIds.contains(node.id))
                       .first;
                 } catch (e) {
@@ -2130,8 +2130,8 @@ class _SlewProperties extends ConsumerWidget {
                 }
                 
                 // If no direct parent, use first target group in sequence
-                if (targetGroup == null && sequence.targetGroups.isNotEmpty) {
-                  targetGroup = sequence.targetGroups.first;
+                if (targetGroup == null && sequence.targetHeaders.isNotEmpty) {
+                  targetGroup = sequence.targetHeaders.first;
                 }
               }
               

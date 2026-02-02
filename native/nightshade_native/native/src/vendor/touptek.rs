@@ -37,27 +37,12 @@ const OGMACAM_FLAG_TEC_ONOFF: u64 = 0x00020000;
 const OGMACAM_FLAG_ST4: u64 = 0x00000200;
 const OGMACAM_FLAG_ROI_HARDWARE: u64 = 0x00000008;
 const OGMACAM_FLAG_BINSKIP_SUPPORTED: u64 = 0x00000020;
-const OGMACAM_FLAG_RAW16: u64 = 0x00008000;
-const OGMACAM_FLAG_RAW14: u64 = 0x00004000;
-const OGMACAM_FLAG_RAW12: u64 = 0x00002000;
-const OGMACAM_FLAG_RAW10: u64 = 0x00001000;
-const OGMACAM_FLAG_RAW8: u64 = 0x80000000;
 
 // Options
 const OGMACAM_OPTION_TEC: c_uint = 0x08;
-const OGMACAM_OPTION_TECTARGET: c_uint = 0x0f;
 const OGMACAM_OPTION_BITDEPTH: c_uint = 0x04;
 const OGMACAM_OPTION_BINNING: c_uint = 0x01;
 const OGMACAM_OPTION_RAW: c_uint = 0x04;
-
-// Events
-const OGMACAM_EVENT_IMAGE: c_uint = 0x0004;
-const OGMACAM_EVENT_ERROR: c_uint = 0x0080;
-const OGMACAM_EVENT_STILLIMAGE: c_uint = 0x0005;
-const OGMACAM_EVENT_DISCONNECTED: c_uint = 0x0040;
-
-// Success codes
-const S_OK: i32 = 0;
 
 /// Camera model information
 #[repr(C)]
@@ -121,47 +106,30 @@ pub struct OgmacamFrameInfoV3 {
 // ============================================================================
 
 type OgmacamEnumV2 = unsafe extern "system" fn(arr: *mut OgmacamDeviceV2) -> c_uint;
-type OgmacamOpen = unsafe extern "system" fn(id: *const u16) -> HOgmacam;
 type OgmacamOpenByIndex = unsafe extern "system" fn(index: c_uint) -> HOgmacam;
 type OgmacamClose = unsafe extern "system" fn(h: HOgmacam);
 type OgmacamStop = unsafe extern "system" fn(h: HOgmacam) -> i32;
 
-// Callback types
-type EventCallback = unsafe extern "system" fn(event: c_uint, ctx: *mut c_void);
-type OgmacamStartPullModeWithCallback = unsafe extern "system" fn(
-    h: HOgmacam,
-    func: EventCallback,
-    ctx: *mut c_void,
-) -> i32;
-
 // Frame pulling
 type OgmacamPullImageV3 = unsafe extern "system" fn(
     h: HOgmacam,
-    pImageData: *mut c_void,
-    bStill: c_int,
+    p_image_data: *mut c_void,
+    b_still: c_int,
     bits: c_int,
-    rowPitch: c_int,
-    pInfo: *mut OgmacamFrameInfoV3,
+    row_pitch: c_int,
+    p_info: *mut OgmacamFrameInfoV3,
 ) -> i32;
 
 // Exposure
-type OgmacamGetExpoTime = unsafe extern "system" fn(h: HOgmacam, time: *mut c_uint) -> i32;
 type OgmacamPutExpoTime = unsafe extern "system" fn(h: HOgmacam, time: c_uint) -> i32;
-type OgmacamGetExpoTimeRange = unsafe extern "system" fn(
-    h: HOgmacam,
-    nMin: *mut c_uint,
-    nMax: *mut c_uint,
-    nDef: *mut c_uint,
-) -> i32;
 
 // Gain
-type OgmacamGetExpoAGain = unsafe extern "system" fn(h: HOgmacam, gain: *mut u16) -> i32;
 type OgmacamPutExpoAGain = unsafe extern "system" fn(h: HOgmacam, gain: u16) -> i32;
 type OgmacamGetExpoAGainRange = unsafe extern "system" fn(
     h: HOgmacam,
-    nMin: *mut u16,
-    nMax: *mut u16,
-    nDef: *mut u16,
+    n_min: *mut u16,
+    n_max: *mut u16,
+    n_def: *mut u16,
 ) -> i32;
 
 // Temperature
@@ -169,35 +137,23 @@ type OgmacamGetTemperature = unsafe extern "system" fn(h: HOgmacam, temp: *mut i
 type OgmacamPutTemperature = unsafe extern "system" fn(h: HOgmacam, temp: i16) -> i32;
 
 // Options
-type OgmacamGetOption = unsafe extern "system" fn(h: HOgmacam, opt: c_uint, val: *mut c_int) -> i32;
 type OgmacamPutOption = unsafe extern "system" fn(h: HOgmacam, opt: c_uint, val: c_int) -> i32;
 
 // Resolution/ROI
 type OgmacamGetSize = unsafe extern "system" fn(h: HOgmacam, w: *mut c_int, h_: *mut c_int) -> i32;
-type OgmacamPutSize = unsafe extern "system" fn(h: HOgmacam, w: c_int, h_: c_int) -> i32;
-type OgmacamGetRoi = unsafe extern "system" fn(
-    h: HOgmacam,
-    xOffset: *mut c_uint,
-    yOffset: *mut c_uint,
-    xWidth: *mut c_uint,
-    yHeight: *mut c_uint,
-) -> i32;
 type OgmacamPutRoi = unsafe extern "system" fn(
     h: HOgmacam,
-    xOffset: c_uint,
-    yOffset: c_uint,
-    xWidth: c_uint,
-    yHeight: c_uint,
+    x_offset: c_uint,
+    y_offset: c_uint,
+    x_width: c_uint,
+    y_height: c_uint,
 ) -> i32;
 
 // Serial number and info
 type OgmacamGetSerialNumber = unsafe extern "system" fn(h: HOgmacam, sn: *mut c_char) -> i32;
 
-// Trigger
-type OgmacamTrigger = unsafe extern "system" fn(h: HOgmacam, nNumber: u16) -> i32;
-
 // Snap (still image capture)
-type OgmacamSnap = unsafe extern "system" fn(h: HOgmacam, nResolutionIndex: c_uint) -> i32;
+type OgmacamSnap = unsafe extern "system" fn(h: HOgmacam, n_resolution_index: c_uint) -> i32;
 
 // ============================================================================
 // SDK Wrapper
@@ -206,28 +162,19 @@ type OgmacamSnap = unsafe extern "system" fn(h: HOgmacam, nResolutionIndex: c_ui
 struct TouptekSdk {
     _library: Library,
     enum_v2: OgmacamEnumV2,
-    open: OgmacamOpen,
     open_by_index: OgmacamOpenByIndex,
     close: OgmacamClose,
     stop: OgmacamStop,
-    start_pull_mode: OgmacamStartPullModeWithCallback,
     pull_image_v3: OgmacamPullImageV3,
-    get_expo_time: OgmacamGetExpoTime,
     put_expo_time: OgmacamPutExpoTime,
-    get_expo_time_range: OgmacamGetExpoTimeRange,
-    get_expo_again: OgmacamGetExpoAGain,
     put_expo_again: OgmacamPutExpoAGain,
     get_expo_again_range: OgmacamGetExpoAGainRange,
     get_temperature: OgmacamGetTemperature,
     put_temperature: OgmacamPutTemperature,
-    get_option: OgmacamGetOption,
     put_option: OgmacamPutOption,
     get_size: OgmacamGetSize,
-    put_size: OgmacamPutSize,
-    get_roi: OgmacamGetRoi,
     put_roi: OgmacamPutRoi,
     get_serial_number: OgmacamGetSerialNumber,
-    trigger: OgmacamTrigger,
     snap: OgmacamSnap,
 }
 
@@ -243,25 +190,15 @@ impl TouptekSdk {
             Ok(Self {
                 enum_v2: *library.get::<OgmacamEnumV2>(b"Ogmacam_EnumV2\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
-                open: *library.get::<OgmacamOpen>(b"Ogmacam_Open\0")
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 open_by_index: *library.get::<OgmacamOpenByIndex>(b"Ogmacam_OpenByIndex\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 close: *library.get::<OgmacamClose>(b"Ogmacam_Close\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 stop: *library.get::<OgmacamStop>(b"Ogmacam_Stop\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
-                start_pull_mode: *library.get::<OgmacamStartPullModeWithCallback>(b"Ogmacam_StartPullModeWithCallback\0")
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 pull_image_v3: *library.get::<OgmacamPullImageV3>(b"Ogmacam_PullImageV3\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
-                get_expo_time: *library.get::<OgmacamGetExpoTime>(b"Ogmacam_get_ExpoTime\0")
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 put_expo_time: *library.get::<OgmacamPutExpoTime>(b"Ogmacam_put_ExpoTime\0")
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
-                get_expo_time_range: *library.get::<OgmacamGetExpoTimeRange>(b"Ogmacam_get_ExpTimeRange\0")
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
-                get_expo_again: *library.get::<OgmacamGetExpoAGain>(b"Ogmacam_get_ExpoAGain\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 put_expo_again: *library.get::<OgmacamPutExpoAGain>(b"Ogmacam_put_ExpoAGain\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
@@ -271,21 +208,13 @@ impl TouptekSdk {
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 put_temperature: *library.get::<OgmacamPutTemperature>(b"Ogmacam_put_Temperature\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
-                get_option: *library.get::<OgmacamGetOption>(b"Ogmacam_get_Option\0")
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 put_option: *library.get::<OgmacamPutOption>(b"Ogmacam_put_Option\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 get_size: *library.get::<OgmacamGetSize>(b"Ogmacam_get_Size\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
-                put_size: *library.get::<OgmacamPutSize>(b"Ogmacam_put_Size\0")
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
-                get_roi: *library.get::<OgmacamGetRoi>(b"Ogmacam_get_Roi\0")
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 put_roi: *library.get::<OgmacamPutRoi>(b"Ogmacam_put_Roi\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 get_serial_number: *library.get::<OgmacamGetSerialNumber>(b"Ogmacam_get_SerialNumber\0")
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
-                trigger: *library.get::<OgmacamTrigger>(b"Ogmacam_Trigger\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
                 snap: *library.get::<OgmacamSnap>(b"Ogmacam_Snap\0")
                     .map_err(|e| NativeError::SdkError(format!("Symbol error: {}", e)))?,
@@ -387,7 +316,6 @@ unsafe impl Sync for HandleWrapper {}
 pub struct TouptekCamera {
     device_index: usize,
     device_id: String,
-    camera_id: String, // SDK camera ID for opening
     name: String,
     handle: Mutex<HandleWrapper>,
     connected: bool,
@@ -416,11 +344,10 @@ impl std::fmt::Debug for TouptekCamera {
 
 impl TouptekCamera {
     /// Create a new Touptek camera instance
-    pub fn new(device_index: usize, camera_id: String) -> Self {
+    pub fn new(device_index: usize) -> Self {
         Self {
             device_index,
             device_id: format!("touptek_{}", device_index),
-            camera_id,
             name: format!("Touptek Camera {}", device_index),
             handle: Mutex::new(HandleWrapper(std::ptr::null_mut())),
             connected: false,

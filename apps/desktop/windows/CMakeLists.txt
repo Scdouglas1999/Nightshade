@@ -6,6 +6,21 @@ project(nightshade_desktop LANGUAGES CXX)
 # the on-disk name of your application.
 set(BINARY_NAME "nightshade_desktop")
 
+# Rust library discovery (shared with runner and install)
+set(RUST_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../native/nightshade_native/target/release")
+set(RUST_LIB_NAME "nightshade_bridge.dll")
+set(RUST_LIB_PATH "${RUST_LIB_DIR}/${RUST_LIB_NAME}")
+set(RUST_FALLBACK_PATH_1 "${CMAKE_CURRENT_SOURCE_DIR}/../${RUST_LIB_NAME}")
+set(RUST_FALLBACK_PATH_2 "${CMAKE_CURRENT_SOURCE_DIR}/${RUST_LIB_NAME}")
+
+if(EXISTS "${RUST_LIB_PATH}")
+  set(RUST_LIB_TO_USE "${RUST_LIB_PATH}")
+elseif(EXISTS "${RUST_FALLBACK_PATH_1}")
+  set(RUST_LIB_TO_USE "${RUST_FALLBACK_PATH_1}")
+elseif(EXISTS "${RUST_FALLBACK_PATH_2}")
+  set(RUST_LIB_TO_USE "${RUST_FALLBACK_PATH_2}")
+endif()
+
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
@@ -95,25 +110,14 @@ if(EXISTS "${NATIVE_ASSETS_DIR}")
      COMPONENT Runtime)
 endif()
 
-# Copy Rust native library if it exists
-set(RUST_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../native/nightshade_native/target/release")
-set(RUST_LIB_NAME "nightshade_bridge.dll")
-if(EXISTS "${RUST_LIB_DIR}/${RUST_LIB_NAME}")
+if(DEFINED RUST_LIB_TO_USE)
   # Install for release builds
-  install(FILES "${RUST_LIB_DIR}/${RUST_LIB_NAME}"
+  install(FILES "${RUST_LIB_TO_USE}"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
   message(STATUS "Installing Rust library: ${RUST_LIB_NAME}")
-
-  # Also copy during build phase (for flutter run in Debug mode)
-  add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${RUST_LIB_DIR}/${RUST_LIB_NAME}"
-      "$<TARGET_FILE_DIR:${BINARY_NAME}>/${RUST_LIB_NAME}"
-    COMMENT "Copying Rust library to output directory"
-  )
 else()
-  message(WARNING "Rust library not found at ${RUST_LIB_DIR}/${RUST_LIB_NAME}. Build it first with: cd native/nightshade_native && cargo build --release")
+  message(WARNING "Rust library not found at ${RUST_LIB_PATH} or fallback paths. Build it first with: cd native/nightshade_native && cargo build --release")
 endif()
 
 # Fully re-copy the assets directory on each build to avoid having stale files

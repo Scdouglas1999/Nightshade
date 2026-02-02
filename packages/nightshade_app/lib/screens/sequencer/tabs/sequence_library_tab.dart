@@ -6,6 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../sequencer_screen.dart';
+import '../../../utils/snackbar_helper.dart';
 
 /// Provider for sequences list - loads from database
 final savedSequencesProvider = FutureProvider<List<Sequence>>((ref) async {
@@ -313,12 +314,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
   void _showSaveSequenceDialog(BuildContext context) {
     final currentSequence = ref.read(currentSequenceProvider);
     if (currentSequence == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('No sequence to save'),
-          backgroundColor: widget.colors.error,
-        ),
-      );
+      context.showErrorSnackBar('No sequence to save');
       return;
     }
 
@@ -424,7 +420,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
 
   int _countTargetGroups() {
     return widget.sequence.nodes.values
-        .whereType<TargetGroupNode>()
+        .whereType<TargetHeaderNode>()
         .length;
   }
 
@@ -659,20 +655,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     ref.read(currentSequenceProvider.notifier).loadSequence(loadedSequence);
     ref.read(sequencerTabProvider.notifier).state = 0;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(LucideIcons.check, color: Colors.white, size: 16),
-            const SizedBox(width: 8),
-            Text('Loaded "${widget.sequence.name}"'),
-          ],
-        ),
-        backgroundColor: widget.colors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    context.showSuccessSnackBar('Loaded "${widget.sequence.name}"');
   }
 
   Future<void> _duplicateSequence(BuildContext context) async {
@@ -685,29 +668,11 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         ref.invalidate(savedSequencesProvider);
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(LucideIcons.copy, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  Text('Duplicated "${widget.sequence.name}"'),
-                ],
-              ),
-              backgroundColor: widget.colors.success,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          );
+          context.showSuccessSnackBar('Duplicated "${widget.sequence.name}"');
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to duplicate: $e'),
-              backgroundColor: widget.colors.error,
-            ),
-          );
+          context.showErrorSnackBar('Failed to duplicate: $e');
         }
       }
     }
@@ -746,29 +711,11 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                 ref.invalidate(savedSequencesProvider);
 
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          const Icon(LucideIcons.trash2, color: Colors.white, size: 16),
-                          const SizedBox(width: 8),
-                          Text('Deleted "${widget.sequence.name}"'),
-                        ],
-                      ),
-                      backgroundColor: widget.colors.success,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  );
+                  context.showSuccessSnackBar('Deleted "${widget.sequence.name}"');
                 }
               } catch (e) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to delete: $e'),
-                      backgroundColor: widget.colors.error,
-                    ),
-                  );
+                  context.showErrorSnackBar('Failed to delete: $e');
                 }
               }
             },
@@ -975,12 +922,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
 
   Future<void> _saveSequence() async {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please enter a sequence name'),
-          backgroundColor: widget.colors.error,
-        ),
-      );
+      context.showErrorSnackBar('Please enter a sequence name');
       return;
     }
 
@@ -1005,29 +947,11 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
       if (mounted) {
         Navigator.pop(context);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(LucideIcons.check, color: Colors.white, size: 16),
-                const SizedBox(width: 8),
-                Text('Sequence "${_nameController.text}" saved!'),
-              ],
-            ),
-            backgroundColor: widget.colors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
+        context.showSuccessSnackBar('Sequence "${_nameController.text}" saved!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save sequence: $e'),
-            backgroundColor: widget.colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to save sequence: $e');
       }
     } finally {
       if (mounted) {

@@ -4,6 +4,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:file_selector/file_selector.dart';
 
+import '../../../utils/snackbar_helper.dart';
+
 class CameraTab extends ConsumerWidget {
   const CameraTab({super.key});
 
@@ -182,9 +184,7 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
       ref.read(cameraStateProvider.notifier).setCooling(enabled);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to set cooling: $e')),
-        );
+        context.showErrorSnackBar('Failed to set cooling: $e');
       }
     } finally {
       if (mounted) setState(() => _isSetting = false);
@@ -578,32 +578,17 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
       final offset = int.tryParse(offsetController.text);
 
       if (name.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a preset name'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        context.showErrorSnackBar('Please enter a preset name');
         return;
       }
 
       if (gain == null || gain < 0 || gain > 500) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Gain must be between 0 and 500'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        context.showErrorSnackBar('Gain must be between 0 and 500');
         return;
       }
 
       if (offset == null || offset < 0 || offset > 100) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Offset must be between 0 and 100'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        context.showErrorSnackBar('Offset must be between 0 and 100');
         return;
       }
 
@@ -619,21 +604,11 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
         await ref.read(cameraPresetsProvider.notifier).addPreset(preset);
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Preset "$name" added successfully'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          context.showSuccessSnackBar('Preset "$name" added successfully');
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to add preset: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          context.showErrorSnackBar('Failed to add preset: $e');
         }
       }
     }
@@ -677,21 +652,11 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
       try {
         await ref.read(cameraPresetsProvider.notifier).deletePreset(preset.id);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Preset "${preset.name}" deleted'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          context.showInfoSnackBar('Preset "${preset.name}" deleted');
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to delete preset: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          context.showErrorSnackBar('Failed to delete preset: $e');
         }
       }
     }
@@ -839,22 +804,12 @@ class _DownloadSettingsCard extends ConsumerWidget {
         );
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Save path updated: $directoryPath'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          context.showInfoSnackBar('Save path updated: $directoryPath');
         }
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to select directory: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        context.showErrorSnackBar('Failed to select directory: $e');
       }
     }
   }
@@ -863,12 +818,10 @@ class _DownloadSettingsCard extends ConsumerWidget {
 class _ReadingItem extends StatelessWidget {
   final String label;
   final String value;
-  final bool animate;
 
   const _ReadingItem({
     required this.label,
     required this.value,
-    this.animate = true,
   });
 
   @override
@@ -879,23 +832,14 @@ class _ReadingItem extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: TextStyle(fontSize: 10, color: colors.textMuted)),
-        if (animate)
-          AnimatedValue(
-            value: value,
-            style: ValueAnimationStyle.directional,
-            textStyle: NightshadeTypography.mono.copyWith(
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          )
-        else
-          Text(
-            value,
-            style: NightshadeTypography.mono.copyWith(
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+        AnimatedValue(
+          value: value,
+          style: ValueAnimationStyle.directional,
+          textStyle: NightshadeTypography.mono.copyWith(
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
           ),
+        ),
       ],
     );
   }

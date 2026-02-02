@@ -8,6 +8,7 @@ import '../providers/backend_provider.dart';
 import '../providers/sequence_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/ui_notification_provider.dart';
+import '../providers/operation_progress_provider.dart';
 import '../providers/filter_offset_provider.dart';
 import '../backend/nightshade_backend.dart' hide TrackingRate;
 import '../models/equipment/equipment_models.dart';
@@ -73,6 +74,9 @@ class DeviceService {
   StreamSubscription? _eventSubscription;
   Timer? _temperaturePollingTimer;
   String? _connectedCameraId;
+
+  static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
+  static const Duration _filterWheelVerifyPollInterval = Duration(milliseconds: 250);
 
   DeviceService(this._ref, this._backend) {
     _initEventListening();
@@ -1227,14 +1231,15 @@ class DeviceService {
 
     try {
       await _backend.connectDevice(DeviceType.filterWheel, deviceId);
-      
-      // Fetch filter names from backend
-      final filterNames = await _backend.filterWheelGetNames(deviceId);
-      
+
+      // Fetch current filter wheel status (position + names) from backend
+      final status = await _backend.getFilterWheelStatus(deviceId);
+
       notifier.setConnected(
-        filterNames: filterNames,
+        filterNames: status.filterNames,
       );
-      notifier.updatePosition(0);
+      notifier.updatePosition(status.position);
+      notifier.setMoving(status.moving);
     } catch (e) {
       notifier.setDisconnected();
       rethrow;
@@ -1585,17 +1590,38 @@ class DeviceService {
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No mount connected');
     }
-    
+
     final mountNotifier = _ref.read(mountStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
     mountNotifier.setSlewing(true);
-    
+    operationsNotifier.startOperation(
+      type: OperationType.slewToTarget,
+      description: 'Slewing to RA ${_formatRA(ra)}, Dec ${_formatDec(dec)}',
+      canCancel: true,
+    );
+
     try {
       await _backend.mountSlewToCoordinates(deviceId, ra, dec);
       mountNotifier.updatePosition(ra, dec, 0.0, 0.0);
       mountNotifier.setParked(false);
     } finally {
       mountNotifier.setSlewing(false);
+      operationsNotifier.completeOperation(OperationType.slewToTarget);
     }
+  }
+
+  /// Format RA for display (hours:minutes)
+  String _formatRA(double raHours) {
+    final h = raHours.floor();
+    final m = ((raHours - h) * 60).floor();
+    return '${h}h ${m}m';
+  }
+
+  /// Format Dec for display (degrees)
+  String _formatDec(double decDeg) {
+    final sign = decDeg >= 0 ? '+' : '';
+    return '$sign${decDeg.toStringAsFixed(1)}°';
   }
 
   /// Sync mount to coordinates
@@ -1618,16 +1644,23 @@ class DeviceService {
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No mount connected');
     }
-    
+
     final mountNotifier = _ref.read(mountStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
     mountNotifier.setSlewing(true);
-    
+    operationsNotifier.startOperation(
+      type: OperationType.parkMount,
+      description: 'Parking mount',
+    );
+
     try {
       await _backend.mountPark(deviceId);
       mountNotifier.setParked(true);
       mountNotifier.setTracking(false);
     } finally {
       mountNotifier.setSlewing(false);
+      operationsNotifier.completeOperation(OperationType.parkMount);
     }
   }
   
@@ -1637,10 +1670,20 @@ class DeviceService {
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No mount connected');
     }
-    
-    await _backend.mountUnpark(deviceId);
-    final mountNotifier = _ref.read(mountStateProvider.notifier);
-    mountNotifier.setParked(false);
+
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+    operationsNotifier.startOperation(
+      type: OperationType.unparkMount,
+      description: 'Unparking mount',
+    );
+
+    try {
+      await _backend.mountUnpark(deviceId);
+      final mountNotifier = _ref.read(mountStateProvider.notifier);
+      mountNotifier.setParked(false);
+    } finally {
+      operationsNotifier.completeOperation(OperationType.unparkMount);
+    }
   }
 
   /// Enable or disable mount tracking
@@ -1747,7 +1790,13 @@ class DeviceService {
     }
 
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
     focuserNotifier.setMoving(true);
+    operationsNotifier.startOperation(
+      type: OperationType.focuserMove,
+      description: 'Moving focuser to $position',
+    );
 
     try {
       await _backend.focuserMoveTo(deviceId, position);
@@ -1756,6 +1805,7 @@ class DeviceService {
       focuserNotifier.updatePosition(status.position);
     } finally {
       focuserNotifier.setMoving(false);
+      operationsNotifier.completeOperation(OperationType.focuserMove);
     }
   }
 
@@ -1768,7 +1818,14 @@ class DeviceService {
     }
 
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
     focuserNotifier.setMoving(true);
+    final direction = delta > 0 ? 'out' : 'in';
+    operationsNotifier.startOperation(
+      type: OperationType.focuserMove,
+      description: 'Moving focuser ${delta.abs()} steps $direction',
+    );
 
     try {
       // Use backend's native relative move which queries actual device position
@@ -1778,6 +1835,7 @@ class DeviceService {
       focuserNotifier.updatePosition(status.position);
     } finally {
       focuserNotifier.setMoving(false);
+      operationsNotifier.completeOperation(OperationType.focuserMove);
     }
   }
 
@@ -1821,7 +1879,15 @@ class DeviceService {
     }
 
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
     focuserNotifier.setMoving(true);
+    operationsNotifier.startOperation(
+      type: OperationType.autofocus,
+      description: 'Running autofocus ($method)',
+      currentStep: 'Initializing...',
+      canCancel: true,
+    );
 
     try {
       final result = await _backend.autofocusStart(
@@ -1836,6 +1902,7 @@ class DeviceService {
       return result;
     } finally {
       focuserNotifier.setMoving(false);
+      operationsNotifier.completeOperation(OperationType.autofocus);
     }
   }
   
@@ -1873,27 +1940,88 @@ class DeviceService {
     }
 
     final filterWheelNotifier = _ref.read(filterWheelStateProvider.notifier);
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+
+    // Get filter name for display
+    final filterWheelState = _ref.read(filterWheelStateProvider);
+    final filterNames = filterWheelState.filterNames;
+    final filterName = position >= 0 && position < filterNames.length
+        ? filterNames[position]
+        : 'Position $position';
+
     filterWheelNotifier.setMoving(true);
+    operationsNotifier.startOperation(
+      type: OperationType.filterChange,
+      description: 'Changing filter to $filterName',
+    );
 
     try {
       // Move the filter wheel
       debugPrint('[DeviceService] Calling backend.filterWheelSetPosition($deviceId, $position)');
       await _backend.filterWheelSetPosition(deviceId, position);
-      debugPrint('[DeviceService] Backend call completed, updating position');
-      filterWheelNotifier.updatePosition(position);
+      debugPrint('[DeviceService] Backend call completed, verifying position');
+
+      await _verifyFilterWheelPosition(
+        deviceId: deviceId,
+        expectedPosition: position,
+        filterNames: filterNames,
+      );
 
       // Apply focus offset if filter name is available and focuser is connected
-      final filterWheelState = _ref.read(filterWheelStateProvider);
-      final filterNames = filterWheelState.filterNames;
-
-      if (position >= 0 &&
-          position < filterNames.length) {
-        final filterName = filterNames[position];
-        await _applyFilterFocusOffset(filterName);
+      if (position >= 0 && position < filterNames.length) {
+        await _applyFilterFocusOffset(filterNames[position]);
       }
     } finally {
       filterWheelNotifier.setMoving(false);
+      operationsNotifier.completeOperation(OperationType.filterChange);
     }
+  }
+
+  Future<void> _verifyFilterWheelPosition({
+    required String deviceId,
+    required int expectedPosition,
+    required List<String> filterNames,
+  }) async {
+    final deadline = DateTime.now().add(_filterWheelVerifyTimeout);
+    final filterWheelNotifier = _ref.read(filterWheelStateProvider.notifier);
+
+    while (true) {
+      final status = await _backend.getFilterWheelStatus(deviceId);
+      final isMoving = status.moving || status.position < 0;
+
+      filterWheelNotifier.updatePosition(status.position);
+      filterWheelNotifier.setMoving(isMoving);
+
+      if (!isMoving && status.position == expectedPosition) {
+        return;
+      }
+
+      if (!isMoving && status.position != expectedPosition) {
+        final expectedName = _formatFilterName(filterNames, expectedPosition);
+        final actualName = _formatFilterName(filterNames, status.position);
+        throw Exception(
+          'Filter wheel reported "$actualName" after change, expected "$expectedName".',
+        );
+      }
+
+      if (DateTime.now().isAfter(deadline)) {
+        final expectedName = _formatFilterName(filterNames, expectedPosition);
+        final lastName = _formatFilterName(filterNames, status.position);
+        throw Exception(
+          'Filter wheel did not reach "$expectedName" within ${_filterWheelVerifyTimeout.inSeconds}s '
+          '(last reported "$lastName").',
+        );
+      }
+
+      await Future.delayed(_filterWheelVerifyPollInterval);
+    }
+  }
+
+  String _formatFilterName(List<String> filterNames, int position) {
+    if (position >= 0 && position < filterNames.length) {
+      return filterNames[position];
+    }
+    return 'Position $position';
   }
 
   /// Apply focus offset for a given filter
@@ -1981,16 +2109,27 @@ class DeviceService {
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No guider connected');
     }
-    
-    await _backend.guiderStartGuiding(
-      deviceId: deviceId,
-      settlePixels: settlePixels,
-      settleTime: settleTime,
-      settleTimeout: settleTimeout,
+
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+    operationsNotifier.startOperation(
+      type: OperationType.guideSettle,
+      description: 'Starting guiding and settling',
+      currentStep: 'Calibrating...',
     );
-    
-    final guiderNotifier = _ref.read(guiderStateProvider.notifier);
-    guiderNotifier.setGuiding(true);
+
+    try {
+      await _backend.guiderStartGuiding(
+        deviceId: deviceId,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+
+      final guiderNotifier = _ref.read(guiderStateProvider.notifier);
+      guiderNotifier.setGuiding(true);
+    } finally {
+      operationsNotifier.completeOperation(OperationType.guideSettle);
+    }
   }
   
   /// Stop guiding
@@ -2018,15 +2157,26 @@ class DeviceService {
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No guider connected');
     }
-    
-    await _backend.guiderDither(
-      deviceId: deviceId,
-      amount: amount,
-      raOnly: raOnly,
-      settlePixels: settlePixels,
-      settleTime: settleTime,
-      settleTimeout: settleTimeout,
+
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+    operationsNotifier.startOperation(
+      type: OperationType.dither,
+      description: 'Dithering ${amount.toStringAsFixed(1)} px',
+      currentStep: 'Moving...',
     );
+
+    try {
+      await _backend.guiderDither(
+        deviceId: deviceId,
+        amount: amount,
+        raOnly: raOnly,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+    } finally {
+      operationsNotifier.completeOperation(OperationType.dither);
+    }
   }
 
   // ===========================================================================

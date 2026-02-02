@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
 import 'package:nightshade_core/src/database/database.dart' show CapturedImage, ImagingSession;
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import '../../utils/snackbar_helper.dart';
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
 
@@ -753,15 +754,11 @@ class _SessionDetailDialog extends ConsumerWidget {
       final filePath = await exportService.exportToJson(session.id);
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exported to: $filePath')),
-        );
+        context.showSuccessSnackBar('Exported to: $filePath');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
+        context.showErrorSnackBar('Export failed: $e');
       }
     }
   }
@@ -776,15 +773,11 @@ class _SessionDetailDialog extends ConsumerWidget {
       final filePath = await exportService.exportToCsv(session.id);
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exported to: $filePath')),
-        );
+        context.showSuccessSnackBar('Exported to: $filePath');
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
+        context.showErrorSnackBar('Export failed: $e');
       }
     }
   }
@@ -804,9 +797,7 @@ class _SessionDetailDialog extends ConsumerWidget {
           text: 'Session data for ${session.name ?? "session"}');
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Share failed: $e')),
-        );
+        context.showErrorSnackBar('Share failed: $e');
       }
     }
   }
@@ -887,51 +878,6 @@ class _SummaryItem extends StatelessWidget {
           style: TextStyle(fontSize: 11, color: colors.textSecondary),
         ),
       ],
-    );
-  }
-}
-
-class _GraphCard extends StatelessWidget {
-  final String title;
-  final String yLabel;
-
-  const _GraphCard({required this.title, required this.yLabel});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              height: 150,
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  'No data',
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

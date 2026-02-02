@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/snackbar_helper.dart';
+
 /// Result from the mount unpark dialog
 enum MountUnparkResult {
   /// User chose to unpark and continue
@@ -108,12 +110,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
           _isUnparking = false;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to unpark mount: $e'),
-            backgroundColor: Theme.of(context).extension<NightshadeColors>()?.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to unpark mount: $e');
       }
     }
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,8 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:intl/intl.dart';
 import 'widgets/filter_sidebar.dart';
+import '../../services/mount_command_service.dart';
+import '../../utils/snackbar_helper.dart';
 
 /// Get display name and catalog tag for a DSO
 /// Returns (displayName, catalogTag)
@@ -205,13 +208,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     );
 
     // Show confirmation
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Added ${obj.name} to sequence'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    context.showSuccessSnackBar('Added ${obj.name} to sequence');
 
     _dismissPopup();
   }
@@ -222,48 +219,17 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     final obj = _popupObject!;
     final coords = _popupCoordinates ?? obj.coordinates;
 
-    try {
-      // Slew mount
-      await ref.read(deviceServiceProvider).slewMountToCoordinates(
-        coords.ra,
-        coords.dec,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Slewing to ${obj.name}...'),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to slew: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+    await ref.read(mountCommandServiceProvider).slewTo(context, coords.ra, coords.dec);
 
     _dismissPopup();
   }
 
   Future<void> _handleSlewToCoordinates(CelestialCoordinate coords, {String? objectName}) async {
-    // Check if mount is connected
-    final mountState = ref.read(mountStateProvider);
-    if (mountState.connectionState != DeviceConnectionState.connected) {
+    // Check if mount is connected (still needed for showing confirmation dialog)
+    final mountService = ref.read(mountCommandServiceProvider);
+    if (!mountService.isConnected) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mount not connected'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        context.showWarningSnackBar('Mount not connected');
       }
       return;
     }
@@ -293,32 +259,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
     if (confirmed != true) return;
 
-    try {
-      await ref.read(deviceServiceProvider).slewMountToCoordinates(
-        coords.ra,
-        coords.dec,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(objectName != null ? 'Slewing to $objectName...' : 'Slewing to coordinates...'),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to slew: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+    await mountService.slewTo(context, coords.ra, coords.dec);
   }
 
   void _toggleSlewMode() {
@@ -326,68 +267,28 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
       _slewMode = !_slewMode;
     });
     if (_slewMode) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Slew mode enabled - tap on sky to slew mount'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
-      );
+      context.showInfoSnackBar('Slew mode enabled - tap on sky to slew mount');
     }
   }
 
   Future<void> _handleStopSlew() async {
-    // Check if mount is connected
+    // Check if mount is actually slewing (for user feedback)
     final mountState = ref.read(mountStateProvider);
     if (mountState.connectionState != DeviceConnectionState.connected) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mount not connected'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        context.showWarningSnackBar('Mount not connected');
       }
       return;
     }
 
-    // Check if mount is actually slewing
     if (!mountState.isSlewing) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mount is not slewing'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        context.showInfoSnackBar('Mount is not slewing');
       }
       return;
     }
 
-    try {
-      // Abort the slew
-      await ref.read(deviceServiceProvider).abortMountSlew();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mount slew aborted'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to abort slew: $e'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    await ref.read(mountCommandServiceProvider).abortSlew(context);
   }
 
   /// Handle keyboard events for desktop navigation
@@ -730,6 +631,59 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                         ),
                       ),
 
+                      // Performance overlay (debug builds only)
+                      if (kDebugMode)
+                        Positioned(
+                          top: 60,
+                          right: 16,
+                          child: Consumer(
+                            builder: (context, ref, _) {
+                              final monitor = ref.watch(performanceMonitorProvider);
+                              final refreshRate = ref.watch(displayRefreshRateProvider);
+                              final fps = monitor.estimatedFps;
+                              final cappedFps = fps > refreshRate ? refreshRate : fps;
+                              final buildMs = monitor.averageBuildTime;
+                              final rasterMs = monitor.averageRasterTime;
+
+                              return DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: colors.surface.withValues(alpha: 0.8),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: colors.border),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  child: DefaultTextStyle(
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'FPS ${cappedFps.toStringAsFixed(1)} / ${refreshRate.toStringAsFixed(0)}Hz',
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'UI ${buildMs.toStringAsFixed(1)}ms  GPU ${rasterMs.toStringAsFixed(1)}ms',
+                                          style: TextStyle(
+                                            color: colors.textSecondary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+
                       // Bottom info bar
                       Positioned(
                         bottom: 0,
@@ -774,26 +728,9 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                             colors: colors,
                             onSlew: () async {
                               final selectedState = ref.read(selectedObjectProvider);
-                              final obj = selectedState.object;
                               final coords = selectedState.coordinates;
-                              if (obj != null && coords != null) {
-                                try {
-                                  await ref.read(deviceServiceProvider).slewMountToCoordinates(
-                                    coords.ra,
-                                    coords.dec,
-                                  );
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Slewing to ${obj.name}...')),
-                                    );
-                                  }
-                                } catch (e) {
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Slew failed: $e')),
-                                    );
-                                  }
-                                }
+                              if (coords != null) {
+                                await ref.read(mountCommandServiceProvider).slewTo(context, coords.ra, coords.dec);
                               }
                             },
                           ),
@@ -2771,18 +2708,7 @@ class _InfoTab extends ConsumerWidget {
           onGoTo: () {
             // Slew to object
             final coords = obj.coordinates;
-            ref.read(deviceServiceProvider).slewMountToCoordinates(
-              coords.ra,
-              coords.dec,
-            ).then((_) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Slewing to ${obj.name}...')),
-              );
-            }).catchError((e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Slew failed: $e')),
-              );
-            });
+            ref.read(mountCommandServiceProvider).slewTo(context, coords.ra, coords.dec);
           },
           onAddToTargets: () {
             // Add to sequencer
@@ -2794,9 +2720,7 @@ class _InfoTab extends ConsumerWidget {
                 decDegrees: coords.dec,
               ),
             );
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Added ${obj.name} to sequence')),
-            );
+            context.showSuccessSnackBar('Added ${obj.name} to sequence');
           },
         ),
       );

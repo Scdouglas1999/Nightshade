@@ -546,6 +546,195 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
             fw.disconnect().await.ok();
             Ok(DeviceCapabilities::FilterWheel(caps))
         }
+        "rotator" => {
+            let rotator = nightshade_alpaca::AlpacaRotator::from_server(base_url, device_num);
+            rotator.connect().await.map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            let caps = RotatorCapabilities {
+                can_reverse: rotator.can_reverse().await.unwrap_or(false),
+                reverse: rotator.reverse().await.unwrap_or(false),
+                step_size: rotator.step_size().await.ok(),
+                is_moving: rotator.is_moving().await.unwrap_or(false),
+                mechanical_position: rotator.mechanical_position().await.ok(),
+                position: rotator.position().await.ok(),
+                can_move_absolute: true, // Alpaca rotators support absolute positioning
+                can_halt: true, // All rotators support halt
+                can_sync: true, // Most rotators support sync
+            };
+
+            rotator.disconnect().await.ok();
+            Ok(DeviceCapabilities::Rotator(caps))
+        }
+        "dome" => {
+            let dome = nightshade_alpaca::AlpacaDome::from_server(base_url, device_num);
+            dome.connect().await.map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // Convert Alpaca ShutterStatus to our ShutterStatus
+            let shutter_status = dome.shutter_status().await.ok().map(|s| {
+                match s {
+                    nightshade_alpaca::ShutterStatus::Open => ShutterStatus::Open,
+                    nightshade_alpaca::ShutterStatus::Closed => ShutterStatus::Closed,
+                    nightshade_alpaca::ShutterStatus::Opening => ShutterStatus::Opening,
+                    nightshade_alpaca::ShutterStatus::Closing => ShutterStatus::Closing,
+                    nightshade_alpaca::ShutterStatus::Error => ShutterStatus::Unknown,
+                }
+            });
+
+            let caps = DomeCapabilities {
+                can_set_azimuth: dome.can_set_azimuth().await.unwrap_or(false),
+                can_park: dome.can_park().await.unwrap_or(false),
+                can_find_home: dome.can_find_home().await.unwrap_or(false),
+                can_set_shutter: dome.can_set_shutter().await.unwrap_or(false),
+                can_sync_azimuth: dome.can_sync_azimuth().await.unwrap_or(false),
+                azimuth: dome.azimuth().await.ok(),
+                slewing: dome.slewing().await.unwrap_or(false),
+                at_home: dome.at_home().await.unwrap_or(false),
+                at_park: dome.at_park().await.unwrap_or(false),
+                shutter_status,
+                can_slave: dome.can_slave().await.unwrap_or(false),
+                slaved: dome.slaved().await.unwrap_or(false),
+                can_abort: true, // Alpaca domes support abort
+            };
+
+            dome.disconnect().await.ok();
+            Ok(DeviceCapabilities::Dome(caps))
+        }
+        "covercalibrator" => {
+            let cc = nightshade_alpaca::AlpacaCoverCalibrator::from_server(base_url, device_num);
+            cc.connect().await.map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // Convert Alpaca CoverStatus to our CoverState
+            let cover_state = cc.cover_state().await.ok().map(|s| {
+                match s {
+                    nightshade_alpaca::CoverStatus::NotPresent => CoverState::NotPresent,
+                    nightshade_alpaca::CoverStatus::Closed => CoverState::Closed,
+                    nightshade_alpaca::CoverStatus::Moving => CoverState::Moving,
+                    nightshade_alpaca::CoverStatus::Open => CoverState::Open,
+                    nightshade_alpaca::CoverStatus::Unknown => CoverState::Unknown,
+                    nightshade_alpaca::CoverStatus::Error => CoverState::Error,
+                }
+            });
+
+            // Convert Alpaca CalibratorStatus to our CalibratorState
+            let calibrator_state = cc.calibrator_state().await.ok().map(|s| {
+                match s {
+                    nightshade_alpaca::CalibratorStatus::NotPresent => CalibratorState::NotPresent,
+                    nightshade_alpaca::CalibratorStatus::Off => CalibratorState::Off,
+                    nightshade_alpaca::CalibratorStatus::NotReady => CalibratorState::NotReady,
+                    nightshade_alpaca::CalibratorStatus::Ready => CalibratorState::Ready,
+                    nightshade_alpaca::CalibratorStatus::Unknown => CalibratorState::Unknown,
+                    nightshade_alpaca::CalibratorStatus::Error => CalibratorState::Error,
+                }
+            });
+
+            let caps = CoverCalibratorCapabilities {
+                max_brightness: cc.max_brightness().await.unwrap_or(0),
+                cover_present: cover_state.map_or(false, |s| s != CoverState::NotPresent),
+                calibrator_present: calibrator_state.map_or(false, |s| s != CalibratorState::NotPresent),
+                cover_state,
+                calibrator_state,
+                brightness: cc.brightness().await.ok(),
+            };
+
+            cc.disconnect().await.ok();
+            Ok(DeviceCapabilities::CoverCalibrator(caps))
+        }
+        "observingconditions" => {
+            let weather = nightshade_alpaca::AlpacaObservingConditions::from_server(base_url, device_num);
+            weather.connect().await.map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // Check which sensors are available by trying to read them
+            // If a sensor returns an error, it's likely not available
+            let has_cloud_cover = weather.cloud_cover().await.is_ok();
+            let has_dew_point = weather.dew_point().await.is_ok();
+            let has_humidity = weather.humidity().await.is_ok();
+            let has_pressure = weather.pressure().await.is_ok();
+            let has_rain_rate = weather.rain_rate().await.is_ok();
+            let has_sky_brightness = weather.sky_brightness().await.is_ok();
+            let has_sky_quality = weather.sky_quality().await.is_ok();
+            let has_sky_temperature = weather.sky_temperature().await.is_ok();
+            // Note: star_fwhm/seeing is not part of the standard Alpaca observing conditions API
+            let has_seeing = false;
+            let has_temperature = weather.temperature().await.is_ok();
+            let has_wind_direction = weather.wind_direction().await.is_ok();
+            let has_wind_gust = weather.wind_gust().await.is_ok();
+            let has_wind_speed = weather.wind_speed().await.is_ok();
+
+            let caps = WeatherCapabilities {
+                has_cloud_cover,
+                has_dew_point,
+                has_humidity,
+                has_pressure,
+                has_rain_rate,
+                has_sky_brightness,
+                has_sky_quality,
+                has_sky_temperature,
+                has_seeing,
+                has_temperature,
+                has_wind_direction,
+                has_wind_gust,
+                has_wind_speed,
+                average_period: weather.average_period().await.ok(),
+            };
+
+            weather.disconnect().await.ok();
+            Ok(DeviceCapabilities::Weather(caps))
+        }
+        "safetymonitor" => {
+            let safety = nightshade_alpaca::AlpacaSafetyMonitor::from_server(base_url, device_num);
+            safety.connect().await.map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            let caps = SafetyMonitorCapabilities {
+                is_safe: safety.is_safe().await.unwrap_or(false),
+                safety_description: None, // Alpaca doesn't provide a description
+            };
+
+            safety.disconnect().await.ok();
+            Ok(DeviceCapabilities::SafetyMonitor(caps))
+        }
+        "switch" => {
+            let switch = nightshade_alpaca::AlpacaSwitch::from_server(base_url, device_num);
+            switch.connect().await.map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            let max_switch = switch.max_switch().await.unwrap_or(0);
+            let mut switches = Vec::new();
+
+            for i in 0..max_switch {
+                let name = switch.get_switch_name(i).await.unwrap_or_else(|_| format!("Switch {}", i));
+                let description = switch.get_switch_description(i).await.unwrap_or_default();
+                let min_value = switch.min_switch_value(i).await.unwrap_or(0.0);
+                let max_value = switch.max_switch_value(i).await.unwrap_or(1.0);
+                // Alpaca doesn't provide switch step, default to 1.0
+                let step = 1.0;
+                let can_write = switch.can_write(i).await.unwrap_or(false);
+                let value = switch.get_switch_value(i).await.unwrap_or(0.0);
+
+                // Determine if this is a boolean switch
+                // If min == 0 and max == 1, it's boolean
+                let is_boolean = (min_value == 0.0 && max_value == 1.0) || (min_value == max_value);
+
+                let switch_info = SwitchInfo {
+                    index: i,
+                    name,
+                    description,
+                    is_boolean,
+                    min_value,
+                    max_value,
+                    step,
+                    can_write,
+                    value,
+                };
+                switches.push(switch_info);
+            }
+
+            let caps = SwitchCapabilities {
+                switch_count: max_switch,
+                switches,
+            };
+
+            switch.disconnect().await.ok();
+            Ok(DeviceCapabilities::Switch(caps))
+        }
         _ => Err(NightshadeError::not_supported(device_id, "get_capabilities")),
     }
 }
@@ -843,8 +1032,10 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
 
 /// Get capabilities for a simulator device
 fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
+    let device_id_lower = device_id.to_lowercase();
+
     // Simulator devices have full capabilities
-    if device_id.contains("camera") || device_id.contains("Camera") {
+    if device_id_lower.contains("camera") {
         DeviceCapabilities::Camera(CameraCapabilities {
             max_width: 4096,
             max_height: 4096,
@@ -873,7 +1064,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             exposure_max: Some(3600.0),
             ..Default::default()
         })
-    } else if device_id.contains("mount") || device_id.contains("Mount") || device_id.contains("telescope") {
+    } else if device_id_lower.contains("mount") || device_id_lower.contains("telescope") {
         DeviceCapabilities::Mount(MountCapabilities {
             can_slew: true,
             can_slew_async: true,
@@ -888,23 +1079,137 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             axis_count: 2,
             ..Default::default()
         })
-    } else if device_id.contains("focuser") || device_id.contains("Focuser") {
+    } else if device_id_lower.contains("focuser") {
         DeviceCapabilities::Focuser(FocuserCapabilities {
             max_position: 100000,
             max_increment: 50000,
             step_size: Some(1.0),
             absolute: true,
             temp_comp_available: true,
+            can_halt: true,
+            can_reverse: true,
             ..Default::default()
         })
-    } else if device_id.contains("filter") || device_id.contains("Filter") {
+    } else if device_id_lower.contains("filter") {
         DeviceCapabilities::FilterWheel(FilterWheelCapabilities {
             position_count: 7,
             filter_names: vec!["L".into(), "R".into(), "G".into(), "B".into(), "Ha".into(), "OIII".into(), "SII".into()],
             focus_offsets: vec![0, 10, 20, 30, 100, 120, 140],
+            can_set_filter_names: true,
+            can_set_focus_offsets: true,
             ..Default::default()
         })
+    } else if device_id_lower.contains("rotator") {
+        DeviceCapabilities::Rotator(RotatorCapabilities {
+            can_reverse: true,
+            reverse: false,
+            step_size: Some(0.1),
+            is_moving: false,
+            mechanical_position: Some(0.0),
+            position: Some(0.0),
+            can_move_absolute: true,
+            can_halt: true,
+            can_sync: true,
+        })
+    } else if device_id_lower.contains("dome") {
+        DeviceCapabilities::Dome(DomeCapabilities {
+            can_set_azimuth: true,
+            can_park: true,
+            can_find_home: true,
+            can_set_shutter: true,
+            can_sync_azimuth: true,
+            azimuth: Some(0.0),
+            slewing: false,
+            at_home: true,
+            at_park: false,
+            shutter_status: Some(ShutterStatus::Closed),
+            can_slave: true,
+            slaved: false,
+            can_abort: true,
+        })
+    } else if device_id_lower.contains("covercalibrator") || device_id_lower.contains("flatpanel") {
+        DeviceCapabilities::CoverCalibrator(CoverCalibratorCapabilities {
+            max_brightness: 255,
+            cover_present: true,
+            calibrator_present: true,
+            cover_state: Some(CoverState::Closed),
+            calibrator_state: Some(CalibratorState::Off),
+            brightness: Some(0),
+        })
+    } else if device_id_lower.contains("weather") || device_id_lower.contains("observingconditions") {
+        DeviceCapabilities::Weather(WeatherCapabilities {
+            has_cloud_cover: true,
+            has_dew_point: true,
+            has_humidity: true,
+            has_pressure: true,
+            has_rain_rate: true,
+            has_sky_brightness: true,
+            has_sky_quality: true,
+            has_sky_temperature: true,
+            has_seeing: true,
+            has_temperature: true,
+            has_wind_direction: true,
+            has_wind_gust: true,
+            has_wind_speed: true,
+            average_period: Some(60.0),
+        })
+    } else if device_id_lower.contains("safetymonitor") {
+        DeviceCapabilities::SafetyMonitor(SafetyMonitorCapabilities {
+            is_safe: true,
+            safety_description: Some("Simulator safety monitor - always safe".to_string()),
+        })
+    } else if device_id_lower.contains("switch") {
+        DeviceCapabilities::Switch(SwitchCapabilities {
+            switch_count: 4,
+            switches: vec![
+                SwitchInfo {
+                    index: 0,
+                    name: "Power Port 1".to_string(),
+                    description: "12V power output".to_string(),
+                    is_boolean: true,
+                    min_value: 0.0,
+                    max_value: 1.0,
+                    step: 1.0,
+                    can_write: true,
+                    value: 0.0,
+                },
+                SwitchInfo {
+                    index: 1,
+                    name: "Power Port 2".to_string(),
+                    description: "12V power output".to_string(),
+                    is_boolean: true,
+                    min_value: 0.0,
+                    max_value: 1.0,
+                    step: 1.0,
+                    can_write: true,
+                    value: 0.0,
+                },
+                SwitchInfo {
+                    index: 2,
+                    name: "Dew Heater A".to_string(),
+                    description: "Variable dew heater".to_string(),
+                    is_boolean: false,
+                    min_value: 0.0,
+                    max_value: 100.0,
+                    step: 1.0,
+                    can_write: true,
+                    value: 0.0,
+                },
+                SwitchInfo {
+                    index: 3,
+                    name: "USB Hub".to_string(),
+                    description: "USB hub power".to_string(),
+                    is_boolean: true,
+                    min_value: 0.0,
+                    max_value: 1.0,
+                    step: 1.0,
+                    can_write: true,
+                    value: 1.0,
+                },
+            ],
+        })
     } else {
+        // Default to camera for unknown simulator devices
         DeviceCapabilities::Camera(CameraCapabilities::default())
     }
 }

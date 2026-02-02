@@ -67,8 +67,6 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
   // Advanced Settings
   bool _manualRotation = false;
   double _autoCompleteThreshold = 30.0; // arcseconds
-  int? _gain;
-  int? _offset;
   double _solveTimeout = 30.0;
   bool _startFromCurrent = true;
 
@@ -126,10 +124,6 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
         isNorth: _isNorthernHemisphere,
         manualRotation: _manualRotation,
         rotateEast: _rotateEast,
-        gain: _gain,
-        offset: _offset,
-        solveTimeout: _solveTimeout,
-        startFromCurrent: _startFromCurrent,
       );
     } catch (e) {
       ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.error;
@@ -151,16 +145,12 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       switch (phase) {
         case 'measuring':
           ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.measuring;
-          break;
         case 'adjusting':
           ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.adjusting;
-          break;
         case 'complete':
           ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.complete;
-          break;
         case 'error':
           ref.read(polarAlignPhaseProvider.notifier).state = PolarAlignPhase.error;
-          break;
       }
     }
 
@@ -767,7 +757,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           Icon(
             LucideIcons.compass,
             size: 64,
-            color: colors.primary.withOpacity(0.5),
+            color: colors.primary.withValues(alpha:0.5),
           ),
           const SizedBox(height: 24),
           Text(
@@ -881,7 +871,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: colors.background.withOpacity(0.85),
+                          color: colors.background.withValues(alpha:0.85),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(color: colors.border),
                         ),
@@ -1044,7 +1034,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     final d = abs.floor();
     final m = ((abs - d) * 60).floor();
     final s = (((abs - d) * 60 - m) * 60).toStringAsFixed(0);
-    return '$sign${d.toString().padLeft(2, '0')}° ${m.toString().padLeft(2, '0')}\' ${s}"';
+    return '$sign${d.toString().padLeft(2, '0')}° ${m.toString().padLeft(2, '0')}\' $s"';
   }
 
   Widget _buildAdjustmentInstructions(NightshadeColors colors, dynamic error) {
@@ -1586,13 +1576,13 @@ class _StatusChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isConnected
-            ? colors.success.withOpacity(0.1)
-            : colors.error.withOpacity(0.1),
+            ? colors.success.withValues(alpha:0.1)
+            : colors.error.withValues(alpha:0.1),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isConnected
-              ? colors.success.withOpacity(0.3)
-              : colors.error.withOpacity(0.3),
+              ? colors.success.withValues(alpha:0.3)
+              : colors.error.withValues(alpha:0.3),
         ),
       ),
       child: Row(
@@ -1652,7 +1642,7 @@ class _SettingRow extends StatelessWidget {
               child: Icon(
                 LucideIcons.helpCircle,
                 size: 12,
-                color: colors.textMuted.withOpacity(0.6),
+                color: colors.textMuted.withValues(alpha:0.6),
               ),
             ),
           ],
@@ -1712,7 +1702,7 @@ class _MeasurementProgressItem extends StatelessWidget {
             color: isComplete
                 ? colors.success
                 : isActive
-                    ? colors.primary.withOpacity(0.2)
+                    ? colors.primary.withValues(alpha:0.2)
                     : colors.surfaceAlt,
             shape: BoxShape.circle,
             border: Border.all(
@@ -1786,7 +1776,7 @@ class _ProgressStep extends StatelessWidget {
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: isComplete || isActive ? color.withOpacity(0.2) : colors.surfaceAlt,
+            color: isComplete || isActive ? color.withValues(alpha:0.2) : colors.surfaceAlt,
             shape: BoxShape.circle,
             border: Border.all(color: color, width: 2),
           ),
@@ -1857,7 +1847,7 @@ class _InstructionStep extends StatelessWidget {
             width: 24,
             height: 24,
             decoration: BoxDecoration(
-              color: colors.primary.withOpacity(0.1),
+              color: colors.primary.withValues(alpha:0.1),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -1953,10 +1943,10 @@ class _BullseyeOverlayPainter extends CustomPainter {
 
     for (final arcmin in [1.0, 3.0, 5.0]) {
       ringPaint.color = arcmin == 1.0
-          ? colors.success.withOpacity(0.6)
+          ? colors.success.withValues(alpha:0.6)
           : arcmin == 3.0
-              ? colors.warning.withOpacity(0.6)
-              : colors.error.withOpacity(0.6);
+              ? colors.warning.withValues(alpha:0.6)
+              : colors.error.withValues(alpha:0.6);
       canvas.drawCircle(center, arcmin * scale, ringPaint);
 
       // Draw labels
@@ -1979,7 +1969,7 @@ class _BullseyeOverlayPainter extends CustomPainter {
 
     // Draw crosshairs
     final crossPaint = Paint()
-      ..color = colors.textMuted.withOpacity(0.4)
+      ..color = colors.textMuted.withValues(alpha:0.4)
       ..strokeWidth = 1;
     canvas.drawLine(
       Offset(center.dx - maxRadius, center.dy),
@@ -2006,13 +1996,13 @@ class _BullseyeOverlayPainter extends CustomPainter {
 
       // Draw line from center to error position
       final linePaint = Paint()
-        ..color = colors.error.withOpacity(0.5)
+        ..color = colors.error.withValues(alpha:0.5)
         ..strokeWidth = 2;
       canvas.drawLine(center, errorPos, linePaint);
 
       // Error indicator with glow effect
       final glowPaint = Paint()
-        ..color = colors.error.withOpacity(0.3);
+        ..color = colors.error.withValues(alpha:0.3);
       canvas.drawCircle(errorPos, 14, glowPaint);
 
       final errorPaint = Paint()
@@ -2076,9 +2066,9 @@ class _PolarErrorPainter extends CustomPainter {
 
     // Draw error zones (5', 3', 1')
     final zones = [
-      (5.0, colors.error.withOpacity(0.1)),
-      (3.0, colors.warning.withOpacity(0.1)),
-      (1.0, colors.success.withOpacity(0.1)),
+      (5.0, colors.error.withValues(alpha:0.1)),
+      (3.0, colors.warning.withValues(alpha:0.1)),
+      (1.0, colors.success.withValues(alpha:0.1)),
     ];
 
     for (final (errorVal, color) in zones) {
@@ -2092,7 +2082,7 @@ class _PolarErrorPainter extends CustomPainter {
         center,
         radius,
         Paint()
-          ..color = color.withOpacity(0.5)
+          ..color = color.withValues(alpha:0.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1,
       );
@@ -2118,7 +2108,7 @@ class _PolarErrorPainter extends CustomPainter {
     canvas.drawCircle(
       center,
       targetRadius,
-      Paint()..color = colors.primary.withOpacity(0.3 + pulseValue * 0.3),
+      Paint()..color = colors.primary.withValues(alpha:0.3 + pulseValue * 0.3),
     );
     canvas.drawCircle(
       center,
@@ -2137,7 +2127,7 @@ class _PolarErrorPainter extends CustomPainter {
       canvas.drawCircle(
         errorPos,
         10,
-        Paint()..color = colors.error.withOpacity(0.3),
+        Paint()..color = colors.error.withValues(alpha:0.3),
       );
       canvas.drawCircle(
         errorPos,

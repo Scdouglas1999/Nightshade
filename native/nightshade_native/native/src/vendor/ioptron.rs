@@ -25,7 +25,6 @@ const RESPONSE_TERM: u8 = b'#';
 // =============================================================================
 
 mod commands {
-    pub const GET_FIRMWARE: &str = ":GVF#";
     pub const GET_MOUNT_VERSION: &str = ":MountInfo#";
     pub const GET_RA_DEC: &str = ":GEC#";
     pub const GET_ALT_AZ: &str = ":GAC#";
@@ -175,7 +174,6 @@ pub struct IOptronMount {
     serial_port: Mutex<Option<Box<dyn serialport::SerialPort + Send>>>,
     connected: Mutex<bool>,
     status: Mutex<IOptronStatus>,
-    firmware_version: String,
     mount_model: Mutex<String>,
 }
 
@@ -199,7 +197,6 @@ impl IOptronMount {
             serial_port: Mutex::new(None),
             connected: Mutex::new(false),
             status: Mutex::new(IOptronStatus::default()),
-            firmware_version: String::new(),
             mount_model: Mutex::new(String::new()),
         }
     }

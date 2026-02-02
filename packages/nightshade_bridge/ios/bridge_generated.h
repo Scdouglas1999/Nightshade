@@ -207,32 +207,6 @@ typedef struct wire_cst_camera_capabilities {
   bool *cooler_on;
 } wire_cst_camera_capabilities;
 
-typedef struct wire_cst_list_prim_u_32_strict {
-  uint32_t *ptr;
-  int32_t len;
-} wire_cst_list_prim_u_32_strict;
-
-typedef struct wire_cst_image_stats_result {
-  double min;
-  double max;
-  double mean;
-  double median;
-  double std_dev;
-  double *hfr;
-  uint32_t star_count;
-} wire_cst_image_stats_result;
-
-typedef struct wire_cst_captured_image_result {
-  uint32_t width;
-  uint32_t height;
-  struct wire_cst_list_prim_u_8_strict *display_data;
-  struct wire_cst_list_prim_u_32_strict *histogram;
-  struct wire_cst_image_stats_result stats;
-  double exposure_time;
-  struct wire_cst_list_prim_u_8_strict *timestamp;
-  bool is_color;
-} wire_cst_captured_image_result;
-
 typedef struct wire_cst_checkpoint_info_api {
   struct wire_cst_list_prim_u_8_strict *sequence_name;
   struct wire_cst_list_prim_u_8_strict *timestamp;
@@ -868,6 +842,11 @@ typedef struct wire_cst_list_prim_u_16_strict {
   int32_t len;
 } wire_cst_list_prim_u_16_strict;
 
+typedef struct wire_cst_list_prim_u_32_strict {
+  uint32_t *ptr;
+  int32_t len;
+} wire_cst_list_prim_u_32_strict;
+
 typedef struct wire_cst_star_crop_api {
   struct wire_cst_list_prim_u_8_strict *pixels_base64;
   uint32_t width;
@@ -912,6 +891,27 @@ typedef struct wire_cst_camera_status {
   bool can_set_gain;
   bool can_set_offset;
 } wire_cst_camera_status;
+
+typedef struct wire_cst_image_stats_result {
+  double min;
+  double max;
+  double mean;
+  double median;
+  double std_dev;
+  double *hfr;
+  uint32_t star_count;
+} wire_cst_image_stats_result;
+
+typedef struct wire_cst_captured_image_result {
+  uint32_t width;
+  uint32_t height;
+  struct wire_cst_list_prim_u_8_strict *display_data;
+  struct wire_cst_list_prim_u_32_strict *histogram;
+  struct wire_cst_image_stats_result stats;
+  double exposure_time;
+  struct wire_cst_list_prim_u_8_strict *timestamp;
+  bool is_color;
+} wire_cst_captured_image_result;
 
 typedef struct wire_cst_cover_calibrator_status {
   bool connected;
@@ -1845,6 +1845,9 @@ void frbgen_nightshade_bridge_wire__crate__api__api_get_camera_status(int64_t po
 
 void frbgen_nightshade_bridge_wire__crate__api__api_get_connected_devices(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_get_cover_calibrator_capabilities(int64_t port_,
+                                                                                      struct wire_cst_list_prim_u_8_strict *device_id);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__api_get_current_log_file(void);
 
 void frbgen_nightshade_bridge_wire__crate__api__api_get_device_api_version(int64_t port_,
@@ -1858,6 +1861,9 @@ void frbgen_nightshade_bridge_wire__crate__api__api_get_device_health(int64_t po
 
 void frbgen_nightshade_bridge_wire__crate__api__api_get_device_heartbeat_info(int64_t port_,
                                                                               struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_get_dome_capabilities(int64_t port_,
+                                                                          struct wire_cst_list_prim_u_8_strict *device_id);
 
 void frbgen_nightshade_bridge_wire__crate__api__api_get_dome_status(int64_t port_,
                                                                     struct wire_cst_list_prim_u_8_strict *device_id);
@@ -1912,8 +1918,14 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__api_get_profiles
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__api_get_qhy_discovery_status(void);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_get_rotator_capabilities(int64_t port_,
+                                                                             struct wire_cst_list_prim_u_8_strict *device_id);
+
 void frbgen_nightshade_bridge_wire__crate__api__api_get_rotator_status(int64_t port_,
                                                                        struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_get_safety_monitor_capabilities(int64_t port_,
+                                                                                    struct wire_cst_list_prim_u_8_strict *device_id);
 
 void frbgen_nightshade_bridge_wire__crate__api__api_get_session_state(int64_t port_);
 
@@ -1923,7 +1935,13 @@ void frbgen_nightshade_bridge_wire__crate__api__api_get_star_crops_from_last_ima
                                                                                    struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                    uint32_t max_crops);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_get_switch_capabilities(int64_t port_,
+                                                                            struct wire_cst_list_prim_u_8_strict *device_id);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__api_get_version(void);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_get_weather_capabilities(int64_t port_,
+                                                                             struct wire_cst_list_prim_u_8_strict *device_id);
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__api_init(void);
 
@@ -2236,6 +2254,47 @@ void frbgen_nightshade_bridge_wire__crate__api__api_stop_device_heartbeat(int64_
 
 void frbgen_nightshade_bridge_wire__crate__api__api_stop_polar_alignment(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_can_write(int64_t port_,
+                                                                     struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                     int32_t switch_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_get_description(int64_t port_,
+                                                                           struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                           int32_t switch_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_get_max(int64_t port_,
+                                                                   struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_get_max_value(int64_t port_,
+                                                                         struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                         int32_t switch_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_get_min_value(int64_t port_,
+                                                                         struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                         int32_t switch_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_get_name(int64_t port_,
+                                                                    struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                    int32_t switch_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_get_state(int64_t port_,
+                                                                     struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                     int32_t switch_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_get_value(int64_t port_,
+                                                                     struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                     int32_t switch_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_set_state(int64_t port_,
+                                                                     struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                     int32_t switch_id,
+                                                                     bool state);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_switch_set_value(int64_t port_,
+                                                                     struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                     int32_t switch_id,
+                                                                     double value);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__api_update_settings(struct wire_cst_app_settings *settings);
 
 void frbgen_nightshade_bridge_wire__crate__api__cancel_exposure(int64_t port_,
@@ -2302,8 +2361,6 @@ void frbgen_nightshade_bridge_wire__crate__api__ascom_connections__get_ascom_mou
 void frbgen_nightshade_bridge_wire__crate__api__get_camera_status(int64_t port_,
                                                                   struct wire_cst_list_prim_u_8_strict *device_id);
 
-void frbgen_nightshade_bridge_wire__crate__api__get_last_image(int64_t port_);
-
 void frbgen_nightshade_bridge_wire__crate__api__indi_autofocus_config_api_default(int64_t port_);
 
 void frbgen_nightshade_bridge_wire__crate__api__alpaca_connections__is_connected(int64_t port_,
@@ -2311,6 +2368,9 @@ void frbgen_nightshade_bridge_wire__crate__api__alpaca_connections__is_connected
 
 void frbgen_nightshade_bridge_wire__crate__api__mount_abort(int64_t port_,
                                                             struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__mount_can_park(int64_t port_,
+                                                               struct wire_cst_list_prim_u_8_strict *device_id);
 
 void frbgen_nightshade_bridge_wire__crate__api__mount_get_coordinates(int64_t port_,
                                                                       struct wire_cst_list_prim_u_8_strict *device_id);
@@ -2346,6 +2406,9 @@ void frbgen_nightshade_bridge_wire__crate__api__mount_slew(int64_t port_,
                                                            struct wire_cst_list_prim_u_8_strict *device_id,
                                                            double ra,
                                                            double dec);
+
+void frbgen_nightshade_bridge_wire__crate__api__mount_stop(int64_t port_,
+                                                           struct wire_cst_list_prim_u_8_strict *device_id);
 
 void frbgen_nightshade_bridge_wire__crate__api__mount_sync(int64_t port_,
                                                            struct wire_cst_list_prim_u_8_strict *device_id,
@@ -2412,8 +2475,6 @@ bool *frbgen_nightshade_bridge_cst_new_box_autoadd_bool(bool value);
 int32_t *frbgen_nightshade_bridge_cst_new_box_autoadd_calibrator_state(int32_t value);
 
 struct wire_cst_camera_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_camera_capabilities(void);
-
-struct wire_cst_captured_image_result *frbgen_nightshade_bridge_cst_new_box_autoadd_captured_image_result(void);
 
 struct wire_cst_checkpoint_info_api *frbgen_nightshade_bridge_cst_new_box_autoadd_checkpoint_info_api(void);
 
@@ -2530,7 +2591,6 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_bool);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_calibrator_state);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_camera_capabilities);
-    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_captured_image_result);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_checkpoint_info_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_cover_calibrator_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_cover_state);
@@ -2671,11 +2731,13 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_camera_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_camera_status);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_connected_devices);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_cover_calibrator_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_current_log_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_api_version);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_health);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_heartbeat_info);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_dome_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_dome_status);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_dropped_event_count);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_filterwheel_capabilities);
@@ -2694,11 +2756,15 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_plate_solver_path);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_profiles);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_qhy_discovery_status);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_rotator_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_rotator_status);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_safety_monitor_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_session_state);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_settings);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_star_crops_from_last_image);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_switch_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_version);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_weather_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_init);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_init_profile_storage);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_init_settings_storage);
@@ -2790,6 +2856,16 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_start_session);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_stop_device_heartbeat);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_stop_polar_alignment);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_can_write);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_get_description);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_get_max);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_get_max_value);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_get_min_value);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_get_name);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_get_state);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_get_value);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_set_state);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_switch_set_value);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_update_settings);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_camera);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__ascom_connections__connect_ascom_focuser);
@@ -2810,9 +2886,9 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__focuser_move_abs);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__focuser_move_rel);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__get_camera_status);
-    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__get_last_image);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__indi_autofocus_config_api_default);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_abort);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_can_park);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_get_coordinates);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_get_status);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_get_tracking_rate);
@@ -2822,6 +2898,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_set_tracking);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_set_tracking_rate);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_slew);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_stop);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_sync);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mount_unpark);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__set_camera_cooler);

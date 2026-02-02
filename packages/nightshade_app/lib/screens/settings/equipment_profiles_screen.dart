@@ -8,6 +8,9 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
 
+import '../../utils/confirm_dialog.dart';
+import '../../utils/snackbar_helper.dart';
+
 /// Screen for managing equipment profiles
 class EquipmentProfilesScreen extends ConsumerStatefulWidget {
   const EquipmentProfilesScreen({super.key});
@@ -233,33 +236,12 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
   }
 
   Future<void> _deleteProfile(BuildContext context, NightshadeColors colors, EquipmentProfileModel profile) async {
-    final confirm = await showDialog<bool>(
+    final confirm = await ConfirmDialog.delete(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colors.surface,
-        title: Text('Delete Profile', style: TextStyle(color: colors.textPrimary)),
-        content: Text(
-          'Are you sure you want to delete "${profile.name}"? This action cannot be undone.',
-          style: TextStyle(color: colors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.error,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      itemName: 'profile "${profile.name}"',
     );
-    
-    if (confirm == true && profile.id != null) {
+
+    if (confirm && profile.id != null) {
       await ref.read(equipmentProfilesProvider.notifier).deleteProfile(profile.id!);
       setState(() => _selectedProfile = null);
     }
@@ -284,24 +266,14 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
           name: fileName,
         );
         await file.saveTo(location.path);
-        
+
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Profile exported to ${location.path}'),
-              backgroundColor: Colors.green.shade700,
-            ),
-          );
+          context.showSuccessSnackBar('Profile exported to ${location.path}');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Export failed: $e'),
-            backgroundColor: Colors.red.shade700,
-          ),
-        );
+        context.showErrorSnackBar('Export failed: $e');
       }
     }
   }
@@ -317,16 +289,11 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
       if (file != null) {
         final json = await file.readAsString();
         final ids = await ref.read(equipmentProfilesProvider.notifier).importProfiles(json);
-        
+
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Imported ${ids.length} profile(s)'),
-              backgroundColor: Colors.green.shade700,
-            ),
-          );
+          context.showSuccessSnackBar('Imported ${ids.length} profile(s)');
         }
-        
+
         // Select the first imported profile
         if (ids.isNotEmpty) {
           await Future.delayed(const Duration(milliseconds: 100));
@@ -337,12 +304,7 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Import failed: $e'),
-            backgroundColor: Colors.red.shade700,
-          ),
-        );
+        context.showErrorSnackBar('Import failed: $e');
       }
     }
   }
@@ -820,31 +782,16 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
         // Refresh the profile to get the updated filter names
         widget.onRefresh();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Filters synced from hardware'),
-              backgroundColor: Colors.green.shade700,
-            ),
-          );
+          context.showSuccessSnackBar('Filters synced from hardware');
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('No filter wheel connected'),
-              backgroundColor: Colors.orange.shade700,
-            ),
-          );
+          context.showWarningSnackBar('No filter wheel connected');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to sync filters: $e'),
-            backgroundColor: Colors.red.shade700,
-          ),
-        );
+        context.showErrorSnackBar('Failed to sync filters: $e');
       }
     } finally {
       if (mounted) {
@@ -916,14 +863,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
       }
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(copiedCount > 0
-            ? 'Copied $copiedCount device(s) from connected equipment'
-            : 'No devices currently connected'),
-        backgroundColor: copiedCount > 0 ? Colors.green.shade700 : Colors.orange.shade700,
-      ),
-    );
+    if (copiedCount > 0) {
+      context.showSuccessSnackBar('Copied $copiedCount device(s) from connected equipment');
+    } else {
+      context.showWarningSnackBar('No devices currently connected');
+    }
   }
 
   @override
@@ -994,21 +938,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                     try {
                       await widget.onSave(_buildUpdatedProfile());
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Profile saved successfully'),
-                            backgroundColor: Colors.green.shade700,
-                          ),
-                        );
+                        context.showSuccessSnackBar('Profile saved successfully');
                       }
                     } catch (e) {
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to save profile: $e'),
-                            backgroundColor: Colors.red.shade700,
-                          ),
-                        );
+                        context.showErrorSnackBar('Failed to save profile: $e');
                       }
                     }
                   },

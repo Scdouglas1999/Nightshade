@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/nightshade_colors.dart';
 import '../components/nightshade_button.dart';
+import '../utils/responsive_utils.dart';
 
 /// User-friendly error dialog with optional technical details.
 ///
@@ -104,8 +105,12 @@ class _ErrorDialogState extends State<ErrorDialog> {
             ],
           ),
         ),
-        content: SizedBox(
-          width: 480,
+        content: ConstrainedBox(
+          constraints: Responsive.dialogConstraints(
+            context,
+            preferredWidth: 480,
+            minWidth: 320,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

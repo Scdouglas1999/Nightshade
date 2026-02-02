@@ -27,22 +27,16 @@ type Cardinal = c_uint;
 type Integer = c_int;
 type Boolean = u8;
 type Real = c_float;
-type LongReal = f64;
 
 // GetBooleanParameter indexes
-const GBP_CONNECTED: Cardinal = 0;
 const GBP_SUBFRAME: Cardinal = 1;
-const GBP_READ_MODES: Cardinal = 2;
 const GBP_SHUTTER: Cardinal = 3;
 const GBP_COOLER: Cardinal = 4;
-const GBP_FAN: Cardinal = 5;
-const GBP_FILTERS: Cardinal = 6;
 const GBP_GUIDE: Cardinal = 7;
 const GBP_GAIN: Cardinal = 13;
 const GBP_RGB: Cardinal = 128;
 
 // GetIntegerParameter indexes
-const GIP_CAMERA_ID: Cardinal = 0;
 const GIP_CHIP_W: Cardinal = 1;
 const GIP_CHIP_D: Cardinal = 2;
 const GIP_PIXEL_W: Cardinal = 3;
@@ -50,20 +44,13 @@ const GIP_PIXEL_D: Cardinal = 4;
 const GIP_MAX_BINNING_X: Cardinal = 5;
 const GIP_MAX_BINNING_Y: Cardinal = 6;
 const GIP_READ_MODES: Cardinal = 7;
-const GIP_FILTERS: Cardinal = 8;
-const GIP_MIN_EXPOSURE: Cardinal = 9;
-const GIP_MAX_EXPOSURE: Cardinal = 10;
-const GIP_MAX_GAIN: Cardinal = 16;
 
 // GetStringParameter indexes
 const GSP_CAMERA_DESCRIPTION: Cardinal = 0;
-const GSP_MANUFACTURER: Cardinal = 1;
 const GSP_CAMERA_SERIAL: Cardinal = 2;
-const GSP_CHIP_DESCRIPTION: Cardinal = 3;
 
 // GetValue indexes
 const GV_CHIP_TEMPERATURE: Cardinal = 0;
-const GV_HOT_TEMPERATURE: Cardinal = 1;
 const GV_POWER_UTILIZATION: Cardinal = 11;
 
 // ============================================================================
@@ -104,7 +91,6 @@ type AdjustSubFrame = unsafe extern "C" fn(
     w: *mut Integer,
     d: *mut Integer,
 ) -> Boolean;
-type MoveTelescope = unsafe extern "C" fn(camera: PCCamera, ra_ms: i16, dec_ms: i16) -> Boolean;
 
 // ============================================================================
 // SDK Singleton
@@ -132,7 +118,6 @@ struct MoravianSdk {
     end_exposure: EndExposure,
     get_image_16b: GetImage16b,
     adjust_subframe: AdjustSubFrame,
-    move_telescope: MoveTelescope,
     _library: Library,
 }
 
@@ -184,8 +169,6 @@ impl MoravianSdk {
                     .map_err(|e| format!("Failed to get GetImage16b: {}", e))?,
                 adjust_subframe: *library.get::<AdjustSubFrame>(b"AdjustSubFrame\0")
                     .map_err(|e| format!("Failed to get AdjustSubFrame: {}", e))?,
-                move_telescope: *library.get::<MoveTelescope>(b"MoveTelescope\0")
-                    .map_err(|e| format!("Failed to get MoveTelescope: {}", e))?,
                 _library: library,
             })
         }
@@ -316,7 +299,6 @@ pub struct MoravianCamera {
     target_temp: f64,
     exposure_duration: f64,
     use_shutter: bool,
-    discovery_index: usize,
 }
 
 impl std::fmt::Debug for MoravianCamera {
@@ -330,7 +312,7 @@ impl std::fmt::Debug for MoravianCamera {
 
 impl MoravianCamera {
     /// Create a new Moravian camera instance
-    pub fn new(camera_id: Cardinal, discovery_index: usize) -> Self {
+    pub fn new(camera_id: Cardinal) -> Self {
         Self {
             camera_id,
             device_id: format!("moravian_{}", camera_id),
@@ -349,45 +331,9 @@ impl MoravianCamera {
             target_temp: 0.0,
             exposure_duration: 0.0,
             use_shutter: true,
-            discovery_index,
         }
     }
 
-    /// Get boolean parameter
-    fn get_bool_param(&self, index: Cardinal) -> Result<bool, NativeError> {
-        let sdk = get_sdk()?;
-        let handle = self.handle.lock().unwrap().0;
-        let mut value: Boolean = 0;
-        if unsafe { (sdk.get_boolean_parameter)(handle, index, &mut value) } != 0 {
-            Ok(value != 0)
-        } else {
-            Err(NativeError::SdkError("Failed to get boolean parameter".into()))
-        }
-    }
-
-    /// Get integer parameter
-    fn get_int_param(&self, index: Cardinal) -> Result<Cardinal, NativeError> {
-        let sdk = get_sdk()?;
-        let handle = self.handle.lock().unwrap().0;
-        let mut value: Cardinal = 0;
-        if unsafe { (sdk.get_integer_parameter)(handle, index, &mut value) } != 0 {
-            Ok(value)
-        } else {
-            Err(NativeError::SdkError("Failed to get integer parameter".into()))
-        }
-    }
-
-    /// Get value (float)
-    fn get_value_param(&self, index: Cardinal) -> Result<f32, NativeError> {
-        let sdk = get_sdk()?;
-        let handle = self.handle.lock().unwrap().0;
-        let mut value: Real = 0.0;
-        if unsafe { (sdk.get_value)(handle, index, &mut value) } != 0 {
-            Ok(value)
-        } else {
-            Err(NativeError::SdkError("Failed to get value".into()))
-        }
-    }
 }
 
 #[async_trait]

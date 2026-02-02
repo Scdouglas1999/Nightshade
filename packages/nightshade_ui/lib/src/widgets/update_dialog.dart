@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/nightshade_colors.dart';
 import '../components/nightshade_button.dart';
+import '../utils/responsive_utils.dart';
 
 /// Dialog shown when an update is available.
 class UpdateAvailableDialog extends StatelessWidget {
@@ -95,8 +96,12 @@ class UpdateAvailableDialog extends StatelessWidget {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 480,
+      content: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 480,
+          minWidth: 320,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,8 +309,12 @@ class UpdateDownloadDialog extends StatelessWidget {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 400,
+      content: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 400,
+          minWidth: 300,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,8 +457,12 @@ class UpdateReadyDialog extends StatelessWidget {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 420,
+      content: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 420,
+          minWidth: 320,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

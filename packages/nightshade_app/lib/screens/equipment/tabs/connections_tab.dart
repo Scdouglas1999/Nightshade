@@ -6,6 +6,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../mixins/device_connection_mixin.dart';
+import '../../../utils/snackbar_helper.dart';
 import '../dialogs/indi_server_dialog.dart';
 import '../widgets/backend_selector_chips.dart';
 
@@ -154,6 +156,13 @@ String _getDeviceDisplayName(String? deviceName, String? deviceId, String fallba
 /// Device type enum for the save to profile dialog
 enum DeviceCategory { camera, mount, focuser, filterWheel, guider, rotator }
 
+/// Action to take when no profile exists
+enum _NoProfileAction {
+  createNew,
+  selectExisting,
+  cancel,
+}
+
 /// Shows a dialog asking to save the connected device to the active profile.
 /// Returns true if the device was saved, false otherwise.
 Future<bool> showSaveToProfileDialog({
@@ -166,32 +175,100 @@ Future<bool> showSaveToProfileDialog({
   final colors = Theme.of(context).extension<NightshadeColors>()!;
 
   // Check if there's an active profile
-  final activeProfile = await ref.read(activeProfileProvider.future);
+  var activeProfile = await ref.read(activeProfileProvider.future);
   if (activeProfile == null) {
-    // No active profile, silently return
+    // No active profile, show dialog with options
+    final action = await showDialog<_NoProfileAction>(
+      context: context,
+      builder: (context) => _NoProfileDialog(
+        deviceName: deviceName,
+        colors: colors,
+      ),
+    );
+
+    if (action == null || action == _NoProfileAction.cancel) {
+      return false;
+    }
+
+    if (action == _NoProfileAction.createNew) {
+      // Create a new profile and activate it
+      try {
+        final profileService = ref.read(profileServiceProvider);
+        final newProfileId = await profileService.createProfile('New Profile');
+        await profileService.loadProfile(newProfileId);
+        ref.invalidate(activeProfileProvider);
+        // Re-fetch the active profile
+        activeProfile = await ref.read(activeProfileProvider.future);
+        if (activeProfile == null) {
+          if (context.mounted) {
+            context.showErrorSnackBar('Failed to create profile');
+          }
+          return false;
+        }
+        if (context.mounted) {
+          context.showSuccessSnackBar('Created new profile');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          context.showErrorSnackBar('Failed to create profile: $e');
+        }
+        return false;
+      }
+    } else if (action == _NoProfileAction.selectExisting) {
+      // Show profile picker
+      final selectedProfile = await showDialog<db.EquipmentProfile>(
+        context: context,
+        builder: (context) => _ProfilePickerDialog(colors: colors),
+      );
+
+      if (selectedProfile == null) {
+        return false;
+      }
+
+      // Activate the selected profile
+      try {
+        final profileService = ref.read(profileServiceProvider);
+        await profileService.loadProfile(selectedProfile.id);
+        ref.invalidate(activeProfileProvider);
+        activeProfile = selectedProfile;
+        if (context.mounted) {
+          context.showSuccessSnackBar('Activated "${selectedProfile.name}"');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          context.showErrorSnackBar('Failed to activate profile: $e');
+        }
+        return false;
+      }
+    }
+  }
+
+  if (activeProfile == null) {
     return false;
   }
+
+  final profile = activeProfile;
 
   // Check if device is already assigned to this profile
   bool alreadyAssigned = false;
   switch (deviceType) {
     case DeviceCategory.camera:
-      alreadyAssigned = activeProfile.cameraId == deviceId;
+      alreadyAssigned = profile.cameraId == deviceId;
       break;
     case DeviceCategory.mount:
-      alreadyAssigned = activeProfile.mountId == deviceId;
+      alreadyAssigned = profile.mountId == deviceId;
       break;
     case DeviceCategory.focuser:
-      alreadyAssigned = activeProfile.focuserId == deviceId;
+      alreadyAssigned = profile.focuserId == deviceId;
       break;
     case DeviceCategory.filterWheel:
-      alreadyAssigned = activeProfile.filterWheelId == deviceId;
+      alreadyAssigned = profile.filterWheelId == deviceId;
       break;
     case DeviceCategory.guider:
-      alreadyAssigned = activeProfile.guiderId == deviceId;
+      alreadyAssigned = profile.guiderId == deviceId;
       break;
     case DeviceCategory.rotator:
-      alreadyAssigned = activeProfile.rotatorId == deviceId;
+      alreadyAssigned = profile.rotatorId == deviceId;
       break;
   }
 
@@ -225,7 +302,7 @@ Future<bool> showSaveToProfileDialog({
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Save "$deviceName" to the active profile "${activeProfile.name}"?',
+          'Save "$deviceName" to the active profile "${profile.name}"?',
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: 14,
@@ -280,22 +357,22 @@ Future<bool> showSaveToProfileDialog({
 
       switch (deviceType) {
         case DeviceCategory.camera:
-          await profileService.updateProfileDevices(activeProfile.id, cameraId: deviceId);
+          await profileService.updateProfileDevices(profile.id, cameraId: deviceId);
           break;
         case DeviceCategory.mount:
-          await profileService.updateProfileDevices(activeProfile.id, mountId: deviceId);
+          await profileService.updateProfileDevices(profile.id, mountId: deviceId);
           break;
         case DeviceCategory.focuser:
-          await profileService.updateProfileDevices(activeProfile.id, focuserId: deviceId);
+          await profileService.updateProfileDevices(profile.id, focuserId: deviceId);
           break;
         case DeviceCategory.filterWheel:
-          await profileService.updateProfileDevices(activeProfile.id, filterWheelId: deviceId);
+          await profileService.updateProfileDevices(profile.id, filterWheelId: deviceId);
           break;
         case DeviceCategory.guider:
-          await profileService.updateProfileDevices(activeProfile.id, guiderId: deviceId);
+          await profileService.updateProfileDevices(profile.id, guiderId: deviceId);
           break;
         case DeviceCategory.rotator:
-          await profileService.updateProfileDevices(activeProfile.id, rotatorId: deviceId);
+          await profileService.updateProfileDevices(profile.id, rotatorId: deviceId);
           break;
       }
 
@@ -305,12 +382,7 @@ Future<bool> showSaveToProfileDialog({
       return true;
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save to profile: $e'),
-            backgroundColor: colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to save to profile: $e');
       }
       return false;
     }
@@ -350,12 +422,12 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
     final groupedDevices = discoveryState.groupedDevices;
 
     // Count by type from raw devices
-    final cameras = rawDevices.where((d) => d.type == NightshadeDeviceType.camera).toList();
-    final mounts = rawDevices.where((d) => d.type == NightshadeDeviceType.mount).toList();
-    final focusers = rawDevices.where((d) => d.type == NightshadeDeviceType.focuser).toList();
-    final wheels = rawDevices.where((d) => d.type == NightshadeDeviceType.filterWheel).toList();
-    final guiders = rawDevices.where((d) => d.type == NightshadeDeviceType.guider).toList();
-    final rotators = rawDevices.where((d) => d.type == NightshadeDeviceType.rotator).toList();
+    final cameras = rawDevices.where((d) => d.deviceType == DeviceType.camera).toList();
+    final mounts = rawDevices.where((d) => d.deviceType == DeviceType.mount).toList();
+    final focusers = rawDevices.where((d) => d.deviceType == DeviceType.focuser).toList();
+    final wheels = rawDevices.where((d) => d.deviceType == DeviceType.filterWheel).toList();
+    final guiders = rawDevices.where((d) => d.deviceType == DeviceType.guider).toList();
+    final rotators = rawDevices.where((d) => d.deviceType == DeviceType.rotator).toList();
 
     showDialog(
       context: context,
@@ -370,22 +442,22 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text('Cameras: ${cameras.length}'),
-              ...cameras.map((d) => Text('• ${d.name} (${d.backend.name})')),
+              ...cameras.map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 8),
               Text('Mounts: ${mounts.length}'),
-              ...mounts.map((d) => Text('• ${d.name} (${d.backend.name})')),
+              ...mounts.map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 8),
               Text('Focusers: ${focusers.length}'),
-              ...focusers.map((d) => Text('• ${d.name} (${d.backend.name})')),
+              ...focusers.map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 8),
               Text('Filter Wheels: ${wheels.length}'),
-              ...wheels.map((d) => Text('• ${d.name} (${d.backend.name})')),
+              ...wheels.map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 8),
               Text('Guiders: ${guiders.length}'),
-              ...guiders.map((d) => Text('• ${d.name} (${d.backend.name})')),
+              ...guiders.map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 8),
               Text('Rotators: ${rotators.length}'),
-              ...rotators.map((d) => Text('• ${d.name} (${d.backend.name})')),
+              ...rotators.map((d) => Text('• ${d.name} (${d.driverType.name})')),
               const SizedBox(height: 16),
               Text('=== Unified Devices (${groupedDevices.length} physical) ===',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -496,16 +568,8 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
   }
 
   Future<void> _connectToAlpacaServer(String host, int port) async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
     // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Connecting to Alpaca server at $host:$port...'),
-        backgroundColor: colors.surface,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    context.showInfoSnackBar('Connecting to Alpaca server at $host:$port...');
 
     try {
       // Import and use the Alpaca client directly
@@ -513,12 +577,7 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
 
       if (devices.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('No devices found at $host:$port. Make sure ASCOM Remote is running.'),
-              backgroundColor: colors.error,
-            ),
-          );
+          context.showErrorSnackBar('No devices found at $host:$port. Make sure ASCOM Remote is running.');
         }
       } else {
         // Re-discover all devices to include the new Alpaca devices
@@ -526,43 +585,26 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
         await ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Found ${devices.length} device(s) at $host:$port'),
-              backgroundColor: colors.success,
-            ),
-          );
+          context.showSuccessSnackBar('Found ${devices.length} device(s) at $host:$port');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to connect: $e'),
-            backgroundColor: colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to connect: $e');
       }
     }
   }
 
-  Future<List<AvailableDevice>> _discoverAlpacaAtAddress(String host, int port) async {
+  Future<List<DeviceInfo>> _discoverAlpacaAtAddress(String host, int port) async {
     final deviceService = ref.read(deviceServiceProvider);
     return deviceService.discoverAlpacaAtAddress(host, port);
   }
 
   Future<void> _connectToIndiServer(String host, int port) async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
     final deviceService = ref.read(deviceServiceProvider);
 
     // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Connecting to INDI server at $host:$port...'),
-        backgroundColor: colors.surface,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    context.showInfoSnackBar('Connecting to INDI server at $host:$port...');
 
     try {
       // Use the device service to discover INDI devices
@@ -570,12 +612,7 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
 
       if (devices.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('No devices found at $host:$port.'),
-              backgroundColor: colors.warning,
-            ),
-          );
+          context.showWarningSnackBar('No devices found at $host:$port.');
         }
       } else {
         // Re-discover all devices to include the new INDI devices
@@ -583,22 +620,12 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
         await ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Found ${devices.length} device(s) at $host:$port'),
-              backgroundColor: colors.success,
-            ),
-          );
+          context.showSuccessSnackBar('Found ${devices.length} device(s) at $host:$port');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to connect: $e'),
-            backgroundColor: colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to connect: $e');
       }
     }
   }
@@ -751,8 +778,8 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
 
     // Build backend status indicators
     final backendStatusWidgets = <Widget>[];
-    for (final backend in [DriverBackend.native, DriverBackend.ascom, DriverBackend.alpaca, DriverBackend.indi]) {
-      if (backend == DriverBackend.ascom && !Platform.isWindows) {
+    for (final backend in [DriverType.native, DriverType.ascom, DriverType.alpaca, DriverType.indi]) {
+      if (backend == DriverType.ascom && !Platform.isWindows) {
         continue; // Skip ASCOM on non-Windows
       }
       final state = discoveryState.backendStates[backend];
@@ -1034,10 +1061,9 @@ class _CameraDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_CameraDeviceCard> createState() => _CameraDeviceCardState();
 }
 
-class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> {
+class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
-  bool _isConnecting = false;
 
   bool get _isConnected =>
       widget.cameraState.connectionState == DeviceConnectionState.connected;
@@ -1064,7 +1090,7 @@ class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> {
       title: 'Camera',
       subtitle: _getDeviceDisplayName(widget.cameraState.deviceName, widget.cameraState.deviceId, 'Main imaging camera'),
       isConnected: _isConnected,
-      isConnecting: _isConnecting || widget.cameraState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting || widget.cameraState.connectionState == DeviceConnectionState.connecting,
       statusLabel: _getStatusLabel(),
       statusDetails: statusDetails,
       accentColor: widget.colors.primary,
@@ -1080,7 +1106,7 @@ class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> {
     );
   }
 
-  void _handleBackendSelected(DriverBackend backend) {
+  void _handleBackendSelected(DriverType backend) {
     if (_selectedDevice == null) return;
     // Update the selected device with the new backend
     setState(() {
@@ -1097,36 +1123,29 @@ class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> {
 
   Future<void> _handleConnect() async {
     if (_selectedDevice == null) return;
+    final deviceId = _selectedDevice!.activeDeviceId;
+    final deviceName = _selectedDevice!.displayName;
 
-    setState(() => _isConnecting = true);
-    try {
-      final deviceId = _selectedDevice!.activeDeviceId;
-      await ref.read(deviceServiceProvider).connectCamera(deviceId);
-
-      // Show save to profile dialog after successful connection
-      if (mounted) {
+    await connectDevice(
+      deviceId: deviceId,
+      deviceName: deviceName,
+      connectFn: ref.read(deviceServiceProvider).connectCamera,
+      onConnected: () async {
         await showSaveToProfileDialog(
           context: context,
           ref: ref,
           deviceId: deviceId,
-          deviceName: _selectedDevice!.displayName,
+          deviceName: deviceName,
           deviceType: DeviceCategory.camera,
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isConnecting = false);
-    }
+      },
+    );
   }
 
-  Future<void> _handleDisconnect() async {
-    await ref.read(deviceServiceProvider).disconnectCamera();
-  }
+  Future<void> _handleDisconnect() => disconnectDevice(
+    disconnectFn: ref.read(deviceServiceProvider).disconnectCamera,
+    deviceType: 'camera',
+  );
 }
 
 // ============================================================================
@@ -1146,10 +1165,9 @@ class _MountDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_MountDeviceCard> createState() => _MountDeviceCardState();
 }
 
-class _MountDeviceCardState extends ConsumerState<_MountDeviceCard> {
+class _MountDeviceCardState extends ConsumerState<_MountDeviceCard> with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
-  bool _isConnecting = false;
 
   bool get _isConnected =>
       widget.mountState.connectionState == DeviceConnectionState.connected;
@@ -1176,7 +1194,7 @@ class _MountDeviceCardState extends ConsumerState<_MountDeviceCard> {
       title: 'Mount',
       subtitle: _getDeviceDisplayName(widget.mountState.deviceName, widget.mountState.deviceId, 'Telescope mount'),
       isConnected: _isConnected,
-      isConnecting: _isConnecting || widget.mountState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting || widget.mountState.connectionState == DeviceConnectionState.connecting,
       statusLabel: widget.mountState.isSlewing ? 'Slewing' : (_isConnected ? 'Ready' : 'Idle'),
       statusDetails: statusDetails,
       accentColor: widget.colors.warning,
@@ -1192,7 +1210,7 @@ class _MountDeviceCardState extends ConsumerState<_MountDeviceCard> {
     );
   }
 
-  void _handleBackendSelected(DriverBackend backend) {
+  void _handleBackendSelected(DriverType backend) {
     if (_selectedDevice == null) return;
     // Update the selected device with the new backend
     setState(() {
@@ -1202,36 +1220,29 @@ class _MountDeviceCardState extends ConsumerState<_MountDeviceCard> {
 
   Future<void> _handleConnect() async {
     if (_selectedDevice == null) return;
+    final deviceId = _selectedDevice!.activeDeviceId;
+    final deviceName = _selectedDevice!.displayName;
 
-    setState(() => _isConnecting = true);
-    try {
-      final deviceId = _selectedDevice!.activeDeviceId;
-      await ref.read(deviceServiceProvider).connectMount(deviceId);
-
-      // Show save to profile dialog after successful connection
-      if (mounted) {
+    await connectDevice(
+      deviceId: deviceId,
+      deviceName: deviceName,
+      connectFn: ref.read(deviceServiceProvider).connectMount,
+      onConnected: () async {
         await showSaveToProfileDialog(
           context: context,
           ref: ref,
           deviceId: deviceId,
-          deviceName: _selectedDevice!.displayName,
+          deviceName: deviceName,
           deviceType: DeviceCategory.mount,
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isConnecting = false);
-    }
+      },
+    );
   }
 
-  Future<void> _handleDisconnect() async {
-    await ref.read(deviceServiceProvider).disconnectMount();
-  }
+  Future<void> _handleDisconnect() => disconnectDevice(
+    disconnectFn: ref.read(deviceServiceProvider).disconnectMount,
+    deviceType: 'mount',
+  );
 }
 
 // ============================================================================
@@ -1251,10 +1262,9 @@ class _FocuserDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_FocuserDeviceCard> createState() => _FocuserDeviceCardState();
 }
 
-class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard> {
+class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard> with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
-  bool _isConnecting = false;
 
   bool get _isConnected =>
       widget.focuserState.connectionState == DeviceConnectionState.connected;
@@ -1276,7 +1286,7 @@ class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard> {
       title: 'Focuser',
       subtitle: _getDeviceDisplayName(widget.focuserState.deviceName, widget.focuserState.deviceId, 'Motor focuser'),
       isConnected: _isConnected,
-      isConnecting: _isConnecting || widget.focuserState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting || widget.focuserState.connectionState == DeviceConnectionState.connecting,
       statusLabel: _isConnected ? 'Ready' : 'Idle',
       statusDetails: statusDetails,
       accentColor: widget.colors.success,
@@ -1293,7 +1303,7 @@ class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard> {
     );
   }
 
-  void _handleBackendSelected(DriverBackend backend) {
+  void _handleBackendSelected(DriverType backend) {
     if (_selectedDevice == null) return;
     setState(() {
       _selectedDevice = _selectedDevice!.withSelectedBackend(backend);
@@ -1302,36 +1312,29 @@ class _FocuserDeviceCardState extends ConsumerState<_FocuserDeviceCard> {
 
   Future<void> _handleConnect() async {
     if (_selectedDevice == null) return;
+    final deviceId = _selectedDevice!.activeDeviceId;
+    final deviceName = _selectedDevice!.displayName;
 
-    setState(() => _isConnecting = true);
-    try {
-      final deviceId = _selectedDevice!.activeDeviceId;
-      await ref.read(deviceServiceProvider).connectFocuser(deviceId);
-
-      // Show save to profile dialog after successful connection
-      if (mounted) {
+    await connectDevice(
+      deviceId: deviceId,
+      deviceName: deviceName,
+      connectFn: ref.read(deviceServiceProvider).connectFocuser,
+      onConnected: () async {
         await showSaveToProfileDialog(
           context: context,
           ref: ref,
           deviceId: deviceId,
-          deviceName: _selectedDevice!.displayName,
+          deviceName: deviceName,
           deviceType: DeviceCategory.focuser,
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isConnecting = false);
-    }
+      },
+    );
   }
 
-  Future<void> _handleDisconnect() async {
-    await ref.read(deviceServiceProvider).disconnectFocuser();
-  }
+  Future<void> _handleDisconnect() => disconnectDevice(
+    disconnectFn: ref.read(deviceServiceProvider).disconnectFocuser,
+    deviceType: 'focuser',
+  );
 }
 
 // ============================================================================
@@ -1351,10 +1354,9 @@ class _FilterWheelDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_FilterWheelDeviceCard> createState() => _FilterWheelDeviceCardState();
 }
 
-class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard> {
+class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard> with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
-  bool _isConnecting = false;
 
   bool get _isConnected =>
       widget.filterWheelState.connectionState == DeviceConnectionState.connected;
@@ -1377,7 +1379,7 @@ class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard> 
       title: 'Filter Wheel',
       subtitle: _getDeviceDisplayName(widget.filterWheelState.deviceName, widget.filterWheelState.deviceId, 'Electronic filter wheel'),
       isConnected: _isConnected,
-      isConnecting: _isConnecting || widget.filterWheelState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting || widget.filterWheelState.connectionState == DeviceConnectionState.connecting,
       statusLabel: _isConnected ? 'Ready' : 'Idle',
       statusDetails: statusDetails,
       accentColor: widget.colors.warning,
@@ -1394,7 +1396,7 @@ class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard> 
     );
   }
 
-  void _handleBackendSelected(DriverBackend backend) {
+  void _handleBackendSelected(DriverType backend) {
     if (_selectedDevice == null) return;
     setState(() {
       _selectedDevice = _selectedDevice!.withSelectedBackend(backend);
@@ -1403,36 +1405,29 @@ class _FilterWheelDeviceCardState extends ConsumerState<_FilterWheelDeviceCard> 
 
   Future<void> _handleConnect() async {
     if (_selectedDevice == null) return;
+    final deviceId = _selectedDevice!.activeDeviceId;
+    final deviceName = _selectedDevice!.displayName;
 
-    setState(() => _isConnecting = true);
-    try {
-      final deviceId = _selectedDevice!.activeDeviceId;
-      await ref.read(deviceServiceProvider).connectFilterWheel(deviceId);
-
-      // Show save to profile dialog after successful connection
-      if (mounted) {
+    await connectDevice(
+      deviceId: deviceId,
+      deviceName: deviceName,
+      connectFn: ref.read(deviceServiceProvider).connectFilterWheel,
+      onConnected: () async {
         await showSaveToProfileDialog(
           context: context,
           ref: ref,
           deviceId: deviceId,
-          deviceName: _selectedDevice!.displayName,
+          deviceName: deviceName,
           deviceType: DeviceCategory.filterWheel,
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isConnecting = false);
-    }
+      },
+    );
   }
 
-  Future<void> _handleDisconnect() async {
-    await ref.read(deviceServiceProvider).disconnectFilterWheel();
-  }
+  Future<void> _handleDisconnect() => disconnectDevice(
+    disconnectFn: ref.read(deviceServiceProvider).disconnectFilterWheel,
+    deviceType: 'filter wheel',
+  );
 }
 
 // ============================================================================
@@ -1452,10 +1447,9 @@ class _GuiderDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_GuiderDeviceCard> createState() => _GuiderDeviceCardState();
 }
 
-class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> {
+class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
-  bool _isConnecting = false;
 
   bool get _isConnected =>
       widget.guiderState.connectionState == DeviceConnectionState.connected;
@@ -1477,7 +1471,7 @@ class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> {
       title: 'Guider',
       subtitle: _getDeviceDisplayName(widget.guiderState.deviceName, widget.guiderState.deviceId, 'Autoguiding camera'),
       isConnected: _isConnected,
-      isConnecting: _isConnecting || widget.guiderState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting || widget.guiderState.connectionState == DeviceConnectionState.connecting,
       statusLabel: _getStatusLabel(),
       statusDetails: statusDetails,
       accentColor: widget.colors.info,
@@ -1494,7 +1488,7 @@ class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> {
     );
   }
 
-  void _handleBackendSelected(DriverBackend backend) {
+  void _handleBackendSelected(DriverType backend) {
     if (_selectedDevice == null) return;
     setState(() {
       _selectedDevice = _selectedDevice!.withSelectedBackend(backend);
@@ -1510,36 +1504,29 @@ class _GuiderDeviceCardState extends ConsumerState<_GuiderDeviceCard> {
 
   Future<void> _handleConnect() async {
     if (_selectedDevice == null) return;
+    final deviceId = _selectedDevice!.activeDeviceId;
+    final deviceName = _selectedDevice!.displayName;
 
-    setState(() => _isConnecting = true);
-    try {
-      final deviceId = _selectedDevice!.activeDeviceId;
-      await ref.read(deviceServiceProvider).connectGuider(deviceId);
-
-      // Show save to profile dialog after successful connection
-      if (mounted) {
+    await connectDevice(
+      deviceId: deviceId,
+      deviceName: deviceName,
+      connectFn: ref.read(deviceServiceProvider).connectGuider,
+      onConnected: () async {
         await showSaveToProfileDialog(
           context: context,
           ref: ref,
           deviceId: deviceId,
-          deviceName: _selectedDevice!.displayName,
+          deviceName: deviceName,
           deviceType: DeviceCategory.guider,
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isConnecting = false);
-    }
+      },
+    );
   }
 
-  Future<void> _handleDisconnect() async {
-    await ref.read(deviceServiceProvider).disconnectGuider();
-  }
+  Future<void> _handleDisconnect() => disconnectDevice(
+    disconnectFn: ref.read(deviceServiceProvider).disconnectGuider,
+    deviceType: 'guider',
+  );
 }
 
 // ============================================================================
@@ -1559,10 +1546,9 @@ class _RotatorDeviceCard extends ConsumerStatefulWidget {
   ConsumerState<_RotatorDeviceCard> createState() => _RotatorDeviceCardState();
 }
 
-class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> {
+class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> with DeviceConnectionMixin {
   UnifiedDevice? _selectedDevice;
   bool _isHovered = false;
-  bool _isConnecting = false;
 
   bool get _isConnected =>
       widget.rotatorState.connectionState == DeviceConnectionState.connected;
@@ -1587,7 +1573,7 @@ class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> {
       title: 'Rotator',
       subtitle: _getDeviceDisplayName(widget.rotatorState.deviceName, widget.rotatorState.deviceId, 'Field rotator'),
       isConnected: _isConnected,
-      isConnecting: _isConnecting || widget.rotatorState.connectionState == DeviceConnectionState.connecting,
+      isConnecting: isConnecting || widget.rotatorState.connectionState == DeviceConnectionState.connecting,
       statusLabel: widget.rotatorState.isMoving ? 'Moving' : (_isConnected ? 'Ready' : 'Idle'),
       statusDetails: statusDetails,
       accentColor: widget.colors.accent,
@@ -1604,7 +1590,7 @@ class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> {
     );
   }
 
-  void _handleBackendSelected(DriverBackend backend) {
+  void _handleBackendSelected(DriverType backend) {
     if (_selectedDevice == null) return;
     setState(() {
       _selectedDevice = _selectedDevice!.withSelectedBackend(backend);
@@ -1613,36 +1599,29 @@ class _RotatorDeviceCardState extends ConsumerState<_RotatorDeviceCard> {
 
   Future<void> _handleConnect() async {
     if (_selectedDevice == null) return;
+    final deviceId = _selectedDevice!.activeDeviceId;
+    final deviceName = _selectedDevice!.displayName;
 
-    setState(() => _isConnecting = true);
-    try {
-      final deviceId = _selectedDevice!.activeDeviceId;
-      await ref.read(rotatorStateProvider.notifier).connect(deviceId);
-
-      // Show save to profile dialog after successful connection
-      if (mounted) {
+    await connectDevice(
+      deviceId: deviceId,
+      deviceName: deviceName,
+      connectFn: ref.read(rotatorStateProvider.notifier).connect,
+      onConnected: () async {
         await showSaveToProfileDialog(
           context: context,
           ref: ref,
           deviceId: deviceId,
-          deviceName: _selectedDevice!.displayName,
+          deviceName: deviceName,
           deviceType: DeviceCategory.rotator,
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isConnecting = false);
-    }
+      },
+    );
   }
 
-  Future<void> _handleDisconnect() async {
-    ref.read(rotatorStateProvider.notifier).disconnect();
-  }
+  Future<void> _handleDisconnect() => disconnectDevice(
+    disconnectFn: () async => ref.read(rotatorStateProvider.notifier).disconnect(),
+    deviceType: 'rotator',
+  );
 }
 
 /// Dropdown for selecting unified devices (grouped by physical device)
@@ -1662,17 +1641,17 @@ class _UnifiedDeviceDropdown extends StatelessWidget {
     required this.colors,
   });
 
-  Color _getBackendColor(DriverBackend backend) {
+  Color _getBackendColor(DriverType backend) {
     switch (backend) {
-      case DriverBackend.native:
+      case DriverType.native:
         return colors.success;
-      case DriverBackend.ascom:
+      case DriverType.ascom:
         return colors.info;
-      case DriverBackend.alpaca:
+      case DriverType.alpaca:
         return colors.warning;
-      case DriverBackend.indi:
+      case DriverType.indi:
         return const Color(0xFF9333EA);
-      case DriverBackend.simulator:
+      case DriverType.simulator:
         return colors.textMuted;
     }
   }
@@ -1836,7 +1815,7 @@ class _UnifiedBaseDeviceCard extends StatelessWidget {
   final List<UnifiedDevice> unifiedDevices;
   final UnifiedDevice? selectedDevice;
   final ValueChanged<UnifiedDevice?> onDeviceSelected;
-  final ValueChanged<DriverBackend> onBackendSelected;
+  final ValueChanged<DriverType> onBackendSelected;
   final VoidCallback onConnect;
   final VoidCallback onDisconnect;
 
@@ -2501,6 +2480,236 @@ class _SpecRow extends StatelessWidget {
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// No Profile Dialog
+// ============================================================================
+
+/// Dialog shown when trying to save a device but no profile is active
+class _NoProfileDialog extends StatelessWidget {
+  final String deviceName;
+  final NightshadeColors colors;
+
+  const _NoProfileDialog({
+    required this.deviceName,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Icon(LucideIcons.info, color: colors.primary, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'No Active Profile',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'To save "$deviceName" for future sessions, you need an equipment profile.',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.lightbulb, color: colors.primary, size: 16),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Profiles store your equipment setup so you can quickly reconnect devices in future sessions.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, _NoProfileAction.cancel),
+          child: Text(
+            'Cancel',
+            style: TextStyle(color: colors.textMuted),
+          ),
+        ),
+        OutlinedButton(
+          onPressed: () => Navigator.pop(context, _NoProfileAction.selectExisting),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colors.primary,
+            side: BorderSide(color: colors.primary),
+          ),
+          child: const Text('Select Existing'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _NoProfileAction.createNew),
+          style: FilledButton.styleFrom(backgroundColor: colors.primary),
+          child: const Text('Create New Profile'),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================================
+// Profile Picker Dialog
+// ============================================================================
+
+/// Dialog for selecting an existing profile
+class _ProfilePickerDialog extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _ProfilePickerDialog({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profilesAsync = ref.watch(allProfilesProvider);
+
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Icon(LucideIcons.scan, color: colors.primary, size: 22),
+          const SizedBox(width: 12),
+          Text(
+            'Select Profile',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 400,
+        height: 300,
+        child: profilesAsync.when(
+          data: (profiles) {
+            if (profiles.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.info, size: 48, color: colors.textMuted),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No profiles found',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Create a new profile to get started.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.builder(
+              itemCount: profiles.length,
+              itemBuilder: (context, index) {
+                final profile = profiles[index];
+                return ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      LucideIcons.scan,
+                      size: 18,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  title: Text(
+                    profile.name,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  subtitle: Text(
+                    profile.description ?? 'No description',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textMuted,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Icon(
+                    LucideIcons.chevronRight,
+                    size: 16,
+                    color: colors.textMuted,
+                  ),
+                  onTap: () => Navigator.pop(context, profile),
+                );
+              },
+            );
+          },
+          loading: () => Center(
+            child: CircularProgressIndicator(color: colors.primary),
+          ),
+          error: (error, stack) => Center(
+            child: Text(
+              'Failed to load profiles: $error',
+              style: TextStyle(color: colors.error),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: TextStyle(color: colors.textMuted),
           ),
         ),
       ],

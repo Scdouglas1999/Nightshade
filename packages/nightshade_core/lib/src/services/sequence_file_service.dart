@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart' as file_selector;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../models/imaging/imaging_models.dart' show FrameType;
 import '../models/sequence/sequence_models.dart';
 
 /// Service for saving and loading sequences to/from JSON files
@@ -67,28 +68,22 @@ class SequenceFileService {
   
   Sequence _jsonToSequence(Map<String, dynamic> json) {
     final nodes = <String, SequenceNode>{};
-    final nodesJson = json['nodes'] as Map<String, dynamic>;
+    final nodesJson = (json['nodes'] as Map?)?.cast<String, dynamic>() ?? {};
     
     for (final entry in nodesJson.entries) {
-      final node = _jsonToNode(entry.value as Map<String, dynamic>);
-      if (node != null) {
-        nodes[entry.key] = node;
-      }
+      final node = _jsonToNode(entry.value as Map<String, dynamic>, fallbackId: entry.key);
+      nodes[node.id] = node;
     }
     
     return Sequence(
       id: const Uuid().v4(), // Generate new ID for imported sequence
-      name: json['name'] as String,
+      name: json['name'] as String? ?? 'Imported Sequence',
       description: json['description'] as String? ?? '',
       nodes: nodes,
-      rootNodeId: json['rootNodeId'] as String,
+      rootNodeId: json['rootNodeId'] as String?,
       isTemplate: json['isTemplate'] as bool? ?? false,
-      createdAt: json['createdAt'] != null 
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      modifiedAt: json['modifiedAt'] != null
-          ? DateTime.parse(json['modifiedAt'] as String)
-          : DateTime.now(),
+      createdAt: _parseDate(json['createdAt']) ?? DateTime.now(),
+      modifiedAt: _parseDate(json['modifiedAt']) ?? DateTime.now(),
     );
   }
   
@@ -104,25 +99,42 @@ class SequenceFileService {
     };
     
     // Add type-specific properties
-    if (node is ExposureNode) {
-      base.addAll({
-        'durationSecs': node.durationSecs,
-        'count': node.count,
-        'filter': node.filter,
-        'gain': node.gain,
-        'offset': node.offset,
-        'binning': node.binning.name,
-        'ditherEvery': node.ditherEvery,
-      });
-    } else if (node is TargetGroupNode) {
+    if (node is TargetHeaderNode) {
       base.addAll({
         'targetName': node.targetName,
         'raHours': node.raHours,
         'decDegrees': node.decDegrees,
         'rotation': node.rotation,
+        'priority': node.priority,
         'minAltitude': node.minAltitude,
         'maxAltitude': node.maxAltitude,
-        'priority': node.priority,
+        'startAfter': node.startAfter?.toIso8601String(),
+        'endBefore': node.endBefore?.toIso8601String(),
+        'mosaicPanel': node.mosaicPanel?.toJson(),
+      });
+    } else if (node is LoopNode) {
+      base.addAll({
+        'conditionType': node.conditionType.name,
+        'repeatCount': node.repeatCount,
+        'repeatUntil': node.repeatUntil?.toIso8601String(),
+        'repeatUntilAltitude': node.repeatUntilAltitude,
+      });
+    } else if (node is ParallelNode) {
+      base.addAll({
+        'requiredSuccesses': node.requiredSuccesses,
+      });
+    } else if (node is ConditionalNode) {
+      base.addAll({
+        'conditionType': node.conditionType.name,
+        'thresholdValue': node.thresholdValue,
+        'thresholdTime': node.thresholdTime?.toIso8601String(),
+      });
+    } else if (node is RecoveryNode) {
+      base.addAll({
+        'recoveryAction': node.recoveryAction.name,
+        'maxRetries': node.maxRetries,
+        'triggerType': node.triggerType?.name,
+        'triggerThreshold': node.triggerThreshold,
       });
     } else if (node is SlewNode) {
       base.addAll({
@@ -136,11 +148,24 @@ class SequenceFileService {
         'accuracyArcsec': node.accuracyArcsec,
         'maxAttempts': node.maxAttempts,
       });
+    } else if (node is ExposureNode) {
+      base.addAll({
+        'durationSecs': node.durationSecs,
+        'count': node.count,
+        'frameType': node.frameType.name,
+        'filter': node.filter,
+        'filterIndex': node.filterIndex,
+        'gain': node.gain,
+        'offset': node.offset,
+        'binning': node.binning.name,
+        'ditherEvery': node.ditherEvery,
+      });
     } else if (node is AutofocusNode) {
       base.addAll({
         'method': node.method.name,
         'stepSize': node.stepSize,
         'stepsOut': node.stepsOut,
+        'exposuresPerPoint': node.exposuresPerPoint,
         'exposureDuration': node.exposureDuration,
       });
     } else if (node is DitherNode) {
@@ -149,12 +174,12 @@ class SequenceFileService {
         'settlePixels': node.settlePixels,
         'settleTime': node.settleTime,
       });
-    } else if (node is LoopNode) {
+    } else if (node is StartGuidingNode) {
       base.addAll({
-        'conditionType': node.conditionType.name,
-        'repeatCount': node.repeatCount,
-        'repeatUntil': node.repeatUntil?.toIso8601String(),
-        'repeatUntilAltitude': node.repeatUntilAltitude,
+        'settlePixels': node.settlePixels,
+        'settleTime': node.settleTime,
+        'settleTimeout': node.settleTimeout,
+        'autoSelectStar': node.autoSelectStar,
       });
     } else if (node is FilterChangeNode) {
       base.addAll({
@@ -170,115 +195,564 @@ class SequenceFileService {
       base.addAll({
         'ratePerMin': node.ratePerMin,
       });
+    } else if (node is RotatorNode) {
+      base.addAll({
+        'targetAngle': node.targetAngle,
+        'relative': node.relative,
+      });
+    } else if (node is WaitTimeNode) {
+      base.addAll({
+        'waitUntil': node.waitUntil?.toIso8601String(),
+        'waitForTwilight': node.waitForTwilight?.name,
+      });
+    } else if (node is DelayNode) {
+      base.addAll({
+        'seconds': node.seconds,
+      });
+    } else if (node is NotificationNode) {
+      base.addAll({
+        'title': node.title,
+        'message': node.message,
+        'level': node.level.name,
+      });
+    } else if (node is ScriptNode) {
+      base.addAll({
+        'scriptPath': node.scriptPath,
+        'arguments': node.arguments,
+        'timeoutSecs': node.timeoutSecs,
+      });
+    } else if (node is MeridianFlipNode) {
+      base.addAll({
+        'minutesPastMeridian': node.minutesPastMeridian,
+        'pauseGuiding': node.pauseGuiding,
+        'autoCenter': node.autoCenter,
+        'settleTime': node.settleTime,
+      });
+    } else if (node is OpenDomeNode) {
+      base.addAll({
+        'shutterOnly': node.shutterOnly,
+      });
+    } else if (node is CloseDomeNode) {
+      base.addAll({
+        'shutterOnly': node.shutterOnly,
+      });
+    } else if (node is ParkDomeNode) {
+      base.addAll({
+        'shutterOnly': node.shutterOnly,
+      });
+    } else if (node is PolarAlignmentNode) {
+      base.addAll({
+        'exposureDuration': node.exposureDuration,
+        'binning': node.binning,
+        'startAltitude': node.startAltitude,
+        'rotationStep': node.rotationStep,
+        'gain': node.gain,
+        'offset': node.offset,
+        'startFromCurrent': node.startFromCurrent,
+        'isNorth': node.isNorth,
+        'manualSlew': node.manualSlew,
+      });
     }
-    // Add more node types as needed...
     
     return base;
   }
   
-  SequenceNode? _jsonToNode(Map<String, dynamic> json) {
-    final nodeType = json['nodeType'] as String;
+  SequenceNode _jsonToNode(Map<String, dynamic> json, {String? fallbackId}) {
+    final rawType = json['nodeType'] as String?;
+    if (rawType == null || rawType.trim().isEmpty) {
+      throw FormatException('Sequence node missing nodeType');
+    }
+
+    final nodeType = _normalizeNodeType(rawType);
+    final id = (json['id'] as String?) ?? fallbackId ?? const Uuid().v4();
+    final name = json['name'] as String?;
+    final parentId = json['parentId'] as String?;
+    final childIds = (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
+    final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
+    final isEnabled = json['isEnabled'] as bool? ?? true;
     
     switch (nodeType) {
-      case 'exposure':
-        return ExposureNode(
-          id: json['id'] as String,
-          name: json['name'] as String,
-          durationSecs: (json['durationSecs'] as num).toDouble(),
-          count: json['count'] as int,
-          filter: json['filter'] as String?,
-          gain: json['gain'] as int?,
-          offset: json['offset'] as int?,
-          binning: BinningMode.values.firstWhere(
-            (e) => e.name == json['binning'],
-            orElse: () => BinningMode.one,
-          ),
-          ditherEvery: json['ditherEvery'] as int?,
-          parentId: json['parentId'] as String?,
-          childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-          orderIndex: json['orderIndex'] as int,
-          isEnabled: json['isEnabled'] as bool? ?? true,
+      case 'targetheader':
+      case 'targetgroup':
+        final targetName = json['targetName'] as String?;
+        final raHours = json['raHours'] as num?;
+        final decDegrees = json['decDegrees'] as num?;
+        if (targetName == null || raHours == null || decDegrees == null) {
+          throw FormatException('Target node missing required fields');
+        }
+        return TargetHeaderNode(
+          id: id,
+          name: name ?? 'Target',
+          targetName: targetName,
+          raHours: raHours.toDouble(),
+          decDegrees: decDegrees.toDouble(),
+          rotation: (json['rotation'] as num?)?.toDouble(),
+          priority: (json['priority'] as num?)?.toInt() ?? 0,
+          minAltitude: (json['minAltitude'] as num?)?.toDouble(),
+          maxAltitude: (json['maxAltitude'] as num?)?.toDouble(),
+          startAfter: _parseDate(json['startAfter']),
+          endBefore: _parseDate(json['endBefore']),
+          mosaicPanel: json['mosaicPanel'] != null
+              ? MosaicPanelInfo.fromJson(json['mosaicPanel'] as Map<String, dynamic>)
+              : null,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
         );
-        
-      case 'targetGroup':
-        return TargetGroupNode(
-          id: json['id'] as String,
-          name: json['name'] as String,
-          targetName: json['targetName'] as String,
-          raHours: (json['raHours'] as num).toDouble(),
-          decDegrees: (json['decDegrees'] as num).toDouble(),
-          parentId: json['parentId'] as String?,
-          childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-          orderIndex: json['orderIndex'] as int,
-          isEnabled: json['isEnabled'] as bool? ?? true,
+
+      case 'loop':
+        return LoopNode(
+          id: id,
+          name: name ?? 'Loop',
+          conditionType: _parseLoopConditionType(json['conditionType']),
+          repeatCount: (json['repeatCount'] as num?)?.toInt(),
+          repeatUntil: _parseDate(json['repeatUntil']),
+          repeatUntilAltitude: (json['repeatUntilAltitude'] as num?)?.toDouble(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
         );
-        
+
+      case 'parallel':
+        return ParallelNode(
+          id: id,
+          name: name ?? 'Parallel',
+          requiredSuccesses: (json['requiredSuccesses'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'conditional':
+        return ConditionalNode(
+          id: id,
+          name: name ?? 'Conditional',
+          conditionType: _parseConditionalType(json['conditionType']),
+          thresholdValue: (json['thresholdValue'] as num?)?.toDouble(),
+          thresholdTime: _parseDate(json['thresholdTime']),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'recovery':
+        return RecoveryNode(
+          id: id,
+          name: name ?? 'Recovery',
+          recoveryAction: _parseRecoveryActionType(json['recoveryAction']),
+          maxRetries: (json['maxRetries'] as num?)?.toInt() ?? 3,
+          triggerType: _parseTriggerType(json['triggerType']),
+          triggerThreshold: (json['triggerThreshold'] as num?)?.toDouble(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'instructionset':
+        return InstructionSetNode(
+          id: id,
+          name: name ?? 'Instructions',
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'slewtotarget':
+      case 'slew':
+        return SlewNode(
+          id: id,
+          name: name ?? 'Slew to Target',
+          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          customRa: (json['customRa'] as num?)?.toDouble(),
+          customDec: (json['customDec'] as num?)?.toDouble(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'centertarget':
       case 'center':
         return CenterNode(
-          id: json['id'] as String,
-          name: json['name'] as String,
+          id: id,
+          name: name ?? 'Center Target',
           useTargetCoords: json['useTargetCoords'] as bool? ?? true,
-          accuracyArcsec: (json['accuracyArcsec'] as num).toDouble(),
-          maxAttempts: json['maxAttempts'] as int,
-          parentId: json['parentId'] as String?,
-          childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-          orderIndex: json['orderIndex'] as int,
-          isEnabled: json['isEnabled'] as bool? ?? true,
+          accuracyArcsec: (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
+          maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 5,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'takeexposure':
+      case 'exposure':
+        return ExposureNode(
+          id: id,
+          name: name ?? 'Take Exposures',
+          durationSecs: (json['durationSecs'] as num?)?.toDouble() ?? 60.0,
+          count: (json['count'] as num?)?.toInt() ?? 10,
+          frameType: _parseFrameType(json['frameType']),
+          filter: json['filter'] as String?,
+          gain: (json['gain'] as num?)?.toInt(),
+          offset: (json['offset'] as num?)?.toInt(),
+          filterIndex: (json['filterIndex'] as num?)?.toInt(),
+          binning: _parseBinningMode(json['binning']),
+          ditherEvery: (json['ditherEvery'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
         );
         
       case 'autofocus':
         return AutofocusNode(
-          id: json['id'] as String,
-          name: json['name'] as String,
-          method: AutofocusMethod.values.firstWhere(
-            (e) => e.name == json['method'],
-            orElse: () => AutofocusMethod.vCurve,
-          ),
-          stepSize: json['stepSize'] as int,
-          stepsOut: json['stepsOut'] as int,
-          exposureDuration: (json['exposureDuration'] as num).toDouble(),
-          parentId: json['parentId'] as String?,
-          childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-          orderIndex: json['orderIndex'] as int,
-          isEnabled: json['isEnabled'] as bool? ?? true,
+          id: id,
+          name: name ?? 'Autofocus',
+          method: _parseAutofocusMethod(json['method']),
+          stepSize: (json['stepSize'] as num?)?.toInt() ?? 100,
+          stepsOut: (json['stepsOut'] as num?)?.toInt() ?? 7,
+          exposuresPerPoint: (json['exposuresPerPoint'] as num?)?.toInt() ?? 1,
+          exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 3.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
         );
         
       case 'dither':
         return DitherNode(
-          id: json['id'] as String,
-          name: json['name'] as String,
-          pixels: (json['pixels'] as num).toDouble(),
-          settlePixels: (json['settlePixels'] as num).toDouble(),
-          settleTime: (json['settleTime'] as num).toDouble(),
-          parentId: json['parentId'] as String?,
-          childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-          orderIndex: json['orderIndex'] as int,
-          isEnabled: json['isEnabled'] as bool? ?? true,
+          id: id,
+          name: name ?? 'Dither',
+          pixels: (json['pixels'] as num?)?.toDouble() ?? 5.0,
+          settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
+          settleTime: (json['settleTime'] as num?)?.toDouble() ?? 30.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
         );
         
-      case 'loop':
-        return LoopNode(
-          id: json['id'] as String,
-          name: json['name'] as String,
-          conditionType: LoopConditionType.values.firstWhere(
-            (e) => e.name == json['conditionType'],
-            orElse: () => LoopConditionType.count,
-          ),
-          repeatCount: json['repeatCount'] as int?,
-          repeatUntil: json['repeatUntil'] != null
-              ? DateTime.parse(json['repeatUntil'] as String)
-              : null,
-          repeatUntilAltitude: (json['repeatUntilAltitude'] as num?)?.toDouble(),
-          parentId: json['parentId'] as String?,
-          childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-          orderIndex: json['orderIndex'] as int,
-          isEnabled: json['isEnabled'] as bool? ?? true,
+      case 'startguiding':
+        return StartGuidingNode(
+          id: id,
+          name: name ?? 'Start Guiding',
+          settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
+          settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
+          settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 60.0,
+          autoSelectStar: json['autoSelectStar'] as bool? ?? true,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
         );
-        
-      // Add more node types as needed...
+
+      case 'stopguiding':
+        return StopGuidingNode(
+          id: id,
+          name: name ?? 'Stop Guiding',
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'changefilter':
+      case 'filterchange':
+        return FilterChangeNode(
+          id: id,
+          name: name ?? 'Change Filter',
+          filterName: json['filterName'] as String? ?? '',
+          filterPosition: (json['filterPosition'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'coolcamera':
+        return CoolCameraNode(
+          id: id,
+          name: name ?? 'Cool Camera',
+          targetTemp: (json['targetTemp'] as num?)?.toDouble() ?? -10.0,
+          durationMins: (json['durationMins'] as num?)?.toDouble(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'warmcamera':
+        return WarmCameraNode(
+          id: id,
+          name: name ?? 'Warm Camera',
+          ratePerMin: (json['ratePerMin'] as num?)?.toDouble() ?? 2.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'moverotator':
+      case 'rotator':
+        return RotatorNode(
+          id: id,
+          name: name ?? 'Move Rotator',
+          targetAngle: (json['targetAngle'] as num?)?.toDouble() ?? 0.0,
+          relative: json['relative'] as bool? ?? false,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'park':
+        return ParkNode(
+          id: id,
+          name: name ?? 'Park Mount',
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'unpark':
+        return UnparkNode(
+          id: id,
+          name: name ?? 'Unpark Mount',
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'waitfortime':
+      case 'waittime':
+        return WaitTimeNode(
+          id: id,
+          name: name ?? 'Wait for Time',
+          waitUntil: _parseDate(json['waitUntil']),
+          waitForTwilight: _parseTwilightType(json['waitForTwilight']),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'delay':
+        return DelayNode(
+          id: id,
+          name: name ?? 'Delay',
+          seconds: (json['seconds'] as num?)?.toDouble() ?? 5.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'notification':
+        return NotificationNode(
+          id: id,
+          name: name ?? 'Send Notification',
+          title: json['title'] as String? ?? '',
+          message: json['message'] as String? ?? '',
+          level: _parseNotificationLevel(json['level']),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'runscript':
+      case 'script':
+        return ScriptNode(
+          id: id,
+          name: name ?? 'Run Script',
+          scriptPath: json['scriptPath'] as String? ?? '',
+          arguments: (json['arguments'] as List<dynamic>?)?.cast<String>() ?? const [],
+          timeoutSecs: (json['timeoutSecs'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'meridianflip':
+        return MeridianFlipNode(
+          id: id,
+          name: name ?? 'Meridian Flip',
+          minutesPastMeridian: (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
+          pauseGuiding: json['pauseGuiding'] as bool? ?? true,
+          autoCenter: json['autoCenter'] as bool? ?? true,
+          settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'opendome':
+        return OpenDomeNode(
+          id: id,
+          name: name ?? 'Open Dome',
+          shutterOnly: json['shutterOnly'] as bool? ?? false,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'closedome':
+        return CloseDomeNode(
+          id: id,
+          name: name ?? 'Close Dome',
+          shutterOnly: json['shutterOnly'] as bool? ?? false,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'parkdome':
+        return ParkDomeNode(
+          id: id,
+          name: name ?? 'Park Dome',
+          shutterOnly: json['shutterOnly'] as bool? ?? false,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'polalignment':
+      case 'polaralignment':
+        return PolarAlignmentNode(
+          id: id,
+          name: name ?? 'Polar Alignment',
+          exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 2.0,
+          binning: (json['binning'] as num?)?.toInt() ?? 2,
+          startAltitude: (json['startAltitude'] as num?)?.toDouble() ?? 45.0,
+          rotationStep: (json['rotationStep'] as num?)?.toDouble() ?? 20.0,
+          gain: (json['gain'] as num?)?.toInt(),
+          offset: (json['offset'] as num?)?.toInt(),
+          startFromCurrent: json['startFromCurrent'] as bool? ?? true,
+          isNorth: json['isNorth'] as bool? ?? true,
+          manualSlew: json['manualSlew'] as bool? ?? false,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
       default:
-        return null;
+        throw FormatException('Unsupported sequence node type: $rawType');
     }
+  }
+
+  String _normalizeNodeType(String nodeType) {
+    return nodeType.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+  }
+
+  DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    if (value is String) {
+      return DateTime.parse(value);
+    }
+    return null;
+  }
+
+  FrameType _parseFrameType(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return FrameType.light;
+    return FrameType.values.firstWhere(
+      (type) => type.name.toLowerCase() == raw.toLowerCase(),
+      orElse: () => FrameType.light,
+    );
+  }
+
+  BinningMode _parseBinningMode(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return BinningMode.one;
+    return BinningMode.values.firstWhere(
+      (mode) => mode.name.toLowerCase() == raw.toLowerCase(),
+      orElse: () => BinningMode.one,
+    );
+  }
+
+  AutofocusMethod _parseAutofocusMethod(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return AutofocusMethod.vCurve;
+    return AutofocusMethod.values.firstWhere(
+      (method) => method.name.toLowerCase() == raw.toLowerCase(),
+      orElse: () => AutofocusMethod.vCurve,
+    );
+  }
+
+  LoopConditionType _parseLoopConditionType(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return LoopConditionType.count;
+    return LoopConditionType.values.firstWhere(
+      (type) => type.name.toLowerCase() == raw.toLowerCase(),
+      orElse: () => LoopConditionType.count,
+    );
+  }
+
+  NotificationLevel _parseNotificationLevel(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return NotificationLevel.info;
+    return NotificationLevel.values.firstWhere(
+      (level) => level.name.toLowerCase() == raw.toLowerCase(),
+      orElse: () => NotificationLevel.info,
+    );
+  }
+
+  ConditionalType _parseConditionalType(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return ConditionalType.always;
+    return ConditionalType.values.firstWhere(
+      (type) => type.name.toLowerCase() == raw.toLowerCase(),
+      orElse: () => ConditionalType.always,
+    );
+  }
+
+  RecoveryActionType _parseRecoveryActionType(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return RecoveryActionType.retry;
+    return RecoveryActionType.values.firstWhere(
+      (type) => type.name.toLowerCase() == raw.toLowerCase(),
+      orElse: () => RecoveryActionType.retry,
+    );
+  }
+
+  TriggerType? _parseTriggerType(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return null;
+    for (final type in TriggerType.values) {
+      if (type.name.toLowerCase() == raw.toLowerCase()) {
+        return type;
+      }
+    }
+    return null;
+  }
+
+  TwilightType? _parseTwilightType(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return null;
+    for (final type in TwilightType.values) {
+      if (type.name.toLowerCase() == raw.toLowerCase()) {
+        return type;
+      }
+    }
+    return null;
   }
 }
 

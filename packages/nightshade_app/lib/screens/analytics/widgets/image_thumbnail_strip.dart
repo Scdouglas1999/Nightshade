@@ -130,7 +130,7 @@ class _ImageThumbnail extends ConsumerWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: _getHfrColor(image.hfr!).withOpacity(0.9),
+                              color: _getHfrColor(image.hfr!).withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(

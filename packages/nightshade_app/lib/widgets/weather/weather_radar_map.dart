@@ -158,6 +158,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
               'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
           subdomains: const ['a', 'b', 'c', 'd'],
           userAgentPackageName: 'com.nightshade.app',
+          retinaMode: RetinaMode.isHighDensity(context),
           tileBuilder: (context, tileWidget, tile) {
             // Apply opacity to base map for better radar visibility
             return Opacity(
@@ -189,8 +190,8 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
               point: userLocation,
               radius: widget.alertRadiusKm * 1000, // Convert km to meters
               useRadiusInMeter: true,
-              color: colors.warning.withOpacity(0.08),
-              borderColor: colors.warning.withOpacity(0.4),
+              color: colors.warning.withValues(alpha: 0.08),
+              borderColor: colors.warning.withValues(alpha: 0.4),
               borderStrokeWidth: 2.0,
             ),
           ],
@@ -293,7 +294,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: colors.surface.withOpacity(0.9),
+                color: colors.surface.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: colors.border,
@@ -345,7 +346,7 @@ class _ZoomButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: colors.surface.withOpacity(0.9),
+      color: colors.surface.withValues(alpha: 0.9),
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         onTap: onPressed,

@@ -51,7 +51,7 @@ class SequenceProgressCard extends ConsumerWidget {
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -144,7 +144,7 @@ class SequenceProgressCard extends ConsumerWidget {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progressPercent,
-              backgroundColor: borderColor.withOpacity(0.3),
+              backgroundColor: borderColor.withValues(alpha: 0.3),
               color: primaryColor,
               minHeight: 6,
             ),
@@ -253,7 +253,7 @@ class SequenceProgressCard extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: borderColor.withOpacity(0.2),
+                color: borderColor.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(

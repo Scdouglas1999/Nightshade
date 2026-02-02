@@ -11,6 +11,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
+import '../../utils/snackbar_helper.dart';
 import 'catalog_settings_screen.dart';
 import 'equipment_profiles_screen.dart';
 import 'plugins_screen.dart';
@@ -493,16 +494,12 @@ class _ConnectionSettings extends ConsumerWidget {
                           elevation: location.elevation,
                         );
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Location synced from server')),
-                          );
+                          context.showSuccessSnackBar('Location synced from server');
                         }
                       }
                     } catch (e) {
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Sync failed: $e')),
-                        );
+                        context.showErrorSnackBar('Sync failed: $e');
                       }
                     }
                   },
@@ -923,15 +920,11 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                         }
                         
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Location synced from server')),
-                          );
+                          context.showSuccessSnackBar('Location synced from server');
                         }
                       } catch (e) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Sync failed: $e')),
-                          );
+                          context.showErrorSnackBar('Sync failed: $e');
                         }
                       }
                     },
@@ -956,22 +949,16 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                             elevation: 0, 
                           );
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Location updated: $name')),
-                            );
+                            context.showSuccessSnackBar('Location updated: $name');
                           }
                         } else {
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Could not get GPS location. Check permissions.')),
-                            );
+                            context.showWarningSnackBar('Could not get GPS location. Check permissions.');
                           }
                         }
                       } catch (e) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error: $e')),
-                          );
+                          context.showErrorSnackBar('Error: $e');
                         }
                       }
                     },
@@ -2487,9 +2474,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
 
   Future<void> _testDiscord() async {
     if (_discordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a Discord webhook URL')),
-      );
+      context.showWarningSnackBar('Please enter a Discord webhook URL');
       return;
     }
 
@@ -2498,14 +2483,11 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
       final notificationService = ref.read(notificationServiceProvider);
       final success = await notificationService.testDiscordWebhook(_discordController.text);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success
-                ? 'Discord test notification sent successfully!'
-                : 'Failed to send Discord notification. Check your webhook URL.'),
-            backgroundColor: success ? Colors.green : Colors.red,
-          ),
-        );
+        if (success) {
+          context.showSuccessSnackBar('Discord test notification sent successfully!');
+        } else {
+          context.showErrorSnackBar('Failed to send Discord notification. Check your webhook URL.');
+        }
       }
     } finally {
       if (mounted) setState(() => _testingDiscord = false);
@@ -2514,9 +2496,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
 
   Future<void> _testPushover() async {
     if (_pushoverKeyController.text.isEmpty || _pushoverUserController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter both API key and User key')),
-      );
+      context.showWarningSnackBar('Please enter both API key and User key');
       return;
     }
 
@@ -2528,14 +2508,11 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
         _pushoverUserController.text,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(success
-                ? 'Pushover test notification sent successfully!'
-                : 'Failed to send Pushover notification. Check your API and User keys.'),
-            backgroundColor: success ? Colors.green : Colors.red,
-          ),
-        );
+        if (success) {
+          context.showSuccessSnackBar('Pushover test notification sent successfully!');
+        } else {
+          context.showErrorSnackBar('Failed to send Pushover notification. Check your API and User keys.');
+        }
       }
     } finally {
       if (mounted) setState(() => _testingPushover = false);

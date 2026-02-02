@@ -13,6 +13,9 @@ import 'package:nightshade_core/src/providers/framing_provider.dart'
     as framing_provider show MosaicConfig, MosaicPanel;
 import 'framing_search_provider.dart';
 import 'altitude_chart.dart';
+import 'package:nightshade_app/services/mount_command_service.dart';
+import 'package:nightshade_app/utils/snackbar_helper.dart';
+import 'framing_altaz.dart';
 
 class FramingScreen extends ConsumerStatefulWidget {
   const FramingScreen({super.key});
@@ -89,49 +92,20 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
       return;
     }
 
-    // Simple alt/az calculation - would normally use proper astronomy library
-    final now = DateTime.now().toUtc();
+    final now = DateTime.now();
     final target = framingState.target!;
-    
-    final lst = _localSiderealTime(now, lon);
-    final ha = (lst - target.raHours) * 15 * math.pi / 180;
-    final decRad = target.decDegrees * math.pi / 180;
-    final latRad = lat * math.pi / 180;
-    
-    final sinAlt = math.sin(decRad) * math.sin(latRad) +
-        math.cos(decRad) * math.cos(latRad) * math.cos(ha);
-    final alt = math.asin(sinAlt) * 180 / math.pi;
-    
-    final cosAz = (math.sin(decRad) - math.sin(alt * math.pi / 180) * math.sin(latRad)) /
-        (math.cos(alt * math.pi / 180) * math.cos(latRad));
-    var az = math.acos(cosAz.clamp(-1.0, 1.0)) * 180 / math.pi;
-    if (math.sin(ha) > 0) az = 360 - az;
+
+    final (alt, az) = calculateCurrentAltAz(
+      raHours: target.raHours,
+      decDegrees: target.decDegrees,
+      latitudeDeg: lat,
+      longitudeDeg: lon,
+      time: now,
+    );
 
     setState(() {
       _currentAltAz = (alt, az);
     });
-  }
-
-  double _localSiderealTime(DateTime dt, double longitude) {
-    final jd = _julianDate(dt);
-    final t = (jd - 2451545.0) / 36525;
-    var lst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t - t * t * t / 38710000;
-    lst = lst + longitude;
-    lst = lst % 360;
-    if (lst < 0) lst += 360;
-    return lst / 15;
-  }
-
-  double _julianDate(DateTime dt) {
-    final y = dt.year;
-    final m = dt.month;
-    final d = dt.day + dt.hour / 24 + dt.minute / 1440 + dt.second / 86400;
-    final a = ((14 - m) / 12).floor();
-    final y2 = y + 4800 - a;
-    final m2 = m + 12 * a - 3;
-    return d + ((153 * m2 + 2) / 5).floor() + 365 * y2 +
-        (y2 / 4).floor() - (y2 / 100).floor() + (y2 / 400).floor() - 32045;
   }
 
   @override
@@ -433,9 +407,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
       ref.read(framingProvider.notifier).setTargetCoordinates(ra, dec, name: 'Custom Location');
       _updateAltAz();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid coordinates')),
-      );
+      context.showInfoSnackBar('Invalid coordinates');
     }
   }
 
@@ -816,9 +788,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
                     Clipboard.setData(ClipboardData(
                       text: '${target.raFormatted}, ${target.decFormatted}',
                     ));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Coordinates copied')),
-                    );
+                    context.showInfoSnackBar('Coordinates copied');
                   },
                   constraints: const BoxConstraints(),
                   padding: EdgeInsets.zero,
@@ -1287,21 +1257,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
   }
 
   Future<void> _slewToTarget(FramingTarget target) async {
-    try {
-      final deviceService = ref.read(deviceServiceProvider);
-      await deviceService.slewMountToCoordinates(target.raHours, target.decDegrees);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Slewing to ${target.name}...')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to slew: $e')),
-        );
-      }
-    }
+    await ref.read(mountCommandServiceProvider).slewTo(context, target.raHours, target.decDegrees);
   }
 
   void _addToSequence(FramingTarget target) {
@@ -1317,33 +1273,23 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
     // Use addTargetHeader to properly wrap existing orphan instructions
     sequenceNotifier.addTargetHeader(targetNode);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Added ${target.name} to sequence')),
-    );
+    context.showInfoSnackBar('Added ${target.name} to sequence');
   }
 
   Future<void> _saveTarget() async {
     try {
       await ref.read(framingProvider.notifier).saveTarget();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Target saved')),
-        );
-      }
+      if (!mounted) return;
+      context.showSuccessSnackBar('Target saved');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save: $e')),
-        );
-      }
+      context.showErrorSnackBar('Failed to save: $e');
+      if (!mounted) return;
     }
   }
 
   void _cacheImage() {
     // Would save image to local cache
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Image cached locally')),
-    );
+    context.showInfoSnackBar('Image cached locally');
   }
 }
 
@@ -3786,23 +3732,11 @@ class _ExportMosaicButtonState extends ConsumerState<_ExportMosaicButton> {
         ));
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Exported ${widget.panels.length} panels to targets'),
-            backgroundColor: widget.colors.success,
-          ),
-        );
-      }
+      if (!mounted) return;
+      context.showSuccessSnackBar('Exported ${widget.panels.length} panels to targets');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error exporting: $e'),
-            backgroundColor: widget.colors.error,
-          ),
-        );
-      }
+      context.showErrorSnackBar('Error exporting: $e');
+      if (!mounted) return;
     } finally {
       if (mounted) {
         setState(() => _isExporting = false);

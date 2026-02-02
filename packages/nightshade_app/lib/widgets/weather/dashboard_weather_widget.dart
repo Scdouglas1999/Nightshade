@@ -5,17 +5,10 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Compact weather widget for the dashboard
+/// Compact weather widget for the dashboard tertiary zone.
 ///
-/// Displays a mini radar preview with weather status indicator, cloud motion
-/// analysis, and alert level. Tapping the widget navigates to the full weather
-/// monitoring screen.
-///
-/// Shows:
-/// - Current alert level badge (Clear/Watch/Warning/Critical)
-/// - Compact radar status visualization
-/// - Cloud motion ETA if clouds are approaching
-/// - Loading and error states
+/// Shows weather status in a compact card matching other tertiary widgets
+/// (Mount, Focus, Tonight). Tapping navigates to full weather screen.
 class DashboardWeatherWidget extends ConsumerWidget {
   const DashboardWeatherWidget({super.key});
 
@@ -25,18 +18,16 @@ class DashboardWeatherWidget extends ConsumerWidget {
     final weatherStatus = ref.watch(weatherStatusProvider);
     final appSettings = ref.watch(appSettingsProvider).valueOrNull;
 
-    // Check if location is configured
     final hasLocation = appSettings != null &&
         !(appSettings.latitude == 0.0 && appSettings.longitude == 0.0);
 
     return GestureDetector(
-      onTap: () {
-        context.go('/weather');
-      },
+      onTap: () => context.go('/weather'),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          padding: const EdgeInsets.all(20),
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(16),
@@ -51,125 +42,114 @@ class DashboardWeatherWidget extends ConsumerWidget {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Header row with icon, title, and status badge
-              _HeaderRow(
-                colors: colors,
-                currentLevel: weatherStatus.currentLevel,
+              // Header row
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(colors, weatherStatus.currentLevel)
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      LucideIcons.cloud,
+                      size: 16,
+                      color: _getStatusColor(colors, weatherStatus.currentLevel),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Weather',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  _StatusBadge(colors: colors, level: weatherStatus.currentLevel),
+                ],
               ),
-
-              const SizedBox(height: 16),
-
-              // Main content area
-              if (!hasLocation)
-                _LocationNotSetContent(colors: colors)
-              else if (weatherStatus.isLoading)
-                _LoadingContent(colors: colors)
-              else if (weatherStatus.errorMessage != null)
-                _ErrorContent(
-                  colors: colors,
-                  errorMessage: weatherStatus.errorMessage!,
-                )
-              else
-                _WeatherContent(
-                  colors: colors,
-                  weatherStatus: weatherStatus,
-                ),
 
               const SizedBox(height: 12),
 
-              // Footer with navigation hint
-              _FooterRow(colors: colors),
+              // Status info - compact display
+              if (!hasLocation)
+                _CompactStatus(
+                  icon: LucideIcons.mapPin,
+                  text: 'Location not set',
+                  subtext: 'Configure in Settings',
+                  colors: colors,
+                  iconColor: colors.textMuted,
+                )
+              else if (weatherStatus.isLoading)
+                _CompactStatus(
+                  icon: LucideIcons.loader2,
+                  text: 'Loading...',
+                  colors: colors,
+                  iconColor: colors.textMuted,
+                )
+              else if (weatherStatus.errorMessage != null)
+                _CompactStatus(
+                  icon: LucideIcons.alertCircle,
+                  text: 'Error',
+                  subtext: 'Tap to retry',
+                  colors: colors,
+                  iconColor: colors.error,
+                )
+              else
+                _WeatherStatusDisplay(colors: colors, weatherStatus: weatherStatus),
+
+              const SizedBox(height: 12),
+
+              // Open weather button
+              SizedBox(
+                width: double.infinity,
+                child: NightshadeButton(
+                  label: 'View Radar',
+                  icon: LucideIcons.radar,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: () => context.go('/weather'),
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-/// Header row with cloud icon, title, and status badge
-class _HeaderRow extends StatelessWidget {
-  final NightshadeColors colors;
-  final AlertLevel currentLevel;
-
-  const _HeaderRow({
-    required this.colors,
-    required this.currentLevel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _getStatusColor().withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                LucideIcons.cloud,
-                size: 16,
-                color: _getStatusColor(),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Weather',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        _StatusBadge(
-          colors: colors,
-          level: currentLevel,
-        ),
-      ],
-    );
-  }
-
-  /// Get color based on alert level
-  Color _getStatusColor() {
-    switch (currentLevel) {
-      case AlertLevel.clear:
-        return colors.success;
-      case AlertLevel.watch:
-        return colors.warning;
-      case AlertLevel.warning:
-        return const Color(0xFFFF9800); // Orange
-      case AlertLevel.critical:
-        return colors.error;
-    }
+  Color _getStatusColor(NightshadeColors colors, AlertLevel level) {
+    return switch (level) {
+      AlertLevel.clear => colors.success,
+      AlertLevel.watch => colors.warning,
+      AlertLevel.warning => const Color(0xFFFF9800),
+      AlertLevel.critical => colors.error,
+    };
   }
 }
 
-/// Status badge showing current alert level
 class _StatusBadge extends StatelessWidget {
   final NightshadeColors colors;
   final AlertLevel level;
 
-  const _StatusBadge({
-    required this.colors,
-    required this.level,
-  });
+  const _StatusBadge({required this.colors, required this.level});
 
   @override
   Widget build(BuildContext context) {
     final (label, bgColor, textColor) = _getBadgeStyle();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -177,450 +157,128 @@ class _StatusBadge extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: textColor,
-            ),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: textColor),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: textColor,
-            ),
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: textColor),
           ),
         ],
       ),
     );
   }
 
-  /// Get badge styling based on alert level
   (String, Color, Color) _getBadgeStyle() {
-    switch (level) {
-      case AlertLevel.clear:
-        return ('Clear', colors.success.withValues(alpha: 0.2), colors.success);
-      case AlertLevel.watch:
-        return ('Watch', colors.warning.withValues(alpha: 0.2), const Color(0xFF855C00));
-      case AlertLevel.warning:
-        return ('Warning', const Color(0xFFFF9800).withValues(alpha: 0.2), const Color(0xFFC66900));
-      case AlertLevel.critical:
-        return ('Critical', colors.error.withValues(alpha: 0.2), colors.error);
-    }
+    return switch (level) {
+      AlertLevel.clear => ('Clear', colors.success.withValues(alpha: 0.2), colors.success),
+      AlertLevel.watch => ('Watch', colors.warning.withValues(alpha: 0.2), const Color(0xFF855C00)),
+      AlertLevel.warning => ('Warning', const Color(0xFFFF9800).withValues(alpha: 0.2), const Color(0xFFC66900)),
+      AlertLevel.critical => ('Critical', colors.error.withValues(alpha: 0.2), colors.error),
+    };
   }
 }
 
-/// Content shown when location is not configured
-class _LocationNotSetContent extends StatelessWidget {
+class _CompactStatus extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final String? subtext;
   final NightshadeColors colors;
+  final Color iconColor;
 
-  const _LocationNotSetContent({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 150,
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: colors.border.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.mapPin,
-              size: 32,
-              color: colors.textMuted,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Location not set',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Configure location in Settings',
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textMuted,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Loading state content
-class _LoadingContent extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _LoadingContent({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 150,
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Loading radar data...',
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Error state content
-class _ErrorContent extends StatelessWidget {
-  final NightshadeColors colors;
-  final String errorMessage;
-
-  const _ErrorContent({
+  const _CompactStatus({
+    required this.icon,
+    required this.text,
     required this.colors,
-    required this.errorMessage,
+    required this.iconColor,
+    this.subtext,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 150,
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: colors.error.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: iconColor),
+        const SizedBox(width: 8),
+        Expanded(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                LucideIcons.alertCircle,
-                size: 32,
-                color: colors.error,
-              ),
-              const SizedBox(height: 12),
               Text(
-                'Error loading weather',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: colors.textSecondary,
-                ),
+                text,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: colors.textPrimary),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Tap to retry',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textMuted,
+              if (subtext != null)
+                Text(
+                  subtext!,
+                  style: TextStyle(fontSize: 11, color: colors.textMuted),
                 ),
-                textAlign: TextAlign.center,
-              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Main weather content with radar visualization and status
-class _WeatherContent extends StatelessWidget {
-  final NightshadeColors colors;
-  final WeatherStatus weatherStatus;
-
-  const _WeatherContent({
-    required this.colors,
-    required this.weatherStatus,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Mini radar preview area
-        _RadarPreview(
-          colors: colors,
-          radarFrames: weatherStatus.radarFrames,
-        ),
-
-        const SizedBox(height: 12),
-
-        // Status row with icon and message
-        _StatusRow(
-          colors: colors,
-          weatherStatus: weatherStatus,
-        ),
       ],
     );
   }
 }
 
-/// Compact radar preview visualization
-class _RadarPreview extends StatelessWidget {
-  final NightshadeColors colors;
-  final List<RadarFrame> radarFrames;
-
-  const _RadarPreview({
-    required this.colors,
-    required this.radarFrames,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 150,
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0A12),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Stack(
-          children: [
-            // Background grid pattern
-            CustomPaint(
-              painter: _GridPainter(colors: colors),
-              size: Size.infinite,
-            ),
-
-            // Radar data visualization
-            if (radarFrames.isNotEmpty)
-              Center(
-                child: Icon(
-                  LucideIcons.cloudRain,
-                  size: 48,
-                  color: colors.primary.withValues(alpha: 0.3),
-                ),
-              )
-            else
-              Center(
-                child: Icon(
-                  LucideIcons.cloudOff,
-                  size: 48,
-                  color: colors.textMuted.withValues(alpha: 0.3),
-                ),
-              ),
-
-            // Frame count overlay
-            if (radarFrames.isNotEmpty)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.surface.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: colors.border.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        LucideIcons.layers,
-                        size: 10,
-                        color: colors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${radarFrames.length} frames',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Grid background painter for radar preview
-class _GridPainter extends CustomPainter {
-  final NightshadeColors colors;
-
-  _GridPainter({required this.colors});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = colors.border.withValues(alpha: 0.1)
-      ..strokeWidth = 1.0;
-
-    const gridSize = 30.0;
-
-    // Draw vertical lines
-    for (double x = 0; x < size.width; x += gridSize) {
-      canvas.drawLine(
-        Offset(x, 0),
-        Offset(x, size.height),
-        paint,
-      );
-    }
-
-    // Draw horizontal lines
-    for (double y = 0; y < size.height; y += gridSize) {
-      canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Status row showing current conditions and ETA
-class _StatusRow extends StatelessWidget {
+class _WeatherStatusDisplay extends StatelessWidget {
   final NightshadeColors colors;
   final WeatherStatus weatherStatus;
 
-  const _StatusRow({
-    required this.colors,
-    required this.weatherStatus,
-  });
+  const _WeatherStatusDisplay({required this.colors, required this.weatherStatus});
 
   @override
   Widget build(BuildContext context) {
-    final (icon, message) = _getStatusInfo();
+    final (icon, statusText, subtext) = _getStatusInfo();
 
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: _getStatusColor(),
-        ),
+        Icon(icon, size: 16, color: _getStatusColor()),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            message,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: colors.textPrimary,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                statusText,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: colors.textPrimary),
+              ),
+              if (subtext != null)
+                Text(
+                  subtext,
+                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                ),
+            ],
           ),
-        ),
-        Icon(
-          LucideIcons.chevronRight,
-          size: 16,
-          color: colors.textMuted,
         ),
       ],
     );
   }
 
-  /// Get status icon and message based on current conditions
-  (IconData, String) _getStatusInfo() {
-    final alert = weatherStatus.activeAlert;
+  (IconData, String, String?) _getStatusInfo() {
     final motion = weatherStatus.motion;
 
     if (weatherStatus.currentLevel == AlertLevel.critical) {
-      return (LucideIcons.alertTriangle, alert?.message ?? 'Critical conditions');
+      return (LucideIcons.alertTriangle, 'Critical conditions', 'Check radar');
     } else if (weatherStatus.currentLevel == AlertLevel.warning) {
       if (motion?.etaToLocation != null) {
         final minutes = motion!.etaToLocation!.inMinutes;
-        return (LucideIcons.alertTriangle, 'Clouds ~$minutes min away');
+        return (LucideIcons.cloudRain, 'Clouds approaching', '~$minutes min away');
       }
-      return (LucideIcons.alertTriangle, alert?.message ?? 'Warning');
+      return (LucideIcons.alertTriangle, 'Warning', 'Monitor conditions');
     } else if (weatherStatus.currentLevel == AlertLevel.watch) {
-      return (LucideIcons.eye, alert?.message ?? 'Monitoring conditions');
+      return (LucideIcons.eye, 'Watching', 'Conditions changing');
     } else {
-      return (LucideIcons.checkCircle, 'Skies clear');
+      return (LucideIcons.checkCircle, 'Skies clear', 'Good for imaging');
     }
   }
 
-  /// Get status color based on alert level
   Color _getStatusColor() {
-    switch (weatherStatus.currentLevel) {
-      case AlertLevel.clear:
-        return colors.success;
-      case AlertLevel.watch:
-        return colors.warning;
-      case AlertLevel.warning:
-        return const Color(0xFFFF9800);
-      case AlertLevel.critical:
-        return colors.error;
-    }
-  }
-}
-
-/// Footer row with tap hint
-class _FooterRow extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _FooterRow({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          LucideIcons.mousePointerClick,
-          size: 12,
-          color: colors.textMuted,
-        ),
-        const SizedBox(width: 6),
-        Text(
-          'Tap for detailed weather view',
-          style: TextStyle(
-            fontSize: 11,
-            color: colors.textMuted,
-          ),
-        ),
-      ],
-    );
+    return switch (weatherStatus.currentLevel) {
+      AlertLevel.clear => colors.success,
+      AlertLevel.watch => colors.warning,
+      AlertLevel.warning => const Color(0xFFFF9800),
+      AlertLevel.critical => colors.error,
+    };
   }
 }

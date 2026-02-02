@@ -8,6 +8,7 @@ import '../astronomy/astronomy_calculations.dart';
 import '../astronomy/planetary_positions.dart';
 import '../astronomy/milky_way_data.dart';
 import 'render_quality.dart';
+import 'star_psf_cache.dart';
 
 /// Mount tracking status for rendering
 enum MountRenderStatus {
@@ -497,6 +498,8 @@ class _ShaderCache {
     _linearShaders.clear();
   }
 }
+
+final StarPsfShaderCache _starPsfShaderCache = StarPsfShaderCache();
 
 /// Enhanced sky rendering painter
 class SkyCanvasPainter extends CustomPainter {
@@ -1565,33 +1568,43 @@ class SkyCanvasPainter extends CustomPainter {
       return;
     }
 
+    final brightnessFilter = brightness >= 0.999
+        ? null
+        : ColorFilter.mode(
+            Color.fromRGBO(255, 255, 255, brightness),
+            BlendMode.modulate,
+          );
+    final paint = Paint()..colorFilter = brightnessFilter;
+
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+
     // Draw outer glow for very bright stars only (mag < 1.5 in balanced, < 2.5 in quality)
     final glowMagLimit = psfQuality >= 1.0 ? 2.5 : 1.5;
     if (magnitude < glowMagLimit) {
       if (psfQuality >= 0.5) {
         // Balanced/Quality: radial gradient glow
         final glowRadius = radius * (3 + (1 - magnitude / 2.5));
-        final glowGradient = RadialGradient(
-          colors: [
-            color.withValues(alpha: brightness * 0.4),
-            color.withValues(alpha: brightness * 0.15),
-            color.withValues(alpha: 0.0),
-          ],
-          stops: const [0.0, 0.5, 1.0],
+        paint.shader = _starPsfShaderCache.getShader(
+          type: StarPsfShaderType.glow,
+          radius: glowRadius,
+          color: color,
         );
-        final glowPaint = Paint()
-          ..shader = glowGradient.createShader(
-            Rect.fromCircle(center: center, radius: glowRadius),
-          );
-        canvas.drawCircle(center, glowRadius, glowPaint);
+        canvas.drawCircle(Offset.zero, glowRadius, paint);
       }
 
       // Draw diffraction spikes for very bright stars
       if (magnitude < 1.0 && psfQuality >= 1.0) {
-        _drawDiffractionSpikes(canvas, center, radius, color, brightness);
+        _drawDiffractionSpikes(canvas, Offset.zero, radius, color, brightness);
         // Add faint 45-degree secondary spikes for mag < 0
         if (magnitude < 0) {
-          _drawSecondarySpikes(canvas, center, radius * 0.6, color, brightness * 0.4);
+          _drawSecondarySpikes(
+            canvas,
+            Offset.zero,
+            radius * 0.6,
+            color,
+            brightness * 0.4,
+          );
         }
       }
     }
@@ -1599,70 +1612,41 @@ class SkyCanvasPainter extends CustomPainter {
     if (psfQuality >= 1.0) {
       // Quality mode: 3-ring Airy disk approximation
       // Outer ring (faint)
-      final outerRing = RadialGradient(
-        colors: [
-          Colors.transparent,
-          color.withValues(alpha: brightness * 0.1),
-          color.withValues(alpha: brightness * 0.05),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.6, 0.8, 1.0],
-      );
       final outerRadius = radius * 2.5;
-      final outerPaint = Paint()
-        ..shader = outerRing.createShader(
-          Rect.fromCircle(center: center, radius: outerRadius),
-        );
-      canvas.drawCircle(center, outerRadius, outerPaint);
+      paint.shader = _starPsfShaderCache.getShader(
+        type: StarPsfShaderType.outerRing,
+        radius: outerRadius,
+        color: color,
+      );
+      canvas.drawCircle(Offset.zero, outerRadius, paint);
 
       // Middle ring
-      final midRing = RadialGradient(
-        colors: [
-          color.withValues(alpha: brightness * 0.8),
-          color.withValues(alpha: brightness * 0.4),
-          color.withValues(alpha: brightness * 0.1),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.3, 0.6, 1.0],
-      );
       final midRadius = radius * 1.5;
-      final midPaint = Paint()
-        ..shader = midRing.createShader(
-          Rect.fromCircle(center: center, radius: midRadius),
-        );
-      canvas.drawCircle(center, midRadius, midPaint);
+      paint.shader = _starPsfShaderCache.getShader(
+        type: StarPsfShaderType.midRing,
+        radius: midRadius,
+        color: color,
+      );
+      canvas.drawCircle(Offset.zero, midRadius, paint);
 
       // Core (bright center)
-      final coreGradient = RadialGradient(
-        colors: [
-          Colors.white.withValues(alpha: brightness),
-          color.withValues(alpha: brightness),
-          color.withValues(alpha: brightness * 0.5),
-        ],
-        stops: const [0.0, 0.4, 1.0],
+      paint.shader = _starPsfShaderCache.getShader(
+        type: StarPsfShaderType.core,
+        radius: radius,
+        color: color,
       );
-      final corePaint = Paint()
-        ..shader = coreGradient.createShader(
-          Rect.fromCircle(center: center, radius: radius),
-        );
-      canvas.drawCircle(center, radius, corePaint);
+      canvas.drawCircle(Offset.zero, radius, paint);
     } else {
       // Balanced mode: 2-ring radial gradient
-      final gradient = RadialGradient(
-        colors: [
-          Colors.white.withValues(alpha: brightness * 0.9),
-          color.withValues(alpha: brightness),
-          color.withValues(alpha: brightness * 0.3),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.3, 0.7, 1.0],
+      paint.shader = _starPsfShaderCache.getShader(
+        type: StarPsfShaderType.balanced,
+        radius: radius * 1.5,
+        color: color,
       );
-      final paint = Paint()
-        ..shader = gradient.createShader(
-          Rect.fromCircle(center: center, radius: radius * 1.5),
-        );
-      canvas.drawCircle(center, radius * 1.5, paint);
+      canvas.drawCircle(Offset.zero, radius * 1.5, paint);
     }
+
+    canvas.restore();
   }
 
   /// Draw secondary 45-degree diffraction spikes for very bright stars

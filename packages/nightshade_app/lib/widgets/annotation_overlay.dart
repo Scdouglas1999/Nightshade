@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../utils/preview_transform.dart';
 
 /// Enhanced annotation overlay with fade effects, click-to-identify, and customizable styles
 class AnnotationOverlay extends ConsumerStatefulWidget {
   final ImageAnnotation? annotation;
   final double zoomLevel;
-  final Offset panOffset;
+  final Offset imageOffset;
   final Size imageSize;
   final void Function(CelestialObjectAnnotation object)? onObjectTapped;
   final void Function(double x, double y)? onIdentifyAt;
@@ -15,7 +16,7 @@ class AnnotationOverlay extends ConsumerStatefulWidget {
     super.key,
     required this.annotation,
     this.zoomLevel = 1.0,
-    this.panOffset = Offset.zero,
+    this.imageOffset = Offset.zero,
     required this.imageSize,
     this.onObjectTapped,
     this.onIdentifyAt,
@@ -83,14 +84,17 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
     final localPosition = details.localPosition;
 
     // Convert screen position to image coordinates
-    final imageX = (localPosition.dx - widget.panOffset.dx) / widget.zoomLevel;
-    final imageY = (localPosition.dy - widget.panOffset.dy) / widget.zoomLevel;
+    final imagePoint = viewportToImage(
+      viewportPoint: localPosition,
+      imageOffset: widget.imageOffset,
+      zoomLevel: widget.zoomLevel,
+    );
 
     // Check if tapped on an existing object
     if (widget.annotation != null) {
       for (final object in widget.annotation!.objects) {
-        final dx = object.x - imageX;
-        final dy = object.y - imageY;
+        final dx = object.x - imagePoint.dx;
+        final dy = object.y - imagePoint.dy;
         final distance = (dx * dx + dy * dy);
         final hitRadius = (object.size ?? 30) * 1.5;
 
@@ -102,7 +106,7 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
     }
 
     // No object hit, trigger identify at position
-    widget.onIdentifyAt?.call(imageX, imageY);
+    widget.onIdentifyAt?.call(imagePoint.dx, imagePoint.dy);
   }
 
   @override
@@ -143,7 +147,7 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
                   settings: settings,
                   markerStyle: markerStyle,
                   zoomLevel: widget.zoomLevel,
-                  panOffset: widget.panOffset,
+                  imageOffset: widget.imageOffset,
                 ),
                 size: Size.infinite,
               ),
@@ -161,14 +165,14 @@ class EnhancedAnnotationPainter extends CustomPainter {
   final AnnotationSettings settings;
   final AnnotationMarkerStyle markerStyle;
   final double zoomLevel;
-  final Offset panOffset;
+  final Offset imageOffset;
 
   EnhancedAnnotationPainter({
     required this.annotation,
     required this.settings,
     required this.markerStyle,
     this.zoomLevel = 1.0,
-    this.panOffset = Offset.zero,
+    this.imageOffset = Offset.zero,
   });
 
   @override
@@ -192,13 +196,16 @@ class EnhancedAnnotationPainter extends CustomPainter {
     }
 
     for (final object in visibleObjects) {
-      final screenX = object.x * zoomLevel + panOffset.dx;
-      final screenY = object.y * zoomLevel + panOffset.dy;
+      final screenPosition = imageToViewport(
+        imagePoint: Offset(object.x, object.y),
+        imageOffset: imageOffset,
+        zoomLevel: zoomLevel,
+      );
 
-      _drawObjectMarker(canvas, object, screenX, screenY);
+      _drawObjectMarker(canvas, object, screenPosition.dx, screenPosition.dy);
 
       if (settings.showLabels) {
-        _drawObjectLabel(canvas, object, screenX, screenY);
+        _drawObjectLabel(canvas, object, screenPosition.dx, screenPosition.dy);
       }
     }
   }
@@ -438,7 +445,7 @@ class EnhancedAnnotationPainter extends CustomPainter {
         oldDelegate.settings != settings ||
         oldDelegate.markerStyle != markerStyle ||
         oldDelegate.zoomLevel != zoomLevel ||
-        oldDelegate.panOffset != panOffset;
+        oldDelegate.imageOffset != imageOffset;
   }
 }
 

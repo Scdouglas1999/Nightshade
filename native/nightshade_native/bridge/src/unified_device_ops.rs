@@ -288,9 +288,25 @@ impl DeviceOps for UnifiedDeviceOps {
         let mut last_complete_status = false;
 
         loop {
-            // Get next poll interval (adapts based on status changes)
-            let poll_interval = poller.tick(&last_complete_status);
-            tokio::time::sleep(poll_interval).await;
+            match mgr.camera_is_exposure_complete(camera_id).await {
+                Ok(is_complete) => {
+                    if is_complete {
+                        break;
+                    }
+
+                    // Get next poll interval (adapts based on status changes)
+                    let poll_interval = poller.tick(&last_complete_status);
+                    last_complete_status = is_complete;
+                    tokio::time::sleep(poll_interval).await;
+                }
+                Err(e) => {
+                    self.app_state.publish_imaging_event(
+                        ImagingEvent::ExposureComplete { success: false },
+                        EventSeverity::Error,
+                    );
+                    return Err(format!("Failed to check exposure status: {}", e));
+                }
+            }
 
             // Calculate and publish progress
             let elapsed = start_time.elapsed().as_secs_f64();
@@ -304,26 +320,6 @@ impl DeviceOps for UnifiedDeviceOps {
                 },
                 EventSeverity::Info,
             );
-
-            match mgr.camera_is_exposure_complete(camera_id).await {
-                Ok(true) => {
-                    last_complete_status = true;
-                    break;
-                }
-                Ok(false) => {
-                    last_complete_status = false;
-                    continue;
-                }
-                Err(e) => {
-                    self.app_state.publish_imaging_event(
-                        ImagingEvent::ExposureComplete { success: false },
-                        EventSeverity::Error,
-                    );
-                    return Err(format!("Failed to check exposure status: {}", e));
-                }
-
-        // Map bayer pattern to sensor_type and bayer_offset
-            }
 
         // Map bayer pattern to sensor_type and bayer_offset
         }
@@ -1301,3 +1297,254 @@ pub fn create_unified_device_ops_with_state(app_state: SharedAppState) -> Arc<dy
     Arc::new(UnifiedDeviceOps::new(app_state))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::get_device_manager;
+    use crate::device::{DeviceInfo, DeviceType, DriverType};
+    use crate::devices::DeviceManager;
+    use nightshade_native::{
+        CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData, ImageMetadata,
+        NativeCamera, NativeDevice, NativeError, NativeVendor, ReadoutMode, SensorInfo, SubFrame,
+        VendorFeatures,
+    };
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+
+    #[derive(Debug)]
+    struct InstantCompleteCamera {
+        id: String,
+        name: String,
+        vendor: NativeVendor,
+        exposure_checked: Arc<AtomicUsize>,
+        connected: bool,
+    }
+
+    impl InstantCompleteCamera {
+        fn new(id: String, exposure_checked: Arc<AtomicUsize>) -> Self {
+            Self {
+                id: id.clone(),
+                name: "Instant Complete Camera".to_string(),
+                vendor: NativeVendor::Other("Test".to_string()),
+                exposure_checked,
+                connected: true,
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl NativeDevice for InstantCompleteCamera {
+        fn id(&self) -> &str {
+            &self.id
+        }
+
+        fn name(&self) -> &str {
+            &self.name
+        }
+
+        fn vendor(&self) -> NativeVendor {
+            self.vendor.clone()
+        }
+
+        fn is_connected(&self) -> bool {
+            self.connected
+        }
+
+        async fn connect(&mut self) -> Result<(), NativeError> {
+            self.connected = true;
+            Ok(())
+        }
+
+        async fn disconnect(&mut self) -> Result<(), NativeError> {
+            self.connected = false;
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl NativeCamera for InstantCompleteCamera {
+        fn capabilities(&self) -> CameraCapabilities {
+            CameraCapabilities::default()
+        }
+
+        async fn get_status(&self) -> Result<CameraStatus, NativeError> {
+            Ok(CameraStatus {
+                state: CameraState::Idle,
+                sensor_temp: None,
+                cooler_power: None,
+                target_temp: None,
+                cooler_on: false,
+                gain: 0,
+                offset: 0,
+                bin_x: 1,
+                bin_y: 1,
+                exposure_remaining: None,
+            })
+        }
+
+        async fn start_exposure(&mut self, _params: ExposureParams) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn abort_exposure(&mut self) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn is_exposure_complete(&self) -> Result<bool, NativeError> {
+            self.exposure_checked.fetch_add(1, Ordering::SeqCst);
+            Ok(true)
+        }
+
+        async fn download_image(&mut self) -> Result<ImageData, NativeError> {
+            Ok(ImageData {
+                width: 2,
+                height: 2,
+                data: vec![100, 200, 300, 400],
+                bits_per_pixel: 16,
+                bayer_pattern: None,
+                metadata: ImageMetadata {
+                    exposure_time: 0.5,
+                    gain: 0,
+                    offset: 0,
+                    bin_x: 1,
+                    bin_y: 1,
+                    temperature: None,
+                    timestamp: chrono::Utc::now(),
+                    subframe: None,
+                    readout_mode: None,
+                    vendor_data: VendorFeatures::default(),
+                },
+            })
+        }
+
+        async fn set_cooler(&mut self, _enabled: bool, _target_temp: f64) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_temperature(&self) -> Result<f64, NativeError> {
+            Ok(0.0)
+        }
+
+        async fn get_cooler_power(&self) -> Result<f64, NativeError> {
+            Ok(0.0)
+        }
+
+        async fn set_gain(&mut self, _gain: i32) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_gain(&self) -> Result<i32, NativeError> {
+            Ok(0)
+        }
+
+        async fn set_offset(&mut self, _offset: i32) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_offset(&self) -> Result<i32, NativeError> {
+            Ok(0)
+        }
+
+        async fn set_binning(&mut self, _bin_x: i32, _bin_y: i32) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_binning(&self) -> Result<(i32, i32), NativeError> {
+            Ok((1, 1))
+        }
+
+        async fn set_subframe(&mut self, _subframe: Option<SubFrame>) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        fn get_sensor_info(&self) -> SensorInfo {
+            SensorInfo {
+                width: 2,
+                height: 2,
+                pixel_size_x: 1.0,
+                pixel_size_y: 1.0,
+                max_adu: 65535,
+                bit_depth: 16,
+                color: false,
+                bayer_pattern: None,
+            }
+        }
+
+        async fn get_readout_modes(&self) -> Result<Vec<ReadoutMode>, NativeError> {
+            Ok(Vec::new())
+        }
+
+        async fn set_readout_mode(&mut self, _mode: &ReadoutMode) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError> {
+            Ok(VendorFeatures::default())
+        }
+
+        async fn get_gain_range(&self) -> Result<(i32, i32), NativeError> {
+            Err(NativeError::NotSupported)
+        }
+
+        async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
+            Err(NativeError::NotSupported)
+        }
+    }
+
+    async fn cleanup_test_camera(mgr: &Arc<DeviceManager>, device_id: &str) {
+        mgr.unregister_device(device_id).await;
+        let mut native_cameras = mgr.native_cameras.write().await;
+        native_cameras.remove(device_id);
+    }
+
+    #[tokio::test]
+    async fn exposure_polling_short_circuits_when_complete() {
+        let mgr = get_device_manager();
+        let device_id = "native:test_camera_polling".to_string();
+        let exposure_checked = Arc::new(AtomicUsize::new(0));
+
+        let info = DeviceInfo {
+            id: device_id.clone(),
+            name: "Test Camera".to_string(),
+            device_type: DeviceType::Camera,
+            driver_type: DriverType::Native,
+            description: "Test camera".to_string(),
+            driver_version: "test".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Test Camera".to_string(),
+        };
+
+        mgr.register_device(info, false).await;
+        {
+            let mut native_cameras = mgr.native_cameras.write().await;
+            native_cameras.insert(
+                device_id.clone(),
+                Box::new(InstantCompleteCamera::new(device_id.clone(), Arc::clone(&exposure_checked))),
+            );
+        }
+
+        let ops = UnifiedDeviceOps::new(crate::api::get_state().clone());
+        let device_id_for_exposure = device_id.clone();
+        let timed_result = tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            async move {
+                ops.camera_start_exposure(&device_id_for_exposure, 0.5, None, None, 1, 1).await
+            },
+        )
+        .await;
+        cleanup_test_camera(mgr, &device_id).await;
+
+        let result = match timed_result {
+            Ok(result) => result,
+            Err(_) => {
+                panic!("Expected exposure to complete without waiting when already complete");
+            }
+        };
+
+        assert!(result.is_ok(), "Exposure should succeed when complete immediately");
+        assert!(
+            exposure_checked.load(Ordering::SeqCst) > 0,
+            "Exposure status should be checked at least once"
+        );
+    }
+}

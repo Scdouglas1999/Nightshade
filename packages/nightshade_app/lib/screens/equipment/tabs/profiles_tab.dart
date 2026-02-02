@@ -6,6 +6,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
 
+import '../../../utils/snackbar_helper.dart';
+import '../dialogs/profile_wizard_dialog.dart';
+
 class ProfilesTab extends ConsumerWidget {
   const ProfilesTab({super.key});
 
@@ -109,23 +112,7 @@ class _CreateProfileButtonState extends ConsumerState<_CreateProfileButton> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
-        onTap: () async {
-          try {
-            final profileService = ref.read(profileServiceProvider);
-            await profileService.createProfile('New Profile');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Profile created')),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to create profile: $e')),
-              );
-            }
-          }
-        },
+        onTap: () => ProfileWizardDialog.show(context),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -596,25 +583,50 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
   Future<void> _loadProfile() async {
     setState(() => _isWorking = true);
     final profile = widget.profile;
+    final colors = widget.colors;
+
     try {
-      final autoConnectSetting = ref.read(appSettingsProvider).valueOrNull?.autoConnectEquipment ?? false;
-      await ref.read(profileServiceProvider).loadProfile(profile.id, autoConnect: autoConnectSetting);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Loaded "${profile.name}"'),
-            backgroundColor: widget.colors.success,
+      final profileService = ref.read(profileServiceProvider);
+
+      // Validate the profile first
+      final validation = await profileService.validateProfile(profile.id);
+
+      if (!validation.isValid && mounted) {
+        // Show warning dialog about missing devices
+        final action = await showDialog<_ValidationAction>(
+          context: context,
+          builder: (context) => _MissingDevicesDialog(
+            profileName: profile.name,
+            missingDevices: validation.missingDevices,
+            missingDeviceIds: validation.missingDeviceIds,
+            colors: colors,
           ),
         );
+
+        if (action == null || action == _ValidationAction.cancel) {
+          // User cancelled
+          setState(() => _isWorking = false);
+          return;
+        }
+
+        if (action == _ValidationAction.updateProfile) {
+          // TODO: Navigate to profile editor or show edit dialog
+          // For now, just load anyway and let user update manually
+          if (mounted) {
+            context.showInfoSnackBar('Profile loaded. Update device assignments in the Profiles tab.');
+          }
+        }
+        // action == _ValidationAction.proceedAnyway falls through to load
+      }
+
+      final autoConnectSetting = ref.read(appSettingsProvider).valueOrNull?.autoConnectEquipment ?? false;
+      await profileService.loadProfile(profile.id, autoConnect: autoConnectSetting);
+      if (mounted) {
+        context.showSuccessSnackBar('Loaded "${profile.name}"');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load profile: $e'),
-            backgroundColor: widget.colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to load profile: $e');
       }
     } finally {
       if (mounted) {
@@ -630,21 +642,11 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
       final newName = '${profile.name} Copy';
       await ref.read(profileServiceProvider).duplicateProfile(profile.id, newName);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Duplicated "${profile.name}"'),
-            backgroundColor: widget.colors.success,
-          ),
-        );
+        context.showSuccessSnackBar('Duplicated "${profile.name}"');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to duplicate profile: $e'),
-            backgroundColor: widget.colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to duplicate profile: $e');
       }
     } finally {
       if (mounted) {
@@ -693,21 +695,11 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
     try {
       await ref.read(profileServiceProvider).deleteProfile(profile.id);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Deleted "${profile.name}"'),
-            backgroundColor: widget.colors.success,
-          ),
-        );
+        context.showSuccessSnackBar('Deleted "${profile.name}"');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete profile: $e'),
-            backgroundColor: widget.colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to delete profile: $e');
       }
     } finally {
       if (mounted) {
@@ -875,7 +867,6 @@ class _EmptyProfileCard extends ConsumerStatefulWidget {
 
 class _EmptyProfileCardState extends ConsumerState<_EmptyProfileCard> {
   bool _isHovered = false;
-  bool _isCreating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -883,7 +874,7 @@ class _EmptyProfileCardState extends ConsumerState<_EmptyProfileCard> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
-        onTap: _isCreating ? null : _createProfile,
+        onTap: () => ProfileWizardDialog.show(context),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
@@ -913,21 +904,11 @@ class _EmptyProfileCardState extends ConsumerState<_EmptyProfileCard> {
                       style: BorderStyle.solid,
                     ),
                   ),
-                  child: _isCreating
-                      ? Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              widget.colors.primary,
-                            ),
-                          ),
-                        )
-                      : Icon(
-                          LucideIcons.plus,
-                          size: 24,
-                          color: widget.colors.textMuted,
-                        ),
+                  child: Icon(
+                    LucideIcons.plus,
+                    size: 24,
+                    color: widget.colors.textMuted,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -945,33 +926,144 @@ class _EmptyProfileCardState extends ConsumerState<_EmptyProfileCard> {
       ),
     );
   }
+}
 
-  Future<void> _createProfile() async {
-    setState(() => _isCreating = true);
-    try {
-      final profileService = ref.read(profileServiceProvider);
-      await profileService.createProfile('New Profile');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Profile created'),
-            backgroundColor: widget.colors.success,
+// ============================================================================
+// Profile Validation Dialog
+// ============================================================================
+
+/// Action the user wants to take when devices are missing
+enum _ValidationAction {
+  proceedAnyway,
+  updateProfile,
+  cancel,
+}
+
+/// Dialog shown when loading a profile with missing devices
+class _MissingDevicesDialog extends StatelessWidget {
+  final String profileName;
+  final List<String> missingDevices;
+  final Map<String, String> missingDeviceIds;
+  final NightshadeColors colors;
+
+  const _MissingDevicesDialog({
+    required this.profileName,
+    required this.missingDevices,
+    required this.missingDeviceIds,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Icon(LucideIcons.alertTriangle, color: colors.warning, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Some devices not found',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create profile: $e'),
-            backgroundColor: widget.colors.error,
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'The following devices in "$profileName" were not detected:',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 14,
+            ),
           ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isCreating = false);
-      }
-    }
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.warning.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: missingDevices.map((device) {
+                final deviceId = missingDeviceIds[device];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.xCircle, size: 14, color: colors.warning),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              device,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                            if (deviceId != null)
+                              Text(
+                                deviceId,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colors.textMuted,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'This can happen if devices are powered off, disconnected, or their drivers are not running.',
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.textMuted,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, _ValidationAction.cancel),
+          child: Text(
+            'Cancel',
+            style: TextStyle(color: colors.textMuted),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _ValidationAction.updateProfile),
+          child: Text(
+            'Update Profile',
+            style: TextStyle(color: colors.primary),
+          ),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _ValidationAction.proceedAnyway),
+          style: FilledButton.styleFrom(backgroundColor: colors.warning),
+          child: const Text('Proceed Anyway'),
+        ),
+      ],
+    );
   }
 }

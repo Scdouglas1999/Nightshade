@@ -20,7 +20,6 @@ use std::time::Duration;
 const SYNSCAN_BAUD_RATE: u32 = 9600;
 
 /// High-speed baud rate for newer mounts (EQ6-R Pro, etc.) via USB
-const SYNSCAN_BAUD_RATE_FAST: u32 = 115200;
 
 /// Baud rates to try during discovery, in order of preference
 /// - 115200: Newer mounts (EQ6-R Pro, EQ8, etc.) via USB
@@ -181,8 +180,6 @@ pub struct SkyWatcherMount {
     is_tracking: Mutex<bool>,
     is_slewing: Mutex<bool>,
     is_parked: Mutex<bool>,
-    latitude: f64,
-    longitude: f64,
 }
 
 impl std::fmt::Debug for SkyWatcherMount {
@@ -210,8 +207,6 @@ impl SkyWatcherMount {
             is_tracking: Mutex::new(false),
             is_slewing: Mutex::new(false),
             is_parked: Mutex::new(false),
-            latitude: 0.0,
-            longitude: 0.0,
         }
     }
 
@@ -229,8 +224,6 @@ impl SkyWatcherMount {
             is_tracking: Mutex::new(false),
             is_slewing: Mutex::new(false),
             is_parked: Mutex::new(false),
-            latitude: 0.0,
-            longitude: 0.0,
         }
     }
 

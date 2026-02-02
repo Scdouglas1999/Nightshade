@@ -7,6 +7,9 @@ export 'src/theme/nightshade_colors.dart';
 export 'src/theme/nightshade_tokens.dart';
 export 'src/theme/nightshade_typography.dart';
 
+// Utils
+export 'src/utils/responsive_utils.dart';
+
 // Components
 export 'src/components/nightshade_button.dart';
 export 'src/components/nightshade_card.dart';

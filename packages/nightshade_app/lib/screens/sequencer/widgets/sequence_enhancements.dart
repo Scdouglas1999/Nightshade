@@ -20,7 +20,7 @@ class EstimatedCompletionWidget extends ConsumerWidget {
     final totalTime = sequence.totalIntegrationSecs;
     final estimatedCompletion = DateTime.now().add(Duration(seconds: totalTime.toInt()));
     final isRunning = executionState == SequenceExecutionState.running;
-    final targetGroups = sequence.targetGroups;
+    final targetGroups = sequence.targetHeaders;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -178,7 +178,7 @@ class _InfoChip extends StatelessWidget {
 /// Chip showing target count with hover breakdown
 class _TargetBreakdownChip extends StatefulWidget {
   final NightshadeColors colors;
-  final List<TargetGroupNode> targets;
+  final List<TargetHeaderNode> targets;
 
   const _TargetBreakdownChip({
     required this.colors,
@@ -302,7 +302,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
     );
   }
 
-  Widget _buildTargetRow(TargetGroupNode target) {
+  Widget _buildTargetRow(TargetHeaderNode target) {
     // Format coordinates for display
     final raStr = '${target.raHours.toStringAsFixed(2)}h';
     final decStr = '${target.decDegrees >= 0 ? '+' : ''}${target.decDegrees.toStringAsFixed(1)}°';

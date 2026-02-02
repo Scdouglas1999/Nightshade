@@ -76,7 +76,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 663443260;
+  int get rustContentHash => 1955720529;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -418,6 +418,9 @@ abstract class RustLibApi extends BaseApi {
 
   Future<List<DeviceInfo>> crateApiApiGetConnectedDevices();
 
+  Future<CoverCalibratorCapabilities> crateApiApiGetCoverCalibratorCapabilities(
+      {required String deviceId});
+
   String? crateApiApiGetCurrentLogFile();
 
   Future<DeviceApiVersion> crateApiApiGetDeviceApiVersion(
@@ -430,6 +433,9 @@ abstract class RustLibApi extends BaseApi {
       {required String deviceId});
 
   Future<DeviceHeartbeatInfo> crateApiApiGetDeviceHeartbeatInfo(
+      {required String deviceId});
+
+  Future<DomeCapabilities> crateApiApiGetDomeCapabilities(
       {required String deviceId});
 
   Future<DomeStatus> crateApiApiGetDomeStatus({required String deviceId});
@@ -480,7 +486,13 @@ abstract class RustLibApi extends BaseApi {
 
   QhyDiscoveryStatus crateApiApiGetQhyDiscoveryStatus();
 
+  Future<RotatorCapabilities> crateApiApiGetRotatorCapabilities(
+      {required String deviceId});
+
   Future<RotatorStatus> crateApiApiGetRotatorStatus({required String deviceId});
+
+  Future<SafetyMonitorCapabilities> crateApiApiGetSafetyMonitorCapabilities(
+      {required String deviceId});
 
   Future<SessionState> crateApiApiGetSessionState();
 
@@ -489,7 +501,13 @@ abstract class RustLibApi extends BaseApi {
   Future<List<StarCropApi>> crateApiApiGetStarCropsFromLastImage(
       {required String deviceId, required int maxCrops});
 
+  Future<SwitchCapabilities> crateApiApiGetSwitchCapabilities(
+      {required String deviceId});
+
   String crateApiApiGetVersion();
+
+  Future<WeatherCapabilities> crateApiApiGetWeatherCapabilities(
+      {required String deviceId});
 
   void crateApiApiInit();
 
@@ -761,6 +779,35 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiApiStopPolarAlignment();
 
+  Future<bool> crateApiApiSwitchCanWrite(
+      {required String deviceId, required int switchId});
+
+  Future<String> crateApiApiSwitchGetDescription(
+      {required String deviceId, required int switchId});
+
+  Future<int> crateApiApiSwitchGetMax({required String deviceId});
+
+  Future<double> crateApiApiSwitchGetMaxValue(
+      {required String deviceId, required int switchId});
+
+  Future<double> crateApiApiSwitchGetMinValue(
+      {required String deviceId, required int switchId});
+
+  Future<String> crateApiApiSwitchGetName(
+      {required String deviceId, required int switchId});
+
+  Future<bool> crateApiApiSwitchGetState(
+      {required String deviceId, required int switchId});
+
+  Future<double> crateApiApiSwitchGetValue(
+      {required String deviceId, required int switchId});
+
+  Future<void> crateApiApiSwitchSetState(
+      {required String deviceId, required int switchId, required bool state});
+
+  Future<void> crateApiApiSwitchSetValue(
+      {required String deviceId, required int switchId, required double value});
+
   void crateApiApiUpdateSettings({required AppSettings settings});
 
   Future<void> crateApiCancelExposure({required String deviceId});
@@ -816,13 +863,13 @@ abstract class RustLibApi extends BaseApi {
 
   Future<CameraStatus> crateApiGetCameraStatus({required String deviceId});
 
-  Future<CapturedImageResult?> crateApiGetLastImage();
-
   Future<IndiAutofocusConfigApi> crateApiIndiAutofocusConfigApiDefault();
 
   Future<bool> crateApiAlpacaConnectionsIsConnected({required String deviceId});
 
   Future<void> crateApiMountAbort({required String deviceId});
+
+  Future<bool> crateApiMountCanPark({required String deviceId});
 
   Future<(double, double)> crateApiMountGetCoordinates(
       {required String deviceId});
@@ -849,6 +896,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiMountSlew(
       {required String deviceId, required double ra, required double dec});
+
+  Future<void> crateApiMountStop({required String deviceId});
 
   Future<void> crateApiMountSync(
       {required String deviceId, required double ra, required double dec});
@@ -3300,6 +3349,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<CoverCalibratorCapabilities> crateApiApiGetCoverCalibratorCapabilities(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__api_get_cover_calibrator_capabilities(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_cover_calibrator_capabilities,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiGetCoverCalibratorCapabilitiesConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiGetCoverCalibratorCapabilitiesConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_get_cover_calibrator_capabilities",
+        argNames: ["deviceId"],
+      );
+
+  @override
   String? crateApiApiGetCurrentLogFile() {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -3414,6 +3488,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApiGetDeviceHeartbeatInfoConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_device_heartbeat_info",
+        argNames: ["deviceId"],
+      );
+
+  @override
+  Future<DomeCapabilities> crateApiApiGetDomeCapabilities(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__api_get_dome_capabilities(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_dome_capabilities,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiGetDomeCapabilitiesConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiGetDomeCapabilitiesConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_get_dome_capabilities",
         argNames: ["deviceId"],
       );
 
@@ -3842,6 +3940,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<RotatorCapabilities> crateApiApiGetRotatorCapabilities(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__api_get_rotator_capabilities(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_rotator_capabilities,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiGetRotatorCapabilitiesConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiGetRotatorCapabilitiesConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_get_rotator_capabilities",
+        argNames: ["deviceId"],
+      );
+
+  @override
   Future<RotatorStatus> crateApiApiGetRotatorStatus(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
@@ -3862,6 +3984,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApiGetRotatorStatusConstMeta =>
       const TaskConstMeta(
         debugName: "api_get_rotator_status",
+        argNames: ["deviceId"],
+      );
+
+  @override
+  Future<SafetyMonitorCapabilities> crateApiApiGetSafetyMonitorCapabilities(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__api_get_safety_monitor_capabilities(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_safety_monitor_capabilities,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiGetSafetyMonitorCapabilitiesConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiGetSafetyMonitorCapabilitiesConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_get_safety_monitor_capabilities",
         argNames: ["deviceId"],
       );
 
@@ -3934,6 +4081,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<SwitchCapabilities> crateApiApiGetSwitchCapabilities(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__api_get_switch_capabilities(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_switch_capabilities,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiGetSwitchCapabilitiesConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiGetSwitchCapabilitiesConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_get_switch_capabilities",
+        argNames: ["deviceId"],
+      );
+
+  @override
   String crateApiApiGetVersion() {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -3952,6 +4123,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiApiGetVersionConstMeta => const TaskConstMeta(
         debugName: "api_get_version",
         argNames: [],
+      );
+
+  @override
+  Future<WeatherCapabilities> crateApiApiGetWeatherCapabilities(
+      {required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__api_get_weather_capabilities(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_weather_capabilities,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiGetWeatherCapabilitiesConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiGetWeatherCapabilitiesConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_get_weather_capabilities",
+        argNames: ["deviceId"],
       );
 
   @override
@@ -6221,6 +6416,256 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<bool> crateApiApiSwitchCanWrite(
+      {required String deviceId, required int switchId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(switchId);
+        return wire.wire__crate__api__api_switch_can_write(port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_bool,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchCanWriteConstMeta,
+      argValues: [deviceId, switchId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchCanWriteConstMeta => const TaskConstMeta(
+        debugName: "api_switch_can_write",
+        argNames: ["deviceId", "switchId"],
+      );
+
+  @override
+  Future<String> crateApiApiSwitchGetDescription(
+      {required String deviceId, required int switchId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(switchId);
+        return wire.wire__crate__api__api_switch_get_description(
+            port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_String,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchGetDescriptionConstMeta,
+      argValues: [deviceId, switchId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchGetDescriptionConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_switch_get_description",
+        argNames: ["deviceId", "switchId"],
+      );
+
+  @override
+  Future<int> crateApiApiSwitchGetMax({required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__api_switch_get_max(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_i_32,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchGetMaxConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchGetMaxConstMeta => const TaskConstMeta(
+        debugName: "api_switch_get_max",
+        argNames: ["deviceId"],
+      );
+
+  @override
+  Future<double> crateApiApiSwitchGetMaxValue(
+      {required String deviceId, required int switchId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(switchId);
+        return wire.wire__crate__api__api_switch_get_max_value(
+            port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_f_64,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchGetMaxValueConstMeta,
+      argValues: [deviceId, switchId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchGetMaxValueConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_switch_get_max_value",
+        argNames: ["deviceId", "switchId"],
+      );
+
+  @override
+  Future<double> crateApiApiSwitchGetMinValue(
+      {required String deviceId, required int switchId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(switchId);
+        return wire.wire__crate__api__api_switch_get_min_value(
+            port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_f_64,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchGetMinValueConstMeta,
+      argValues: [deviceId, switchId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchGetMinValueConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_switch_get_min_value",
+        argNames: ["deviceId", "switchId"],
+      );
+
+  @override
+  Future<String> crateApiApiSwitchGetName(
+      {required String deviceId, required int switchId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(switchId);
+        return wire.wire__crate__api__api_switch_get_name(port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_String,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchGetNameConstMeta,
+      argValues: [deviceId, switchId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchGetNameConstMeta => const TaskConstMeta(
+        debugName: "api_switch_get_name",
+        argNames: ["deviceId", "switchId"],
+      );
+
+  @override
+  Future<bool> crateApiApiSwitchGetState(
+      {required String deviceId, required int switchId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(switchId);
+        return wire.wire__crate__api__api_switch_get_state(port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_bool,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchGetStateConstMeta,
+      argValues: [deviceId, switchId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchGetStateConstMeta => const TaskConstMeta(
+        debugName: "api_switch_get_state",
+        argNames: ["deviceId", "switchId"],
+      );
+
+  @override
+  Future<double> crateApiApiSwitchGetValue(
+      {required String deviceId, required int switchId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(switchId);
+        return wire.wire__crate__api__api_switch_get_value(port_, arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_f_64,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchGetValueConstMeta,
+      argValues: [deviceId, switchId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchGetValueConstMeta => const TaskConstMeta(
+        debugName: "api_switch_get_value",
+        argNames: ["deviceId", "switchId"],
+      );
+
+  @override
+  Future<void> crateApiApiSwitchSetState(
+      {required String deviceId, required int switchId, required bool state}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(switchId);
+        var arg2 = cst_encode_bool(state);
+        return wire.wire__crate__api__api_switch_set_state(
+            port_, arg0, arg1, arg2);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchSetStateConstMeta,
+      argValues: [deviceId, switchId, state],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchSetStateConstMeta => const TaskConstMeta(
+        debugName: "api_switch_set_state",
+        argNames: ["deviceId", "switchId", "state"],
+      );
+
+  @override
+  Future<void> crateApiApiSwitchSetValue(
+      {required String deviceId,
+      required int switchId,
+      required double value}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_i_32(switchId);
+        var arg2 = cst_encode_f_64(value);
+        return wire.wire__crate__api__api_switch_set_value(
+            port_, arg0, arg1, arg2);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiSwitchSetValueConstMeta,
+      argValues: [deviceId, switchId, value],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiSwitchSetValueConstMeta => const TaskConstMeta(
+        debugName: "api_switch_set_value",
+        argNames: ["deviceId", "switchId", "value"],
+      );
+
+  @override
   void crateApiApiUpdateSettings({required AppSettings settings}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
@@ -6725,27 +7170,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<CapturedImageResult?> crateApiGetLastImage() {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        return wire.wire__crate__api__get_last_image(port_);
-      },
-      codec: DcoCodec(
-        decodeSuccessData: dco_decode_opt_box_autoadd_captured_image_result,
-        decodeErrorData: dco_decode_nightshade_error,
-      ),
-      constMeta: kCrateApiGetLastImageConstMeta,
-      argValues: [],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiGetLastImageConstMeta => const TaskConstMeta(
-        debugName: "get_last_image",
-        argNames: [],
-      );
-
-  @override
   Future<IndiAutofocusConfigApi> crateApiIndiAutofocusConfigApiDefault() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -6811,6 +7235,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiMountAbortConstMeta => const TaskConstMeta(
         debugName: "mount_abort",
+        argNames: ["deviceId"],
+      );
+
+  @override
+  Future<bool> crateApiMountCanPark({required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__mount_can_park(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_bool,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiMountCanParkConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiMountCanParkConstMeta => const TaskConstMeta(
+        debugName: "mount_can_park",
         argNames: ["deviceId"],
       );
 
@@ -7031,6 +7477,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiMountSlewConstMeta => const TaskConstMeta(
         debugName: "mount_slew",
         argNames: ["deviceId", "ra", "dec"],
+      );
+
+  @override
+  Future<void> crateApiMountStop({required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__mount_stop(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiMountStopConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiMountStopConstMeta => const TaskConstMeta(
+        debugName: "mount_stop",
+        argNames: ["deviceId"],
       );
 
   @override
@@ -7519,13 +7987,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   CameraCapabilities dco_decode_box_autoadd_camera_capabilities(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_camera_capabilities(raw);
-  }
-
-  @protected
-  CapturedImageResult dco_decode_box_autoadd_captured_image_result(
-      dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_captured_image_result(raw);
   }
 
   @protected
@@ -9104,15 +9565,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  CapturedImageResult? dco_decode_opt_box_autoadd_captured_image_result(
-      dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null
-        ? null
-        : dco_decode_box_autoadd_captured_image_result(raw);
-  }
-
-  @protected
   CheckpointInfoApi? dco_decode_opt_box_autoadd_checkpoint_info_api(
       dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -10051,13 +10503,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_camera_capabilities(deserializer));
-  }
-
-  @protected
-  CapturedImageResult sse_decode_box_autoadd_captured_image_result(
-      SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_captured_image_result(deserializer));
   }
 
   @protected
@@ -12012,18 +12457,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  CapturedImageResult? sse_decode_opt_box_autoadd_captured_image_result(
-      SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_captured_image_result(deserializer));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
   CheckpointInfoApi? sse_decode_opt_box_autoadd_checkpoint_info_api(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -13205,13 +13638,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       CameraCapabilities self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_camera_capabilities(self, serializer);
-  }
-
-  @protected
-  void sse_encode_box_autoadd_captured_image_result(
-      CapturedImageResult self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_captured_image_result(self, serializer);
   }
 
   @protected
@@ -14813,17 +15239,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_calibrator_state(self, serializer);
-    }
-  }
-
-  @protected
-  void sse_encode_opt_box_autoadd_captured_image_result(
-      CapturedImageResult? self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_captured_image_result(self, serializer);
     }
   }
 

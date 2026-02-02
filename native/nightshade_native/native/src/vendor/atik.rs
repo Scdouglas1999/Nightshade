@@ -71,29 +71,6 @@ impl ArtemisError {
     }
 }
 
-/// Camera colour type
-#[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ArtemisColourType {
-    Unknown = 0,
-    None = 1,
-    Rggb = 2,
-}
-
-/// Camera state
-#[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ArtemisCameraState {
-    Error = -1,
-    Idle = 0,
-    Waiting = 1,
-    Exposing = 2,
-    Reading = 3,
-    Downloading = 4,
-    Flushing = 5,
-    ExternalTrigger = 6,
-}
-
 /// Camera properties structure (ARTEMISPROPERTIES)
 #[repr(C)]
 #[derive(Debug)]
@@ -112,7 +89,7 @@ struct ArtemisProperties {
 // Camera flags from ARTEMISPROPERTIESCAMERAFLAGS
 const ARTEMIS_CAMERA_HAS_SHUTTER: c_int = 16;
 const ARTEMIS_CAMERA_HAS_GUIDE_PORT: c_int = 32;
-const ARTEMIS_CAMERA_HAS_FILTERWHEEL: c_int = 1024;
+const ARTEMIS_COLOUR_RGGB: c_int = 2;
 
 // =============================================================================
 // SDK Function Pointers
@@ -136,14 +113,11 @@ type ArtemisColourProperties = unsafe extern "C" fn(
     preview_offset_y: *mut c_int,
 ) -> c_int;
 type ArtemisBin = unsafe extern "C" fn(handle: ArtemisHandle, x: c_int, y: c_int) -> c_int;
-type ArtemisGetBin = unsafe extern "C" fn(handle: ArtemisHandle, x: *mut c_int, y: *mut c_int) -> c_int;
 type ArtemisGetMaxBin = unsafe extern "C" fn(handle: ArtemisHandle, x: *mut c_int, y: *mut c_int) -> c_int;
 type ArtemisSubframe = unsafe extern "C" fn(handle: ArtemisHandle, x: c_int, y: c_int, w: c_int, h: c_int) -> c_int;
-type ArtemisGetSubframe = unsafe extern "C" fn(handle: ArtemisHandle, x: *mut c_int, y: *mut c_int, w: *mut c_int, h: *mut c_int) -> c_int;
 type ArtemisStartExposure = unsafe extern "C" fn(handle: ArtemisHandle, seconds: c_float) -> c_int;
 type ArtemisAbortExposure = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
 type ArtemisImageReady = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
-type ArtemisCameraState_ = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
 type ArtemisExposureTimeRemaining = unsafe extern "C" fn(handle: ArtemisHandle) -> c_float;
 type ArtemisGetImageData = unsafe extern "C" fn(
     handle: ArtemisHandle,
@@ -168,7 +142,6 @@ type ArtemisCoolerWarmUp = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
 type ArtemisTemperatureSensorInfo = unsafe extern "C" fn(handle: ArtemisHandle, sensor: c_int, temperature: *mut c_int) -> c_int;
 type ArtemisSetGain = unsafe extern "C" fn(handle: ArtemisHandle, preview: c_int, gain: c_int, offset: c_int) -> c_int;
 type ArtemisGetGain = unsafe extern "C" fn(handle: ArtemisHandle, preview: c_int, gain: *mut c_int, offset: *mut c_int) -> c_int;
-type ArtemisPulseGuide = unsafe extern "C" fn(handle: ArtemisHandle, axis: c_int, milli: c_int) -> c_int;
 type ArtemisAPIVersion = unsafe extern "C" fn() -> c_int;
 type ArtemisSetDarkMode = unsafe extern "C" fn(handle: ArtemisHandle, enable: c_int) -> c_int;
 type ArtemisEightBitMode = unsafe extern "C" fn(handle: ArtemisHandle, eightbit: c_int) -> c_int;
@@ -187,14 +160,11 @@ struct AtikSdk {
     properties: ArtemisProperties_,
     colour_properties: ArtemisColourProperties,
     bin: ArtemisBin,
-    get_bin: ArtemisGetBin,
     get_max_bin: ArtemisGetMaxBin,
     subframe: ArtemisSubframe,
-    get_subframe: ArtemisGetSubframe,
     start_exposure: ArtemisStartExposure,
     abort_exposure: ArtemisAbortExposure,
     image_ready: ArtemisImageReady,
-    camera_state: ArtemisCameraState_,
     exposure_time_remaining: ArtemisExposureTimeRemaining,
     get_image_data: ArtemisGetImageData,
     image_buffer: ArtemisImageBuffer,
@@ -204,7 +174,6 @@ struct AtikSdk {
     temperature_sensor_info: ArtemisTemperatureSensorInfo,
     set_gain: ArtemisSetGain,
     get_gain: ArtemisGetGain,
-    pulse_guide: ArtemisPulseGuide,
     api_version: ArtemisAPIVersion,
     set_dark_mode: ArtemisSetDarkMode,
     eight_bit_mode: ArtemisEightBitMode,
@@ -259,18 +228,12 @@ impl AtikSdk {
                 bin: *library
                     .get::<ArtemisBin>(b"ArtemisBin\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisBin: {}", e)))?,
-                get_bin: *library
-                    .get::<ArtemisGetBin>(b"ArtemisGetBin\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisGetBin: {}", e)))?,
                 get_max_bin: *library
                     .get::<ArtemisGetMaxBin>(b"ArtemisGetMaxBin\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisGetMaxBin: {}", e)))?,
                 subframe: *library
                     .get::<ArtemisSubframe>(b"ArtemisSubframe\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisSubframe: {}", e)))?,
-                get_subframe: *library
-                    .get::<ArtemisGetSubframe>(b"ArtemisGetSubframe\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisGetSubframe: {}", e)))?,
                 start_exposure: *library
                     .get::<ArtemisStartExposure>(b"ArtemisStartExposure\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisStartExposure: {}", e)))?,
@@ -280,9 +243,6 @@ impl AtikSdk {
                 image_ready: *library
                     .get::<ArtemisImageReady>(b"ArtemisImageReady\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisImageReady: {}", e)))?,
-                camera_state: *library
-                    .get::<ArtemisCameraState_>(b"ArtemisCameraState\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisCameraState: {}", e)))?,
                 exposure_time_remaining: *library
                     .get::<ArtemisExposureTimeRemaining>(b"ArtemisExposureTimeRemaining\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisExposureTimeRemaining: {}", e)))?,
@@ -310,9 +270,6 @@ impl AtikSdk {
                 get_gain: *library
                     .get::<ArtemisGetGain>(b"ArtemisGetGain\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisGetGain: {}", e)))?,
-                pulse_guide: *library
-                    .get::<ArtemisPulseGuide>(b"ArtemisPulseGuide\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisPulseGuide: {}", e)))?,
                 api_version: *library
                     .get::<ArtemisAPIVersion>(b"ArtemisAPIVersion\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisAPIVersion: {}", e)))?,
@@ -593,7 +550,7 @@ impl NativeDevice for AtikCamera {
             )
         };
 
-        let is_color = colour_type == ArtemisColourType::Rggb as i32;
+        let is_color = colour_type == ARTEMIS_COLOUR_RGGB;
         let bayer_pattern = if is_color {
             Some(BayerPattern::Rggb)
         } else {
