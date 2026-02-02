@@ -10,6 +10,7 @@ import 'widgets/quick_connect_bar.dart';
 import 'widgets/connection_status_zone.dart';
 import '../../services/mount_command_service.dart';
 import '../../utils/snackbar_helper.dart';
+import '../../widgets/tutorial_keys/equipment_keys.dart';
 
 // ============================================================================
 // Device ID Formatting Helpers
@@ -181,10 +182,10 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
-  static const _subTabs = [
-    _SubTabData(icon: LucideIcons.radar, label: 'Discovery'),
-    _SubTabData(icon: LucideIcons.plugZap, label: 'Connected'),
-    _SubTabData(icon: LucideIcons.settings2, label: 'Settings'),
+  static final _subTabs = [
+    _SubTabData(icon: LucideIcons.radar, label: 'Discovery', key: EquipmentTutorialKeys.discoveryTab),
+    _SubTabData(icon: LucideIcons.plugZap, label: 'Connected', key: EquipmentTutorialKeys.connectedTab),
+    _SubTabData(icon: LucideIcons.settings2, label: 'Settings', key: EquipmentTutorialKeys.settingsTab),
   ];
 
   @override
@@ -964,6 +965,7 @@ class _ConnectedDevicesTab extends ConsumerWidget {
     // Add connected devices
     if (cameraState.connectionState == DeviceConnectionState.connected) {
       connectedDevices.add(_ConnectedDeviceCard(
+        key: EquipmentTutorialKeys.cameraCard,
         icon: LucideIcons.camera,
         title: 'Camera',
         name: _getDeviceDisplayName(cameraState.deviceName, cameraState.deviceId, 'Camera'),
@@ -983,6 +985,7 @@ class _ConnectedDevicesTab extends ConsumerWidget {
 
     if (mountState.connectionState == DeviceConnectionState.connected) {
       connectedDevices.add(_ConnectedDeviceCard(
+        key: EquipmentTutorialKeys.mountCard,
         icon: LucideIcons.compass,
         title: 'Mount',
         name: _getDeviceDisplayName(mountState.deviceName, mountState.deviceId, 'Mount'),
@@ -1132,6 +1135,7 @@ class _ConnectedDeviceCard extends StatelessWidget {
   final VoidCallback onDisconnect;
 
   const _ConnectedDeviceCard({
+    super.key,
     required this.icon,
     required this.title,
     required this.name,
@@ -1308,8 +1312,9 @@ class _ConnectedDeviceCard extends StatelessWidget {
 class _SubTabData {
   final IconData icon;
   final String label;
+  final GlobalKey? key;
 
-  const _SubTabData({required this.icon, required this.label});
+  const _SubTabData({required this.icon, required this.label, this.key});
 }
 
 class _ConnectionBadge extends ConsumerWidget {
@@ -1419,6 +1424,7 @@ class _SubTabBar extends StatelessWidget {
           final isSelected = index == currentIndex;
 
           return _SubTabButton(
+            key: tab.key,
             icon: tab.icon,
             label: tab.label,
             isSelected: isSelected,
@@ -1439,6 +1445,7 @@ class _SubTabButton extends StatefulWidget {
   final NightshadeColors colors;
 
   const _SubTabButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.isSelected,

@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../widgets/tutorial_keys/sequencer_keys.dart';
 import 'node_progress_panels.dart';
 import 'target_header_card.dart';
 
@@ -13,8 +14,15 @@ final isDraggingNodeProvider = StateProvider<bool>((ref) => false);
 
 class SequenceTree extends ConsumerWidget {
   final NightshadeColors colors;
+  final bool isMobile;
+  final void Function(String nodeId)? onNodeTap;
 
-  const SequenceTree({super.key, required this.colors});
+  const SequenceTree({
+    super.key,
+    required this.colors,
+    this.isMobile = false,
+    this.onNodeTap,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,7 +66,7 @@ class SequenceTree extends ConsumerWidget {
               // Tree view
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(isMobile ? 12 : 20),
                   child: _NodeTreeView(
                     colors: colors,
                     sequence: sequence,
@@ -66,6 +74,8 @@ class SequenceTree extends ConsumerWidget {
                     selectedNodeId: selectedNodeId,
                     progress: progress,
                     depth: 0,
+                    isMobile: isMobile,
+                    onNodeTap: onNodeTap,
                   ),
                 ),
               ),
@@ -88,69 +98,91 @@ class _SequenceHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isMobile = Responsive.isMobile(context);
+    final padding = isMobile
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
+        : const EdgeInsets.symmetric(horizontal: 20, vertical: 12);
+    final iconSize = isMobile ? 14.0 : 16.0;
+    final titleFontSize = isMobile ? 13.0 : 14.0;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: padding,
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Row(
-        children: [
-          Icon(
-            LucideIcons.workflow,
-            size: 16,
-            color: colors.primary,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: GestureDetector(
-              onDoubleTap: () {
-                _showRenameDialog(context, ref);
-              },
-              child: Text(
-                sequence.name,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Hide secondary info on narrow widths
+          final showTargetCount = constraints.maxWidth > 280;
+          final showNodeCount = constraints.maxWidth > 380;
+
+          return Row(
+            children: [
+              Icon(
+                LucideIcons.workflow,
+                size: iconSize,
+                color: colors.primary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onDoubleTap: () {
+                    _showRenameDialog(context, ref);
+                  },
+                  child: Text(
+                    sequence.name,
+                    style: TextStyle(
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 ),
               ),
-            ),
-          ),
-          Text(
-            '${sequence.targetHeaders.length} targets',
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textMuted,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  LucideIcons.boxes,
-                  size: 12,
-                  color: colors.textMuted,
-                ),
-                const SizedBox(width: 4),
+              if (showTargetCount) ...[
                 Text(
-                  '${sequence.nodes.length} nodes',
+                  '${sequence.targetHeaders.length} targets',
                   style: TextStyle(
-                    fontSize: 11,
-                    color: colors.textSecondary,
+                    fontSize: isMobile ? 11 : 12,
+                    color: colors.textMuted,
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
+              if (showNodeCount) ...[
+                const SizedBox(width: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.boxes,
+                        size: 12,
+                        color: colors.textMuted,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${sequence.nodes.length} nodes',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -200,6 +232,8 @@ class _NodeTreeView extends ConsumerWidget {
   final String? selectedNodeId;
   final SequenceProgress progress;
   final int depth;
+  final bool isMobile;
+  final void Function(String nodeId)? onNodeTap;
 
   const _NodeTreeView({
     required this.colors,
@@ -208,6 +242,8 @@ class _NodeTreeView extends ConsumerWidget {
     required this.selectedNodeId,
     required this.progress,
     required this.depth,
+    this.isMobile = false,
+    this.onNodeTap,
   });
 
   @override
@@ -232,18 +268,32 @@ class _NodeTreeView extends ConsumerWidget {
     // Use TargetHeaderCard for TargetHeaderNode, otherwise use _NodeItem
     final targetHeaderNode = node is TargetHeaderNode ? node : null;
 
+    // Determine tutorial key based on node type and depth
+    GlobalKey? tutorialKey;
+    if (depth == 1) {
+      // Only apply keys to first-level nodes
+      if (targetHeaderNode != null) {
+        tutorialKey = SequencerTutorialKeys.targetNode;
+      } else if (node is ExposureNode) {
+        tutorialKey = SequencerTutorialKeys.captureNode;
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Node item - use rich card for target headers
         if (targetHeaderNode != null)
           TargetHeaderCard(
+            key: tutorialKey,
             node: targetHeaderNode,
             colors: colors,
             isSelected: isSelected,
             nodeStatus: nodeStatus,
+            isMobile: isMobile,
             onSelect: () {
               ref.read(selectedNodeIdProvider.notifier).state = nodeId;
+              onNodeTap?.call(nodeId);
             },
             onToggleEnabled: () {
               ref.read(currentSequenceProvider.notifier).toggleNodeEnabled(nodeId);
@@ -257,6 +307,7 @@ class _NodeTreeView extends ConsumerWidget {
           )
         else
           _NodeItem(
+            key: tutorialKey,
             colors: colors,
             node: node,
             isSelected: isSelected,
@@ -265,8 +316,10 @@ class _NodeTreeView extends ConsumerWidget {
             depth: depth,
             progressPercent: progress.nodeProgressPercent[nodeId],
             progressDetail: progress.nodeProgressDetail[nodeId],
+            isMobile: isMobile,
             onSelect: () {
               ref.read(selectedNodeIdProvider.notifier).state = nodeId;
+              onNodeTap?.call(nodeId);
             },
             onToggleEnabled: () {
               ref.read(currentSequenceProvider.notifier).toggleNodeEnabled(nodeId);
@@ -285,7 +338,7 @@ class _NodeTreeView extends ConsumerWidget {
         // Children area
         if (hasChildren || isContainer)
           Padding(
-            padding: const EdgeInsets.only(left: 24),
+            padding: EdgeInsets.only(left: isMobile ? 16 : 24),
             child: DragTarget<Object>(
               onWillAcceptWithDetails: (data) => data is String || data is NodePaletteItem,
               onAcceptWithDetails: (details) {
@@ -311,51 +364,74 @@ class _NodeTreeView extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (int i = 0; i < children.length; i++) ...[
-                      _DropZone(
-                        colors: colors,
-                        parentId: nodeId,
-                        index: i,
-                        isActive: candidateData.isNotEmpty,
-                      ),
-                      LongPressDraggable<String>(
-                        data: children[i].id,
-                        delay: const Duration(milliseconds: 150),
-                        onDragStarted: () {
-                          ref.read(isDraggingNodeProvider.notifier).state = true;
-                        },
-                        onDragEnd: (_) {
-                          ref.read(isDraggingNodeProvider.notifier).state = false;
-                        },
-                        onDraggableCanceled: (_, __) {
-                          ref.read(isDraggingNodeProvider.notifier).state = false;
-                        },
-                        feedback: Material(
-                          color: Colors.transparent,
-                          child: Opacity(
-                            opacity: 0.8,
-                            child: SizedBox(
-                              width: children[i] is TargetHeaderNode ? 400 : 300,
-                              child: children[i] is TargetHeaderNode
-                                  ? TargetHeaderCard(
-                                      node: children[i] as TargetHeaderNode,
-                                      colors: colors,
-                                      isSelected: false,
-                                      nodeStatus: null,
-                                    )
-                                  : _NodeItem(
-                                      colors: colors,
-                                      node: children[i],
-                                      isSelected: false,
-                                      nodeStatus: null,
-                                      hasChildren: false,
-                                      depth: depth + 1,
-                                      isDragging: true,
-                                    ),
+                      if (!isMobile)
+                        _DropZone(
+                          colors: colors,
+                          parentId: nodeId,
+                          index: i,
+                          isActive: candidateData.isNotEmpty,
+                        ),
+                      if (isMobile)
+                        // On mobile, use simpler rendering without drag
+                        _NodeTreeView(
+                          colors: colors,
+                          sequence: sequence,
+                          nodeId: children[i].id,
+                          selectedNodeId: selectedNodeId,
+                          progress: progress,
+                          depth: depth + 1,
+                          isMobile: isMobile,
+                          onNodeTap: onNodeTap,
+                        )
+                      else
+                        LongPressDraggable<String>(
+                          data: children[i].id,
+                          delay: const Duration(milliseconds: 150),
+                          onDragStarted: () {
+                            ref.read(isDraggingNodeProvider.notifier).state = true;
+                          },
+                          onDragEnd: (_) {
+                            ref.read(isDraggingNodeProvider.notifier).state = false;
+                          },
+                          onDraggableCanceled: (_, __) {
+                            ref.read(isDraggingNodeProvider.notifier).state = false;
+                          },
+                          feedback: Material(
+                            color: Colors.transparent,
+                            child: Opacity(
+                              opacity: 0.8,
+                              child: SizedBox(
+                                width: children[i] is TargetHeaderNode ? 400 : 300,
+                                child: children[i] is TargetHeaderNode
+                                    ? TargetHeaderCard(
+                                        node: children[i] as TargetHeaderNode,
+                                        colors: colors,
+                                        isSelected: false,
+                                        nodeStatus: null,
+                                      )
+                                    : _NodeItem(
+                                        colors: colors,
+                                        node: children[i],
+                                        isSelected: false,
+                                        nodeStatus: null,
+                                        hasChildren: false,
+                                        depth: depth + 1,
+                                        isDragging: true,
+                                      ),
+                              ),
                             ),
                           ),
-                        ),
-                        childWhenDragging: Opacity(
-                          opacity: 0.3,
+                          childWhenDragging: Opacity(
+                            opacity: 0.3,
+                            child: _NodeTreeView(
+                              colors: colors,
+                              sequence: sequence,
+                              nodeId: children[i].id,
+                              selectedNodeId: selectedNodeId,
+                              progress: progress,
+                              depth: depth + 1,
+                            ),
+                          ),
                           child: _NodeTreeView(
                             colors: colors,
                             sequence: sequence,
@@ -365,32 +441,24 @@ class _NodeTreeView extends ConsumerWidget {
                             depth: depth + 1,
                           ),
                         ),
-                        child: _NodeTreeView(
-                          colors: colors,
-                          sequence: sequence,
-                          nodeId: children[i].id,
-                          selectedNodeId: selectedNodeId,
-                          progress: progress,
-                          depth: depth + 1,
-                        ),
-                      ),
                     ],
-                    // Always show a drop zone at the end, even if empty
-                    _DropZone(
-                      colors: colors,
-                      parentId: nodeId,
-                      index: children.length,
-                      isActive: candidateData.isNotEmpty,
-                    ),
-                    
+                    // Always show a drop zone at the end on desktop, even if empty
+                    if (!isMobile)
+                      _DropZone(
+                        colors: colors,
+                        parentId: nodeId,
+                        index: children.length,
+                        isActive: candidateData.isNotEmpty,
+                      ),
+
                     // If empty, show a hint
                     if (!hasChildren && isContainer)
                       Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 8),
                         child: Text(
-                          'Drop instructions here',
+                          isMobile ? 'Tap + to add instructions' : 'Drop instructions here',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: isMobile ? 12 : 11,
                             color: colors.textMuted.withValues(alpha: 0.5),
                             fontStyle: FontStyle.italic,
                           ),
@@ -420,8 +488,10 @@ class _NodeItem extends ConsumerStatefulWidget {
   final bool isDragging;
   final double? progressPercent;
   final String? progressDetail;
+  final bool isMobile;
 
   const _NodeItem({
+    super.key,
     required this.colors,
     required this.node,
     required this.isSelected,
@@ -435,6 +505,7 @@ class _NodeItem extends ConsumerStatefulWidget {
     this.isDragging = false,
     this.progressPercent,
     this.progressDetail,
+    this.isMobile = false,
   });
 
   @override
@@ -583,6 +654,17 @@ class _NodeItemState extends ConsumerState<_NodeItem>
     final isDisabled = !widget.node.isEnabled;
     final isRunning = widget.nodeStatus == NodeStatus.running;
     final isTargetHeader = widget.node is TargetHeaderNode;
+    final isMobile = widget.isMobile;
+
+    // Mobile-optimized sizes
+    final verticalMargin = isMobile ? 4.0 : 2.0;
+    final horizontalPadding = isMobile ? 14.0 : 12.0;
+    final verticalPadding = isMobile ? 14.0 : 10.0;
+    final iconBoxSize = isMobile ? 40.0 : 32.0;
+    final iconSize = isMobile ? 20.0 : 16.0;
+    final borderRadius = isMobile ? 12.0 : 10.0;
+    final titleFontSize = isMobile ? 14.0 : 12.0;
+    final subtitleFontSize = isMobile ? 12.0 : 10.0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -598,8 +680,8 @@ class _NodeItemState extends ConsumerState<_NodeItem>
               builder: (context, child) {
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.symmetric(vertical: 2),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  margin: EdgeInsets.symmetric(vertical: verticalMargin),
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
                   decoration: BoxDecoration(
                 color: widget.isDragging
                     ? categoryColor.withValues(alpha: 0.2)
@@ -610,7 +692,7 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                             : _isHovered
                                 ? widget.colors.surfaceAlt
                                 : widget.colors.surface,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(borderRadius),
                 border: Border.all(
                   color: widget.isSelected
                       ? categoryColor
@@ -643,8 +725,8 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                     if (widget.nodeStatus != null && widget.nodeStatus != NodeStatus.pending)
                       Container(
                         width: 4,
-                        height: 32,
-                        margin: const EdgeInsets.only(right: 10),
+                        height: iconBoxSize,
+                        margin: EdgeInsets.only(right: isMobile ? 12 : 10),
                         decoration: BoxDecoration(
                           color: statusColor,
                           borderRadius: BorderRadius.circular(2),
@@ -653,24 +735,25 @@ class _NodeItemState extends ConsumerState<_NodeItem>
 
                     // Icon
                     Container(
-                      width: 32,
-                      height: 32,
+                      width: iconBoxSize,
+                      height: iconBoxSize,
                       decoration: BoxDecoration(
                         color: categoryColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(isMobile ? 10 : 8),
                       ),
                       child: isRunning
                           ? _SpinningIcon(
                               icon: _getIcon(),
                               color: categoryColor,
+                              size: iconSize,
                             )
                           : Icon(
                               _getIcon(),
-                              size: 16,
+                              size: iconSize,
                               color: categoryColor,
                             ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: isMobile ? 14 : 12),
 
                     // Name and subtitle
                     Expanded(
@@ -680,21 +763,27 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                           Text(
                             widget.node.name,
                             style: TextStyle(
-                              fontSize: isTargetHeader ? 13 : 12, // Slightly larger font
+                              fontSize: isTargetHeader ? titleFontSize + 1 : titleFontSize,
                               fontWeight: FontWeight.w600,
                               color: widget.colors.textPrimary,
                               decoration: isDisabled
                                   ? TextDecoration.lineThrough
                                   : null,
                             ),
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                           if (subtitle.isNotEmpty)
                             Text(
                               subtitle,
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: subtitleFontSize,
                                 color: widget.colors.textMuted,
                               ),
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                           // Show progress bar for running instructions
                           if (isRunning && widget.progressPercent != null && widget.progressPercent! > 0)
@@ -871,8 +960,13 @@ class _NodeItemState extends ConsumerState<_NodeItem>
 class _SpinningIcon extends StatefulWidget {
   final IconData icon;
   final Color color;
+  final double size;
 
-  const _SpinningIcon({required this.icon, required this.color});
+  const _SpinningIcon({
+    required this.icon,
+    required this.color,
+    this.size = 16,
+  });
 
   @override
   State<_SpinningIcon> createState() => _SpinningIconState();
@@ -906,7 +1000,7 @@ class _SpinningIconState extends State<_SpinningIcon>
           angle: _controller.value * 2 * 3.14159,
           child: Icon(
             widget.icon,
-            size: 16,
+            size: widget.size,
             color: widget.color,
           ),
         );
@@ -1087,68 +1181,90 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = Responsive.isMobile(context);
+    final iconSize = isMobile ? 36.0 : 48.0;
+    final titleSize = isMobile ? 16.0 : 18.0;
+    final subtitleSize = isMobile ? 12.0 : 13.0;
+    final tipSize = isMobile ? 11.0 : 12.0;
+
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: colors.surface.withValues(alpha: 0.8),
-              shape: BoxShape.circle,
-              border: Border.all(color: colors.border),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: EdgeInsets.all(isMobile ? 18 : 24),
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.8),
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.border),
+              ),
+              child: Icon(
+                LucideIcons.workflow,
+                size: iconSize,
+                color: colors.textMuted,
+              ),
             ),
-            child: Icon(
-              LucideIcons.workflow,
-              size: 48,
-              color: colors.textMuted,
+            const SizedBox(height: 24),
+            Text(
+              'Build Your Sequence',
+              style: TextStyle(
+                fontSize: titleSize,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+              softWrap: true,
             ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Build Your Sequence',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
+            const SizedBox(height: 8),
+            Text(
+              isMobile
+                  ? 'Tap + to add nodes'
+                  : 'Drag nodes from the palette to start building',
+              style: TextStyle(
+                fontSize: subtitleSize,
+                color: colors.textMuted,
+              ),
+              textAlign: TextAlign.center,
+              softWrap: true,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Drag nodes from the palette to start building',
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textMuted,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.border),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  LucideIcons.lightbulb,
-                  size: 14,
-                  color: colors.warning,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Tip: Start with a Target Header',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.textSecondary,
+            const SizedBox(height: 24),
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 12 : 16,
+                vertical: isMobile ? 8 : 10,
+              ),
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    LucideIcons.lightbulb,
+                    size: isMobile ? 12 : 14,
+                    color: colors.warning,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Tip: Start with a Target Header',
+                      style: TextStyle(
+                        fontSize: tipSize,
+                        color: colors.textSecondary,
+                      ),
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

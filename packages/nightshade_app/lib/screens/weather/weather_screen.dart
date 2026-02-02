@@ -10,6 +10,7 @@ import '../../widgets/weather/weather_radar_map.dart';
 import '../../widgets/weather/radar_timeline_scrubber.dart';
 import '../../widgets/weather/weather_status_card.dart';
 import '../../widgets/weather/satellite_legend.dart';
+import '../../widgets/tutorial_keys/weather_keys.dart';
 
 /// Full weather monitoring screen with radar map, timeline, and status display.
 ///
@@ -198,6 +199,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                         ClipRRect(
                           borderRadius: BorderRadius.circular(16),
                           child: WeatherRadarMap(
+                            key: WeatherTutorialKeys.radarMap,
                             currentFrame: currentFrame,
                             latitude: latitude,
                             longitude: longitude,
@@ -220,6 +222,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
 
                   // Timeline scrubber
                   RadarTimelineScrubber(
+                    key: WeatherTutorialKeys.timeline,
                     frames: radarFrames,
                     currentIndex: validFrameIndex,
                     onFrameChanged: (index) {
@@ -273,6 +276,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                   ),
                   const SizedBox(height: 16),
                   WeatherStatusCard(
+                    key: WeatherTutorialKeys.statusCard,
                     alert: alert,
                     motion: motion,
                     lastUpdate: weatherStatus.lastUpdate,
@@ -306,6 +310,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: WeatherRadarMap(
+                      key: WeatherTutorialKeys.radarMap,
                       currentFrame: currentFrame,
                       latitude: latitude,
                       longitude: longitude,
@@ -328,6 +333,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
 
             // Timeline scrubber
             RadarTimelineScrubber(
+              key: WeatherTutorialKeys.timeline,
               frames: radarFrames,
               currentIndex: validFrameIndex,
               onFrameChanged: (index) {
@@ -370,6 +376,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
 
             // Status card
             WeatherStatusCard(
+              key: WeatherTutorialKeys.statusCard,
               alert: alert,
               motion: motion,
               lastUpdate: weatherStatus.lastUpdate,
@@ -467,6 +474,7 @@ class _WeatherHeader extends StatelessWidget {
           const Spacer(),
           // Refresh button
           IconButton(
+            key: WeatherTutorialKeys.refreshBtn,
             onPressed: isLoading ? null : onRefresh,
             icon: isLoading
                 ? SizedBox(
@@ -823,6 +831,7 @@ class _WeatherSettingsCard extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           _SettingRow(
+            key: WeatherTutorialKeys.alertRadius,
             label: 'Alert Radius',
             value: '${settings.triggerDistanceKm.toInt()} km',
             colors: colors,
@@ -867,6 +876,7 @@ class _SettingRow extends StatelessWidget {
   final bool isLast;
 
   const _SettingRow({
+    super.key,
     required this.label,
     required this.value,
     required this.colors,

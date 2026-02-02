@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import 'equipment_profiles.dart';
+import 'sequences.dart';
 import 'targets.dart';
 
 /// Imaging sessions table
@@ -44,5 +45,11 @@ class ImagingSessions extends Table {
   // Session status
   TextColumn get status => text().withDefault(const Constant('completed'))();
   // completed, aborted, error
+
+  // Quick Start support: track which sequence was used
+  IntColumn get sequenceId => integer().nullable().references(Sequences, #id)();
+
+  // Quick Start support: JSON blob storing equipment state at session start
+  TextColumn get equipmentSnapshot => text().nullable()();
 }
 

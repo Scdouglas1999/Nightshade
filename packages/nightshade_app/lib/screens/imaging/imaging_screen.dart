@@ -18,6 +18,7 @@ import '../settings/catalog_settings_screen.dart';
 import 'tabs/mount_tab.dart';
 import '../../widgets/focuser_controls.dart';
 import '../../widgets/filter_wheel_selector.dart';
+import '../../widgets/tutorial_keys/imaging_keys.dart';
 
 /// Provider to check if annotation catalog is installed
 final annotationCatalogInstalledProvider = FutureProvider<bool>((ref) async {
@@ -256,99 +257,180 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
 
         // Main content
         Expanded(
-          child: Row(
-            children: [
-              // Main content area (image + controls)
-              Expanded(
-                flex: 7,
-                child: Column(
-                  children: [
-                    // Live preview area
-                    Expanded(
-                      flex: 6,
-                      child: _LivePreviewArea(
-                        colors: colors,
-                        zoomLevel: _zoomLevel,
-                        panOffset: _panOffset,
-                        showCrosshair: _showCrosshair,
-                        showGrid: _showGrid,
-                        showStarOverlay: _showStarOverlay,
-                        onZoomIn: _zoomIn,
-                        onZoomOut: _zoomOut,
-                        onFitToWindow: _fitToWindow,
-                        onZoom1to1: _zoom1to1,
-                        onAbortCapture: _abortCapture,
-                        onPanUpdate: _panPreview,
-                        onToggleCrosshair: () =>
-                            setState(() => _showCrosshair = !_showCrosshair),
-                        onToggleGrid: () =>
-                            setState(() => _showGrid = !_showGrid),
-                        onToggleStarOverlay: () =>
-                            setState(() => _showStarOverlay = !_showStarOverlay),
-                      ),
-                    ),
+          child: Responsive.isMobile(context)
+              ? _buildMobileLayout(colors, selectedPanel)
+              : _buildDesktopLayout(colors, selectedPanel),
+        ),
+      ],
+    );
+  }
 
-                    // Bottom control panel
-                    Container(
-                      constraints: const BoxConstraints(minHeight: 120),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        border: Border(
-                          top: BorderSide(color: colors.border),
-                        ),
-                      ),
-                      child: FadeTransition(
-                        opacity: _fadeController,
-                        child: _buildControlPanel(colors),
-                      ),
+  /// Mobile layout: Tabs at bottom, full-width content
+  Widget _buildMobileLayout(NightshadeColors colors, int selectedPanel) {
+    return Column(
+      children: [
+        // Live preview area (compact on mobile)
+        Expanded(
+          flex: 4,
+          child: _LivePreviewArea(
+            key: ImagingTutorialKeys.previewArea,
+            colors: colors,
+            zoomLevel: _zoomLevel,
+            panOffset: _panOffset,
+            showCrosshair: _showCrosshair,
+            showGrid: _showGrid,
+            showStarOverlay: _showStarOverlay,
+            onZoomIn: _zoomIn,
+            onZoomOut: _zoomOut,
+            onFitToWindow: _fitToWindow,
+            onZoom1to1: _zoom1to1,
+            onAbortCapture: _abortCapture,
+            onPanUpdate: _panPreview,
+            onToggleCrosshair: () =>
+                setState(() => _showCrosshair = !_showCrosshair),
+            onToggleGrid: () => setState(() => _showGrid = !_showGrid),
+            onToggleStarOverlay: () =>
+                setState(() => _showStarOverlay = !_showStarOverlay),
+          ),
+        ),
+
+        // Tab content area (scrollable)
+        Expanded(
+          flex: 5,
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border(
+                top: BorderSide(color: colors.border),
+              ),
+            ),
+            child: Column(
+              children: [
+                // Panel tabs (full width on mobile)
+                _PanelTabs(
+                  key: ImagingTutorialKeys.tabBar,
+                  selectedIndex: selectedPanel,
+                  onSelected: _selectPanel,
+                  colors: colors,
+                ),
+
+                // Panel content
+                Expanded(
+                  child: FadeTransition(
+                    opacity: _fadeController,
+                    child: IndexedStack(
+                      index: selectedPanel,
+                      children: [
+                        _CapturePanel(colors: colors),
+                        _CameraPanel(colors: colors),
+                        _FocusPanel(key: ImagingTutorialKeys.focusTab, colors: colors),
+                        _GuidingPanel(colors: colors),
+                        MountTab(key: ImagingTutorialKeys.mountTab),
+                      ],
                     ),
-                  ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Desktop layout: Side panel with tabs, image viewer takes most space
+  Widget _buildDesktopLayout(NightshadeColors colors, int selectedPanel) {
+    return Row(
+      children: [
+        // Main content area (image + controls)
+        Expanded(
+          flex: 7,
+          child: Column(
+            children: [
+              // Live preview area
+              Expanded(
+                flex: 6,
+                child: _LivePreviewArea(
+                  key: ImagingTutorialKeys.previewArea,
+                  colors: colors,
+                  zoomLevel: _zoomLevel,
+                  panOffset: _panOffset,
+                  showCrosshair: _showCrosshair,
+                  showGrid: _showGrid,
+                  showStarOverlay: _showStarOverlay,
+                  onZoomIn: _zoomIn,
+                  onZoomOut: _zoomOut,
+                  onFitToWindow: _fitToWindow,
+                  onZoom1to1: _zoom1to1,
+                  onAbortCapture: _abortCapture,
+                  onPanUpdate: _panPreview,
+                  onToggleCrosshair: () =>
+                      setState(() => _showCrosshair = !_showCrosshair),
+                  onToggleGrid: () => setState(() => _showGrid = !_showGrid),
+                  onToggleStarOverlay: () =>
+                      setState(() => _showStarOverlay = !_showStarOverlay),
                 ),
               ),
 
-              // Right panel with tabs
-              ResizablePanel(
-                initialWidth: 320,
-                minWidth: 250,
-                maxWidth: 500,
-                side: ResizeSide.left,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    border: Border(
-                      left: BorderSide(color: colors.border),
-                    ),
+              // Bottom control panel
+              Container(
+                constraints: const BoxConstraints(minHeight: 120),
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border(
+                    top: BorderSide(color: colors.border),
                   ),
-                  child: Column(
-                    children: [
-                      // Panel tabs
-                      _PanelTabs(
-                        selectedIndex: selectedPanel,
-                        onSelected: _selectPanel,
-                        colors: colors,
-                      ),
-
-                      // Panel content
-                      Expanded(
-                        child: FadeTransition(
-                          opacity: _fadeController,
-                          child: IndexedStack(
-                            index: selectedPanel,
-                            children: [
-                              _CapturePanel(colors: colors),
-                              _CameraPanel(colors: colors),
-                              _FocusPanel(colors: colors),
-                              _GuidingPanel(colors: colors),
-                              const MountTab(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                ),
+                child: FadeTransition(
+                  opacity: _fadeController,
+                  child: _buildControlPanel(colors),
                 ),
               ),
             ],
+          ),
+        ),
+
+        // Right panel with tabs
+        ResizablePanel(
+          initialWidth: 320,
+          minWidth: 250,
+          maxWidth: 500,
+          side: ResizeSide.left,
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border(
+                left: BorderSide(color: colors.border),
+              ),
+            ),
+            child: Column(
+              children: [
+                // Panel tabs
+                _PanelTabs(
+                  key: ImagingTutorialKeys.tabBar,
+                  selectedIndex: selectedPanel,
+                  onSelected: _selectPanel,
+                  colors: colors,
+                ),
+
+                // Panel content
+                Expanded(
+                  child: FadeTransition(
+                    opacity: _fadeController,
+                    child: IndexedStack(
+                      index: selectedPanel,
+                      children: [
+                        _CapturePanel(colors: colors),
+                        _CameraPanel(colors: colors),
+                        _FocusPanel(key: ImagingTutorialKeys.focusTab, colors: colors),
+                        _GuidingPanel(colors: colors),
+                        MountTab(key: ImagingTutorialKeys.mountTab),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -386,6 +468,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                     children: [
                       Expanded(
                         child: _BigActionButton(
+                          key: ImagingTutorialKeys.snapshotBtn,
                           icon: _isSingleCapture
                               ? LucideIcons.loader2
                               : LucideIcons.camera,
@@ -400,6 +483,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       SizedBox(width: sectionSpacing),
                       Expanded(
                         child: _BigActionButton(
+                          key: ImagingTutorialKeys.loopBtn,
                           icon: _isLooping
                               ? LucideIcons.square
                               : LucideIcons.video,
@@ -422,6 +506,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                     children: [
                       Expanded(
                         child: _EditableCompactInput(
+                          key: ImagingTutorialKeys.exposureSlider,
                           label: 'Duration',
                           value:
                               exposureSettings.exposureTime.toStringAsFixed(0),
@@ -443,6 +528,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       SizedBox(width: sectionSpacing),
                       Expanded(
                         child: _EditableCompactInput(
+                          key: ImagingTutorialKeys.gainControl,
                           label: 'Gain',
                           value: exposureSettings.gain.toString(),
                           colors: colors,
@@ -484,7 +570,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 _ControlSection(
                   title: 'Filter',
                   colors: colors,
-                  child: const FilterWheelSelector(
+                  child: FilterWheelSelector(
+                    key: ImagingTutorialKeys.filterSelector,
                     style: FilterSelectorStyle.buttons,
                     compact: true,
                   ),
@@ -512,6 +599,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _BigActionButton(
+                        key: ImagingTutorialKeys.snapshotBtn,
                         icon: _isSingleCapture
                             ? LucideIcons.loader2
                             : LucideIcons.camera,
@@ -523,6 +611,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       ),
                       const SizedBox(width: 12),
                       _BigActionButton(
+                        key: ImagingTutorialKeys.loopBtn,
                         icon: _isLooping
                             ? LucideIcons.square
                             : LucideIcons.video,
@@ -545,6 +634,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _EditableCompactInput(
+                        key: ImagingTutorialKeys.exposureSlider,
                         label: 'Duration',
                         value: exposureSettings.exposureTime
                             .toStringAsFixed(0),
@@ -564,6 +654,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       ),
                       SizedBox(width: isMobile ? 8.0 : 12.0),
                       _EditableCompactInput(
+                        key: ImagingTutorialKeys.gainControl,
                         label: 'Gain',
                         value: exposureSettings.gain.toString(),
                         colors: colors,
@@ -605,6 +696,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   title: 'Filter',
                   colors: colors,
                   child: FilterWheelSelector(
+                    key: ImagingTutorialKeys.filterSelector,
                     style: FilterSelectorStyle.buttons,
                     compact: isMobile,
                   ),
@@ -642,6 +734,7 @@ class _LivePreviewArea extends ConsumerWidget {
   final VoidCallback onToggleStarOverlay;
 
   const _LivePreviewArea({
+    super.key,
     required this.colors,
     required this.zoomLevel,
     required this.panOffset,
@@ -817,99 +910,208 @@ class _LivePreviewArea extends ConsumerWidget {
               ),
             ),
 
-          // Top overlay bar
+          // Top overlay bar - responsive layout
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.6),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-              child: Row(
-                children: [
-                  _OverlayChip(
-                    icon: LucideIcons.maximize2,
-                    label: currentImage != null
-                        ? '${currentImage.width} × ${currentImage.height}'
-                        : '--- × ---',
-                    colors: colors,
-                  ),
-                  const SizedBox(width: 8),
-                  _OverlayChip(
-                    icon: LucideIcons.grid,
-                    label: 'Binning ${exposureSettings.binning}',
-                    colors: colors,
-                  ),
-                  const SizedBox(width: 8),
-                  _OverlayChip(
-                    icon: LucideIcons.search,
-                    label: '${(zoomLevel * 100).round()}%',
-                    colors: colors,
-                  ),
-                  const Spacer(),
-                  _OverlayIconButton(
-                    icon: LucideIcons.crosshair,
-                    tooltip: 'Toggle crosshair',
-                    colors: colors,
-                    isActive: showCrosshair,
-                    onTap: onToggleCrosshair,
-                  ),
-                  _OverlayIconButton(
-                    icon: LucideIcons.grid,
-                    tooltip: 'Toggle grid',
-                    colors: colors,
-                    isActive: showGrid,
-                    onTap: onToggleGrid,
-                  ),
-                  _OverlayIconButton(
-                    icon: LucideIcons.sparkles,
-                    tooltip: 'Toggle star overlay',
-                    colors: colors,
-                    isActive: showStarOverlay,
-                    onTap: onToggleStarOverlay,
-                  ),
-                  _OverlayIconButton(
-                    icon: LucideIcons.zoomIn,
-                    tooltip: 'Zoom in',
-                    colors: colors,
-                    onTap: onZoomIn,
-                  ),
-                  _OverlayIconButton(
-                    icon: LucideIcons.zoomOut,
-                    tooltip: 'Zoom out',
-                    colors: colors,
-                    onTap: onZoomOut,
-                  ),
-                  _OverlayIconButton(
-                    icon: LucideIcons.minimize2,
-                    tooltip: '1:1 zoom',
-                    colors: colors,
-                    onTap: onZoom1to1,
-                  ),
-                  _OverlayIconButton(
-                    icon: LucideIcons.maximize,
-                    tooltip: 'Fit to window',
-                    colors: colors,
-                    onTap: onFitToWindow,
-                  ),
-                  if (exposureProgress.percent > 0 && exposureProgress.percent < 1.0)
-                    _OverlayIconButton(
-                      icon: LucideIcons.x,
-                      tooltip: 'Abort capture',
-                      colors: colors,
-                      onTap: onAbortCapture,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Use compact layout on narrow screens
+                final isNarrow = constraints.maxWidth < 500;
+                final horizontalPadding = isNarrow ? 8.0 : 16.0;
+
+                return Container(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.6),
+                        Colors.transparent,
+                      ],
                     ),
-                ],
-              ),
+                  ),
+                  child: isNarrow
+                      // Compact mobile layout - stack chips on top, controls below
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Info chips - wrap to prevent overflow
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                _OverlayChip(
+                                  icon: LucideIcons.maximize2,
+                                  label: currentImage != null
+                                      ? '${currentImage.width}×${currentImage.height}'
+                                      : '--×--',
+                                  colors: colors,
+                                ),
+                                _OverlayChip(
+                                  icon: LucideIcons.search,
+                                  label: '${(zoomLevel * 100).round()}%',
+                                  colors: colors,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            // Control buttons - wrap to prevent overflow
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Wrap(
+                                    spacing: 2,
+                                    runSpacing: 2,
+                                    children: [
+                                      _OverlayIconButton(
+                                        icon: LucideIcons.crosshair,
+                                        tooltip: 'Crosshair',
+                                        colors: colors,
+                                        isActive: showCrosshair,
+                                        onTap: onToggleCrosshair,
+                                      ),
+                                      _OverlayIconButton(
+                                        icon: LucideIcons.grid,
+                                        tooltip: 'Grid',
+                                        colors: colors,
+                                        isActive: showGrid,
+                                        onTap: onToggleGrid,
+                                      ),
+                                      _OverlayIconButton(
+                                        icon: LucideIcons.sparkles,
+                                        tooltip: 'Stars',
+                                        colors: colors,
+                                        isActive: showStarOverlay,
+                                        onTap: onToggleStarOverlay,
+                                      ),
+                                      Row(
+                                        key: ImagingTutorialKeys.zoomControls,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _OverlayIconButton(
+                                            icon: LucideIcons.zoomIn,
+                                            tooltip: 'Zoom in',
+                                            colors: colors,
+                                            onTap: onZoomIn,
+                                          ),
+                                          _OverlayIconButton(
+                                            icon: LucideIcons.zoomOut,
+                                            tooltip: 'Zoom out',
+                                            colors: colors,
+                                            onTap: onZoomOut,
+                                          ),
+                                          _OverlayIconButton(
+                                            icon: LucideIcons.maximize,
+                                            tooltip: 'Fit',
+                                            colors: colors,
+                                            onTap: onFitToWindow,
+                                          ),
+                                        ],
+                                      ),
+                                      if (exposureProgress.percent > 0 && exposureProgress.percent < 1.0)
+                                        _OverlayIconButton(
+                                          key: ImagingTutorialKeys.abortBtn,
+                                          icon: LucideIcons.x,
+                                          tooltip: 'Abort',
+                                          colors: colors,
+                                          onTap: onAbortCapture,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      // Standard desktop layout
+                      : Row(
+                          children: [
+                            _OverlayChip(
+                              icon: LucideIcons.maximize2,
+                              label: currentImage != null
+                                  ? '${currentImage.width} × ${currentImage.height}'
+                                  : '--- × ---',
+                              colors: colors,
+                            ),
+                            const SizedBox(width: 8),
+                            _OverlayChip(
+                              icon: LucideIcons.grid,
+                              label: 'Binning ${exposureSettings.binning}',
+                              colors: colors,
+                            ),
+                            const SizedBox(width: 8),
+                            _OverlayChip(
+                              icon: LucideIcons.search,
+                              label: '${(zoomLevel * 100).round()}%',
+                              colors: colors,
+                            ),
+                            const Spacer(),
+                            _OverlayIconButton(
+                              icon: LucideIcons.crosshair,
+                              tooltip: 'Toggle crosshair',
+                              colors: colors,
+                              isActive: showCrosshair,
+                              onTap: onToggleCrosshair,
+                            ),
+                            _OverlayIconButton(
+                              icon: LucideIcons.grid,
+                              tooltip: 'Toggle grid',
+                              colors: colors,
+                              isActive: showGrid,
+                              onTap: onToggleGrid,
+                            ),
+                            _OverlayIconButton(
+                              icon: LucideIcons.sparkles,
+                              tooltip: 'Toggle star overlay',
+                              colors: colors,
+                              isActive: showStarOverlay,
+                              onTap: onToggleStarOverlay,
+                            ),
+                            Row(
+                              key: ImagingTutorialKeys.zoomControls,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _OverlayIconButton(
+                                  icon: LucideIcons.zoomIn,
+                                  tooltip: 'Zoom in',
+                                  colors: colors,
+                                  onTap: onZoomIn,
+                                ),
+                                _OverlayIconButton(
+                                  icon: LucideIcons.zoomOut,
+                                  tooltip: 'Zoom out',
+                                  colors: colors,
+                                  onTap: onZoomOut,
+                                ),
+                                _OverlayIconButton(
+                                  icon: LucideIcons.minimize2,
+                                  tooltip: '1:1 zoom',
+                                  colors: colors,
+                                  onTap: onZoom1to1,
+                                ),
+                                _OverlayIconButton(
+                                  icon: LucideIcons.maximize,
+                                  tooltip: 'Fit to window',
+                                  colors: colors,
+                                  onTap: onFitToWindow,
+                                ),
+                              ],
+                            ),
+                            if (exposureProgress.percent > 0 && exposureProgress.percent < 1.0)
+                              _OverlayIconButton(
+                                key: ImagingTutorialKeys.abortBtn,
+                                icon: LucideIcons.x,
+                                tooltip: 'Abort capture',
+                                colors: colors,
+                                onTap: onAbortCapture,
+                              ),
+                          ],
+                        ),
+                );
+              },
             ),
           ),
 
@@ -918,6 +1120,7 @@ class _LivePreviewArea extends ConsumerWidget {
             bottom: 16,
             left: 16,
             child: _HistogramWidget(
+              key: ImagingTutorialKeys.histogram,
               colors: colors,
               histogram: currentImage?.histogram,
             ),
@@ -928,6 +1131,7 @@ class _LivePreviewArea extends ConsumerWidget {
             bottom: 16,
             right: 16,
             child: _ImageStatsOverlay(
+              key: ImagingTutorialKeys.statsPanel,
               colors: colors,
               stats: lastStats,
             ),
@@ -1021,6 +1225,7 @@ class _OverlayIconButton extends StatefulWidget {
   final VoidCallback? onTap;
 
   const _OverlayIconButton({
+    super.key,
     required this.icon,
     required this.tooltip,
     required this.colors,
@@ -1046,29 +1251,33 @@ class _OverlayIconButtonState extends State<_OverlayIconButton> {
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
           onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: widget.isActive
-                  ? widget.colors.primary.withValues(alpha: 0.3)
-                  : _isHovered
-                      ? Colors.white.withValues(alpha: 0.15)
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-              border: widget.isActive
-                  ? Border.all(
-                      color: widget.colors.primary.withValues(alpha: 0.5))
-                  : null,
-            ),
-            child: Icon(
-              widget.icon,
-              size: 16,
-              color: widget.isActive
-                  ? widget.colors.primary
-                  : _isHovered
-                      ? Colors.white
-                      : Colors.white70,
+          // Ensure minimum touch target of 44x44 for accessibility
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: widget.isActive
+                    ? widget.colors.primary.withValues(alpha: 0.3)
+                    : _isHovered
+                        ? Colors.white.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: widget.isActive
+                    ? Border.all(
+                        color: widget.colors.primary.withValues(alpha: 0.5))
+                    : null,
+              ),
+              child: Icon(
+                widget.icon,
+                size: 18,
+                color: widget.isActive
+                    ? widget.colors.primary
+                    : _isHovered
+                        ? Colors.white
+                        : Colors.white70,
+              ),
             ),
           ),
         ),
@@ -1082,14 +1291,19 @@ class _HistogramWidget extends StatelessWidget {
   final List<int>? histogram;
 
   const _HistogramWidget({
+    super.key,
     required this.colors,
     this.histogram,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Use responsive width - smaller on narrow screens
+    final screenWidth = MediaQuery.of(context).size.width;
+    final histogramWidth = screenWidth < 400 ? 140.0 : 200.0;
+
     return Container(
-      width: 200,
+      width: histogramWidth,
       height: 80,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1184,6 +1398,7 @@ class _ImageStatsOverlay extends StatelessWidget {
   final ImageStats? stats;
 
   const _ImageStatsOverlay({
+    super.key,
     required this.colors,
     this.stats,
   });
@@ -1273,6 +1488,7 @@ class _PanelTabs extends StatelessWidget {
   final NightshadeColors colors;
 
   const _PanelTabs({
+    super.key,
     required this.selectedIndex,
     required this.onSelected,
     required this.colors,
@@ -1436,6 +1652,7 @@ class _BigActionButton extends StatefulWidget {
   final bool isMobile;
 
   const _BigActionButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.color,
@@ -1623,6 +1840,7 @@ class _EditableCompactInput extends StatefulWidget {
   final bool isMobile;
 
   const _EditableCompactInput({
+    super.key,
     required this.label,
     required this.value,
     this.suffix,
@@ -3071,7 +3289,7 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
 class _FocusPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
-  const _FocusPanel({required this.colors});
+  const _FocusPanel({super.key, required this.colors});
 
   @override
   ConsumerState<_FocusPanel> createState() => _FocusPanelState();

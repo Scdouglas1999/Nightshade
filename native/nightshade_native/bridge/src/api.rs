@@ -4107,14 +4107,22 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
     // Set up event callback to forward PHD2 events to the main event stream
     client.set_event_callback(move |event| {
         match event {
-            nightshade_imaging::Phd2Event::GuideStep(frame) => {
-                // Forward guide step data to the main event stream
+            nightshade_imaging::Phd2Event::GuideStep(ref frame) => {
+                // Forward guide step correction data
                 get_state().publish_guiding_event(
                     GuidingEvent::Correction {
                         ra: frame.ra_distance,
                         dec: frame.dec_distance,
                         ra_raw: frame.ra_distance,
                         dec_raw: frame.dec_distance,
+                    },
+                    EventSeverity::Info,
+                );
+                // Also forward guide stats (SNR and star mass)
+                get_state().publish_guiding_event(
+                    GuidingEvent::GuideStats {
+                        snr: frame.snr,
+                        star_mass: frame.star_mass,
                     },
                     EventSeverity::Info,
                 );
@@ -4125,6 +4133,13 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
                     nightshade_imaging::Phd2State::Guiding => {
                         get_state().publish_guiding_event(
                             GuidingEvent::GuidingStarted,
+                            EventSeverity::Info,
+                        );
+                    }
+                    nightshade_imaging::Phd2State::Connected => {
+                        // Connected but not guiding - this is GuidingStopped
+                        get_state().publish_guiding_event(
+                            GuidingEvent::GuidingStopped,
                             EventSeverity::Info,
                         );
                     }
@@ -4146,7 +4161,24 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
                             EventSeverity::Warning,
                         );
                     }
-                    _ => {}
+                    nightshade_imaging::Phd2State::Looping => {
+                        get_state().publish_guiding_event(
+                            GuidingEvent::Looping,
+                            EventSeverity::Info,
+                        );
+                    }
+                    nightshade_imaging::Phd2State::Calibrating => {
+                        get_state().publish_guiding_event(
+                            GuidingEvent::Calibrating,
+                            EventSeverity::Info,
+                        );
+                    }
+                    nightshade_imaging::Phd2State::Settling => {
+                        get_state().publish_guiding_event(
+                            GuidingEvent::Settling,
+                            EventSeverity::Info,
+                        );
+                    }
                 }
             }
             nightshade_imaging::Phd2Event::StarLost => {
@@ -4155,15 +4187,31 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
                     EventSeverity::Warning,
                 );
             }
-            nightshade_imaging::Phd2Event::SettleDone { .. } => {
-                // Get the last RMS from the rolling stats if available
+            nightshade_imaging::Phd2Event::StarSelected { x, y } => {
                 get_state().publish_guiding_event(
-                    GuidingEvent::Settled { rms: 0.0 }, // TODO: get actual RMS
+                    GuidingEvent::StarSelected { x, y },
+                    EventSeverity::Info,
+                );
+            }
+            nightshade_imaging::Phd2Event::SettleBegin => {
+                get_state().publish_guiding_event(
+                    GuidingEvent::Settling,
+                    EventSeverity::Info,
+                );
+            }
+            nightshade_imaging::Phd2Event::SettleDone { total_frames: _, dropped_frames: _ } => {
+                // Settling complete - report with estimated RMS from AvgDist in last frame
+                get_state().publish_guiding_event(
+                    GuidingEvent::Settled { rms: 0.0 },
                     EventSeverity::Info,
                 );
             }
             nightshade_imaging::Phd2Event::CalibrationComplete => {
                 tracing::info!("PHD2: Calibration complete");
+                get_state().publish_guiding_event(
+                    GuidingEvent::CalibrationComplete,
+                    EventSeverity::Info,
+                );
             }
             nightshade_imaging::Phd2Event::Disconnected => {
                 get_state().publish_guiding_event(
@@ -4171,7 +4219,14 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
                     EventSeverity::Warning,
                 );
             }
-            _ => {}
+            nightshade_imaging::Phd2Event::Alert { message, alert_type } => {
+                tracing::warn!("PHD2 Alert [{}]: {}", alert_type, message);
+                // Alerts are logged but not sent as GuidingEvent - could add later if needed
+            }
+            nightshade_imaging::Phd2Event::Error(msg) => {
+                tracing::error!("PHD2 Error: {}", msg);
+                // Errors are logged but not sent as GuidingEvent
+            }
         }
     });
 

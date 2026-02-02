@@ -9,6 +9,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../widgets/catalog_setup_dialog.dart';
 import '../../widgets/tutorial_overlay.dart';
+import '../../widgets/welcome_flow.dart';
 import '../../widgets/mobile_sequence_overlay.dart';
 import '../../widgets/notification_toast_overlay.dart';
 import '../../widgets/weather/weather_alert_banner.dart';
@@ -141,6 +142,16 @@ class _AppShellState extends ConsumerState<AppShell> {
       final matches = router.routerDelegate.currentConfiguration.matches;
       if (matches.isEmpty) return 0;
       final location = matches.last.matchedLocation;
+
+      // Update current screen provider for smart notifications
+      // Use Future.microtask to avoid modification during build
+      final screen = locationToAppScreen(location);
+      Future.microtask(() {
+        if (mounted) {
+          ref.read(currentScreenProvider.notifier).state = screen;
+        }
+      });
+
       switch (location) {
         case '/dashboard':
           return 0;
@@ -205,6 +216,22 @@ class _AppShellState extends ConsumerState<AppShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < NightshadeTokens.breakpointTablet;
+
+        // Check if we should show the welcome flow for first-time users
+        final showWelcomeFlow = ref.watch(shouldShowWelcomeFlowProvider);
+
+        // If first launch, show WelcomeFlow instead of the app
+        if (showWelcomeFlow) {
+          return Scaffold(
+            backgroundColor: colors.background,
+            body: WelcomeFlow(
+              onComplete: () {
+                // WelcomeFlow handles marking the tour as seen
+                // The widget will rebuild with showWelcomeFlow = false
+              },
+            ),
+          );
+        }
 
         return TutorialOverlay(
           child: Scaffold(

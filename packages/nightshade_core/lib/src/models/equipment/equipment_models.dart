@@ -1,6 +1,10 @@
 import 'package:equatable/equatable.dart';
 
+import '../backend/device_capabilities.dart' show TrackingRate;
 import '../errors/nightshade_error.dart';
+
+// Re-export TrackingRate from device_capabilities as the canonical source
+export '../backend/device_capabilities.dart' show TrackingRate;
 
 /// Base device state
 enum DeviceConnectionState { disconnected, connecting, connected, error }
@@ -315,15 +319,6 @@ class CameraState extends Equatable {
         lastSuccessfulCommunication,
         autoReconnectEnabled,
       ];
-}
-
-/// Tracking rate for mount
-enum TrackingRate {
-  sidereal,
-  lunar,
-  solar,
-  king,
-  custom,
 }
 
 /// Mount state

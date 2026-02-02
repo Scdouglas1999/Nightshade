@@ -13,6 +13,7 @@ import 'tables/captured_images.dart';
 import 'tables/settings.dart';
 import 'tables/weather_settings.dart';
 import 'tables/flat_history.dart';
+import 'tables/tutorial_progress.dart';
 import 'daos/images_dao.dart';
 import 'daos/equipment_profiles_dao.dart';
 import 'daos/sessions_dao.dart';
@@ -22,6 +23,7 @@ import 'daos/targets_dao.dart';
 import 'daos/settings_dao.dart';
 import 'daos/weather_settings_dao.dart';
 import 'daos/flat_history_dao.dart';
+import 'daos/tutorial_progress_dao.dart';
 
 part 'database.g.dart';
 
@@ -39,6 +41,7 @@ part 'database.g.dart';
     AppSettings,
     WeatherSettings,
     FlatHistory,
+    TutorialProgress,
   ],
   daos: [
     ImagesDao,
@@ -50,6 +53,7 @@ part 'database.g.dart';
     SettingsDao,
     WeatherSettingsDao,
     FlatHistoryDao,
+    TutorialProgressDao,
   ],
 )
 class NightshadeDatabase extends _$NightshadeDatabase {
@@ -59,7 +63,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration {
@@ -181,6 +185,37 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           );
           await customStatement(
             'CREATE INDEX IF NOT EXISTS idx_flat_history_timestamp ON flat_history (timestamp)',
+          );
+        }
+
+        // Version 8: Add Quick Start support columns to imaging_sessions
+        if (from < 8) {
+          final hasSequenceId = await _columnExists(
+            'imaging_sessions',
+            'sequence_id',
+          );
+          if (!hasSequenceId) {
+            await customStatement(
+              'ALTER TABLE imaging_sessions ADD COLUMN sequence_id INTEGER REFERENCES sequences(id)',
+            );
+          }
+
+          final hasEquipmentSnapshot = await _columnExists(
+            'imaging_sessions',
+            'equipment_snapshot',
+          );
+          if (!hasEquipmentSnapshot) {
+            await customStatement(
+              'ALTER TABLE imaging_sessions ADD COLUMN equipment_snapshot TEXT',
+            );
+          }
+        }
+
+        // Version 9: Add tutorial progress table
+        if (from < 9) {
+          await m.createTable(tutorialProgress);
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_tutorial_progress_category ON tutorial_progress (category)',
           );
         }
       },

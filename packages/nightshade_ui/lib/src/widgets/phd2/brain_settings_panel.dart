@@ -156,43 +156,57 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
   }
 
   Widget _buildHeader(NightshadeColors colors) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: colors.warning.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(LucideIcons.brain, color: colors.warning, size: 16),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Compact layout for narrow panels
+        final isCompact = constraints.maxWidth < 280;
+        final iconSize = isCompact ? 14.0 : 16.0;
+        final iconPadding = isCompact ? 4.0 : 6.0;
+        final titleFontSize = isCompact ? 12.0 : 14.0;
+        final horizontalPadding = isCompact ? 10.0 : 16.0;
+
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           ),
-          const SizedBox(width: 10),
-          Text(
-            'PHD2 Brain',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-          const Spacer(),
-          if (widget.isApplying)
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation(colors.primary),
+          child: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(iconPadding),
+                decoration: BoxDecoration(
+                  color: colors.warning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(LucideIcons.brain, color: colors.warning, size: iconSize),
               ),
-            ),
-        ],
-      ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'PHD2 Brain',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: titleFontSize,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.visible,
+                ),
+              ),
+              if (widget.isApplying)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(colors.primary),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -360,39 +374,44 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: isPrimary
-                ? (isDisabled ? colors.surfaceHover : color)
-                : (isOutline ? Colors.transparent : colors.surfaceHover),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isOutline ? colors.border : (isPrimary ? color : Colors.transparent),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 14,
-                color: isPrimary
-                    ? (isDisabled ? colors.textMuted : Colors.white)
-                    : (isDisabled ? colors.textMuted : color),
+        child: ConstrainedBox(
+          // Ensure minimum 44px touch target height for accessibility
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isPrimary
+                  ? (isDisabled ? colors.surfaceHover : color)
+                  : (isOutline ? Colors.transparent : colors.surfaceHover),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isOutline ? colors.border : (isPrimary ? color : Colors.transparent),
               ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 14,
                   color: isPrimary
                       ? (isDisabled ? colors.textMuted : Colors.white)
                       : (isDisabled ? colors.textMuted : color),
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isPrimary
+                        ? (isDisabled ? colors.textMuted : Colors.white)
+                        : (isDisabled ? colors.textMuted : color),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -10,6 +10,8 @@ import '../providers/settings_provider.dart';
 import '../providers/ui_notification_provider.dart';
 import '../providers/operation_progress_provider.dart';
 import '../providers/filter_offset_provider.dart';
+import '../providers/current_screen_provider.dart';
+import 'smart_notification_service.dart';
 import '../backend/nightshade_backend.dart' hide TrackingRate;
 import '../models/equipment/equipment_models.dart';
 import '../models/sequence/sequence_models.dart';
@@ -256,6 +258,12 @@ class DeviceService {
         if (ra != null && dec != null) {
           _ref.read(mountStateProvider.notifier).updatePosition(ra, dec, 0.0, 0.0);
         }
+        // Smart notification - only show if not on imaging/planetarium screens
+        _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+          message: 'Slew completed',
+          relevantScreens: [AppScreen.imaging, AppScreen.planetarium, AppScreen.sequencer],
+          title: 'Mount',
+        );
         break;
 
       // Mount Tracking Events
@@ -276,10 +284,22 @@ class DeviceService {
         _ref.read(mountStateProvider.notifier).setSlewing(false);
         _ref.read(mountStateProvider.notifier).setParked(true);
         _ref.read(mountStateProvider.notifier).setTracking(false);
+        // Smart notification
+        _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+          message: 'Mount parked',
+          relevantScreens: [AppScreen.imaging, AppScreen.equipment],
+          title: 'Mount',
+        );
         break;
 
       case 'MountUnparked':
         _ref.read(mountStateProvider.notifier).setParked(false);
+        // Smart notification
+        _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+          message: 'Mount unparked',
+          relevantScreens: [AppScreen.imaging, AppScreen.equipment],
+          title: 'Mount',
+        );
         break;
 
       // Legacy focuser position event (keep for backward compatibility)
@@ -1899,6 +1919,15 @@ class DeviceService {
         method: method,
         binning: binning,
       );
+
+      // Smart notification for autofocus completion
+      final hfrText = result.bestHfr.toStringAsFixed(2);
+      _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+        message: 'Autofocus complete (HFR: $hfrText)',
+        relevantScreens: [AppScreen.imaging, AppScreen.equipment, AppScreen.sequencer],
+        title: 'Autofocus',
+      );
+
       return result;
     } finally {
       focuserNotifier.setMoving(false);

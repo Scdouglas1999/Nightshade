@@ -15,10 +15,11 @@ export 'src/database/daos/sequence_checkpoints_dao.dart';
 export 'src/database/daos/settings_dao.dart';
 export 'src/database/daos/weather_settings_dao.dart';
 export 'src/database/daos/flat_history_dao.dart';
+export 'src/database/daos/tutorial_progress_dao.dart';
 
 // Data models (domain models, distinct from DB entities)
-// Hide TrackingRate from equipment_models - canonical version is in backend/device_capabilities
-export 'src/models/equipment/equipment_models.dart' hide TrackingRate;
+// TrackingRate is re-exported from equipment_models.dart (canonical source: device_capabilities.dart)
+export 'src/models/equipment/equipment_models.dart';
 export 'src/models/equipment/unified_device.dart';
 export 'src/models/equipment/discovery_state.dart';
 export 'src/models/equipment_profile.dart';
@@ -65,6 +66,7 @@ export 'src/providers/meridian_flip_provider.dart';
 export 'src/providers/flat_wizard_provider.dart';
 export 'src/providers/ui_notification_provider.dart';
 export 'src/providers/operation_progress_provider.dart';
+export 'src/providers/current_screen_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;
@@ -99,9 +101,11 @@ export 'src/services/notification_service.dart';
 export 'src/services/session_export_service.dart';
 export 'src/services/mosaic_service.dart';
 export 'src/services/session_service.dart';
+export 'src/services/quick_start_service.dart';
 export 'src/services/weather/weather_radar_service.dart';
 export 'src/services/weather/cloud_motion_analyzer.dart';
 export 'src/services/weather/weather_alert_service.dart';
+export 'src/services/smart_notification_service.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';

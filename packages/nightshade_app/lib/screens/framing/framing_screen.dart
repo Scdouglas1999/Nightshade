@@ -13,9 +13,10 @@ import 'package:nightshade_core/src/providers/framing_provider.dart'
     as framing_provider show MosaicConfig, MosaicPanel;
 import 'framing_search_provider.dart';
 import 'altitude_chart.dart';
-import 'package:nightshade_app/services/mount_command_service.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
+import 'package:nightshade_app/widgets/slew_dropdown_button.dart';
 import 'framing_altaz.dart';
+import '../../widgets/tutorial_keys/framing_keys.dart';
 
 class FramingScreen extends ConsumerStatefulWidget {
   const FramingScreen({super.key});
@@ -120,6 +121,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
         // Main framing canvas
         Expanded(
           child: _FramingCanvas(
+            key: FramingTutorialKeys.canvas,
             colors: colors,
             framingState: framingState,
             equipmentResult: equipmentResult.valueOrNull,
@@ -198,6 +200,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
           ),
           const SizedBox(height: 8),
           TextField(
+            key: FramingTutorialKeys.targetSearch,
             controller: _searchController,
             focusNode: _searchFocusNode,
             style: TextStyle(fontSize: 12, color: colors.textPrimary),
@@ -600,13 +603,14 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
 
         // Rotation slider (only useful with equipment)
         _SliderField(
+          key: FramingTutorialKeys.rotation,
           label: 'Rotation',
           value: framingState.rotation,
           min: -180,
           max: 180,
           suffix: '°',
           colors: colors,
-          onChanged: hasEquipment 
+          onChanged: hasEquipment
               ? (value) => ref.read(framingProvider.notifier).setRotation(value)
               : (_) {},
         ),
@@ -758,8 +762,9 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
 
   Widget _buildCoordinatesPanel(NightshadeColors colors, FramingState framingState) {
     final target = framingState.target;
-    
+
     return Container(
+      key: FramingTutorialKeys.coordinates,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
@@ -888,6 +893,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
         border: Border.all(color: colors.border),
       ),
       child: AltitudeChart(
+        key: FramingTutorialKeys.altitudeChart,
         raHours: target.raHours,
         decDegrees: target.decDegrees,
         targetName: target.name,
@@ -910,6 +916,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
       children: [
         // Header with toggle
         Row(
+          key: FramingTutorialKeys.mosaicBtn,
           children: [
             Expanded(
               child: Text(
@@ -1181,16 +1188,29 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
 
         SizedBox(
           width: double.infinity,
-          child: _ActionButton(
-            icon: LucideIcons.compass,
-            label: 'Slew to Target',
-            isPrimary: true,
-            colors: colors,
-            isEnabled: canSlew,
-            onTap: canSlew ? () => _slewToTarget(framingState.target!) : null,
-          ),
+          child: hasTarget
+              ? SlewDropdownButton(
+                  key: FramingTutorialKeys.slewBtn,
+                  ra: framingState.target!.raHours,
+                  dec: framingState.target!.decDegrees,
+                  targetName: framingState.target!.name,
+                  // Use the rotation angle from framing state
+                  targetRotation: framingState.rotation != 0 ? framingState.rotation : null,
+                  isEnabled: canSlew,
+                  icon: LucideIcons.compass,
+                  label: 'Slew to Target',
+                )
+              : _ActionButton(
+                  key: FramingTutorialKeys.slewBtn,
+                  icon: LucideIcons.compass,
+                  label: 'Slew to Target',
+                  isPrimary: true,
+                  colors: colors,
+                  isEnabled: false,
+                  onTap: null,
+                ),
         ),
-        
+
         // Show hint if slew is disabled
         if (hasTarget && !hasMountConnected)
           Padding(
@@ -1256,10 +1276,6 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
     );
   }
 
-  Future<void> _slewToTarget(FramingTarget target) async {
-    await ref.read(mountCommandServiceProvider).slewTo(context, target.raHours, target.decDegrees);
-  }
-
   void _addToSequence(FramingTarget target) {
     // Add target to current sequence, adopting any orphan instructions
     final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
@@ -1305,6 +1321,7 @@ class _FramingCanvas extends StatefulWidget {
   final void Function(double angle) onRotate;
 
   const _FramingCanvas({
+    super.key,
     required this.colors,
     required this.framingState,
     required this.equipmentResult,
@@ -1455,6 +1472,7 @@ class _FramingCanvasState extends State<_FramingCanvas> {
                   child: Transform.rotate(
                     angle: widget.framingState.rotation * math.pi / 180,
                     child: CustomPaint(
+                      key: FramingTutorialKeys.fovRect,
                       painter: _FOVPainter(
                         fovWidth: _equipment!.fovWidthDeg,
                         fovHeight: _equipment!.fovHeightDeg,
@@ -2866,6 +2884,7 @@ class _SliderField extends StatelessWidget {
   final ValueChanged<double> onChanged;
 
   const _SliderField({
+    super.key,
     required this.label,
     required this.value,
     required this.min,
@@ -3016,6 +3035,7 @@ class _ActionButton extends StatefulWidget {
   final VoidCallback? onTap;
 
   const _ActionButton({
+    super.key,
     required this.icon,
     required this.label,
     this.isPrimary = false,

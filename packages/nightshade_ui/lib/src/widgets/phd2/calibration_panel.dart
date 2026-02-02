@@ -125,50 +125,73 @@ class CalibrationPanel extends StatelessWidget {
         break;
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(statusIcon, color: statusColor, size: 16),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Compact layout for narrow panels
+        final isCompact = constraints.maxWidth < 280;
+        final iconSize = isCompact ? 14.0 : 16.0;
+        final iconPadding = isCompact ? 4.0 : 6.0;
+        final titleFontSize = isCompact ? 12.0 : 14.0;
+        final statusFontSize = isCompact ? 10.0 : 11.0;
+        final horizontalPadding = isCompact ? 10.0 : 16.0;
+        final statusPadding = isCompact
+            ? const EdgeInsets.symmetric(horizontal: 6, vertical: 3)
+            : const EdgeInsets.symmetric(horizontal: 10, vertical: 4);
+
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           ),
-          const SizedBox(width: 10),
-          Text(
-            'Calibration',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-            ),
-            child: Text(
-              statusText,
-              style: TextStyle(
-                color: statusColor,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+          child: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(iconPadding),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(statusIcon, color: statusColor, size: iconSize),
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Calibration',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: titleFontSize,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.visible,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Container(
+                  padding: statusPadding,
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: statusFontSize,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -421,42 +444,49 @@ class CalibrationPanel extends StatelessWidget {
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: isPrimary
-                ? (isDisabled ? colors.surfaceAlt : color)
-                : (isDisabled ? colors.surfaceAlt : color.withValues(alpha: 0.15)),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isDisabled
-                  ? colors.border
-                  : (isPrimary ? color : color.withValues(alpha: 0.3)),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isPrimary
-                    ? (isDisabled ? colors.textMuted : Colors.white)
-                    : (isDisabled ? colors.textMuted : color),
+        child: ConstrainedBox(
+          // Ensure minimum 44px touch target height for accessibility
+          constraints: const BoxConstraints(minHeight: 44),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: isPrimary
+                  ? (isDisabled ? colors.surfaceAlt : color)
+                  : (isDisabled ? colors.surfaceAlt : color.withValues(alpha: 0.15)),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDisabled
+                    ? colors.border
+                    : (isPrimary ? color : color.withValues(alpha: 0.3)),
               ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 16,
                   color: isPrimary
                       ? (isDisabled ? colors.textMuted : Colors.white)
                       : (isDisabled ? colors.textMuted : color),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isPrimary
+                          ? (isDisabled ? colors.textMuted : Colors.white)
+                          : (isDisabled ? colors.textMuted : color),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

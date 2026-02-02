@@ -268,6 +268,28 @@ class FfiBackend implements NightshadeBackend {
       return ('DitherStarted', {'pixels': guidingEvent.pixels});
     } else if (guidingEvent is bridge.GuidingEvent_DitherCompleted) {
       return ('DitherCompleted', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Looping) {
+      return ('LoopingExposures', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Settling) {
+      return ('Settling', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Calibrating) {
+      return ('Calibrating', {});
+    } else if (guidingEvent is bridge.GuidingEvent_CalibrationComplete) {
+      return ('CalibrationComplete', {});
+    } else if (guidingEvent is bridge.GuidingEvent_StarSelected) {
+      return ('StarSelected', {
+        'X': guidingEvent.x,
+        'Y': guidingEvent.y,
+      });
+    } else if (guidingEvent is bridge.GuidingEvent_AppState) {
+      return ('AppState', {
+        'State': guidingEvent.state,
+      });
+    } else if (guidingEvent is bridge.GuidingEvent_GuideStats) {
+      return ('GuideStats', {
+        'SNR': guidingEvent.snr,
+        'StarMass': guidingEvent.starMass,
+      });
     }
 
     return ('UnknownGuidingEvent', {'event': guidingEvent.toString()});

@@ -424,10 +424,27 @@ typedef struct wire_cst_GuidingEvent_Correction {
   double dec_raw;
 } wire_cst_GuidingEvent_Correction;
 
+typedef struct wire_cst_GuidingEvent_StarSelected {
+  double x;
+  double y;
+} wire_cst_GuidingEvent_StarSelected;
+
+typedef struct wire_cst_GuidingEvent_AppState {
+  struct wire_cst_list_prim_u_8_strict *state;
+} wire_cst_GuidingEvent_AppState;
+
+typedef struct wire_cst_GuidingEvent_GuideStats {
+  double snr;
+  double star_mass;
+} wire_cst_GuidingEvent_GuideStats;
+
 typedef union GuidingEventKind {
   struct wire_cst_GuidingEvent_Settled Settled;
   struct wire_cst_GuidingEvent_DitherStarted DitherStarted;
   struct wire_cst_GuidingEvent_Correction Correction;
+  struct wire_cst_GuidingEvent_StarSelected StarSelected;
+  struct wire_cst_GuidingEvent_AppState AppState;
+  struct wire_cst_GuidingEvent_GuideStats GuideStats;
 } GuidingEventKind;
 
 typedef struct wire_cst_guiding_event {

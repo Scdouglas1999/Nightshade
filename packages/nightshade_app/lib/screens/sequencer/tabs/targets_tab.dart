@@ -16,68 +16,119 @@ class TargetsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final sequence = ref.watch(currentSequenceProvider);
+    final isMobile = Responsive.isMobile(context);
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 12 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Session Planner',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Visualize and optimize your imaging session',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ],
+          if (isMobile) ...[
+            // Mobile: stack title and buttons vertically
+            Text(
+              'Session Planner',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
               ),
-              const Spacer(),
-              if (sequence != null && sequence.targetHeaders.length > 1)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (sequence != null && sequence.targetHeaders.length > 1)
+                  Expanded(
+                    child: NightshadeButton(
+                      label: 'Optimize',
+                      icon: LucideIcons.sparkles,
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => _OptimizeOrderDialog(
+                            targets: sequence.targetHeaders,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                if (sequence != null && sequence.targetHeaders.length > 1)
+                  const SizedBox(width: 8),
+                Expanded(
                   child: NightshadeButton(
-                    label: 'Optimize Order',
-                    icon: LucideIcons.sparkles,
-                    variant: ButtonVariant.outline,
+                    label: 'Add Target',
+                    icon: LucideIcons.plus,
+                    size: ButtonSize.small,
                     onPressed: () {
                       showDialog(
                         context: context,
-                        builder: (context) => _OptimizeOrderDialog(
-                          targets: sequence.targetHeaders,
-                        ),
+                        builder: (context) => const _AddTargetDialog(),
                       );
                     },
                   ),
                 ),
-              NightshadeButton(
-                label: 'Add Target',
-                icon: LucideIcons.plus,
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => const _AddTargetDialog(),
-                  );
-                },
-              ),
-            ],
-          ),
+              ],
+            ),
+          ] else ...[
+            // Desktop: row layout
+            Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Session Planner',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Visualize and optimize your imaging session',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                if (sequence != null && sequence.targetHeaders.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: NightshadeButton(
+                      label: 'Optimize Order',
+                      icon: LucideIcons.sparkles,
+                      variant: ButtonVariant.outline,
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => _OptimizeOrderDialog(
+                            targets: sequence.targetHeaders,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                NightshadeButton(
+                  label: 'Add Target',
+                  icon: LucideIcons.plus,
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => const _AddTargetDialog(),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
 
-          const SizedBox(height: 24),
+          SizedBox(height: isMobile ? 16 : 24),
 
           // Timeline Chart
           Expanded(
@@ -95,7 +146,7 @@ class TargetsTab extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: isMobile ? 12 : 24),
 
           Text(
             'Scheduled Targets',
@@ -510,6 +561,9 @@ class _TargetListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = Responsive.isMobile(context);
+    final isVeryNarrow = MediaQuery.of(context).size.width < 360;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -525,10 +579,13 @@ class _TargetListItem extends StatelessWidget {
         ],
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 12 : 16,
+          vertical: isMobile ? 6 : 8,
+        ),
         leading: Container(
-          width: 40,
-          height: 40,
+          width: isMobile ? 36 : 40,
+          height: isMobile ? 36 : 40,
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.1),
             shape: BoxShape.circle,
@@ -538,7 +595,7 @@ class _TargetListItem extends StatelessWidget {
             child: Text(
               '${index + 1}',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: isMobile ? 12 : 14,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
@@ -548,25 +605,35 @@ class _TargetListItem extends StatelessWidget {
         title: Text(
           target.targetName,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: isMobile ? 14 : 16,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          'RA: ${target.raHours.toStringAsFixed(4)}h  Dec: ${target.decDegrees.toStringAsFixed(4)}°',
-          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+          isVeryNarrow
+              ? '${target.raHours.toStringAsFixed(2)}h / ${target.decDegrees.toStringAsFixed(2)}°'
+              : 'RA: ${target.raHours.toStringAsFixed(4)}h  Dec: ${target.decDegrees.toStringAsFixed(4)}°',
+          style: TextStyle(color: colors.textSecondary, fontSize: isMobile ? 11 : 12),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: Icon(LucideIcons.trash2, size: 18, color: colors.error),
+              icon: Icon(LucideIcons.trash2, size: isMobile ? 16 : 18, color: colors.error),
               onPressed: onDelete,
               tooltip: 'Remove Target',
+              visualDensity: isMobile ? VisualDensity.compact : VisualDensity.standard,
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             ),
-            const SizedBox(width: 8),
-            Icon(LucideIcons.gripVertical, color: colors.textMuted),
+            if (!isVeryNarrow) ...[
+              const SizedBox(width: 4),
+              Icon(LucideIcons.gripVertical, color: colors.textMuted, size: isMobile ? 18 : 20),
+            ],
           ],
         ),
       ),

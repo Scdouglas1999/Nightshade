@@ -256,6 +256,8 @@ pub struct GuideFrame {
     pub dec_direction: String,
     /// Guide star SNR
     pub snr: f64,
+    /// Guide star mass (brightness)
+    pub star_mass: f64,
     /// Star position X
     pub star_x: f64,
     /// Star position Y
@@ -948,6 +950,7 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
                 ra_direction: extra.get("RADirection").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                 dec_direction: extra.get("DECDirection").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                 snr: extra.get("SNR").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                star_mass: extra.get("StarMass").and_then(|v| v.as_f64()).unwrap_or(0.0),
                 star_x: extra.get("StarX").and_then(|v| v.as_f64()).unwrap_or(0.0),
                 star_y: extra.get("StarY").and_then(|v| v.as_f64()).unwrap_or(0.0),
                 avg_dist: extra.get("AvgDist").and_then(|v| v.as_f64()).unwrap_or(0.0),

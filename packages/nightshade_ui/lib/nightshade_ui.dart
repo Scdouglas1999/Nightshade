@@ -9,6 +9,7 @@ export 'src/theme/nightshade_typography.dart';
 
 // Utils
 export 'src/utils/responsive_utils.dart';
+export 'src/utils/scaled_config.dart';
 
 // Components
 export 'src/components/nightshade_button.dart';

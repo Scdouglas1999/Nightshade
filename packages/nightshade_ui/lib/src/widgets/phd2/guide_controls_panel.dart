@@ -187,49 +187,64 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
   Widget _buildStatusHeader(NightshadeColors colors) {
     final stateColor = _getStateColor(colors);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: stateColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(widget.state.icon, color: stateColor, size: 16),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Compact layout for narrow panels
+        final isCompact = constraints.maxWidth < 280;
+        final iconSize = isCompact ? 14.0 : 16.0;
+        final iconPadding = isCompact ? 4.0 : 6.0;
+        final fontSize = isCompact ? 12.0 : 14.0;
+        final horizontalPadding = isCompact ? 10.0 : 16.0;
+
+        return Container(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 10),
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           ),
-          const SizedBox(width: 10),
-          Text(
-            widget.state.displayName,
-            style: TextStyle(
-              color: stateColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-          const Spacer(),
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: widget.isConnected ? colors.success : colors.error,
-              boxShadow: [
-                BoxShadow(
-                  color: (widget.isConnected ? colors.success : colors.error)
-                      .withValues(alpha: 0.4),
-                  blurRadius: 4,
+          child: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(iconPadding),
+                decoration: BoxDecoration(
+                  color: stateColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
-            ),
+                child: Icon(widget.state.icon, color: stateColor, size: iconSize),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.state.displayName,
+                  style: TextStyle(
+                    color: stateColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: fontSize,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.visible,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.isConnected ? colors.success : colors.error,
+                  boxShadow: [
+                    BoxShadow(
+                      color: (widget.isConnected ? colors.success : colors.error)
+                          .withValues(alpha: 0.4),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -371,22 +386,39 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
         const SizedBox(height: 8),
         Row(
           children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: Checkbox(
-                value: widget.ditherRaOnly,
-                onChanged: (value) => widget.onDitherRaOnlyChanged?.call(value ?? false),
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                side: BorderSide(color: colors.border),
-                activeColor: colors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            // Wrap checkbox with GestureDetector for larger touch target (44px minimum)
+            GestureDetector(
+              onTap: () => widget.onDitherRaOnlyChanged?.call(!widget.ditherRaOnly),
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                // 44px minimum touch target, but visually compact
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: Checkbox(
+                        value: widget.ditherRaOnly,
+                        onChanged: (value) =>
+                            widget.onDitherRaOnlyChanged?.call(value ?? false),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        side: BorderSide(color: colors.border),
+                        activeColor: colors.primary,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(4)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'RA Only',
+                      style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'RA Only',
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
             ),
             const Spacer(),
             _buildControlButton(
@@ -524,13 +556,17 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       children: [
         Icon(icon, size: 14, color: colors.textMuted),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            color: colors.textSecondary,
-            fontWeight: FontWeight.w600,
-            fontSize: 12,
-            letterSpacing: 0.3,
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              letterSpacing: 0.3,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.visible,
           ),
         ),
       ],
@@ -553,42 +589,47 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: EdgeInsets.symmetric(
-            horizontal: small ? 10 : 12,
-            vertical: small ? 8 : 10,
-          ),
-          decoration: BoxDecoration(
-            color: isOutline
-                ? Colors.transparent
-                : (isDisabled ? colors.surfaceAlt : color.withValues(alpha: 0.15)),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isDisabled
-                  ? colors.border
-                  : (isOutline ? colors.border : color.withValues(alpha: 0.3)),
+        child: ConstrainedBox(
+          // Ensure minimum 44px touch target height for accessibility
+          constraints: BoxConstraints(minHeight: small ? 40 : 44),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: EdgeInsets.symmetric(
+              horizontal: small ? 10 : 12,
+              vertical: small ? 10 : 12,
             ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: small ? MainAxisSize.min : MainAxisSize.max,
-            children: [
-              Icon(
-                icon,
-                size: small ? 14 : 16,
-                color: isDisabled ? colors.textMuted : color,
+            decoration: BoxDecoration(
+              color: isOutline
+                  ? Colors.transparent
+                  : (isDisabled ? colors.surfaceAlt : color.withValues(alpha: 0.15)),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDisabled
+                    ? colors.border
+                    : (isOutline ? colors.border : color.withValues(alpha: 0.3)),
               ),
-              SizedBox(width: small ? 6 : 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: small ? 11 : 12,
-                  fontWeight: FontWeight.w500,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: small ? MainAxisSize.min : MainAxisSize.max,
+              children: [
+                Icon(
+                  icon,
+                  size: small ? 14 : 16,
                   color: isDisabled ? colors.textMuted : color,
                 ),
-              ),
-            ],
+                SizedBox(width: small ? 6 : 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: small ? 11 : 12,
+                    fontWeight: FontWeight.w500,
+                    color: isDisabled ? colors.textMuted : color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ),
       ),

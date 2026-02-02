@@ -1686,12 +1686,13 @@ class _UnifiedDeviceDropdown extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     // Show available backends as small colored dots/badges
-                    Row(
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 2,
                       children: [
                         ...device.sortedBackends.map((backend) {
                           final isRecommended = backend == recommended;
                           return Container(
-                            margin: const EdgeInsets.only(right: 4),
                             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                             decoration: BoxDecoration(
                               color: _getBackendColor(backend).withValues(alpha: 0.15),
@@ -1910,12 +1911,15 @@ class _UnifiedBaseDeviceCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            title,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: colors.textPrimary,
+                          Flexible(
+                            child: Text(
+                              title,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: colors.textPrimary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if (isOptional) ...[
@@ -2006,27 +2010,31 @@ class _UnifiedBaseDeviceCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    statusLabel,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: isConnected ? colors.success : colors.textSecondary,
+                  Flexible(
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: isConnected ? colors.success : colors.textSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
-                  ...statusDetails.map((detail) {
-                    return Padding(
-                      padding: const EdgeInsets.only(left: 16),
+                  if (statusDetails.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Flexible(
                       child: Text(
-                        detail,
+                        statusDetails.join(' • '),
                         style: TextStyle(
                           fontSize: 11,
                           color: colors.textMuted,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
                       ),
-                    );
-                  }),
+                    ),
+                  ],
                 ],
               ),
             ),

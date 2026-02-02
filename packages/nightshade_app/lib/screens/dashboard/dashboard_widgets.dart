@@ -135,6 +135,7 @@ Widget _buildLivePreview(
   AnimationController pulseController,
 ) {
   return _LivePreviewCard(
+    key: DashboardTutorialKeys.livePreview,
     colors: colors,
     pulseController: pulseController,
   );
@@ -145,7 +146,7 @@ Widget _buildCaptureSettings(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return _CaptureSettingsCard(colors: colors);
+  return _CaptureSettingsCard(key: DashboardTutorialKeys.captureControls, colors: colors);
 }
 
 Widget _buildSequenceStatus(
@@ -153,7 +154,7 @@ Widget _buildSequenceStatus(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return _SessionProgressCard(colors: colors);
+  return _SessionProgressCard(key: DashboardTutorialKeys.sessionWidget, colors: colors);
 }
 
 Widget _buildGuiding(
@@ -161,7 +162,7 @@ Widget _buildGuiding(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return _GuidingCard(colors: colors);
+  return _GuidingCard(key: DashboardTutorialKeys.guidingWidget, colors: colors);
 }
 
 Widget _buildMountControl(
@@ -169,7 +170,7 @@ Widget _buildMountControl(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return _MountControlCard(colors: colors);
+  return _MountControlCard(key: DashboardTutorialKeys.mountWidget, colors: colors);
 }
 
 Widget _buildEquipmentStatus(
@@ -177,7 +178,7 @@ Widget _buildEquipmentStatus(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return _EquipmentStatusCard(colors: colors);
+  return _EquipmentStatusCard(key: DashboardTutorialKeys.equipmentStatus, colors: colors);
 }
 
 Widget _buildWeather(
@@ -185,7 +186,7 @@ Widget _buildWeather(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return const DashboardWeatherWidget();
+  return DashboardWeatherWidget(key: DashboardTutorialKeys.weatherWidget);
 }
 
 Widget _buildFocus(
@@ -193,7 +194,7 @@ Widget _buildFocus(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return _FocusCard(colors: colors);
+  return _FocusCard(key: DashboardTutorialKeys.focuserWidget, colors: colors);
 }
 
 Widget _buildAlerts(

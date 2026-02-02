@@ -194,6 +194,36 @@ sealed class GuidingEvent with _$GuidingEvent {
     required double raRaw,
     required double decRaw,
   }) = GuidingEvent_Correction;
+
+  /// Looping exposures without guiding
+  const factory GuidingEvent.looping() = GuidingEvent_Looping;
+
+  /// Settling after dither or guide start
+  const factory GuidingEvent.settling() = GuidingEvent_Settling;
+
+  /// Calibration in progress
+  const factory GuidingEvent.calibrating() = GuidingEvent_Calibrating;
+
+  /// Calibration completed successfully
+  const factory GuidingEvent.calibrationComplete() =
+      GuidingEvent_CalibrationComplete;
+
+  /// Guide star selected at position
+  const factory GuidingEvent.starSelected({
+    required double x,
+    required double y,
+  }) = GuidingEvent_StarSelected;
+
+  /// PHD2 app state change (for states not covered by other events)
+  const factory GuidingEvent.appState({
+    required String state,
+  }) = GuidingEvent_AppState;
+
+  /// SNR and star mass update from guide step
+  const factory GuidingEvent.guideStats({
+    required double snr,
+    required double starMass,
+  }) = GuidingEvent_GuideStats;
 }
 
 /// Heartbeat status for device health monitoring

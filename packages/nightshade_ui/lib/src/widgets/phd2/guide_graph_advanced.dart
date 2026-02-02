@@ -127,70 +127,90 @@ class GuideGraphAdvanced extends StatelessWidget {
   }
 
   Widget _buildControlsBar(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade900,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        children: [
-          // RMS Statistics
-          _buildRmsStats(),
-          const Spacer(),
-          // Time scale selector
-          _buildScaleSelector(
-            label: 'Time:',
-            value: timeScale.label,
-            items: GraphTimeScale.values,
-            onChanged: onTimeScaleChanged != null
-                ? (scale) => onTimeScaleChanged!(scale as GraphTimeScale)
-                : null,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 450;
+        final isVeryCompact = constraints.maxWidth < 350;
+
+        return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 6 : 8,
+            vertical: 4,
           ),
-          const SizedBox(width: 16),
-          // Y scale selector
-          _buildScaleSelector(
-            label: 'Scale:',
-            value: yScale.label,
-            items: GraphYScale.values,
-            onChanged: onYScaleChanged != null
-                ? (scale) => onYScaleChanged!(scale as GraphYScale)
-                : null,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade900,
+            borderRadius: BorderRadius.circular(4),
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              // RMS Statistics - hide on very compact screens (shown elsewhere)
+              if (!isVeryCompact)
+                Flexible(
+                  child: ClipRect(
+                    child: _buildRmsStats(compact: isCompact),
+                  ),
+                ),
+              if (!isVeryCompact) SizedBox(width: isCompact ? 6 : 8),
+              // Time scale selector
+              _buildScaleSelector(
+                label: isCompact ? 'T:' : 'Time:',
+                value: timeScale.label,
+                items: GraphTimeScale.values,
+                onChanged: onTimeScaleChanged != null
+                    ? (scale) => onTimeScaleChanged!(scale as GraphTimeScale)
+                    : null,
+                compact: isCompact,
+              ),
+              SizedBox(width: isCompact ? 8 : 16),
+              // Y scale selector
+              _buildScaleSelector(
+                label: isCompact ? 'Y:' : 'Scale:',
+                value: yScale.label,
+                items: GraphYScale.values,
+                onChanged: onYScaleChanged != null
+                    ? (scale) => onYScaleChanged!(scale as GraphYScale)
+                    : null,
+                compact: isCompact,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildRmsStats() {
+  Widget _buildRmsStats({bool compact = false}) {
+    final spacing = compact ? 8.0 : 16.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildRmsValue('RA', rmsRa, Colors.red.shade400),
-        const SizedBox(width: 16),
-        _buildRmsValue('Dec', rmsDec, Colors.blue.shade400),
-        const SizedBox(width: 16),
-        _buildRmsValue('Total', rmsTotal, Colors.white, bold: true),
+        _buildRmsValue('RA', rmsRa, Colors.red.shade400, compact: compact),
+        SizedBox(width: spacing),
+        _buildRmsValue('Dec', rmsDec, Colors.blue.shade400, compact: compact),
+        SizedBox(width: spacing),
+        _buildRmsValue('Tot', rmsTotal, Colors.white, bold: true, compact: compact),
       ],
     );
   }
 
-  Widget _buildRmsValue(String label, double value, Color color, {bool bold = false}) {
+  Widget _buildRmsValue(String label, double value, Color color, {bool bold = false, bool compact = false}) {
+    final fontSize = compact ? 10.0 : 12.0;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '$label: ',
+          '$label:',
           style: TextStyle(
             color: Colors.grey.shade400,
-            fontSize: 12,
+            fontSize: fontSize,
           ),
         ),
+        const SizedBox(width: 2),
         Text(
           '${value.toStringAsFixed(2)}"',
           style: TextStyle(
             color: color,
-            fontSize: 12,
+            fontSize: fontSize,
             fontWeight: bold ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -203,13 +223,19 @@ class GuideGraphAdvanced extends StatelessWidget {
     required String value,
     required List<T> items,
     required void Function(T)? onChanged,
+    bool compact = false,
   }) {
+    final fontSize = compact ? 10.0 : 12.0;
+    final padding = compact
+        ? const EdgeInsets.symmetric(horizontal: 6, vertical: 3)
+        : const EdgeInsets.symmetric(horizontal: 8, vertical: 4);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+          style: TextStyle(color: Colors.grey.shade400, fontSize: fontSize),
         ),
         const SizedBox(width: 4),
         PopupMenuButton<T>(
@@ -219,7 +245,7 @@ class GuideGraphAdvanced extends StatelessWidget {
           ),
           onSelected: onChanged,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: padding,
             decoration: BoxDecoration(
               color: Colors.grey.shade800,
               borderRadius: BorderRadius.circular(4),
@@ -229,9 +255,9 @@ class GuideGraphAdvanced extends StatelessWidget {
               children: [
                 Text(
                   value,
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  style: TextStyle(color: Colors.white, fontSize: fontSize),
                 ),
-                const Icon(Icons.arrow_drop_down, color: Colors.white, size: 16),
+                Icon(Icons.arrow_drop_down, color: Colors.white, size: compact ? 14 : 16),
               ],
             ),
           ),

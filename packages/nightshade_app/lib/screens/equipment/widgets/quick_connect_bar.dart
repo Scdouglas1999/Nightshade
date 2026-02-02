@@ -4,6 +4,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/tutorial_keys/equipment_keys.dart';
 import 'profile_chip.dart';
 
 /// A horizontal scrollable bar of profile chips for quick profile selection
@@ -32,6 +33,7 @@ class QuickConnectBar extends ConsumerWidget {
     final guiderState = ref.watch(guiderStateProvider);
 
     return Container(
+      key: EquipmentTutorialKeys.quickConnectBar,
       height: 56,
       decoration: BoxDecoration(
         color: colors.surface,
@@ -94,7 +96,9 @@ class QuickConnectBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          ...profiles.map((profile) {
+          ...profiles.asMap().entries.map((entry) {
+            final index = entry.key;
+            final profile = entry.value;
             final isSelected = profile.id == selectedProfileId;
             final (connectionState, connected, total) = _getProfileConnectionState(
               profile,
@@ -108,6 +112,8 @@ class QuickConnectBar extends ConsumerWidget {
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ProfileChip(
+                // Add tutorial key to first profile chip for profile selector tutorial
+                key: index == 0 ? EquipmentTutorialKeys.profileSelector : null,
                 profile: profile,
                 isSelected: isSelected,
                 connectionState: connectionState,
@@ -118,7 +124,10 @@ class QuickConnectBar extends ConsumerWidget {
               ),
             );
           }),
-          AddProfileChip(onTap: onCreateProfile),
+          AddProfileChip(
+            key: EquipmentTutorialKeys.createProfileBtn,
+            onTap: onCreateProfile,
+          ),
         ],
       ),
     );

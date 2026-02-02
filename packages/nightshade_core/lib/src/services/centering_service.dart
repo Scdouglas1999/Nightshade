@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'plate_solve_service.dart';
 import 'imaging_service.dart';
 import 'device_service.dart';
+import 'smart_notification_service.dart';
 import '../providers/equipment_provider.dart';
+import '../providers/current_screen_provider.dart';
 import '../models/imaging/imaging_models.dart';
 import '../models/equipment/equipment_models.dart';
 
@@ -361,6 +363,14 @@ class CenteringService {
           message: 'Target centered successfully!',
           iterationHistory: iterations,
         ));
+
+        // Smart notification for centering completion
+        final offsetArcmin = offset / 60.0;
+        _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
+          message: 'Target centered (offset: ${offsetArcmin.toStringAsFixed(2)} arcmin)',
+          relevantScreens: [AppScreen.imaging, AppScreen.sequencer],
+          title: 'Centering Complete',
+        );
 
         return CenteringResult.success(
           finalOffsetArcsec: offset,

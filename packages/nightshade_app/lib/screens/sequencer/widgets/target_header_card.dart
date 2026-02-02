@@ -17,6 +17,7 @@ class TargetHeaderCard extends ConsumerStatefulWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onExpand;
   final bool isExpanded;
+  final bool isMobile;
 
   const TargetHeaderCard({
     super.key,
@@ -29,6 +30,7 @@ class TargetHeaderCard extends ConsumerStatefulWidget {
     this.onDelete,
     this.onExpand,
     this.isExpanded = true,
+    this.isMobile = false,
   });
 
   @override
@@ -36,8 +38,15 @@ class TargetHeaderCard extends ConsumerStatefulWidget {
 }
 
 class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
-  bool _showAltitudeChart = true;
+  late bool _showAltitudeChart;
   bool _isHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Hide altitude chart by default on mobile to save space
+    _showAltitudeChart = !widget.isMobile;
+  }
 
   Color _getStatusColor() {
     switch (widget.nodeStatus) {

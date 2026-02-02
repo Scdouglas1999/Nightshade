@@ -7,6 +7,7 @@ import 'package:nightshade_core/src/database/database.dart' show CapturedImage, 
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../../utils/snackbar_helper.dart';
+import '../../widgets/tutorial_keys/analytics_keys.dart';
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
 
@@ -41,7 +42,14 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               ..._tabs.asMap().entries.map((entry) {
                 final index = entry.key;
                 final label = entry.value;
+                // Attach tutorial keys to the tab buttons, not content
+                final key = index == 0
+                    ? AnalyticsTutorialKeys.sessionTab
+                    : index == 1
+                        ? AnalyticsTutorialKeys.historyTab
+                        : AnalyticsTutorialKeys.equipmentTab;
                 return SubTabButton(
+                  key: key,
                   label: label,
                   isSelected: index == _currentSubTab,
                   onTap: () => setState(() => _currentSubTab = index),
@@ -56,7 +64,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         Expanded(
           child: IndexedStack(
             index: _currentSubTab,
-            children: [
+            children: const [
               _SessionTab(),
               _HistoryTab(),
               _EquipmentStatsTab(),
@@ -69,6 +77,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 }
 
 class _SessionTab extends ConsumerWidget {
+  const _SessionTab({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
@@ -150,9 +160,9 @@ class _SessionTab extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(child: HfrChart(images: images)),
+                    Expanded(child: HfrChart(key: AnalyticsTutorialKeys.hfrChart, images: images)),
                     const SizedBox(width: 16),
-                    Expanded(child: GuidingRmsChart(images: images)),
+                    Expanded(child: GuidingRmsChart(key: AnalyticsTutorialKeys.guidingChart, images: images)),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -193,7 +203,7 @@ class _SessionTab extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   imagesAsyncValue.when(
-                    data: (images) => ImageThumbnailStrip(images: images),
+                    data: (images) => ImageThumbnailStrip(key: AnalyticsTutorialKeys.thumbnails, images: images),
                     loading: () => const SizedBox(
                       height: 100,
                       child: Center(child: CircularProgressIndicator()),
@@ -246,6 +256,8 @@ final sessionTargetNamesProvider = Provider<AsyncValue<List<String>>>((ref) {
 });
 
 class _HistoryTab extends ConsumerStatefulWidget {
+  const _HistoryTab({super.key});
+
   @override
   ConsumerState<_HistoryTab> createState() => _HistoryTabState();
 }
@@ -804,6 +816,8 @@ class _SessionDetailDialog extends ConsumerWidget {
 }
 
 class _EquipmentStatsTab extends StatelessWidget {
+  const _EquipmentStatsTab({super.key});
+
   @override
   Widget build(BuildContext context) {
     // Access colors to ensure theme extension is available

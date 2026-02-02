@@ -11,7 +11,9 @@ import '../../utils/snackbar_helper.dart';
 /// Displays all registered plugins with their status, description, and controls.
 /// Allows users to enable/disable plugins and view plugin information.
 class PluginsScreen extends ConsumerWidget {
-  const PluginsScreen({super.key});
+  final bool isMobile;
+
+  const PluginsScreen({super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,28 +22,30 @@ class PluginsScreen extends ConsumerWidget {
     final plugins = pluginHost.pluginInfo;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(isMobile ? 16 : 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Text(
-            'Plugins',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
+          // Header - hide on mobile since parent shows it
+          if (!isMobile) ...[
+            Text(
+              'Plugins',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Extend Nightshade with additional functionality',
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textSecondary,
+            const SizedBox(height: 4),
+            Text(
+              'Extend Nightshade with additional functionality',
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.textSecondary,
+              ),
             ),
-          ),
-          const SizedBox(height: 32),
+            const SizedBox(height: 32),
+          ],
 
           // Plugin count
           Container(

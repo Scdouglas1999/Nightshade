@@ -11,7 +11,7 @@ import 'package:nightshade_core/nightshade_core.dart'
         DeviceConnectionState;
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
-import '../centering_dialog.dart';
+import '../../../widgets/slew_dropdown_button.dart';
 import '../../polar_alignment/polar_alignment_screen.dart';
 
 class MountTab extends ConsumerStatefulWidget {
@@ -64,17 +64,6 @@ class _MountTabState extends ConsumerState<MountTab> {
     super.dispose();
   }
 
-  /// Slew to coordinates from text fields with validation
-  void _handleSlew() {
-    final ra = CoordinateParser.parseRa(_raController.text);
-    final dec = CoordinateParser.parseDec(_decController.text);
-    if (ra == null || dec == null) {
-      context.showErrorSnackBar("Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
-      return;
-    }
-    ref.read(mountCommandServiceProvider).slewTo(context, ra, dec);
-  }
-
   /// Sync mount to coordinates from text fields with validation
   void _handleSync() {
     final ra = CoordinateParser.parseRa(_raController.text);
@@ -91,6 +80,7 @@ class _MountTabState extends ConsumerState<MountTab> {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final mountState = ref.watch(mountStateProvider);
     final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+    final isMobile = Responsive.isMobile(context);
 
     // Watch mount capabilities to gate UI features
     final capabilitiesAsync = ref.watch(
@@ -98,7 +88,7 @@ class _MountTabState extends ConsumerState<MountTab> {
     final capabilities = capabilitiesAsync.valueOrNull;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Column(
         children: [
           // Status Card
@@ -134,27 +124,27 @@ class _MountTabState extends ConsumerState<MountTab> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Row(
+                  _ResponsiveCoordinateGrid(
+                    isMobile: isMobile,
                     children: [
-                      Expanded(child: _InfoRow(label: 'RA', value: mountState.ra?.toStringAsFixed(4) ?? '--')),
-                      const SizedBox(width: 16),
-                      Expanded(child: _InfoRow(label: 'Dec', value: mountState.dec?.toStringAsFixed(4) ?? '--')),
+                      _InfoRow(label: 'RA', value: mountState.ra?.toStringAsFixed(4) ?? '--'),
+                      _InfoRow(label: 'Dec', value: mountState.dec?.toStringAsFixed(4) ?? '--'),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  _ResponsiveCoordinateGrid(
+                    isMobile: isMobile,
                     children: [
-                      Expanded(child: _InfoRow(label: 'Alt', value: mountState.altitude?.toStringAsFixed(2) ?? '--')),
-                      const SizedBox(width: 16),
-                      Expanded(child: _InfoRow(label: 'Az', value: mountState.azimuth?.toStringAsFixed(2) ?? '--')),
+                      _InfoRow(label: 'Alt', value: mountState.altitude?.toStringAsFixed(2) ?? '--'),
+                      _InfoRow(label: 'Az', value: mountState.azimuth?.toStringAsFixed(2) ?? '--'),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  _ResponsiveCoordinateGrid(
+                    isMobile: isMobile,
                     children: [
-                      Expanded(child: _InfoRow(label: 'Pier', value: mountState.sideOfPier ?? '--')),
-                      const SizedBox(width: 16),
-                      Expanded(child: _InfoRow(label: 'Status', value: mountState.isParked ? 'Parked' : 'Ready')),
+                      _InfoRow(label: 'Pier', value: mountState.sideOfPier ?? '--'),
+                      _InfoRow(label: 'Status', value: mountState.isParked ? 'Parked' : 'Ready'),
                     ],
                   ),
                 ],
@@ -317,10 +307,32 @@ class _MountTabState extends ConsumerState<MountTab> {
                   Row(
                     children: [
                       Expanded(
-                        child: NightshadeButton(
-                          label: 'Slew',
-                          icon: LucideIcons.move,
-                          onPressed: _handleSlew,
+                        child: Builder(
+                          builder: (context) {
+                            // Parse coordinates for the slew dropdown
+                            final ra = CoordinateParser.parseRa(_raController.text);
+                            final dec = CoordinateParser.parseDec(_decController.text);
+                            final hasValidCoords = ra != null && dec != null;
+
+                            if (!hasValidCoords) {
+                              // Show disabled button if coordinates are invalid
+                              return NightshadeButton(
+                                label: 'Slew',
+                                icon: LucideIcons.move,
+                                // onPressed null makes button appear disabled
+                                onPressed: null,
+                              );
+                            }
+
+                            return SlewDropdownButton(
+                              ra: ra,
+                              dec: dec,
+                              targetName: 'Manual Coordinates',
+                              // No rotation from manual coordinate entry
+                              targetRotation: null,
+                              isEnabled: isConnected,
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -333,28 +345,6 @@ class _MountTabState extends ConsumerState<MountTab> {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: NightshadeButton(
-                      label: 'Center Target',
-                      icon: LucideIcons.target,
-                      variant: ButtonVariant.primary,
-                      onPressed: () {
-                        // Parse using CoordinateParser for HMS/DMS support
-                        final ra = CoordinateParser.parseRa(_raController.text);
-                        final dec = CoordinateParser.parseDec(_decController.text);
-                        showDialog(
-                          context: context,
-                          builder: (context) => CenteringDialog(
-                            targetRa: ra,
-                            targetDec: dec,
-                            targetName: 'Manual Coordinates',
-                          ),
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),
@@ -482,6 +472,43 @@ class _PulseButton extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(label, style: TextStyle(fontSize: 10, color: colors.textSecondary)),
+      ],
+    );
+  }
+}
+
+/// Responsive grid layout for coordinate pairs.
+/// On mobile, stacks children vertically; on desktop, shows them side-by-side.
+class _ResponsiveCoordinateGrid extends StatelessWidget {
+  final bool isMobile;
+  final List<Widget> children;
+
+  const _ResponsiveCoordinateGrid({
+    required this.isMobile,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isMobile) {
+      // Stack vertically on mobile with smaller spacing
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (int i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i < children.length - 1) const SizedBox(height: 8),
+          ],
+        ],
+      );
+    }
+    // Side-by-side on desktop
+    return Row(
+      children: [
+        for (int i = 0; i < children.length; i++) ...[
+          Expanded(child: children[i]),
+          if (i < children.length - 1) const SizedBox(width: 16),
+        ],
       ],
     );
   }
