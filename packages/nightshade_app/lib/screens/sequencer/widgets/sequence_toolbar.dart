@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../services/sequence_action_service.dart';
+import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
 import 'equipment_status_widget.dart';
 
@@ -51,16 +53,16 @@ class SequenceToolbar extends ConsumerWidget {
                 context: context,
                 builder: (context) => PreFlightValidationDialog(
                   onStartSequence: () {
-                    ref.read(sequenceExecutorProvider).start();
+                    ref.read(sequenceActionServiceProvider).start();
                   },
                 ),
               );
             },
-            onPause: () => ref.read(sequenceExecutorProvider).pause(),
-            onResume: () => ref.read(sequenceExecutorProvider).resume(),
-            onStop: () => ref.read(sequenceExecutorProvider).stop(),
-            onSkip: () => ref.read(sequenceExecutorProvider).skip(),
-            onReset: () => ref.read(sequenceExecutorProvider).reset(),
+            onPause: () => ref.read(sequenceActionServiceProvider).pause(context),
+            onResume: () => ref.read(sequenceActionServiceProvider).resume(context),
+            onStop: () => ref.read(sequenceActionServiceProvider).stop(context),
+            onSkip: () => ref.read(sequenceActionServiceProvider).skip(context),
+            onReset: () => ref.read(sequenceActionServiceProvider).reset(),
           ),
 
           const SizedBox(width: 24),
@@ -88,18 +90,14 @@ class SequenceToolbar extends ConsumerWidget {
                 
                 if (importedSequence != null) {
                   ref.read(currentSequenceProvider.notifier).loadSequence(importedSequence);
-                  
+
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Sequence "${importedSequence.name}" loaded')),
-                    );
+                    context.showSuccessSnackBar('Sequence "${importedSequence.name}" loaded');
                   }
                 }
               } catch (e) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to load sequence: $e')),
-                  );
+                  context.showErrorSnackBar('Failed to load sequence: $e');
                 }
               }
             },
@@ -113,27 +111,21 @@ class SequenceToolbar extends ConsumerWidget {
               final currentSequence = ref.read(currentSequenceProvider);
               if (currentSequence == null) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No sequence to save')),
-                  );
+                  context.showWarningSnackBar('No sequence to save');
                 }
                 return;
               }
-              
+
               try {
                 final fileService = ref.read(sequenceFileServiceProvider);
                 await fileService.exportSequence(currentSequence);
-                
+
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Sequence "${currentSequence.name}" saved')),
-                  );
+                  context.showSuccessSnackBar('Sequence "${currentSequence.name}" saved');
                 }
               } catch (e) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to save sequence: $e')),
-                  );
+                  context.showErrorSnackBar('Failed to save sequence: $e');
                 }
               }
             },
@@ -158,32 +150,26 @@ class SequenceToolbar extends ConsumerWidget {
           const SizedBox(width: 24),
 
           // Slew to Target (if sequence has a target)
-          if (sequence != null && sequence.targetGroups.isNotEmpty) ...[
+          if (sequence != null && sequence.targetHeaders.isNotEmpty) ...[
             _ToolbarIconButton(
               icon: LucideIcons.navigation,
               tooltip: 'Slew to Target',
               colors: colors,
               onPressed: () async {
-                final targetGroup = sequence.targetGroups.first;
+                final targetGroup = sequence.targetHeaders.first;
                 try {
                   final deviceService = ref.read(deviceServiceProvider);
                   await deviceService.slewMountToCoordinates(
                     targetGroup.raHours,
                     targetGroup.decDegrees,
                   );
-                  
+
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Slewing to ${targetGroup.targetName}'),
-                      ),
-                    );
+                    context.showInfoSnackBar('Slewing to ${targetGroup.targetName}');
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to slew: $e')),
-                    );
+                    context.showErrorSnackBar('Failed to slew: $e');
                   }
                 }
               },

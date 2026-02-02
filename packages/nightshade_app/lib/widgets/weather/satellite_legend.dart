@@ -32,7 +32,7 @@ class SatelliteLegend extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: colors.surface.withOpacity(0.9),
+        color: colors.surface.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
@@ -87,7 +87,7 @@ class SatelliteLegend extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colors.surface.withOpacity(0.95),
+        color: colors.surface.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: colors.border),
       ),

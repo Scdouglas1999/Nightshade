@@ -86,9 +86,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CameraCapabilities dco_decode_box_autoadd_camera_capabilities(dynamic raw);
 
   @protected
-  CapturedImageResult dco_decode_box_autoadd_captured_image_result(dynamic raw);
-
-  @protected
   CheckpointInfoApi dco_decode_box_autoadd_checkpoint_info_api(dynamic raw);
 
   @protected
@@ -427,10 +424,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CalibratorState? dco_decode_opt_box_autoadd_calibrator_state(dynamic raw);
 
   @protected
-  CapturedImageResult? dco_decode_opt_box_autoadd_captured_image_result(
-      dynamic raw);
-
-  @protected
   CheckpointInfoApi? dco_decode_opt_box_autoadd_checkpoint_info_api(
       dynamic raw);
 
@@ -674,10 +667,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CameraCapabilities sse_decode_box_autoadd_camera_capabilities(
-      SseDeserializer deserializer);
-
-  @protected
-  CapturedImageResult sse_decode_box_autoadd_captured_image_result(
       SseDeserializer deserializer);
 
   @protected
@@ -1063,10 +1052,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
-  CapturedImageResult? sse_decode_opt_box_autoadd_captured_image_result(
-      SseDeserializer deserializer);
-
-  @protected
   CheckpointInfoApi? sse_decode_opt_box_autoadd_checkpoint_info_api(
       SseDeserializer deserializer);
 
@@ -1347,15 +1332,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ptr = wire.cst_new_box_autoadd_camera_capabilities();
     cst_api_fill_to_wire_camera_capabilities(raw, ptr.ref);
-    return ptr;
-  }
-
-  @protected
-  ffi.Pointer<wire_cst_captured_image_result>
-      cst_encode_box_autoadd_captured_image_result(CapturedImageResult raw) {
-    // Codec=Cst (C-struct based), see doc to use other codecs
-    final ptr = wire.cst_new_box_autoadd_captured_image_result();
-    cst_api_fill_to_wire_captured_image_result(raw, ptr.ref);
     return ptr;
   }
 
@@ -1894,16 +1870,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
-  ffi.Pointer<wire_cst_captured_image_result>
-      cst_encode_opt_box_autoadd_captured_image_result(
-          CapturedImageResult? raw) {
-    // Codec=Cst (C-struct based), see doc to use other codecs
-    return raw == null
-        ? ffi.nullptr
-        : cst_encode_box_autoadd_captured_image_result(raw);
-  }
-
-  @protected
   ffi.Pointer<wire_cst_checkpoint_info_api>
       cst_encode_opt_box_autoadd_checkpoint_info_api(CheckpointInfoApi? raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
@@ -2071,13 +2037,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       CameraCapabilities apiObj,
       ffi.Pointer<wire_cst_camera_capabilities> wireObj) {
     cst_api_fill_to_wire_camera_capabilities(apiObj, wireObj.ref);
-  }
-
-  @protected
-  void cst_api_fill_to_wire_box_autoadd_captured_image_result(
-      CapturedImageResult apiObj,
-      ffi.Pointer<wire_cst_captured_image_result> wireObj) {
-    cst_api_fill_to_wire_captured_image_result(apiObj, wireObj.ref);
   }
 
   @protected
@@ -4207,10 +4166,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       CameraCapabilities self, SseSerializer serializer);
 
   @protected
-  void sse_encode_box_autoadd_captured_image_result(
-      CapturedImageResult self, SseSerializer serializer);
-
-  @protected
   void sse_encode_box_autoadd_checkpoint_info_api(
       CheckpointInfoApi self, SseSerializer serializer);
 
@@ -4618,10 +4573,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_calibrator_state(
       CalibratorState? self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_opt_box_autoadd_captured_image_result(
-      CapturedImageResult? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_checkpoint_info_api(
@@ -6969,6 +6920,29 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__api_get_connected_devicesPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__api_get_cover_calibrator_capabilities(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__api_get_cover_calibrator_capabilities(
+      port_,
+      device_id,
+    );
+  }
+
+  late final _wire__crate__api__api_get_cover_calibrator_capabilitiesPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_get_cover_calibrator_capabilities',
+  );
+  late final _wire__crate__api__api_get_cover_calibrator_capabilities =
+      _wire__crate__api__api_get_cover_calibrator_capabilitiesPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   WireSyncRust2DartDco wire__crate__api__api_get_current_log_file() {
     return _wire__crate__api__api_get_current_log_file();
   }
@@ -7054,6 +7028,24 @@ class RustLibWire implements BaseWire {
   );
   late final _wire__crate__api__api_get_device_heartbeat_info =
       _wire__crate__api__api_get_device_heartbeat_infoPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__api_get_dome_capabilities(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__api_get_dome_capabilities(port_, device_id);
+  }
+
+  late final _wire__crate__api__api_get_dome_capabilitiesPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_get_dome_capabilities');
+  late final _wire__crate__api__api_get_dome_capabilities =
+      _wire__crate__api__api_get_dome_capabilitiesPtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   void wire__crate__api__api_get_dome_status(
@@ -7377,6 +7369,25 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__api_get_qhy_discovery_statusPtr
           .asFunction<WireSyncRust2DartDco Function()>();
 
+  void wire__crate__api__api_get_rotator_capabilities(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__api_get_rotator_capabilities(port_, device_id);
+  }
+
+  late final _wire__crate__api__api_get_rotator_capabilitiesPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_get_rotator_capabilities',
+  );
+  late final _wire__crate__api__api_get_rotator_capabilities =
+      _wire__crate__api__api_get_rotator_capabilitiesPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   void wire__crate__api__api_get_rotator_status(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -7393,6 +7404,29 @@ class RustLibWire implements BaseWire {
       'frbgen_nightshade_bridge_wire__crate__api__api_get_rotator_status');
   late final _wire__crate__api__api_get_rotator_status =
       _wire__crate__api__api_get_rotator_statusPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__api_get_safety_monitor_capabilities(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__api_get_safety_monitor_capabilities(
+      port_,
+      device_id,
+    );
+  }
+
+  late final _wire__crate__api__api_get_safety_monitor_capabilitiesPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_get_safety_monitor_capabilities',
+  );
+  late final _wire__crate__api__api_get_safety_monitor_capabilities =
+      _wire__crate__api__api_get_safety_monitor_capabilitiesPtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   void wire__crate__api__api_get_session_state(int port_) {
@@ -7445,6 +7479,25 @@ class RustLibWire implements BaseWire {
           void Function(
               int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
 
+  void wire__crate__api__api_get_switch_capabilities(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__api_get_switch_capabilities(port_, device_id);
+  }
+
+  late final _wire__crate__api__api_get_switch_capabilitiesPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_get_switch_capabilities',
+  );
+  late final _wire__crate__api__api_get_switch_capabilities =
+      _wire__crate__api__api_get_switch_capabilitiesPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   WireSyncRust2DartDco wire__crate__api__api_get_version() {
     return _wire__crate__api__api_get_version();
   }
@@ -7456,6 +7509,25 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__api_get_version =
       _wire__crate__api__api_get_versionPtr
           .asFunction<WireSyncRust2DartDco Function()>();
+
+  void wire__crate__api__api_get_weather_capabilities(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__api_get_weather_capabilities(port_, device_id);
+  }
+
+  late final _wire__crate__api__api_get_weather_capabilitiesPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_get_weather_capabilities',
+  );
+  late final _wire__crate__api__api_get_weather_capabilities =
+      _wire__crate__api__api_get_weather_capabilitiesPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   WireSyncRust2DartDco wire__crate__api__api_init() {
     return _wire__crate__api__api_init();
@@ -9280,6 +9352,246 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__api_stop_polar_alignmentPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__api_switch_can_write(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int switch_id,
+  ) {
+    return _wire__crate__api__api_switch_can_write(port_, device_id, switch_id);
+  }
+
+  late final _wire__crate__api__api_switch_can_writePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Int32,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_switch_can_write');
+  late final _wire__crate__api__api_switch_can_write =
+      _wire__crate__api__api_switch_can_writePtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
+
+  void wire__crate__api__api_switch_get_description(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int switch_id,
+  ) {
+    return _wire__crate__api__api_switch_get_description(
+      port_,
+      device_id,
+      switch_id,
+    );
+  }
+
+  late final _wire__crate__api__api_switch_get_descriptionPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Int32,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_switch_get_description',
+  );
+  late final _wire__crate__api__api_switch_get_description =
+      _wire__crate__api__api_switch_get_descriptionPtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
+
+  void wire__crate__api__api_switch_get_max(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__api_switch_get_max(port_, device_id);
+  }
+
+  late final _wire__crate__api__api_switch_get_maxPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>('frbgen_nightshade_bridge_wire__crate__api__api_switch_get_max');
+  late final _wire__crate__api__api_switch_get_max =
+      _wire__crate__api__api_switch_get_maxPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__api_switch_get_max_value(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int switch_id,
+  ) {
+    return _wire__crate__api__api_switch_get_max_value(
+      port_,
+      device_id,
+      switch_id,
+    );
+  }
+
+  late final _wire__crate__api__api_switch_get_max_valuePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Int32,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_switch_get_max_value');
+  late final _wire__crate__api__api_switch_get_max_value =
+      _wire__crate__api__api_switch_get_max_valuePtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
+
+  void wire__crate__api__api_switch_get_min_value(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int switch_id,
+  ) {
+    return _wire__crate__api__api_switch_get_min_value(
+      port_,
+      device_id,
+      switch_id,
+    );
+  }
+
+  late final _wire__crate__api__api_switch_get_min_valuePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Int32,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_switch_get_min_value');
+  late final _wire__crate__api__api_switch_get_min_value =
+      _wire__crate__api__api_switch_get_min_valuePtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
+
+  void wire__crate__api__api_switch_get_name(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int switch_id,
+  ) {
+    return _wire__crate__api__api_switch_get_name(port_, device_id, switch_id);
+  }
+
+  late final _wire__crate__api__api_switch_get_namePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Int32,
+          )>>('frbgen_nightshade_bridge_wire__crate__api__api_switch_get_name');
+  late final _wire__crate__api__api_switch_get_name =
+      _wire__crate__api__api_switch_get_namePtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
+
+  void wire__crate__api__api_switch_get_state(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int switch_id,
+  ) {
+    return _wire__crate__api__api_switch_get_state(port_, device_id, switch_id);
+  }
+
+  late final _wire__crate__api__api_switch_get_statePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Int32,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_switch_get_state');
+  late final _wire__crate__api__api_switch_get_state =
+      _wire__crate__api__api_switch_get_statePtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
+
+  void wire__crate__api__api_switch_get_value(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int switch_id,
+  ) {
+    return _wire__crate__api__api_switch_get_value(port_, device_id, switch_id);
+  }
+
+  late final _wire__crate__api__api_switch_get_valuePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Int32,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_switch_get_value');
+  late final _wire__crate__api__api_switch_get_value =
+      _wire__crate__api__api_switch_get_valuePtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
+
+  void wire__crate__api__api_switch_set_state(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int switch_id,
+    bool state,
+  ) {
+    return _wire__crate__api__api_switch_set_state(
+      port_,
+      device_id,
+      switch_id,
+      state,
+    );
+  }
+
+  late final _wire__crate__api__api_switch_set_statePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Int32,
+                ffi.Bool,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_switch_set_state');
+  late final _wire__crate__api__api_switch_set_state =
+      _wire__crate__api__api_switch_set_statePtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            bool,
+          )>();
+
+  void wire__crate__api__api_switch_set_value(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int switch_id,
+    double value,
+  ) {
+    return _wire__crate__api__api_switch_set_value(
+      port_,
+      device_id,
+      switch_id,
+      value,
+    );
+  }
+
+  late final _wire__crate__api__api_switch_set_valuePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Int32,
+                ffi.Double,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_switch_set_value');
+  late final _wire__crate__api__api_switch_set_value =
+      _wire__crate__api__api_switch_set_valuePtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            double,
+          )>();
+
   WireSyncRust2DartDco wire__crate__api__api_update_settings(
     ffi.Pointer<wire_cst_app_settings> settings,
   ) {
@@ -9714,17 +10026,6 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__get_camera_statusPtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
-  void wire__crate__api__get_last_image(int port_) {
-    return _wire__crate__api__get_last_image(port_);
-  }
-
-  late final _wire__crate__api__get_last_imagePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
-    'frbgen_nightshade_bridge_wire__crate__api__get_last_image',
-  );
-  late final _wire__crate__api__get_last_image =
-      _wire__crate__api__get_last_imagePtr.asFunction<void Function(int)>();
-
   void wire__crate__api__indi_autofocus_config_api_default(int port_) {
     return _wire__crate__api__indi_autofocus_config_api_default(port_);
   }
@@ -9774,6 +10075,23 @@ class RustLibWire implements BaseWire {
           )>>('frbgen_nightshade_bridge_wire__crate__api__mount_abort');
   late final _wire__crate__api__mount_abort =
       _wire__crate__api__mount_abortPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__mount_can_park(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__mount_can_park(port_, device_id);
+  }
+
+  late final _wire__crate__api__mount_can_parkPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>('frbgen_nightshade_bridge_wire__crate__api__mount_can_park');
+  late final _wire__crate__api__mount_can_park =
+      _wire__crate__api__mount_can_parkPtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   void wire__crate__api__mount_get_coordinates(
@@ -9969,6 +10287,23 @@ class RustLibWire implements BaseWire {
             double,
             double,
           )>();
+
+  void wire__crate__api__mount_stop(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__mount_stop(port_, device_id);
+  }
+
+  late final _wire__crate__api__mount_stopPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>('frbgen_nightshade_bridge_wire__crate__api__mount_stop');
+  late final _wire__crate__api__mount_stop =
+      _wire__crate__api__mount_stopPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   void wire__crate__api__mount_sync(
     int port_,
@@ -10371,19 +10706,6 @@ class RustLibWire implements BaseWire {
   late final _cst_new_box_autoadd_camera_capabilities =
       _cst_new_box_autoadd_camera_capabilitiesPtr
           .asFunction<ffi.Pointer<wire_cst_camera_capabilities> Function()>();
-
-  ffi.Pointer<wire_cst_captured_image_result>
-      cst_new_box_autoadd_captured_image_result() {
-    return _cst_new_box_autoadd_captured_image_result();
-  }
-
-  late final _cst_new_box_autoadd_captured_image_resultPtr = _lookup<
-          ffi.NativeFunction<
-              ffi.Pointer<wire_cst_captured_image_result> Function()>>(
-      'frbgen_nightshade_bridge_cst_new_box_autoadd_captured_image_result');
-  late final _cst_new_box_autoadd_captured_image_result =
-      _cst_new_box_autoadd_captured_image_resultPtr
-          .asFunction<ffi.Pointer<wire_cst_captured_image_result> Function()>();
 
   ffi.Pointer<wire_cst_checkpoint_info_api>
       cst_new_box_autoadd_checkpoint_info_api() {
@@ -11426,57 +11748,6 @@ final class wire_cst_camera_capabilities extends ffi.Struct {
   external ffi.Pointer<ffi.Double> cooler_power;
 
   external ffi.Pointer<ffi.Bool> cooler_on;
-}
-
-final class wire_cst_list_prim_u_32_strict extends ffi.Struct {
-  external ffi.Pointer<ffi.Uint32> ptr;
-
-  @ffi.Int32()
-  external int len;
-}
-
-final class wire_cst_image_stats_result extends ffi.Struct {
-  @ffi.Double()
-  external double min;
-
-  @ffi.Double()
-  external double max;
-
-  @ffi.Double()
-  external double mean;
-
-  @ffi.Double()
-  external double median;
-
-  @ffi.Double()
-  external double std_dev;
-
-  external ffi.Pointer<ffi.Double> hfr;
-
-  @ffi.Uint32()
-  external int star_count;
-}
-
-final class wire_cst_captured_image_result extends ffi.Struct {
-  @ffi.Uint32()
-  external int width;
-
-  @ffi.Uint32()
-  external int height;
-
-  external ffi.Pointer<wire_cst_list_prim_u_8_strict> display_data;
-
-  external ffi.Pointer<wire_cst_list_prim_u_32_strict> histogram;
-
-  external wire_cst_image_stats_result stats;
-
-  @ffi.Double()
-  external double exposure_time;
-
-  external ffi.Pointer<wire_cst_list_prim_u_8_strict> timestamp;
-
-  @ffi.Bool()
-  external bool is_color;
 }
 
 final class wire_cst_checkpoint_info_api extends ffi.Struct {
@@ -12556,6 +12827,13 @@ final class wire_cst_list_prim_u_16_strict extends ffi.Struct {
   external int len;
 }
 
+final class wire_cst_list_prim_u_32_strict extends ffi.Struct {
+  external ffi.Pointer<ffi.Uint32> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
 final class wire_cst_star_crop_api extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> pixels_base64;
 
@@ -12653,6 +12931,50 @@ final class wire_cst_camera_status extends ffi.Struct {
 
   @ffi.Bool()
   external bool can_set_offset;
+}
+
+final class wire_cst_image_stats_result extends ffi.Struct {
+  @ffi.Double()
+  external double min;
+
+  @ffi.Double()
+  external double max;
+
+  @ffi.Double()
+  external double mean;
+
+  @ffi.Double()
+  external double median;
+
+  @ffi.Double()
+  external double std_dev;
+
+  external ffi.Pointer<ffi.Double> hfr;
+
+  @ffi.Uint32()
+  external int star_count;
+}
+
+final class wire_cst_captured_image_result extends ffi.Struct {
+  @ffi.Uint32()
+  external int width;
+
+  @ffi.Uint32()
+  external int height;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> display_data;
+
+  external ffi.Pointer<wire_cst_list_prim_u_32_strict> histogram;
+
+  external wire_cst_image_stats_result stats;
+
+  @ffi.Double()
+  external double exposure_time;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> timestamp;
+
+  @ffi.Bool()
+  external bool is_color;
 }
 
 final class wire_cst_cover_calibrator_status extends ffi.Struct {

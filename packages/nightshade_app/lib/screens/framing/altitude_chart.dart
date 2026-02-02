@@ -306,19 +306,19 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
               // Highlight 30° line for altitude
               if (!_showAirmass && value == 30) {
                 return FlLine(
-                  color: colors.warning.withOpacity(0.5),
+                  color: colors.warning.withValues(alpha:0.5),
                   strokeWidth: 1,
                   dashArray: [4, 4],
                 );
               }
               return FlLine(
-                color: colors.border.withOpacity(0.3),
+                color: colors.border.withValues(alpha:0.3),
                 strokeWidth: 0.5,
               );
             },
             getDrawingVerticalLine: (value) {
               return FlLine(
-                color: colors.border.withOpacity(0.3),
+                color: colors.border.withValues(alpha:0.3),
                 strokeWidth: 0.5,
               );
             },
@@ -372,7 +372,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           ),
           borderData: FlBorderData(
             show: true,
-            border: Border.all(color: colors.border.withOpacity(0.5)),
+            border: Border.all(color: colors.border.withValues(alpha:0.5)),
           ),
           lineBarsData: [
             // Altitude curve
@@ -391,8 +391,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      colors.primary.withOpacity(0.3),
-                      colors.primary.withOpacity(0.0),
+                      colors.primary.withValues(alpha:0.3),
+                      colors.primary.withValues(alpha:0.0),
                     ],
                   ),
                 ),
@@ -428,13 +428,13 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
               if (_twilight?.astronomicalDusk != null)
                 _twilightLine(
                   _twilight!.astronomicalDusk!,
-                  colors.textMuted.withOpacity(0.5),
+                  colors.textMuted.withValues(alpha:0.5),
                   totalMinutes,
                 ),
               if (_twilight?.astronomicalDawn != null)
                 _twilightLine(
                   _twilight!.astronomicalDawn!,
-                  colors.textMuted.withOpacity(0.5),
+                  colors.textMuted.withValues(alpha:0.5),
                   totalMinutes,
                 ),
             ],
@@ -443,14 +443,14 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
               if (!_showAirmass)
                 HorizontalLine(
                   y: 0,
-                  color: colors.error.withOpacity(0.5),
+                  color: colors.error.withValues(alpha:0.5),
                   strokeWidth: 1,
                 ),
               // Good altitude threshold (30°)
               if (!_showAirmass)
                 HorizontalLine(
                   y: 30,
-                  color: colors.warning.withOpacity(0.5),
+                  color: colors.warning.withValues(alpha:0.5),
                   strokeWidth: 1,
                   dashArray: [4, 4],
                 ),

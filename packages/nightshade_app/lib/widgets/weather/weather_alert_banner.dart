@@ -165,14 +165,14 @@ class _BannerContent extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               backgroundColor,
-              backgroundColor.withOpacity(0.85),
+              backgroundColor.withValues(alpha: 0.85),
             ],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
           boxShadow: [
             BoxShadow(
-              color: backgroundColor.withOpacity(0.3),
+              color: backgroundColor.withValues(alpha: 0.3),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -211,7 +211,7 @@ class _BannerContent extends StatelessWidget {
                     message,
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -233,7 +233,7 @@ class _BannerContent extends StatelessWidget {
             Icon(
               LucideIcons.chevronRight,
               size: 18,
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
             ),
           ],
         ),
@@ -286,7 +286,7 @@ class _PulsingIconState extends State<_PulsingIcon>
           child: Icon(
             widget.icon,
             size: 20,
-            color: Colors.white.withOpacity(_animation.value),
+            color: Colors.white.withValues(alpha: _animation.value),
           ),
         );
       },
@@ -303,7 +303,7 @@ class _SnoozeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white.withOpacity(0.2),
+      color: Colors.white.withValues(alpha: 0.2),
       borderRadius: BorderRadius.circular(4),
       child: InkWell(
         onTap: onPressed,
@@ -316,7 +316,7 @@ class _SnoozeButton extends StatelessWidget {
               Icon(
                 LucideIcons.bellOff,
                 size: 12,
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: 0.9),
               ),
               const SizedBox(width: 4),
               Text(
@@ -324,7 +324,7 @@ class _SnoozeButton extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                 ),
               ),
             ],

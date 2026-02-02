@@ -146,27 +146,42 @@ class NightshadeDatabase extends _$NightshadeDatabase {
 
         // Version 5: Add cover_calibrator_id to equipment_profiles
         if (from < 5) {
-          await customStatement(
-            'ALTER TABLE equipment_profiles ADD COLUMN cover_calibrator_id TEXT',
+          final hasCoverCalibratorId = await _columnExists(
+            'equipment_profiles',
+            'cover_calibrator_id',
           );
+          if (!hasCoverCalibratorId) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN cover_calibrator_id TEXT',
+            );
+          }
         }
 
         // Version 6: Add meridian_flip_overrides to equipment_profiles
         if (from < 6) {
-          await customStatement(
-            'ALTER TABLE equipment_profiles ADD COLUMN meridian_flip_overrides TEXT',
+          final hasMeridianFlipOverrides = await _columnExists(
+            'equipment_profiles',
+            'meridian_flip_overrides',
           );
+          if (!hasMeridianFlipOverrides) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN meridian_flip_overrides TEXT',
+            );
+          }
         }
 
         // Version 7: Add flat history table
         if (from < 7) {
           await m.createTable(flatHistory);
-          await m.createIndex(Index('idx_flat_history_profile',
-              'CREATE INDEX idx_flat_history_profile ON flat_history (equipment_profile_id)'));
-          await m.createIndex(Index('idx_flat_history_filter',
-              'CREATE INDEX idx_flat_history_filter ON flat_history (filter_name)'));
-          await m.createIndex(Index('idx_flat_history_timestamp',
-              'CREATE INDEX idx_flat_history_timestamp ON flat_history (timestamp)'));
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_flat_history_profile ON flat_history (equipment_profile_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_flat_history_filter ON flat_history (filter_name)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_flat_history_timestamp ON flat_history (timestamp)',
+          );
         }
       },
     );
@@ -197,6 +212,13 @@ class NightshadeDatabase extends _$NightshadeDatabase {
       key: 'observer_elevation',
       value: '0.0',
     ));
+  }
+
+  Future<bool> _columnExists(String table, String column) async {
+    final result = await customSelect(
+      "PRAGMA table_info('$table')",
+    ).get();
+    return result.any((row) => row.data['name'] == column);
   }
 }
 

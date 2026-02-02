@@ -1,6 +1,35 @@
-//! INDI Protocol Client (Linux/macOS)
+//! # INDI Protocol Support
 //!
-//! Implements the INDI protocol for device control on Unix systems.
+//! This module implements INDI (Instrument Neutral Distributed Interface) protocol
+//! support for device communication on Linux/macOS platforms.
+//!
+//! ## Support Matrix
+//!
+//! | Device Type      | Support Level | Notes                                    |
+//! |------------------|---------------|------------------------------------------|
+//! | Camera           | Full          | All standard INDI camera properties      |
+//! | Mount            | Full          | Slew, sync, park, tracking               |
+//! | Focuser          | Full          | Absolute and relative positioning        |
+//! | Filter Wheel     | Full          | Position control and naming              |
+//! | Rotator          | Full          | Angle control                            |
+//! | Dome             | Full          | Slew, park, shutter control              |
+//! | Safety Monitor   | Full          | Safety state monitoring                  |
+//! | Cover Calibrator | Partial       | No halt support, basic open/close only   |
+//! | Weather          | NOT SUPPORTED | Use ASCOM Alpaca for weather devices     |
+//! | Switch           | NOT SUPPORTED | Use ASCOM Alpaca for switch devices      |
+//!
+//! ## Unsupported Features
+//!
+//! The following INDI features are not currently implemented:
+//! - Weather devices (use Alpaca instead)
+//! - Switch devices (use Alpaca instead)
+//! - Cover calibrator halt command
+//! - BLOB streaming for video
+//!
+//! ## Alternatives
+//!
+//! For unsupported device types, use ASCOM Alpaca which provides cross-platform
+//! support via HTTP. Configure an Alpaca server on your INDI host.
 //!
 //! ## Features
 //!
@@ -41,6 +70,73 @@ pub use safetymonitor::IndiSafetyMonitor;
 pub use covercalibrator::{IndiCoverCalibrator, IndiCoverState, IndiCalibratorState};
 pub use discovery::{discover_localhost, discover_server, discover_common_hosts, discover_local_network, discover_mdns, IndiServer, IndiDeviceInfo, IndiDeviceType};
 pub use autofocus::{IndiAutofocus, IndiAutofocusConfig, IndiAutofocusResult, AutofocusMethod};
+
+/// Error returned when an INDI feature is not supported
+#[derive(Debug, Clone)]
+pub struct UnsupportedFeatureError {
+    pub device_type: String,
+    pub feature: String,
+    pub alternative: Option<String>,
+}
+
+impl std::fmt::Display for UnsupportedFeatureError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "INDI does not support {} for {}.", self.feature, self.device_type)?;
+        if let Some(alt) = &self.alternative {
+            write!(f, " Alternative: {}", alt)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for UnsupportedFeatureError {}
+
+/// Check if a feature is supported for a device type
+///
+/// Returns `Ok(())` if the feature is supported, or an `UnsupportedFeatureError`
+/// with details about the limitation and any available alternatives.
+///
+/// # Arguments
+///
+/// * `device_type` - The type of device (e.g., "camera", "mount", "weather")
+/// * `feature` - The specific feature being requested (e.g., "connect", "halt")
+///
+/// # Examples
+///
+/// ```
+/// use nightshade_indi::check_feature_support;
+///
+/// // Camera features are fully supported
+/// assert!(check_feature_support("camera", "capture").is_ok());
+///
+/// // Weather devices are not supported
+/// assert!(check_feature_support("weather", "temperature").is_err());
+/// ```
+pub fn check_feature_support(device_type: &str, feature: &str) -> Result<(), UnsupportedFeatureError> {
+    match (device_type.to_lowercase().as_str(), feature.to_lowercase().as_str()) {
+        ("weather", _) => Err(UnsupportedFeatureError {
+            device_type: device_type.to_string(),
+            feature: feature.to_string(),
+            alternative: Some("Use ASCOM Alpaca for weather devices".to_string()),
+        }),
+        ("switch", _) => Err(UnsupportedFeatureError {
+            device_type: device_type.to_string(),
+            feature: feature.to_string(),
+            alternative: Some("Use ASCOM Alpaca for switch devices".to_string()),
+        }),
+        ("covercalibrator", "halt") => Err(UnsupportedFeatureError {
+            device_type: device_type.to_string(),
+            feature: feature.to_string(),
+            alternative: None,
+        }),
+        ("covercalibrator", "blob_streaming") | ("camera", "blob_streaming") => Err(UnsupportedFeatureError {
+            device_type: device_type.to_string(),
+            feature: feature.to_string(),
+            alternative: Some("Use standard BLOB transfers instead of streaming".to_string()),
+        }),
+        _ => Ok(()),
+    }
+}
 
 /// Default INDI server port
 pub const INDI_DEFAULT_PORT: u16 = 7624;

@@ -141,7 +141,7 @@ class SequenceTimeline extends ConsumerWidget {
 
     // Also process any top-level target groups
     for (final node in sequence.nodes.values) {
-      if (node is TargetGroupNode && node.isEnabled) {
+      if (node is TargetHeaderNode && node.isEnabled) {
         processNode(node, 0);
       }
     }

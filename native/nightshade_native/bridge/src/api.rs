@@ -14,9 +14,7 @@ use tokio::sync::RwLock;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 use crate::devices::DeviceManager;
-use crate::real_device_ops::RealDeviceOps;
 use crate::unified_device_ops::create_unified_device_ops;
-use nightshade_sequencer::DeviceOps;
 use nightshade_imaging::{ImageData, write_fits, FitsHeader, BayerPattern, DebayerAlgorithm, validate_image, calculate_airmass, validate_fits_header};
 use rayon::prelude::*;
 use crate::storage::{AppSettings, ObserverLocation};
@@ -183,7 +181,7 @@ pub async fn api_event_stream(sink: crate::frb_generated::StreamSink<NightshadeE
 
     // Send a ready signal so Dart knows the subscription is active
     // This prevents race conditions where events are published before we're subscribed
-    sink.add(create_event_auto_id(
+    if let Err(err) = sink.add(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::System,
         EventPayload::System(SystemEvent::Notification {
@@ -191,14 +189,20 @@ pub async fn api_event_stream(sink: crate::frb_generated::StreamSink<NightshadeE
             message: "Event stream subscription is active".to_string(),
             level: "debug".to_string(),
         }),
-    ));
+    )) {
+        tracing::warn!("[API_EVENT_STREAM] Failed to send ready signal: {}", err);
+        return Ok(());
+    }
     tracing::info!("[API_EVENT_STREAM] Sent ready signal to Dart");
 
     loop {
         match rx.recv().await {
             Ok(event) => {
                 tracing::debug!("[API_EVENT_STREAM] Forwarding event to Dart: {:?}", std::mem::discriminant(&event.payload));
-                sink.add(event);
+                if let Err(err) = sink.add(event) {
+                    tracing::warn!("[API_EVENT_STREAM] Failed to send event to Dart: {}", err);
+                    break;
+                }
             }
             Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                 // Update the global dropped event counter
@@ -213,14 +217,17 @@ pub async fn api_event_stream(sink: crate::frb_generated::StreamSink<NightshadeE
 
                 // Send a notification to Dart so it knows events were dropped
                 // This allows the UI to refresh its state from the source of truth
-                sink.add(create_event_auto_id(
+                if let Err(err) = sink.add(create_event_auto_id(
                     EventSeverity::Warning,
                     EventCategory::System,
                     EventPayload::System(SystemEvent::EventsDropped {
                         dropped_count: n,
                         total_dropped: new_total,
                     }),
-                ));
+                )) {
+                    tracing::warn!("[API_EVENT_STREAM] Failed to send dropped-events notice: {}", err);
+                    break;
+                }
             }
             Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                 tracing::info!("[API_EVENT_STREAM] Event bus closed, stopping stream");
@@ -1311,24 +1318,6 @@ pub async fn cancel_exposure(device_id: String) -> Result<(), NightshadeError> {
     Ok(())
 }
 
-/// Download last image from camera (DEPRECATED - use api_get_last_image with device_id instead)
-/// Returns the first image found in storage, or None if empty
-/// Reads from unified atomic storage to ensure consistency with raw data
-#[deprecated(note = "Use api_get_last_image(device_id) instead for multi-camera support")]
-pub async fn get_last_image() -> Result<Option<CapturedImageResult>, NightshadeError> {
-    tracing::info!("API: get_last_image called (deprecated, use api_get_last_image with device_id)");
-
-    // Return the first stored image from any device (legacy compatibility)
-    let storage = get_unified_image_storage().read().await;
-    if let Some((_device_id, data)) = storage.iter().next() {
-        tracing::info!("Returning stored image: {}x{}", data.display.width, data.display.height);
-        Ok(Some(data.display.clone()))
-    } else {
-        tracing::warn!("No image available - exposure may not have completed");
-        Ok(None)
-    }
-}
-
 /// Get camera status
 pub async fn get_camera_status(device_id: String) -> Result<CameraStatus, NightshadeError> {
     let mgr = get_device_manager();
@@ -1386,6 +1375,20 @@ pub async fn mount_get_coordinates(device_id: String) -> Result<(f64, f64), Nigh
 pub async fn mount_abort(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
     mgr.mount_abort(&device_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Stop mount motion (abort slew without disconnecting)
+pub async fn mount_stop(device_id: String) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.mount_stop(&device_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Query whether a mount supports parking
+pub async fn mount_can_park(device_id: String) -> Result<bool, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.mount_can_park(&device_id).await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1613,6 +1616,80 @@ pub async fn api_dome_get_shutter_status(device_id: String) -> Result<i32, Night
 pub async fn api_dome_is_slewing(device_id: String) -> Result<bool, NightshadeError> {
     let mgr = get_device_manager();
     mgr.dome_is_slewing(&device_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+// =============================================================================
+// Switch Control
+// =============================================================================
+
+/// Get the number of switches exposed by a switch device
+pub async fn api_switch_get_max(device_id: String) -> Result<i32, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_get_max(&device_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Get the boolean state of a switch
+pub async fn api_switch_get_state(device_id: String, switch_id: i32) -> Result<bool, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_get_state(&device_id, switch_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Set the boolean state of a switch
+pub async fn api_switch_set_state(device_id: String, switch_id: i32, state: bool) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_set_state(&device_id, switch_id, state).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Get the name of a switch
+pub async fn api_switch_get_name(device_id: String, switch_id: i32) -> Result<String, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_get_name(&device_id, switch_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Get the description of a switch
+pub async fn api_switch_get_description(device_id: String, switch_id: i32) -> Result<String, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_get_description(&device_id, switch_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Get the numeric value of a switch
+pub async fn api_switch_get_value(device_id: String, switch_id: i32) -> Result<f64, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_get_value(&device_id, switch_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Set the numeric value of a switch
+pub async fn api_switch_set_value(device_id: String, switch_id: i32, value: f64) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_set_value(&device_id, switch_id, value).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Get the minimum value for a switch
+pub async fn api_switch_get_min_value(device_id: String, switch_id: i32) -> Result<f64, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_get_min_value(&device_id, switch_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Get the maximum value for a switch
+pub async fn api_switch_get_max_value(device_id: String, switch_id: i32) -> Result<f64, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_get_max_value(&device_id, switch_id).await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Check if a switch can be written to
+pub async fn api_switch_can_write(device_id: String, switch_id: i32) -> Result<bool, NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.switch_can_write(&device_id, switch_id).await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1989,11 +2066,33 @@ pub async fn api_focuser_move_to(device_id: String, position: i32) -> Result<(),
 /// Move focuser by relative amount
 pub async fn api_focuser_move_relative(device_id: String, delta: i32) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
-        let current_pos = {
-            let focuser = get_sim_focuser().read().await;
-            focuser.status.position
+        // Atomically read current position and set target while under write lock
+        // This prevents race conditions where two relative moves could read the same position
+        let (current_pos, target_pos) = {
+            let mut focuser = get_sim_focuser().write().await;
+            let current = focuser.status.position;
+            let target = current + delta;
+            // Set moving=true and update position atomically while we hold the lock
+            // This ensures another move_relative sees the updated position
+            focuser.status.moving = true;
+            focuser.status.position = target; // Pre-commit the target position
+            (current, target)
         };
-        api_focuser_move_to(device_id, current_pos + delta).await
+
+        // Simulate move time based on distance (lock released during sleep)
+        let distance = delta.abs();
+        let move_time = (distance as f64 / 1000.0).max(0.5);
+        tokio::time::sleep(tokio::time::Duration::from_secs_f64(move_time)).await;
+
+        // Mark move as complete
+        {
+            let mut focuser = get_sim_focuser().write().await;
+            focuser.status.moving = false;
+            // Position was already set above, no need to set again
+        }
+
+        tracing::info!("Focuser relative move complete: {} + {} = {}", current_pos, delta, target_pos);
+        Ok(())
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
@@ -2371,7 +2470,6 @@ pub async fn api_run_autofocus(
 
     use nightshade_sequencer::instructions::{execute_autofocus, InstructionContext};
     use nightshade_sequencer::{AutofocusConfig, AutofocusMethod, Binning, NodeStatus};
-    use crate::real_device_ops::RealDeviceOps;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     // Reset cancellation token
@@ -5849,7 +5947,7 @@ pub fn api_calculate_altitude(
     longitude: f64,
     time_unix_millis: i64,
 ) -> f64 {
-    use chrono::{DateTime, Utc, TimeZone};
+    use chrono::{Utc, TimeZone};
 
     // Convert Unix milliseconds to DateTime<Utc>
     let time = Utc.timestamp_millis_opt(time_unix_millis).single()
@@ -6935,7 +7033,7 @@ pub fn api_debayer_image(
 /// Returns JPEG-encoded thumbnail data (~512x512 pixels)
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_generate_fits_thumbnail(file_path: String, max_size: u32) -> Result<Vec<u8>, NightshadeError> {
-    use nightshade_imaging::{read_fits, ImageData};
+    use nightshade_imaging::read_fits;
     use std::path::Path;
 
     // Read FITS file
@@ -7509,6 +7607,120 @@ pub async fn api_get_filterwheel_capabilities(
     match caps {
         crate::device_capabilities::DeviceCapabilities::FilterWheel(fw) => Ok(fw),
         _ => Err(NightshadeError::not_supported(&device_id, "Device is not a filter wheel")),
+    }
+}
+
+/// Get rotator capabilities for a specific rotator device.
+///
+/// This is a convenience wrapper that returns only rotator capabilities.
+///
+/// # Arguments
+/// * `device_id` - The rotator device ID
+///
+/// # Returns
+/// * `RotatorCapabilities` - Rotator-specific capability information
+pub async fn api_get_rotator_capabilities(
+    device_id: String,
+) -> Result<crate::device_capabilities::RotatorCapabilities, NightshadeError> {
+    let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
+    match caps {
+        crate::device_capabilities::DeviceCapabilities::Rotator(r) => Ok(r),
+        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a rotator")),
+    }
+}
+
+/// Get dome capabilities for a specific dome device.
+///
+/// This is a convenience wrapper that returns only dome capabilities.
+///
+/// # Arguments
+/// * `device_id` - The dome device ID
+///
+/// # Returns
+/// * `DomeCapabilities` - Dome-specific capability information
+pub async fn api_get_dome_capabilities(
+    device_id: String,
+) -> Result<crate::device_capabilities::DomeCapabilities, NightshadeError> {
+    let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
+    match caps {
+        crate::device_capabilities::DeviceCapabilities::Dome(d) => Ok(d),
+        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a dome")),
+    }
+}
+
+/// Get cover calibrator capabilities for a specific cover calibrator device.
+///
+/// This is a convenience wrapper that returns only cover calibrator capabilities.
+///
+/// # Arguments
+/// * `device_id` - The cover calibrator device ID
+///
+/// # Returns
+/// * `CoverCalibratorCapabilities` - Cover calibrator-specific capability information
+pub async fn api_get_cover_calibrator_capabilities(
+    device_id: String,
+) -> Result<crate::device_capabilities::CoverCalibratorCapabilities, NightshadeError> {
+    let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
+    match caps {
+        crate::device_capabilities::DeviceCapabilities::CoverCalibrator(cc) => Ok(cc),
+        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a cover calibrator")),
+    }
+}
+
+/// Get weather capabilities for a specific weather/observing conditions device.
+///
+/// This is a convenience wrapper that returns only weather capabilities.
+///
+/// # Arguments
+/// * `device_id` - The weather device ID
+///
+/// # Returns
+/// * `WeatherCapabilities` - Weather-specific capability information
+pub async fn api_get_weather_capabilities(
+    device_id: String,
+) -> Result<crate::device_capabilities::WeatherCapabilities, NightshadeError> {
+    let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
+    match caps {
+        crate::device_capabilities::DeviceCapabilities::Weather(w) => Ok(w),
+        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a weather station")),
+    }
+}
+
+/// Get safety monitor capabilities for a specific safety monitor device.
+///
+/// This is a convenience wrapper that returns only safety monitor capabilities.
+///
+/// # Arguments
+/// * `device_id` - The safety monitor device ID
+///
+/// # Returns
+/// * `SafetyMonitorCapabilities` - Safety monitor-specific capability information
+pub async fn api_get_safety_monitor_capabilities(
+    device_id: String,
+) -> Result<crate::device_capabilities::SafetyMonitorCapabilities, NightshadeError> {
+    let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
+    match caps {
+        crate::device_capabilities::DeviceCapabilities::SafetyMonitor(sm) => Ok(sm),
+        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a safety monitor")),
+    }
+}
+
+/// Get switch capabilities for a specific switch device.
+///
+/// This is a convenience wrapper that returns only switch capabilities.
+///
+/// # Arguments
+/// * `device_id` - The switch device ID
+///
+/// # Returns
+/// * `SwitchCapabilities` - Switch-specific capability information
+pub async fn api_get_switch_capabilities(
+    device_id: String,
+) -> Result<crate::device_capabilities::SwitchCapabilities, NightshadeError> {
+    let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
+    match caps {
+        crate::device_capabilities::DeviceCapabilities::Switch(s) => Ok(s),
+        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a switch")),
     }
 }
 

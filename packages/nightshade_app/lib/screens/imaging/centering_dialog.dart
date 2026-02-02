@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../utils/snackbar_helper.dart';
+
 /// Dialog for automated target centering
 class CenteringDialog extends ConsumerStatefulWidget {
   final double? targetRa;
@@ -74,7 +76,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                         Text(
                           widget.targetName!,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurface.withOpacity(0.7),
+                            color: colorScheme.onSurface.withValues(alpha:0.7),
                           ),
                         ),
                     ],
@@ -93,10 +95,10 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                  color: colorScheme.surfaceContainerHighest.withValues(alpha:0.5),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: colorScheme.outline.withOpacity(0.3),
+                    color: colorScheme.outline.withValues(alpha:0.3),
                   ),
                 ),
                 child: Column(
@@ -237,16 +239,16 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       default:
         stateText = 'Ready';
         stateIcon = LucideIcons.circle;
-        stateColor = colorScheme.onSurface.withOpacity(0.5);
+        stateColor = colorScheme.onSurface.withValues(alpha:0.5);
     }
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: stateColor.withOpacity(0.1),
+        color: stateColor.withValues(alpha:0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: stateColor.withOpacity(0.3),
+          color: stateColor.withValues(alpha:0.3),
         ),
       ),
       child: Column(
@@ -267,7 +269,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               Text(
                 'Iteration ${status.currentIteration}/${status.maxIterations}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurface.withOpacity(0.6),
+                  color: colorScheme.onSurface.withValues(alpha:0.6),
                 ),
               ),
             ],
@@ -299,7 +301,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                 Text(
                   'Target: ${(_centeringConfig.toleranceArcsec / 60.0).toStringAsFixed(2)} arcmin',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withOpacity(0.6),
+                    color: colorScheme.onSurface.withValues(alpha:0.6),
                   ),
                 ),
               ],
@@ -319,10 +321,10 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha:0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: color.withOpacity(0.3),
+          color: color.withValues(alpha:0.3),
         ),
       ),
       child: Column(
@@ -358,7 +360,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
           Text(
             'Completed in ${result.iterations} iteration${result.iterations != 1 ? 's' : ''}',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurface.withOpacity(0.6),
+              color: colorScheme.onSurface.withValues(alpha:0.6),
             ),
           ),
         ],
@@ -373,7 +375,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       constraints: const BoxConstraints(maxHeight: 200),
       decoration: BoxDecoration(
         border: Border.all(
-          color: colorScheme.outline.withOpacity(0.3),
+          color: colorScheme.outline.withValues(alpha:0.3),
         ),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -402,8 +404,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   leading: CircleAvatar(
                     radius: 16,
                     backgroundColor: iteration.plateSolveSuccess
-                        ? colorScheme.tertiary.withOpacity(0.2)
-                        : colorScheme.error.withOpacity(0.2),
+                        ? colorScheme.tertiary.withValues(alpha:0.2)
+                        : colorScheme.error.withValues(alpha:0.2),
                     child: Text(
                       '${iteration.iterationNumber}',
                       style: theme.textTheme.labelSmall?.copyWith(
@@ -456,9 +458,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   Future<void> _startCentering() async {
     if (widget.targetRa == null || widget.targetDec == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No target coordinates specified')),
-        );
+        context.showErrorSnackBar('No target coordinates specified');
       }
       return;
     }
@@ -514,9 +514,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
           _isCentering = false;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Centering failed: $e')),
-        );
+        context.showErrorSnackBar('Centering failed: $e');
       }
     }
   }

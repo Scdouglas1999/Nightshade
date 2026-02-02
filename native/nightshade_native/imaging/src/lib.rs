@@ -521,7 +521,7 @@ pub struct ImageReadResult {
 
 /// Write an image to TIFF format (16-bit if possible, otherwise 8-bit)
 pub fn write_tiff(path: &std::path::Path, image: &ImageData) -> Result<(), String> {
-    use image::{ImageBuffer, Luma, Rgb, GrayImage, RgbImage};
+    use image::{ImageBuffer, GrayImage, RgbImage};
     use std::fs::File;
     use std::io::BufWriter;
 
@@ -662,7 +662,7 @@ pub fn write_png(path: &std::path::Path, image: &ImageData) -> Result<(), String
 
 /// Write an image to JPEG format (always 8-bit, with quality setting)
 pub fn write_jpeg(path: &std::path::Path, image: &ImageData, quality: u8) -> Result<(), String> {
-    use image::{ImageBuffer, GrayImage, RgbImage, ImageEncoder};
+    use image::ImageEncoder;
     use std::fs::File;
     use std::io::BufWriter;
 

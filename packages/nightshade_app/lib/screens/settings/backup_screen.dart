@@ -7,6 +7,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:intl/intl.dart';
 
+import '../../utils/confirm_dialog.dart';
+import '../../utils/snackbar_helper.dart';
+
 /// Backup and Restore settings screen
 class BackupScreen extends ConsumerStatefulWidget {
   const BackupScreen({super.key});
@@ -78,10 +81,13 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   }
 
   Future<void> _restoreBackup(String filePath) async {
-    // Confirm with user
-    final confirmed = await _showConfirmDialog(
-      'Restore Backup',
-      'Are you sure you want to restore this backup? This will merge the backup data with your existing data.',
+    // Extract backup name from file path for display
+    final backupName = filePath.split('/').last.split('\\').last;
+
+    // Confirm with user using the restore helper
+    final confirmed = await ConfirmDialog.restore(
+      context: context,
+      backupName: backupName,
     );
 
     if (!confirmed) return;
@@ -133,57 +139,12 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     await _restoreBackup(file.path);
   }
 
-  Future<bool> _showConfirmDialog(String title, String message) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    );
-
-    return result ?? false;
-  }
-
   void _showSuccessSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(LucideIcons.checkCircle2, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.green,
-      ),
-    );
+    context.showSuccessSnackBar(message);
   }
 
   void _showErrorSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(LucideIcons.alertCircle, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 5),
-      ),
-    );
+    context.showErrorSnackBar(message);
   }
 
   @override
@@ -593,9 +554,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   }
 
   Future<void> _deleteBackup(File backup) async {
-    final confirmed = await _showConfirmDialog(
-      'Delete Backup',
-      'Are you sure you want to delete this backup? This action cannot be undone.',
+    final fileName = backup.uri.pathSegments.last;
+
+    final confirmed = await ConfirmDialog.delete(
+      context: context,
+      itemName: 'backup "$fileName"',
     );
 
     if (!confirmed) return;

@@ -63,6 +63,8 @@ export 'src/providers/weather_providers.dart';
 export 'src/providers/capability_provider.dart';
 export 'src/providers/meridian_flip_provider.dart';
 export 'src/providers/flat_wizard_provider.dart';
+export 'src/providers/ui_notification_provider.dart';
+export 'src/providers/operation_progress_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;
@@ -102,7 +104,5 @@ export 'src/services/weather/cloud_motion_analyzer.dart';
 export 'src/services/weather/weather_alert_service.dart';
 
 // Utilities
-export 'src/utils/retry.dart';
 export 'src/utils/coordinate_parser.dart';
-export 'src/utils/circuit_breaker.dart';
 export 'src/utils/plate_solver_utils.dart';

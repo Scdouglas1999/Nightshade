@@ -8,6 +8,8 @@ import 'tabs/connections_tab.dart';
 import 'tabs/settings_tab.dart';
 import 'widgets/quick_connect_bar.dart';
 import 'widgets/connection_status_zone.dart';
+import '../../services/mount_command_service.dart';
+import '../../utils/snackbar_helper.dart';
 
 // ============================================================================
 // Device ID Formatting Helpers
@@ -259,6 +261,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
           onConnectAll: () => _connectAllDevices(selectedProfile),
           onDisconnectAll: () => _disconnectAllDevices(),
           onEditProfile: () => _showEditProfileDialog(context, selectedProfile),
+          onSaveSetup: () => _saveConnectedDevices(context, selectedProfile),
         ),
 
         // ZONE 3: Device Management Tabs
@@ -313,59 +316,107 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
     if (profile == null) return;
 
     final deviceService = ref.read(deviceServiceProvider);
+    final connections = <(String?, Future<void> Function(String), String)>[
+      (profile.cameraId, deviceService.connectCamera, 'camera'),
+      (profile.mountId, deviceService.connectMount, 'mount'),
+      (profile.focuserId, deviceService.connectFocuser, 'focuser'),
+      (profile.filterWheelId, deviceService.connectFilterWheel, 'filter wheel'),
+      (profile.guiderId, deviceService.connectGuider, 'guider'),
+      (profile.rotatorId, deviceService.connectRotator, 'rotator'),
+    ];
 
-    // Connect devices in sequence, checking for non-empty IDs
-    try {
-      if (profile.cameraId != null && profile.cameraId!.isNotEmpty) {
-        await deviceService.connectCamera(profile.cameraId!);
-      }
-      if (profile.mountId != null && profile.mountId!.isNotEmpty) {
-        await deviceService.connectMount(profile.mountId!);
-      }
-      if (profile.focuserId != null && profile.focuserId!.isNotEmpty) {
-        await deviceService.connectFocuser(profile.focuserId!);
-      }
-      if (profile.filterWheelId != null && profile.filterWheelId!.isNotEmpty) {
-        await deviceService.connectFilterWheel(profile.filterWheelId!);
-      }
-      if (profile.guiderId != null && profile.guiderId!.isNotEmpty) {
-        await deviceService.connectGuider(profile.guiderId!);
-      }
-      if (profile.rotatorId != null && profile.rotatorId!.isNotEmpty) {
-        await deviceService.connectRotator(profile.rotatorId!);
-      }
-    } catch (e) {
-      if (mounted) {
-        final colors = Theme.of(context).extension<NightshadeColors>()!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connection error: $e'),
-            backgroundColor: colors.error,
-          ),
-        );
+    for (final (id, connect, name) in connections) {
+      if (id != null && id.isNotEmpty) {
+        try {
+          await connect(id);
+        } catch (e) {
+          if (mounted) context.showErrorSnackBar('Failed to connect $name: $e');
+        }
       }
     }
   }
 
   Future<void> _disconnectAllDevices() async {
     final deviceService = ref.read(deviceServiceProvider);
+    final disconnects = <(Future<void> Function(), String)>[
+      (deviceService.disconnectCamera, 'camera'),
+      (deviceService.disconnectMount, 'mount'),
+      (deviceService.disconnectFocuser, 'focuser'),
+      (deviceService.disconnectFilterWheel, 'filter wheel'),
+      (deviceService.disconnectGuider, 'guider'),
+      (deviceService.disconnectRotator, 'rotator'),
+    ];
 
+    for (final (disconnect, name) in disconnects) {
+      try {
+        await disconnect();
+      } catch (e) {
+        if (mounted) context.showErrorSnackBar('Failed to disconnect $name: $e');
+      }
+    }
+  }
+
+  Future<void> _saveConnectedDevices(BuildContext context, db.EquipmentProfile? activeProfile) async {
+    final profileService = ref.read(profileServiceProvider);
+
+    // Check if there's an active profile
+    if (activeProfile == null) {
+      // Show dialog to create/select profile
+      final action = await showDialog<_SaveSetupAction>(
+        context: context,
+        builder: (context) => _SaveSetupNoProfileDialog(
+          onCreateProfile: () => _showCreateProfileDialog(context),
+        ),
+      );
+
+      if (action == null || action == _SaveSetupAction.cancel) {
+        return;
+      }
+
+      if (action == _SaveSetupAction.createNew) {
+        // Create new profile then save devices
+        await _createEmptyProfile();
+        // Wait for profile to be created and try again
+        await Future.delayed(const Duration(milliseconds: 100));
+        final saved = await profileService.saveConnectedDevicesToProfile();
+        if (saved && mounted) {
+          context.showSuccessSnackBar('Profile created and devices saved');
+        }
+      } else if (action == _SaveSetupAction.selectExisting) {
+        // Show profile picker
+        final selectedProfileId = await showDialog<int>(
+          context: context,
+          builder: (context) => const _SaveSetupProfilePickerDialog(),
+        );
+
+        if (selectedProfileId != null) {
+          // Set as active profile
+          final dao = ref.read(equipmentProfilesDaoProvider);
+          await dao.setActiveProfile(selectedProfileId);
+          ref.read(selectedEquipmentProfileIdProvider.notifier).state = selectedProfileId;
+          // Save devices to this profile
+          final saved = await profileService.saveConnectedDevicesToProfile();
+          if (saved && mounted) {
+            context.showSuccessSnackBar('Devices saved to profile');
+          }
+        }
+      }
+      return;
+    }
+
+    // Active profile exists - save devices directly
     try {
-      await deviceService.disconnectCamera();
-      await deviceService.disconnectMount();
-      await deviceService.disconnectFocuser();
-      await deviceService.disconnectFilterWheel();
-      await deviceService.disconnectGuider();
-      await deviceService.disconnectRotator();
+      final saved = await profileService.saveConnectedDevicesToProfile();
+      if (mounted) {
+        if (saved) {
+          context.showSuccessSnackBar('Devices saved to "${activeProfile.name}"');
+        } else {
+          context.showWarningSnackBar('No connected devices to save');
+        }
+      }
     } catch (e) {
       if (mounted) {
-        final colors = Theme.of(context).extension<NightshadeColors>()!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Disconnect error: $e'),
-            backgroundColor: colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to save devices: $e');
       }
     }
   }
@@ -377,13 +428,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
       ref.read(selectedEquipmentProfileIdProvider.notifier).state = profileId;
     } catch (e) {
       if (mounted) {
-        final colors = Theme.of(context).extension<NightshadeColors>()!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to create profile: $e'),
-            backgroundColor: colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to create profile: $e');
       }
     }
   }
@@ -426,12 +471,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
                 ref.read(selectedEquipmentProfileIdProvider.notifier).state = profileId;
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to create profile: $e'),
-                      backgroundColor: colors.error,
-                    ),
-                  );
+                  context.showErrorSnackBar('Failed to create profile: $e');
                 }
               }
             },
@@ -491,21 +531,11 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
                 ));
                 if (context.mounted) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Profile updated'),
-                      backgroundColor: colors.success,
-                    ),
-                  );
+                  context.showSuccessSnackBar('Profile updated');
                 }
               } catch (e) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to update profile: $e'),
-                      backgroundColor: colors.error,
-                    ),
-                  );
+                  context.showErrorSnackBar('Failed to update profile: $e');
                 }
               }
             },
@@ -524,6 +554,195 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
       // Trigger device discovery to find available equipment
       ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
     });
+  }
+}
+
+// ============================================================================
+// Save Setup Dialogs
+// ============================================================================
+
+/// Action choices for the save setup no-profile dialog
+enum _SaveSetupAction {
+  createNew,
+  selectExisting,
+  cancel,
+}
+
+/// Dialog shown when user tries to save connected devices but no profile exists
+class _SaveSetupNoProfileDialog extends StatelessWidget {
+  final VoidCallback onCreateProfile;
+
+  const _SaveSetupNoProfileDialog({
+    required this.onCreateProfile,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colors.warning.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              LucideIcons.alertCircle,
+              size: 20,
+              color: colors.warning,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'No Active Profile',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'To save your connected devices, you need an equipment profile. '
+            'Would you like to create a new profile or select an existing one?',
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, _SaveSetupAction.cancel),
+          child: Text(
+            'Cancel',
+            style: TextStyle(color: colors.textMuted),
+          ),
+        ),
+        OutlinedButton(
+          onPressed: () => Navigator.pop(context, _SaveSetupAction.selectExisting),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colors.textSecondary,
+            side: BorderSide(color: colors.border),
+          ),
+          child: const Text('Select Existing'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _SaveSetupAction.createNew),
+          style: FilledButton.styleFrom(backgroundColor: colors.primary),
+          child: const Text('Create New'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialog for selecting an existing profile when saving connected devices
+class _SaveSetupProfilePickerDialog extends ConsumerWidget {
+  const _SaveSetupProfilePickerDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final profilesAsync = ref.watch(allProfilesProvider);
+
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      title: Text(
+        'Select Profile',
+        style: TextStyle(
+          color: colors.textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      content: SizedBox(
+        width: 300,
+        child: profilesAsync.when(
+          data: (profiles) {
+            if (profiles.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'No profiles found. Create a new profile first.',
+                  style: TextStyle(color: colors.textSecondary),
+                ),
+              );
+            }
+            return ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 300),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: profiles.length,
+                separatorBuilder: (_, __) => Divider(
+                  color: colors.border,
+                  height: 1,
+                ),
+                itemBuilder: (context, index) {
+                  final profile = profiles[index];
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      profile.name,
+                      style: TextStyle(color: colors.textPrimary),
+                    ),
+                    subtitle: profile.description != null
+                        ? Text(
+                            profile.description!,
+                            style: TextStyle(
+                              color: colors.textMuted,
+                              fontSize: 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : null,
+                    trailing: Icon(
+                      LucideIcons.chevronRight,
+                      size: 16,
+                      color: colors.textMuted,
+                    ),
+                    onTap: () => Navigator.pop(context, profile.id),
+                  );
+                },
+              ),
+            );
+          },
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'Failed to load profiles: $error',
+              style: TextStyle(color: colors.error),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Cancel',
+            style: TextStyle(color: colors.textMuted),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -775,7 +994,10 @@ class _ConnectedDevicesTab extends ConsumerWidget {
         accentColor: colors.warning,
         colors: colors,
         quickActions: [
-          _QuickAction(label: 'Park', onTap: () {}),
+          _QuickAction(
+            label: mountState.isParked ? 'Unpark' : 'Park',
+            onTap: () => ref.read(mountCommandServiceProvider).togglePark(context),
+          ),
         ],
         onSettings: () {},
         onDisconnect: () => ref.read(deviceServiceProvider).disconnectMount(),

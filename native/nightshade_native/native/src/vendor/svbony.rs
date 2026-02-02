@@ -115,39 +115,7 @@ impl SvbError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SvbImgType {
     Raw8 = 0,
-    Raw10 = 1,
-    Raw12 = 2,
-    Raw14 = 3,
     Raw16 = 4,
-    Y8 = 5,
-    Y10 = 6,
-    Y12 = 7,
-    Y14 = 8,
-    Y16 = 9,
-    Rgb24 = 10,
-    Rgb32 = 11,
-    End = -1,
-}
-
-/// SVBony Bayer pattern
-#[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SvbBayerPattern {
-    Rg = 0,
-    Bg = 1,
-    Gr = 2,
-    Gb = 3,
-}
-
-impl SvbBayerPattern {
-    fn to_bayer_pattern(self) -> BayerPattern {
-        match self {
-            SvbBayerPattern::Rg => BayerPattern::Rggb,
-            SvbBayerPattern::Bg => BayerPattern::Bggr,
-            SvbBayerPattern::Gr => BayerPattern::Grbg,
-            SvbBayerPattern::Gb => BayerPattern::Gbrg,
-        }
-    }
 }
 
 /// SVBony control types for camera settings
@@ -156,17 +124,6 @@ impl SvbBayerPattern {
 enum SvbControlType {
     Gain = 0,
     Exposure = 1,
-    Gamma = 2,
-    GammaContrast = 3,
-    Wb_R = 4,
-    Wb_G = 5,
-    Wb_B = 6,
-    Flip = 7,
-    FrameSpeedMode = 8,
-    Contrast = 9,
-    Sharpness = 10,
-    Saturation = 11,
-    AutoTargetBrightness = 12,
     BlackLevel = 13,
     CoolerEnable = 14,
     TargetTemperature = 15,
@@ -251,7 +208,6 @@ type SvbStartVideoCapture = unsafe extern "C" fn(camera_id: c_int) -> c_int;
 type SvbStopVideoCapture = unsafe extern "C" fn(camera_id: c_int) -> c_int;
 type SvbGetVideoData = unsafe extern "C" fn(camera_id: c_int, buf: *mut u8, buf_size: c_long, wait_ms: c_int) -> c_int;
 type SvbGetSdkVersion = unsafe extern "C" fn() -> *const c_char;
-type SvbGetSerialNumber = unsafe extern "C" fn(camera_id: c_int, sn: *mut c_char) -> c_int;
 
 /// SVBony SDK wrapper with dynamically loaded functions
 struct SvbonySdk {
@@ -274,7 +230,6 @@ struct SvbonySdk {
     stop_video_capture: SvbStopVideoCapture,
     get_video_data: SvbGetVideoData,
     get_sdk_version: SvbGetSdkVersion,
-    get_serial_number: SvbGetSerialNumber,
 }
 
 impl SvbonySdk {
@@ -347,9 +302,6 @@ impl SvbonySdk {
                 get_sdk_version: *library
                     .get::<SvbGetSdkVersion>(b"SVBGetSDKVersion\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetSDKVersion: {}", e)))?,
-                get_serial_number: *library
-                    .get::<SvbGetSerialNumber>(b"SVBGetSerialNumber\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetSerialNumber: {}", e)))?,
                 _library: library,
             })
         }
@@ -553,34 +505,6 @@ impl SvbonyCamera {
             return Err(SvbError::from_i32(result).to_native_error("set control value"));
         }
         Ok(())
-    }
-
-    /// Get the min/max range for a control type (synchronous - caller must hold mutex)
-    fn get_control_range(&self, target_type: SvbControlType) -> Result<(i64, i64), NativeError> {
-        if !self.connected {
-            return Err(NativeError::NotConnected);
-        }
-        let sdk = get_sdk()?;
-
-        // Get number of controls
-        let mut num_controls: c_int = 0;
-        let result = unsafe { (sdk.get_num_of_controls)(self.camera_id, &mut num_controls) };
-        if SvbError::from_i32(result) != SvbError::Success {
-            return Err(SvbError::from_i32(result).to_native_error("get num of controls"));
-        }
-
-        // Search for the specific control
-        for i in 0..num_controls {
-            let mut caps: SvbControlCaps = unsafe { std::mem::zeroed() };
-            let result = unsafe { (sdk.get_control_caps)(self.camera_id, i, &mut caps) };
-            if SvbError::from_i32(result) == SvbError::Success {
-                if caps.control_type == target_type as c_int {
-                    return Ok((caps.min_value as i64, caps.max_value as i64));
-                }
-            }
-        }
-
-        Err(NativeError::NotSupported)
     }
 
     /// Get the min/max range for a control type (async - acquires mutex)

@@ -4,6 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_plugins/nightshade_plugins.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../utils/snackbar_helper.dart';
+
 /// Plugins settings screen
 ///
 /// Displays all registered plugins with their status, description, and controls.
@@ -106,12 +108,7 @@ class PluginsScreen extends ConsumerWidget {
                         await pluginHost.setPluginEnabled(plugin.id, enabled);
                       } catch (e) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: $e'),
-                              backgroundColor: colors.error,
-                            ),
-                          );
+                          context.showErrorSnackBar('Error: $e');
                         }
                       }
                     },

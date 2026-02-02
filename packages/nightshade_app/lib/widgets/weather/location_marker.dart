@@ -86,7 +86,7 @@ class _LocationMarkerPainter extends CustomPainter {
 
     // Outer pulsing ring
     final outerRingPaint = Paint()
-      ..color = colors.primary.withOpacity(0.3 * (2.0 - pulseScale))
+      ..color = colors.primary.withValues(alpha: 0.3 * (2.0 - pulseScale))
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(
@@ -97,7 +97,7 @@ class _LocationMarkerPainter extends CustomPainter {
 
     // Middle ring (static)
     final middleRingPaint = Paint()
-      ..color = colors.primary.withOpacity(0.5)
+      ..color = colors.primary.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 

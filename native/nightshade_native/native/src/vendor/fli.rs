@@ -4,14 +4,14 @@
 //! This is an open-source library with cross-platform support.
 
 use crate::camera::{
-    BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams,
+    CameraCapabilities, CameraState, CameraStatus, ExposureParams,
     ImageData, ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
 };
 use crate::sync::fli_mutex;
 use crate::traits::{NativeCamera, NativeDevice, NativeError, NativeFocuser, NativeFilterWheel};
 use crate::NativeVendor;
 use async_trait::async_trait;
-use std::ffi::{c_char, c_double, c_int, c_long, CStr, CString};
+use std::ffi::{c_char, c_double, c_long, CStr, CString};
 use std::sync::OnceLock;
 
 // =============================================================================
@@ -31,15 +31,11 @@ const FLIDEVICE_FOCUSER: c_long = 0x300;
 
 // Frame types
 const FLI_FRAME_TYPE_NORMAL: c_long = 0;
-const FLI_FRAME_TYPE_DARK: c_long = 1;
 
 // Bit depth
 const FLI_MODE_16BIT: c_long = 1;
 
 // Camera status
-const FLI_CAMERA_STATUS_IDLE: c_long = 0x00;
-const FLI_CAMERA_STATUS_EXPOSING: c_long = 0x02;
-const FLI_CAMERA_STATUS_READING_CCD: c_long = 0x03;
 const FLI_CAMERA_DATA_READY: c_long = 0x80000000u32 as c_long;
 
 // =============================================================================
@@ -51,7 +47,6 @@ type FLIClose = unsafe extern "C" fn(dev: FliDev) -> c_long;
 type FLIGetModel = unsafe extern "C" fn(dev: FliDev, model: *mut c_char, len: usize) -> c_long;
 type FLIGetSerialString = unsafe extern "C" fn(dev: FliDev, serial: *mut c_char, len: usize) -> c_long;
 type FLIGetPixelSize = unsafe extern "C" fn(dev: FliDev, pixel_x: *mut c_double, pixel_y: *mut c_double) -> c_long;
-type FLIGetArrayArea = unsafe extern "C" fn(dev: FliDev, ul_x: *mut c_long, ul_y: *mut c_long, lr_x: *mut c_long, lr_y: *mut c_long) -> c_long;
 type FLIGetVisibleArea = unsafe extern "C" fn(dev: FliDev, ul_x: *mut c_long, ul_y: *mut c_long, lr_x: *mut c_long, lr_y: *mut c_long) -> c_long;
 type FLISetExposureTime = unsafe extern "C" fn(dev: FliDev, exptime: c_long) -> c_long;
 type FLISetImageArea = unsafe extern "C" fn(dev: FliDev, ul_x: c_long, ul_y: c_long, lr_x: c_long, lr_y: c_long) -> c_long;
@@ -64,13 +59,10 @@ type FLIGetExposureStatus = unsafe extern "C" fn(dev: FliDev, timeleft: *mut c_l
 type FLISetTemperature = unsafe extern "C" fn(dev: FliDev, temperature: c_double) -> c_long;
 type FLIGetTemperature = unsafe extern "C" fn(dev: FliDev, temperature: *mut c_double) -> c_long;
 type FLIGetCoolerPower = unsafe extern "C" fn(dev: FliDev, power: *mut c_double) -> c_long;
-type FLIGrabFrame = unsafe extern "C" fn(dev: FliDev, buff: *mut u8, buffsize: usize, bytesgrabbed: *mut usize) -> c_long;
 type FLIGrabRow = unsafe extern "C" fn(dev: FliDev, buff: *mut u8, width: usize) -> c_long;
 type FLISetBitDepth = unsafe extern "C" fn(dev: FliDev, bitdepth: c_long) -> c_long;
 type FLIGetDeviceStatus = unsafe extern "C" fn(dev: FliDev, status: *mut c_long) -> c_long;
 type FLIGetLibVersion = unsafe extern "C" fn(ver: *mut c_char, len: usize) -> c_long;
-type FLIList = unsafe extern "C" fn(domain: c_long, names: *mut *mut *mut c_char) -> c_long;
-type FLIFreeList = unsafe extern "C" fn(names: *mut *mut c_char) -> c_long;
 type FLICreateList = unsafe extern "C" fn(domain: c_long) -> c_long;
 type FLIDeleteList = unsafe extern "C" fn() -> c_long;
 type FLIListFirst = unsafe extern "C" fn(domain: *mut c_long, filename: *mut c_char, fnlen: usize, name: *mut c_char, namelen: usize) -> c_long;
@@ -82,7 +74,6 @@ type FLIStepMotor = unsafe extern "C" fn(dev: FliDev, steps: c_long) -> c_long;
 type FLIStepMotorAsync = unsafe extern "C" fn(dev: FliDev, steps: c_long) -> c_long;
 type FLIGetStepperPosition = unsafe extern "C" fn(dev: FliDev, position: *mut c_long) -> c_long;
 type FLIGetStepsRemaining = unsafe extern "C" fn(dev: FliDev, steps: *mut c_long) -> c_long;
-type FLIHomeFocuser = unsafe extern "C" fn(dev: FliDev) -> c_long;
 type FLIGetFocuserExtent = unsafe extern "C" fn(dev: FliDev, extent: *mut c_long) -> c_long;
 type FLIReadTemperature = unsafe extern "C" fn(dev: FliDev, channel: c_long, temperature: *mut c_double) -> c_long;
 type FLIEndExposure = unsafe extern "C" fn(dev: FliDev) -> c_long;
@@ -95,7 +86,6 @@ struct FliSdk {
     get_model: FLIGetModel,
     get_serial_string: FLIGetSerialString,
     get_pixel_size: FLIGetPixelSize,
-    get_array_area: FLIGetArrayArea,
     get_visible_area: FLIGetVisibleArea,
     set_exposure_time: FLISetExposureTime,
     set_image_area: FLISetImageArea,
@@ -108,7 +98,6 @@ struct FliSdk {
     set_temperature: FLISetTemperature,
     get_temperature: FLIGetTemperature,
     get_cooler_power: FLIGetCoolerPower,
-    grab_frame: FLIGrabFrame,
     grab_row: FLIGrabRow,
     set_bit_depth: FLISetBitDepth,
     get_device_status: FLIGetDeviceStatus,
@@ -124,7 +113,6 @@ struct FliSdk {
     step_motor_async: FLIStepMotorAsync,
     get_stepper_position: FLIGetStepperPosition,
     get_steps_remaining: FLIGetStepsRemaining,
-    home_focuser: FLIHomeFocuser,
     get_focuser_extent: FLIGetFocuserExtent,
     read_temperature: FLIReadTemperature,
     end_exposure: FLIEndExposure,
@@ -156,8 +144,6 @@ impl FliSdk {
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetSerialString: {}", e)))?,
                 get_pixel_size: *library.get::<FLIGetPixelSize>(b"FLIGetPixelSize\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetPixelSize: {}", e)))?,
-                get_array_area: *library.get::<FLIGetArrayArea>(b"FLIGetArrayArea\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetArrayArea: {}", e)))?,
                 get_visible_area: *library.get::<FLIGetVisibleArea>(b"FLIGetVisibleArea\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetVisibleArea: {}", e)))?,
                 set_exposure_time: *library.get::<FLISetExposureTime>(b"FLISetExposureTime\0")
@@ -182,8 +168,6 @@ impl FliSdk {
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetTemperature: {}", e)))?,
                 get_cooler_power: *library.get::<FLIGetCoolerPower>(b"FLIGetCoolerPower\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetCoolerPower: {}", e)))?,
-                grab_frame: *library.get::<FLIGrabFrame>(b"FLIGrabFrame\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGrabFrame: {}", e)))?,
                 grab_row: *library.get::<FLIGrabRow>(b"FLIGrabRow\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGrabRow: {}", e)))?,
                 set_bit_depth: *library.get::<FLISetBitDepth>(b"FLISetBitDepth\0")
@@ -214,8 +198,6 @@ impl FliSdk {
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetStepperPosition: {}", e)))?,
                 get_steps_remaining: *library.get::<FLIGetStepsRemaining>(b"FLIGetStepsRemaining\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetStepsRemaining: {}", e)))?,
-                home_focuser: *library.get::<FLIHomeFocuser>(b"FLIHomeFocuser\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIHomeFocuser: {}", e)))?,
                 get_focuser_extent: *library.get::<FLIGetFocuserExtent>(b"FLIGetFocuserExtent\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetFocuserExtent: {}", e)))?,
                 read_temperature: *library.get::<FLIReadTemperature>(b"FLIReadTemperature\0")

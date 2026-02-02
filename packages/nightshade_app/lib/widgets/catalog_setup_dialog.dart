@@ -113,10 +113,15 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        width: 500,
-        padding: const EdgeInsets.all(32),
-        child: Column(
+      child: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 500,
+          minWidth: 350,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -276,7 +281,8 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -7,7 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Provider for target altitude data
-final targetAltitudeProvider = FutureProvider.family<TargetAltitudeInfo?, TargetGroupNode>((ref, target) async {
+final targetAltitudeProvider = FutureProvider.family<TargetAltitudeInfo?, TargetHeaderNode>((ref, target) async {
   final settings = ref.watch(appSettingsProvider).valueOrNull;
   if (settings == null) return null;
 
@@ -224,7 +224,7 @@ double _calculateHoursAboveHorizon({
 
 /// Target preview tooltip widget
 class TargetPreviewTooltip extends ConsumerWidget {
-  final TargetGroupNode target;
+  final TargetHeaderNode target;
   final NightshadeColors colors;
   final Widget child;
 

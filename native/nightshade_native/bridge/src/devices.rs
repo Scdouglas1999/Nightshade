@@ -3,6 +3,7 @@
 //! Provides a unified interface for managing device connections across
 //! different driver backends (ASCOM, Alpaca, Simulator).
 
+use tracing::warn;
 use crate::device::*;
 use crate::event::*;
 use crate::state::SharedAppState;
@@ -739,8 +740,20 @@ impl DeviceManager {
                 rotator.connect()?;
             }
             DeviceType::Dome => {
-                let mut dome = AscomDome::new(prog_id)?;
-                dome.connect()?;
+                use crate::ascom_wrapper_dome::AscomDomeWrapper;
+                let mut dome = AscomDomeWrapper::new(prog_id.to_string())?;
+                dome.connect().await?;
+
+                let mut ascom_domes = self.ascom_domes.write().await;
+                ascom_domes.insert(info.id.clone(), Arc::new(RwLock::new(dome)));
+            }
+            DeviceType::Switch => {
+                use crate::ascom_wrapper_switch::AscomSwitchWrapper;
+                let mut sw = AscomSwitchWrapper::new(prog_id.to_string())?;
+                sw.connect().await.map_err(|e| e.to_string())?;
+
+                let mut ascom_switches = self.ascom_switches.write().await;
+                ascom_switches.insert(info.id.clone(), Arc::new(RwLock::new(sw)));
             }
             DeviceType::Weather => {
                 let mut weather = AscomObservingConditions::new(prog_id)?;
@@ -957,11 +970,11 @@ impl DeviceManager {
                 "touptek" => {
                     let idx = id_str.parse::<usize>().map_err(|_| "Invalid Touptek camera ID")?;
                     // For Touptek, we need to get the camera_id from discovery
-                    Box::new(TouptekCamera::new(idx, String::new()))
+                    Box::new(TouptekCamera::new(idx))
                 },
                 "moravian" => {
                     let camera_id = id_str.parse::<u32>().map_err(|_| "Invalid Moravian camera ID")?;
-                    Box::new(MoravianCamera::new(camera_id, 0))
+                    Box::new(MoravianCamera::new(camera_id))
                 },
                 _ => return Err(format!("Unknown native camera vendor: {}", vendor)),
             };
@@ -1095,11 +1108,11 @@ impl DeviceManager {
             },
             "touptek" => {
                 let idx = id_str.parse::<usize>().map_err(|_| "Invalid Touptek camera ID")?;
-                Box::new(TouptekCamera::new(idx, String::new()))
+                Box::new(TouptekCamera::new(idx))
             },
             "moravian" => {
                 let camera_id = id_str.parse::<u32>().map_err(|_| "Invalid Moravian camera ID")?;
-                Box::new(MoravianCamera::new(camera_id, 0))
+                Box::new(MoravianCamera::new(camera_id))
             },
             _ => return Err(format!("Unknown native vendor: {}", vendor)),
         };
@@ -2289,19 +2302,67 @@ impl DeviceManager {
                     let (width, height, pixels) = camera.download_image_data().await?;
 
                     // Get camera metadata
-                    let gain = camera.gain().await.unwrap_or(0);
-                    let offset = camera.offset().await.unwrap_or(0);
-                    let bin_x = camera.bin_x().await.unwrap_or(1);
-                    let bin_y = camera.bin_y().await.unwrap_or(1);
+                    let gain = match camera.gain().await {
+                        Ok(g) => g,
+                        Err(e) => {
+                            warn!("Failed to read camera gain for {}: {}. Using default 0.", device_id, e);
+                            0
+                        }
+                    };
+                    let offset = match camera.offset().await {
+                        Ok(o) => o,
+                        Err(e) => {
+                            warn!("Failed to read camera offset for {}: {}. Using default 0.", device_id, e);
+                            0
+                        }
+                    };
+                    let bin_x = match camera.bin_x().await {
+                        Ok(b) => b,
+                        Err(e) => {
+                            warn!("Failed to read camera bin_x for {}: {}. Using default 1.", device_id, e);
+                            1
+                        }
+                    };
+                    let bin_y = match camera.bin_y().await {
+                        Ok(b) => b,
+                        Err(e) => {
+                            warn!("Failed to read camera bin_y for {}: {}. Using default 1.", device_id, e);
+                            1
+                        }
+                    };
                     let temp = camera.ccd_temperature().await.ok();
-                    let exposure_time = camera.last_exposure_duration().await.unwrap_or(0.0);
+                    let exposure_time = match camera.last_exposure_duration().await {
+                        Ok(d) => d,
+                        Err(e) => {
+                            warn!("Failed to read last exposure duration for {}: {}. Using default 0.0.", device_id, e);
+                            0.0
+                        }
+                    };
 
                     // Determine if color camera (sensor_type: 0=Monochrome, 1=Color, etc.)
-                    let sensor_type = camera.sensor_type().await.unwrap_or(0);
+                    let sensor_type = match camera.sensor_type().await {
+                        Ok(t) => t,
+                        Err(e) => {
+                            warn!("Failed to read sensor type for {}: {}. Assuming monochrome.", device_id, e);
+                            0
+                        }
+                    };
                     let bayer_pattern = if sensor_type == 1 {
                         // Get bayer offsets for color cameras
-                        let offset_x = camera.bayer_offset_x().await.unwrap_or(0);
-                        let offset_y = camera.bayer_offset_y().await.unwrap_or(0);
+                        let offset_x = match camera.bayer_offset_x().await {
+                            Ok(x) => x,
+                            Err(e) => {
+                                warn!("Failed to read bayer_offset_x for {}: {}. Using default 0.", device_id, e);
+                                0
+                            }
+                        };
+                        let offset_y = match camera.bayer_offset_y().await {
+                            Ok(y) => y,
+                            Err(e) => {
+                                warn!("Failed to read bayer_offset_y for {}: {}. Using default 0.", device_id, e);
+                                0
+                            }
+                        };
                         // Map offsets to bayer pattern
                         Some(match (offset_x, offset_y) {
                             (0, 0) => nightshade_native::camera::BayerPattern::Rggb,
@@ -2354,12 +2415,42 @@ impl DeviceManager {
                         let _ = camera.enable_blob().await;
 
                         // Get image metadata
-                        let width = camera.get_sensor_width().await.unwrap_or(1920) as u32;
-                        let height = camera.get_sensor_height().await.unwrap_or(1080) as u32;
-                        let (bin_x, bin_y) = camera.get_binning().await.unwrap_or((1, 1));
+                        let width = match camera.get_sensor_width().await {
+                            Some(w) => w as u32,
+                            None => {
+                                warn!("Failed to read INDI sensor width for {}. Using default 1920.", device_id);
+                                1920
+                            }
+                        };
+                        let height = match camera.get_sensor_height().await {
+                            Some(h) => h as u32,
+                            None => {
+                                warn!("Failed to read INDI sensor height for {}. Using default 1080.", device_id);
+                                1080
+                            }
+                        };
+                        let (bin_x, bin_y) = match camera.get_binning().await {
+                            Ok(b) => b,
+                            Err(e) => {
+                                warn!("Failed to read INDI binning for {}: {}. Using default (1, 1).", device_id, e);
+                                (1, 1)
+                            }
+                        };
                         let temp = camera.get_temperature().await.ok();
-                        let gain = camera.get_gain().await.unwrap_or(0);
-                        let offset = camera.get_offset().await.unwrap_or(0);
+                        let gain = match camera.get_gain().await {
+                            Ok(g) => g,
+                            Err(e) => {
+                                warn!("Failed to read INDI gain for {}: {}. Using default 0.", device_id, e);
+                                0
+                            }
+                        };
+                        let offset = match camera.get_offset().await {
+                            Ok(o) => o,
+                            Err(e) => {
+                                warn!("Failed to read INDI offset for {}: {}. Using default 0.", device_id, e);
+                                0
+                            }
+                        };
 
                         // Subscribe to events and wait for BLOB
                         let mut rx = {
@@ -2587,19 +2678,85 @@ impl DeviceManager {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
                     // Get status from Alpaca camera
-                    let state = camera.camera_state().await.unwrap_or(nightshade_alpaca::CameraState::Idle);
+                    let state = match camera.camera_state().await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca camera state for {}: {}. Assuming Idle.", device_id, e);
+                            nightshade_alpaca::CameraState::Idle
+                        }
+                    };
                     let sensor_temp = camera.ccd_temperature().await.ok();
                     let cooler_power = camera.cooler_power().await.ok();
-                    let cooler_on = camera.cooler_on().await.unwrap_or(false);
-                    let gain = camera.gain().await.unwrap_or(0);
-                    let offset = camera.offset().await.unwrap_or(0);
-                    let bin_x = camera.bin_x().await.unwrap_or(1);
-                    let bin_y = camera.bin_y().await.unwrap_or(1);
-                    let sensor_width = camera.camera_x_size().await.unwrap_or(4144) as u32;
-                    let sensor_height = camera.camera_y_size().await.unwrap_or(2822) as u32;
-                    let pixel_size_x = camera.pixel_size_x().await.unwrap_or(3.76);
-                    let pixel_size_y = camera.pixel_size_y().await.unwrap_or(3.76);
-                    let max_adu = camera.max_adu().await.unwrap_or(65535) as u32;
+                    let cooler_on = match camera.cooler_on().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca cooler status for {}: {}. Assuming off.", device_id, e);
+                            false
+                        }
+                    };
+                    let gain = match camera.gain().await {
+                        Ok(g) => g,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca camera gain for {}: {}. Using default 0.", device_id, e);
+                            0
+                        }
+                    };
+                    let offset = match camera.offset().await {
+                        Ok(o) => o,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca camera offset for {}: {}. Using default 0.", device_id, e);
+                            0
+                        }
+                    };
+                    let bin_x = match camera.bin_x().await {
+                        Ok(b) => b,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca camera bin_x for {}: {}. Using default 1.", device_id, e);
+                            1
+                        }
+                    };
+                    let bin_y = match camera.bin_y().await {
+                        Ok(b) => b,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca camera bin_y for {}: {}. Using default 1.", device_id, e);
+                            1
+                        }
+                    };
+                    let sensor_width = match camera.camera_x_size().await {
+                        Ok(w) => w as u32,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca camera width for {}: {}. Using default 4144.", device_id, e);
+                            4144
+                        }
+                    };
+                    let sensor_height = match camera.camera_y_size().await {
+                        Ok(h) => h as u32,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca camera height for {}: {}. Using default 2822.", device_id, e);
+                            2822
+                        }
+                    };
+                    let pixel_size_x = match camera.pixel_size_x().await {
+                        Ok(p) => p,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca pixel_size_x for {}: {}. Using default 3.76.", device_id, e);
+                            3.76
+                        }
+                    };
+                    let pixel_size_y = match camera.pixel_size_y().await {
+                        Ok(p) => p,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca pixel_size_y for {}: {}. Using default 3.76.", device_id, e);
+                            3.76
+                        }
+                    };
+                    let max_adu = match camera.max_adu().await {
+                        Ok(m) => m as u32,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca max_adu for {}: {}. Using default 65535.", device_id, e);
+                            65535
+                        }
+                    };
 
                     return Ok(crate::device::CameraStatus {
                         connected: true,
@@ -2624,7 +2781,13 @@ impl DeviceManager {
                         pixel_size_x,
                         pixel_size_y,
                         max_adu,
-                        can_cool: camera.can_set_ccd_temperature().await.unwrap_or(false),
+                        can_cool: match camera.can_set_ccd_temperature().await {
+                            Ok(c) => c,
+                            Err(e) => {
+                                warn!("Failed to query Alpaca can_set_ccd_temperature for {}: {}. Assuming false.", device_id, e);
+                                false
+                            }
+                        },
                         can_set_gain: true,
                         can_set_offset: true,
                     });
@@ -2688,16 +2851,37 @@ impl DeviceManager {
 
                     // Query INDI camera properties
                     let sensor_temp = locked_client.get_number(&device_name, "CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE").await;
-                    let cooler_on = locked_client.get_switch(&device_name, "CCD_COOLER", "COOLER_ON").await.unwrap_or(false);
-                    let bin_x = locked_client.get_number(&device_name, "CCD_BINNING", "HOR_BIN").await.map(|v| v as i32).unwrap_or(1);
-                    let bin_y = locked_client.get_number(&device_name, "CCD_BINNING", "VER_BIN").await.map(|v| v as i32).unwrap_or(1);
+                    let cooler_on = match locked_client.get_switch(&device_name, "CCD_COOLER", "COOLER_ON").await {
+                        Some(c) => c,
+                        None => {
+                            warn!("Failed to read INDI cooler status for {}: property not available. Assuming off.", device_id);
+                            false
+                        }
+                    };
+                    let bin_x = match locked_client.get_number(&device_name, "CCD_BINNING", "HOR_BIN").await {
+                        Some(v) => v as i32,
+                        None => {
+                            warn!("Failed to read INDI HOR_BIN for {}: property not available. Using default 1.", device_id);
+                            1
+                        }
+                    };
+                    let bin_y = match locked_client.get_number(&device_name, "CCD_BINNING", "VER_BIN").await {
+                        Some(v) => v as i32,
+                        None => {
+                            warn!("Failed to read INDI VER_BIN for {}: property not available. Using default 1.", device_id);
+                            1
+                        }
+                    };
                     let exposure_value = locked_client.get_number(&device_name, "CCD_EXPOSURE", "CCD_EXPOSURE_VALUE").await;
 
                     // Determine camera state based on exposure value
-                    let state = if exposure_value.unwrap_or(0.0) > 0.0 {
-                        crate::device::CameraState::Exposing
-                    } else {
-                        crate::device::CameraState::Idle
+                    let state = match exposure_value {
+                        Some(v) if v > 0.0 => crate::device::CameraState::Exposing,
+                        Some(_) => crate::device::CameraState::Idle,
+                        None => {
+                            warn!("Failed to read INDI exposure value for {}: property not available. Assuming Idle.", device_id);
+                            crate::device::CameraState::Idle
+                        }
                     };
 
                     return Ok(crate::device::CameraStatus {
@@ -2879,7 +3063,6 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            Some(_) => Err("Not implemented for this driver type".to_string()),
             None => Err("Driver type not found".to_string()),
         }
     }
@@ -3148,10 +3331,12 @@ impl DeviceManager {
                 }
                 Err("Native mount not connected".to_string())
             }
+            DriverType::Alpaca | DriverType::Indi => {
+                Err("Not implemented for this driver type".to_string())
+            }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -3179,10 +3364,52 @@ impl DeviceManager {
                 }
                 Err("Native mount not connected".to_string())
             }
+            DriverType::Alpaca | DriverType::Indi => {
+                Err("Not implemented for this driver type".to_string())
+            }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+        }
+    }
+
+    pub async fn mount_stop(&self, device_id: &str) -> Result<(), String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let mounts = self.ascom_mounts.read().await;
+                    if let Some(mount) = mounts.get(device_id) {
+                        let mount = mount.read().await;
+                        return mount.stop().await.map_err(|e| e.to_string());
+                    }
+                }
+                Err("ASCOM mount not connected".to_string())
+            }
+            DriverType::Native => {
+                let mut native_mounts = self.native_mounts.write().await;
+                if let Some(mount) = native_mounts.get_mut(device_id) {
+                    return mount.abort_slew().await.map_err(|e| e.to_string());
+                }
+                Err("Native mount not connected".to_string())
+            }
+            DriverType::Alpaca => {
+                let mounts = self.alpaca_mounts.read().await;
+                if let Some(mount) = mounts.get(device_id) {
+                    return mount.abort_slew().await.map_err(|e| e.to_string());
+                }
+                Err(format!("Alpaca mount {} not connected", device_id))
+            }
+            DriverType::Indi => {
+                Err("Not implemented for this driver type".to_string())
+            }
+            DriverType::Simulator => {
+                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+            }
         }
     }
 
@@ -3210,10 +3437,12 @@ impl DeviceManager {
                 }
                 Err("Native mount not connected".to_string())
             }
+            DriverType::Alpaca | DriverType::Indi => {
+                Err("Not implemented for this driver type".to_string())
+            }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -3249,10 +3478,46 @@ impl DeviceManager {
                 }
                 Err("Native mount not connected".to_string())
             }
+            DriverType::Alpaca | DriverType::Indi => {
+                Err("Not implemented for this driver type".to_string())
+            }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+        }
+    }
+
+    pub async fn mount_can_park(&self, device_id: &str) -> Result<bool, String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let mounts = self.ascom_mounts.read().await;
+                    if let Some(mount) = mounts.get(device_id) {
+                        let mount = mount.read().await;
+                        return mount.can_park().await.map_err(|e| e.to_string());
+                    }
+                }
+                Err("ASCOM mount not connected".to_string())
+            }
+            DriverType::Native => Ok(true),
+            DriverType::Alpaca => {
+                let mounts = self.alpaca_mounts.read().await;
+                if let Some(mount) = mounts.get(device_id) {
+                    return mount.can_park().await.map_err(|e| e.to_string());
+                }
+                Err(format!("Alpaca mount {} not connected", device_id))
+            }
+            DriverType::Indi => {
+                Err("Not implemented for this driver type".to_string())
+            }
+            DriverType::Simulator => {
+                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+            }
         }
     }
 
@@ -3282,6 +3547,13 @@ impl DeviceManager {
                             nightshade_native::traits::PierSide::Unknown => crate::device::PierSide::Unknown,
                         };
                         let sidereal_time = mount.get_sidereal_time().await.map_err(|e| e.to_string())?;
+                        let can_park = match mount.can_park().await {
+                            Ok(value) => value,
+                            Err(err) => {
+                                tracing::warn!("Failed to query ASCOM mount CanPark: {}", err);
+                                false
+                            }
+                        };
 
                         return Ok(MountStatus {
                             connected: true,
@@ -3296,7 +3568,7 @@ impl DeviceManager {
                             azimuth: az,
                             sidereal_time,
                             tracking_rate: TrackingRate::Sidereal, // Default for now
-                            can_park: true,
+                            can_park,
                             can_slew: true,
                             can_sync: true,
                             can_pulse_guide: true,
@@ -3322,8 +3594,20 @@ impl DeviceManager {
                     };
 
                     // Alt/Az and sidereal time may not be supported by all native mounts
-                    let (alt, az) = mount.get_alt_az().await.unwrap_or((0.0, 0.0));
-                    let sidereal_time = mount.get_sidereal_time().await.unwrap_or(0.0);
+                    let (alt, az) = match mount.get_alt_az().await {
+                        Ok(coords) => coords,
+                        Err(e) => {
+                            warn!("Failed to read native mount alt/az for {}: {}. Using default (0.0, 0.0).", device_id, e);
+                            (0.0, 0.0)
+                        }
+                    };
+                    let sidereal_time = match mount.get_sidereal_time().await {
+                        Ok(t) => t,
+                        Err(e) => {
+                            warn!("Failed to read native mount sidereal time for {}: {}. Using default 0.0.", device_id, e);
+                            0.0
+                        }
+                    };
 
                     return Ok(MountStatus {
                         connected: true,
@@ -3350,20 +3634,116 @@ impl DeviceManager {
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
-                    let ra = mount.right_ascension().await.unwrap_or(0.0);
-                    let dec = mount.declination().await.unwrap_or(0.0);
-                    let alt = mount.altitude().await.unwrap_or(0.0);
-                    let az = mount.azimuth().await.unwrap_or(0.0);
-                    let tracking = mount.tracking().await.unwrap_or(false);
-                    let slewing = mount.slewing().await.unwrap_or(false);
-                    let parked = mount.at_park().await.unwrap_or(false);
-                    let at_home = mount.at_home().await.unwrap_or(false);
-                    let sidereal_time = mount.sidereal_time().await.unwrap_or(0.0);
-                    let side_of_pier_alpaca = mount.side_of_pier().await.unwrap_or(nightshade_alpaca::PierSide::Unknown);
+                    let ra = match mount.right_ascension().await {
+                        Ok(r) => r,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount RA for {}: {}. Using default 0.0.", device_id, e);
+                            0.0
+                        }
+                    };
+                    let dec = match mount.declination().await {
+                        Ok(d) => d,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount Dec for {}: {}. Using default 0.0.", device_id, e);
+                            0.0
+                        }
+                    };
+                    let alt = match mount.altitude().await {
+                        Ok(a) => a,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount altitude for {}: {}. Using default 0.0.", device_id, e);
+                            0.0
+                        }
+                    };
+                    let az = match mount.azimuth().await {
+                        Ok(a) => a,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount azimuth for {}: {}. Using default 0.0.", device_id, e);
+                            0.0
+                        }
+                    };
+                    let tracking = match mount.tracking().await {
+                        Ok(t) => t,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount tracking for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let slewing = match mount.slewing().await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount slewing for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let parked = match mount.at_park().await {
+                        Ok(p) => p,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount at_park for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let at_home = match mount.at_home().await {
+                        Ok(h) => h,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount at_home for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let sidereal_time = match mount.sidereal_time().await {
+                        Ok(t) => t,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount sidereal_time for {}: {}. Using default 0.0.", device_id, e);
+                            0.0
+                        }
+                    };
+                    let side_of_pier_alpaca = match mount.side_of_pier().await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca mount side_of_pier for {}: {}. Using Unknown.", device_id, e);
+                            nightshade_alpaca::PierSide::Unknown
+                        }
+                    };
                     let side_of_pier = match side_of_pier_alpaca {
                         nightshade_alpaca::PierSide::East => crate::device::PierSide::East,
                         nightshade_alpaca::PierSide::West => crate::device::PierSide::West,
                         nightshade_alpaca::PierSide::Unknown => crate::device::PierSide::Unknown,
+                    };
+
+                    let can_park = match mount.can_park().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to query Alpaca mount can_park for {}: {}. Assuming true.", device_id, e);
+                            true
+                        }
+                    };
+                    let can_slew = match mount.can_slew().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to query Alpaca mount can_slew for {}: {}. Assuming true.", device_id, e);
+                            true
+                        }
+                    };
+                    let can_sync = match mount.can_sync().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to query Alpaca mount can_sync for {}: {}. Assuming true.", device_id, e);
+                            true
+                        }
+                    };
+                    let can_pulse_guide = match mount.can_pulse_guide().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to query Alpaca mount can_pulse_guide for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let can_set_tracking_rate = match mount.can_set_tracking().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to query Alpaca mount can_set_tracking for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
                     };
 
                     return Ok(MountStatus {
@@ -3379,11 +3759,11 @@ impl DeviceManager {
                         azimuth: az,
                         sidereal_time,
                         tracking_rate: TrackingRate::Sidereal, // TODO: Get actual tracking rate
-                        can_park: mount.can_park().await.unwrap_or(true),
-                        can_slew: mount.can_slew().await.unwrap_or(true),
-                        can_sync: mount.can_sync().await.unwrap_or(true),
-                        can_pulse_guide: mount.can_pulse_guide().await.unwrap_or(false),
-                        can_set_tracking_rate: mount.can_set_tracking().await.unwrap_or(false),
+                        can_park,
+                        can_slew,
+                        can_sync,
+                        can_pulse_guide,
+                        can_set_tracking_rate,
                     });
                 }
                 Err("Alpaca mount not connected".to_string())
@@ -3396,8 +3776,20 @@ impl DeviceManager {
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
-                        let (ra, dec) = mount.get_coordinates().await.unwrap_or((0.0, 0.0));
-                        let (alt, az) = mount.get_horizontal_coordinates().await.unwrap_or((0.0, 0.0));
+                        let (ra, dec) = match mount.get_coordinates().await {
+                            Ok(coords) => coords,
+                            Err(e) => {
+                                warn!("Failed to read INDI mount coordinates for {}: {}. Using default (0.0, 0.0).", device_id, e);
+                                (0.0, 0.0)
+                            }
+                        };
+                        let (alt, az) = match mount.get_horizontal_coordinates().await {
+                            Ok(coords) => coords,
+                            Err(e) => {
+                                warn!("Failed to read INDI mount horizontal coordinates for {}: {}. Using default (0.0, 0.0).", device_id, e);
+                                (0.0, 0.0)
+                            }
+                        };
                         let tracking = mount.is_tracking().await;
                         let slewing = mount.is_slewing().await;
                         let parked = mount.is_parked().await;
@@ -3429,7 +3821,6 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -3676,7 +4067,6 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -3736,7 +4126,6 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -3793,7 +4182,10 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+// Fallback logic for devices not matching specific driver types
+            // This is primarily for the catch-all pattern required by match
+            // but in practice DriverType is exhaustive for supported devices.
+            // Keeping this arm for safety but returning an error is correct.
         }
     }
 
@@ -3849,7 +4241,7 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+// Fallback logic for devices not matching specific driver types
         }
     }
 
@@ -3905,7 +4297,7 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+// Fallback logic for devices not matching specific driver types
         }
     }
 
@@ -3966,7 +4358,6 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -3998,7 +4389,13 @@ impl DeviceManager {
                 let alpaca_focusers = self.alpaca_focusers.read().await;
                 if let Some(focuser) = alpaca_focusers.get(device_id) {
                     let max_step = focuser.max_step().await?;
-                    let step_size = focuser.step_size().await.unwrap_or(1.0);
+                    let step_size = match focuser.step_size().await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("Failed to read Alpaca focuser step_size for {}: {}. Using default 1.0.", device_id, e);
+                            1.0
+                        }
+                    };
                     return Ok((max_step, step_size));
                 }
                 Err("Alpaca focuser not connected".to_string())
@@ -4018,16 +4415,23 @@ impl DeviceManager {
 
                         // Try to get max position from FOCUS_MAX property (common INDI standard)
                         // Fall back to reasonable default if not available
-                        let max_position = client.get_number(&device_name, "FOCUS_MAX", "FOCUS_MAX_VALUE")
-                            .await
-                            .map(|v| v as i32)
-                            .unwrap_or(100000); // Default max position
+                        let max_position = match client.get_number(&device_name, "FOCUS_MAX", "FOCUS_MAX_VALUE").await {
+                            Some(v) => v as i32,
+                            None => {
+                                warn!("Failed to read INDI focuser max position for {}: property not available. Using default 100000.", device_id);
+                                100000
+                            }
+                        };
 
                         // Step size is not universally standardized in INDI
                         // Most focusers use discrete steps, default to 1.0 micron step
-                        let step_size = client.get_number(&device_name, "FOCUS_STEP", "FOCUS_STEP_VALUE")
-                            .await
-                            .unwrap_or(1.0);
+                        let step_size = match client.get_number(&device_name, "FOCUS_STEP", "FOCUS_STEP_VALUE").await {
+                            Some(s) => s,
+                            None => {
+                                warn!("Failed to read INDI focuser step size for {}: property not available. Using default 1.0.", device_id);
+                                1.0
+                            }
+                        };
 
                         return Ok((max_position, step_size));
                     }
@@ -4038,7 +4442,6 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -4098,7 +4501,11 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+
+            // Fallback logic for devices not matching specific driver types
+            // This is primarily for the catch-all pattern required by match
+            // but in practice DriverType is exhaustive for supported devices.
+            // Keeping this arm for safety but returning an error is correct.
         }
     }
 
@@ -4156,7 +4563,6 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -4213,7 +4619,6 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -4305,7 +4710,6 @@ impl DeviceManager {
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
         }
     }
 
@@ -4349,7 +4753,9 @@ impl DeviceManager {
                 tracing::warn!("filter_wheel_set_filter_names: INDI filter name setting not yet implemented");
                 Ok(())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            DriverType::Simulator => {
+                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+            }
         }
     }
 
@@ -4371,6 +4777,9 @@ impl DeviceManager {
                     return rotator.position().await;
                 }
                 Err(format!("Alpaca rotator {} not found", device_id))
+            }
+            Some(DriverType::Ascom) => {
+                Err("Not implemented for this driver type".to_string())
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -4399,7 +4808,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4417,6 +4826,9 @@ impl DeviceManager {
                     return rotator.move_absolute(position).await;
                 }
                 Err(format!("Alpaca rotator {} not found", device_id))
+            }
+            Some(DriverType::Ascom) => {
+                Err("Not implemented for this driver type".to_string())
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -4443,7 +4855,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4461,6 +4873,9 @@ impl DeviceManager {
                     return rotator.halt().await;
                 }
                 Err(format!("Alpaca rotator {} not found", device_id))
+            }
+            Some(DriverType::Ascom) => {
+                Err("Not implemented for this driver type".to_string())
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -4487,7 +4902,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4506,6 +4921,9 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca rotator {} not found", device_id))
             }
+            Some(DriverType::Ascom) | Some(DriverType::Indi) => {
+                Err("Not implemented for this driver type".to_string())
+            }
             Some(DriverType::Native) => {
                 let native_rotators = self.native_rotators.read().await;
                 if let Some(rotator) = native_rotators.get(device_id) {
@@ -4516,7 +4934,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4577,7 +4995,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4634,7 +5052,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4691,7 +5109,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4750,7 +5168,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4823,7 +5241,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4880,7 +5298,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4912,6 +5330,9 @@ impl DeviceManager {
                 #[cfg(not(windows))]
                 Err("ASCOM not supported on this platform".to_string())
             }
+            Some(DriverType::Indi) => {
+                Err("Not implemented for this driver type".to_string())
+            }
             Some(DriverType::Native) => {
                 let native_domes = self.native_domes.read().await;
                 if let Some(dome) = native_domes.get(device_id) {
@@ -4922,7 +5343,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -4941,10 +5362,34 @@ impl DeviceManager {
                     let alpaca_status = dome.get_status().await?;
 
                     // Query capabilities
-                    let can_set_altitude = dome.can_set_altitude().await.unwrap_or(false);
-                    let can_set_azimuth = dome.can_set_azimuth().await.unwrap_or(false);
-                    let can_set_shutter = dome.can_set_shutter().await.unwrap_or(false);
-                    let can_slave = dome.can_slave().await.unwrap_or(false);
+                    let can_set_altitude = match dome.can_set_altitude().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to query Alpaca dome can_set_altitude for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let can_set_azimuth = match dome.can_set_azimuth().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to query Alpaca dome can_set_azimuth for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let can_set_shutter = match dome.can_set_shutter().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to query Alpaca dome can_set_shutter for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let can_slave = match dome.can_slave().await {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warn!("Failed to query Alpaca dome can_slave for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
 
                     return Ok(crate::device::DomeStatus {
                         connected: true,
@@ -4977,9 +5422,27 @@ impl DeviceManager {
                         let dome_guard = dome.read().await;
 
                         // Query all dome properties from ASCOM driver
-                        let shutter_status_code = dome_guard.shutter_status().await.unwrap_or(4);
-                        let slewing = dome_guard.slewing().await.unwrap_or(false);
-                        let at_park = dome_guard.at_park().await.unwrap_or(false);
+                        let shutter_status_code = match dome_guard.shutter_status().await {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("Failed to read ASCOM dome shutter_status for {}: {}. Using error code 4.", device_id, e);
+                                4 // Error state
+                            }
+                        };
+                        let slewing = match dome_guard.slewing().await {
+                            Ok(s) => s,
+                            Err(e) => {
+                                warn!("Failed to read ASCOM dome slewing for {}: {}. Assuming false.", device_id, e);
+                                false
+                            }
+                        };
+                        let at_park = match dome_guard.at_park().await {
+                            Ok(p) => p,
+                            Err(e) => {
+                                warn!("Failed to read ASCOM dome at_park for {}: {}. Assuming false.", device_id, e);
+                                false
+                            }
+                        };
 
                         // Map ASCOM shutter status codes to ShutterState
                         let shutter_status = match shutter_status_code {
@@ -5040,9 +5503,22 @@ impl DeviceManager {
                 let native_domes = self.native_domes.read().await;
                 if let Some(dome) = native_domes.get(device_id) {
                     // Query all native dome properties
-                    let azimuth = dome.get_azimuth().await.unwrap_or(0.0);
+                    let azimuth = match dome.get_azimuth().await {
+                        Ok(a) => a,
+                        Err(e) => {
+                            warn!("Failed to read native dome azimuth for {}: {}. Using default 0.0.", device_id, e);
+                            0.0
+                        }
+                    };
                     let altitude = dome.get_altitude().await.ok().flatten();
-                    let shutter_status = match dome.get_shutter_status().await.unwrap_or(nightshade_native::traits::ShutterState::Unknown) {
+                    let shutter_state_native = match dome.get_shutter_status().await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("Failed to read native dome shutter status for {}: {}. Using Unknown.", device_id, e);
+                            nightshade_native::traits::ShutterState::Unknown
+                        }
+                    };
+                    let shutter_status = match shutter_state_native {
                         nightshade_native::traits::ShutterState::Open => crate::device::ShutterState::Open,
                         nightshade_native::traits::ShutterState::Closed => crate::device::ShutterState::Closed,
                         nightshade_native::traits::ShutterState::Opening => crate::device::ShutterState::Opening,
@@ -5050,10 +5526,34 @@ impl DeviceManager {
                         nightshade_native::traits::ShutterState::Error => crate::device::ShutterState::Error,
                         nightshade_native::traits::ShutterState::Unknown => crate::device::ShutterState::Unknown,
                     };
-                    let slewing = dome.is_slewing().await.unwrap_or(false);
-                    let at_home = dome.is_at_home().await.unwrap_or(false);
-                    let at_park = dome.is_parked().await.unwrap_or(false);
-                    let is_slaved = dome.is_slaved().await.unwrap_or(false);
+                    let slewing = match dome.is_slewing().await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("Failed to read native dome slewing for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let at_home = match dome.is_at_home().await {
+                        Ok(h) => h,
+                        Err(e) => {
+                            warn!("Failed to read native dome is_at_home for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let at_park = match dome.is_parked().await {
+                        Ok(p) => p,
+                        Err(e) => {
+                            warn!("Failed to read native dome is_parked for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
+                    let is_slaved = match dome.is_slaved().await {
+                        Ok(s) => s,
+                        Err(e) => {
+                            warn!("Failed to read native dome is_slaved for {}: {}. Assuming false.", device_id, e);
+                            false
+                        }
+                    };
 
                     return Ok(crate::device::DomeStatus {
                         connected: true,
@@ -5075,7 +5575,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -5135,6 +5635,9 @@ impl DeviceManager {
                 }
                 Err("INDI weather device not connected".to_string())
             }
+            Some(DriverType::Ascom) => {
+                Err("Not implemented for this driver type".to_string())
+            }
             Some(DriverType::Native) => {
                 let native_weather = self.native_weather.read().await;
                 if let Some(weather) = native_weather.get(device_id) {
@@ -5156,7 +5659,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -5184,6 +5687,9 @@ impl DeviceManager {
                 // Some implementations use custom properties
                 Err("INDI safety monitor not standardized".to_string())
             }
+            Some(DriverType::Ascom) => {
+                Err("Not implemented for this driver type".to_string())
+            }
             Some(DriverType::Native) => {
                 let native_safety = self.native_safety_monitors.read().await;
                 if let Some(safety) = native_safety.get(device_id) {
@@ -5194,7 +5700,7 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
             }
-            _ => Err("Not implemented for this driver type".to_string()),
+            None => Err(format!("Device not found: {}", device_id)),
         }
     }
 
@@ -5955,6 +6461,320 @@ impl DeviceManager {
     }
 
     // =========================================================================
+    // Switch Control
+    // =========================================================================
+
+    /// Get the number of switches exposed by a switch device
+    pub async fn switch_get_max(&self, device_id: &str) -> Result<i32, String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let sw = sw.read().await;
+                        return sw.get_max_switch().await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.max_switch().await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    /// Get the boolean state of a switch
+    pub async fn switch_get_state(&self, device_id: &str, switch_id: i32) -> Result<bool, String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let sw = sw.read().await;
+                        return sw.get_switch(switch_id).await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.get_switch(switch_id).await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    /// Set the boolean state of a switch
+    pub async fn switch_set_state(&self, device_id: &str, switch_id: i32, state: bool) -> Result<(), String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let mut sw = sw.write().await;
+                        return sw.set_switch(switch_id, state).await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.set_switch(switch_id, state).await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    /// Get the name of a switch
+    pub async fn switch_get_name(&self, device_id: &str, switch_id: i32) -> Result<String, String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let sw = sw.read().await;
+                        return sw.get_switch_name(switch_id).await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.get_switch_name(switch_id).await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    /// Get the description of a switch
+    pub async fn switch_get_description(&self, device_id: &str, switch_id: i32) -> Result<String, String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let sw = sw.read().await;
+                        return sw.get_switch_description(switch_id).await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.get_switch_description(switch_id).await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    /// Get the numeric value of a switch
+    pub async fn switch_get_value(&self, device_id: &str, switch_id: i32) -> Result<f64, String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let sw = sw.read().await;
+                        return sw.get_switch_value(switch_id).await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.get_switch_value(switch_id).await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    /// Set the numeric value of a switch
+    pub async fn switch_set_value(&self, device_id: &str, switch_id: i32, value: f64) -> Result<(), String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let mut sw = sw.write().await;
+                        return sw.set_switch_value(switch_id, value).await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.set_switch_value(switch_id, value).await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    /// Get the minimum value for a switch
+    pub async fn switch_get_min_value(&self, device_id: &str, switch_id: i32) -> Result<f64, String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let sw = sw.read().await;
+                        return sw.get_min_switch_value(switch_id).await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.min_switch_value(switch_id).await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    /// Get the maximum value for a switch
+    pub async fn switch_get_max_value(&self, device_id: &str, switch_id: i32) -> Result<f64, String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let sw = sw.read().await;
+                        return sw.get_max_switch_value(switch_id).await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.max_switch_value(switch_id).await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    /// Check if a switch can be written to
+    pub async fn switch_can_write(&self, device_id: &str, switch_id: i32) -> Result<bool, String> {
+        let devices = self.devices.read().await;
+        let info = devices.get(device_id).map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let switches = self.ascom_switches.read().await;
+                    if let Some(sw) = switches.get(device_id) {
+                        let sw = sw.read().await;
+                        return sw.can_write(switch_id).await;
+                    }
+                }
+                Err(format!("ASCOM switch {} not found", device_id))
+            }
+            DriverType::Alpaca => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.can_write(switch_id).await;
+                }
+                Err(format!("Alpaca switch {} not found", device_id))
+            }
+            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+        }
+    }
+
+    // =========================================================================
     // Cover Calibrator Control
     // =========================================================================
 
@@ -6328,7 +7148,7 @@ impl DeviceManager {
                 let cover_cals = self.ascom_cover_calibrators.read().await;
                 if let Some(cover_cal) = cover_cals.get(device_id) {
                     let locked = cover_cal.read().await;
-                    return Ok(locked.cached_max_brightness());
+                    return locked.max_brightness().await;
                 }
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
@@ -6342,10 +7162,34 @@ impl DeviceManager {
 
     /// Get cover calibrator status (combined state)
     pub async fn cover_calibrator_get_status(&self, device_id: &str) -> Result<CoverCalibratorStatus, String> {
-        let cover_state_raw = self.cover_calibrator_get_cover_state(device_id).await.unwrap_or(4);
-        let calibrator_state_raw = self.cover_calibrator_get_calibrator_state(device_id).await.unwrap_or(4);
-        let brightness = self.cover_calibrator_get_brightness(device_id).await.unwrap_or(0);
-        let max_brightness = self.cover_calibrator_get_max_brightness(device_id).await.unwrap_or(255);
+        let cover_state_raw = match self.cover_calibrator_get_cover_state(device_id).await {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("Failed to read cover calibrator cover_state for {}: {}. Using Unknown (4).", device_id, e);
+                4
+            }
+        };
+        let calibrator_state_raw = match self.cover_calibrator_get_calibrator_state(device_id).await {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("Failed to read cover calibrator calibrator_state for {}: {}. Using Unknown (4).", device_id, e);
+                4
+            }
+        };
+        let brightness = match self.cover_calibrator_get_brightness(device_id).await {
+            Ok(b) => b,
+            Err(e) => {
+                warn!("Failed to read cover calibrator brightness for {}: {}. Using default 0.", device_id, e);
+                0
+            }
+        };
+        let max_brightness = match self.cover_calibrator_get_max_brightness(device_id).await {
+            Ok(m) => m,
+            Err(e) => {
+                warn!("Failed to read cover calibrator max_brightness for {}: {}. Using default 255.", device_id, e);
+                255
+            }
+        };
 
         // Check if the device is connected by seeing if any data is available
         let connected = self.cover_calibrator_get_cover_state(device_id).await.is_ok()
@@ -6368,6 +7212,12 @@ impl DeviceManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::AppState;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use tokio::sync::RwLock;
+    #[cfg(windows)]
+    use crate::ascom_wrapper_mount::test_support::{build_test_mount_wrapper, TestMountResponses};
 
     #[test]
     fn test_heartbeat_config_default() {
@@ -6481,5 +7331,178 @@ mod tests {
         assert_eq!(config.initial_delay_secs, 2);
         assert_eq!(config.max_delay_secs, 60);
         assert!((config.backoff_multiplier - 1.5).abs() < f64::EPSILON);
+    }
+
+    fn build_switch_info(id: &str, driver_type: DriverType) -> DeviceInfo {
+        DeviceInfo {
+            id: id.to_string(),
+            name: "Test Switch".to_string(),
+            device_type: DeviceType::Switch,
+            driver_type,
+            description: "Test switch device".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Test Switch".to_string(),
+        }
+    }
+
+    fn build_mount_info(id: &str, driver_type: DriverType) -> DeviceInfo {
+        DeviceInfo {
+            id: id.to_string(),
+            name: "Test Mount".to_string(),
+            device_type: DeviceType::Mount,
+            driver_type,
+            description: "Test mount device".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Test Mount".to_string(),
+        }
+    }
+
+    fn build_device_manager() -> DeviceManager {
+        DeviceManager {
+            app_state: AppState::new(),
+            devices: RwLock::new(HashMap::new()),
+            reconnect_config: ReconnectConfig::default(),
+            stop_reconnect: Arc::new(RwLock::new(false)),
+            native_devices: RwLock::new(HashMap::new()),
+            #[cfg(windows)]
+            ascom_cameras: RwLock::new(HashMap::new()),
+            #[cfg(windows)]
+            ascom_mounts: RwLock::new(HashMap::new()),
+            #[cfg(windows)]
+            ascom_focusers: RwLock::new(HashMap::new()),
+            #[cfg(windows)]
+            ascom_filter_wheels: RwLock::new(HashMap::new()),
+            #[cfg(windows)]
+            ascom_domes: RwLock::new(HashMap::new()),
+            #[cfg(windows)]
+            ascom_switches: RwLock::new(HashMap::new()),
+            #[cfg(windows)]
+            ascom_cover_calibrators: RwLock::new(HashMap::new()),
+            indi_clients: RwLock::new(HashMap::new()),
+            alpaca_cameras: RwLock::new(HashMap::new()),
+            alpaca_mounts: RwLock::new(HashMap::new()),
+            alpaca_focusers: RwLock::new(HashMap::new()),
+            alpaca_filter_wheels: RwLock::new(HashMap::new()),
+            alpaca_rotators: RwLock::new(HashMap::new()),
+            alpaca_domes: RwLock::new(HashMap::new()),
+            alpaca_weather: RwLock::new(HashMap::new()),
+            alpaca_safety_monitors: RwLock::new(HashMap::new()),
+            alpaca_switches: RwLock::new(HashMap::new()),
+            alpaca_cover_calibrators: RwLock::new(HashMap::new()),
+            native_cameras: RwLock::new(HashMap::new()),
+            native_focusers: RwLock::new(HashMap::new()),
+            native_filter_wheels: RwLock::new(HashMap::new()),
+            native_mounts: RwLock::new(HashMap::new()),
+            native_rotators: RwLock::new(HashMap::new()),
+            native_domes: RwLock::new(HashMap::new()),
+            native_weather: RwLock::new(HashMap::new()),
+            native_safety_monitors: RwLock::new(HashMap::new()),
+            heartbeat_tasks: RwLock::new(HashMap::new()),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_mount_can_park_requires_registered_device() {
+        let manager = build_device_manager();
+        let err = manager.mount_can_park("missing-mount").await.expect_err("missing mount should error");
+        assert!(err.contains("Device not found"));
+    }
+
+    #[tokio::test]
+    async fn test_mount_stop_requires_registered_device() {
+        let manager = build_device_manager();
+        let err = manager.mount_stop("missing-mount").await.expect_err("missing mount should error");
+        assert!(err.contains("Device not found"));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn test_mount_get_status_uses_ascom_can_park() {
+        let manager = build_device_manager();
+        let device_id = "ascom:test-mount";
+        let info = build_mount_info(device_id, DriverType::Ascom);
+
+        manager.devices.write().await.insert(
+            device_id.to_string(),
+            ManagedDevice {
+                info,
+                connection_state: ConnectionState::Connected,
+                last_error: None,
+                reconnect_attempts: 0,
+                auto_reconnect: false,
+                last_successful_comm: None,
+                heartbeat_active: false,
+                api_version: None,
+            },
+        );
+
+        let responses = TestMountResponses {
+            coordinates: (1.0, 2.0),
+            alt_az: (3.0, 4.0),
+            tracking: true,
+            slewing: false,
+            parked: false,
+            side_of_pier: nightshade_native::traits::PierSide::East,
+            sidereal_time: 5.0,
+            can_park: false,
+        };
+        manager.ascom_mounts.write().await.insert(
+            device_id.to_string(),
+            Arc::new(RwLock::new(build_test_mount_wrapper(responses))),
+        );
+
+        let status = manager.mount_get_status(device_id).await.expect("mount_get_status");
+        assert!(!status.can_park);
+    }
+
+    #[tokio::test]
+    async fn test_switch_methods_require_registered_device() {
+        let manager = build_device_manager();
+        let device_id = "missing-switch";
+
+        let err = manager.switch_get_max(device_id).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+
+        let err = manager.switch_get_state(device_id, 0).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+
+        let err = manager.switch_set_state(device_id, 0, true).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+
+        let err = manager.switch_get_name(device_id, 0).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+
+        let err = manager.switch_get_description(device_id, 0).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+
+        let err = manager.switch_get_value(device_id, 0).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+
+        let err = manager.switch_set_value(device_id, 0, 1.0).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+
+        let err = manager.switch_get_min_value(device_id, 0).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+
+        let err = manager.switch_get_max_value(device_id, 0).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+
+        let err = manager.switch_can_write(device_id, 0).await.unwrap_err();
+        assert!(err.contains("Device not found"));
+    }
+
+    #[tokio::test]
+    async fn test_switch_get_max_reports_missing_alpaca_device() {
+        let manager = build_device_manager();
+        let device_id = "alpaca:test-switch";
+        let info = build_switch_info(device_id, DriverType::Alpaca);
+        manager.register_device(info, false).await;
+
+        let err = manager.switch_get_max(device_id).await.unwrap_err();
+        assert!(err.contains("Alpaca switch"));
     }
 }

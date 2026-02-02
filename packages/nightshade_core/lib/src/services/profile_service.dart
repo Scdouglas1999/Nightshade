@@ -9,18 +9,105 @@ import '../models/equipment/equipment_models.dart';
 import '../providers/database_provider.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/unified_discovery_provider.dart';
 import 'device_service.dart';
+
+/// Result of validating a profile's devices against discovered devices
+class ProfileValidationResult {
+  /// Whether all devices in the profile are available
+  final bool isValid;
+
+  /// List of device types that are configured in profile but not found
+  final List<String> missingDevices;
+
+  /// List of device types that are configured and available
+  final List<String> availableDevices;
+
+  /// Map of device type to device ID for devices that are missing
+  final Map<String, String> missingDeviceIds;
+
+  const ProfileValidationResult({
+    required this.isValid,
+    required this.missingDevices,
+    required this.availableDevices,
+    this.missingDeviceIds = const {},
+  });
+
+  /// Create a result indicating all devices are valid
+  const ProfileValidationResult.valid({
+    required this.availableDevices,
+  })  : isValid = true,
+        missingDevices = const [],
+        missingDeviceIds = const {};
+}
 
 /// Service for managing equipment profiles with auto-connect and import/export
 class ProfileService {
   final Ref _ref;
-  
+
   ProfileService(this._ref);
-  
+
+  // ===========================================================================
+  // Profile Validation
+  // ===========================================================================
+
+  /// Validate that all devices in a profile are currently discoverable
+  ///
+  /// Checks each device ID configured in the profile against currently
+  /// discovered devices. Returns a result indicating which devices are
+  /// available and which are missing.
+  Future<ProfileValidationResult> validateProfile(int profileId) async {
+    final dao = _ref.read(equipmentProfilesDaoProvider);
+    final profile = await dao.getProfileById(profileId);
+
+    if (profile == null) {
+      throw Exception('Profile not found');
+    }
+
+    // Get the current discovery state
+    final discoveryState = _ref.read(unifiedDiscoveryProvider);
+    final rawDevices = discoveryState.rawDevices;
+
+    // Build set of discovered device IDs for fast lookup
+    final discoveredIds = rawDevices.map((d) => d.id).toSet();
+
+    final missingDevices = <String>[];
+    final availableDevices = <String>[];
+    final missingDeviceIds = <String, String>{};
+
+    // Check each device type
+    void checkDevice(String? deviceId, String deviceType) {
+      if (deviceId != null && deviceId.isNotEmpty) {
+        if (discoveredIds.contains(deviceId)) {
+          availableDevices.add(deviceType);
+        } else {
+          missingDevices.add(deviceType);
+          missingDeviceIds[deviceType] = deviceId;
+        }
+      }
+    }
+
+    checkDevice(profile.cameraId, 'Camera');
+    checkDevice(profile.mountId, 'Mount');
+    checkDevice(profile.focuserId, 'Focuser');
+    checkDevice(profile.filterWheelId, 'Filter Wheel');
+    checkDevice(profile.guiderId, 'Guider');
+    checkDevice(profile.rotatorId, 'Rotator');
+    checkDevice(profile.domeId, 'Dome');
+    checkDevice(profile.weatherId, 'Weather');
+
+    return ProfileValidationResult(
+      isValid: missingDevices.isEmpty,
+      missingDevices: missingDevices,
+      availableDevices: availableDevices,
+      missingDeviceIds: missingDeviceIds,
+    );
+  }
+
   // ===========================================================================
   // Profile Loading with Auto-Connect
   // ===========================================================================
-  
+
   /// Load and activate a profile, optionally connecting devices
   Future<void> loadProfile(int profileId, {bool autoConnect = false}) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
@@ -306,6 +393,96 @@ class ProfileService {
     ));
   }
   
+  /// Save all currently connected devices to the active profile
+  ///
+  /// Reads current device states and updates the active profile with
+  /// all connected device IDs. Returns true if saved successfully.
+  Future<bool> saveConnectedDevicesToProfile() async {
+    final dao = _ref.read(equipmentProfilesDaoProvider);
+    final activeProfile = await dao.getActiveProfile();
+
+    if (activeProfile == null) {
+      debugPrint('ProfileService: No active profile to save devices to');
+      return false;
+    }
+
+    // Read all device states
+    final cameraState = _ref.read(cameraStateProvider);
+    final mountState = _ref.read(mountStateProvider);
+    final focuserState = _ref.read(focuserStateProvider);
+    final filterWheelState = _ref.read(filterWheelStateProvider);
+    final guiderState = _ref.read(guiderStateProvider);
+    final rotatorState = _ref.read(rotatorStateProvider);
+    final domeState = _ref.read(domeStateProvider);
+    final weatherState = _ref.read(weatherStateProvider);
+
+    // Collect connected device IDs
+    String? cameraId;
+    String? mountId;
+    String? focuserId;
+    String? filterWheelId;
+    String? guiderId;
+    String? rotatorId;
+    String? domeId;
+    String? weatherId;
+
+    if (cameraState.connectionState == DeviceConnectionState.connected) {
+      cameraId = cameraState.deviceId;
+    }
+    if (mountState.connectionState == DeviceConnectionState.connected) {
+      mountId = mountState.deviceId;
+    }
+    if (focuserState.connectionState == DeviceConnectionState.connected) {
+      focuserId = focuserState.deviceId;
+    }
+    if (filterWheelState.connectionState == DeviceConnectionState.connected) {
+      filterWheelId = filterWheelState.deviceId;
+    }
+    if (guiderState.connectionState == DeviceConnectionState.connected) {
+      guiderId = guiderState.deviceId;
+    }
+    if (rotatorState.connectionState == DeviceConnectionState.connected) {
+      rotatorId = rotatorState.deviceId;
+    }
+    if (domeState.connectionState == DeviceConnectionState.connected) {
+      domeId = domeState.deviceId;
+    }
+    if (weatherState.connectionState == DeviceConnectionState.connected) {
+      weatherId = weatherState.deviceId;
+    }
+
+    // Check if any devices are connected
+    final hasConnectedDevices = cameraId != null ||
+        mountId != null ||
+        focuserId != null ||
+        filterWheelId != null ||
+        guiderId != null ||
+        rotatorId != null ||
+        domeId != null ||
+        weatherId != null;
+
+    if (!hasConnectedDevices) {
+      debugPrint('ProfileService: No connected devices to save');
+      return false;
+    }
+
+    // Update the profile with connected device IDs
+    await dao.updateProfile(activeProfile.copyWith(
+      cameraId: Value(cameraId ?? activeProfile.cameraId),
+      mountId: Value(mountId ?? activeProfile.mountId),
+      focuserId: Value(focuserId ?? activeProfile.focuserId),
+      filterWheelId: Value(filterWheelId ?? activeProfile.filterWheelId),
+      guiderId: Value(guiderId ?? activeProfile.guiderId),
+      rotatorId: Value(rotatorId ?? activeProfile.rotatorId),
+      domeId: Value(domeId ?? activeProfile.domeId),
+      weatherId: Value(weatherId ?? activeProfile.weatherId),
+      updatedAt: DateTime.now(),
+    ));
+
+    debugPrint('ProfileService: Saved connected devices to profile "${activeProfile.name}"');
+    return true;
+  }
+
   /// Update profile filter configuration
   Future<void> updateProfileFilters(
     int profileId, {

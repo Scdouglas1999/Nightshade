@@ -38,7 +38,7 @@ enum AscomMountCommand {
     IsParked(oneshot::Sender<Result<bool, String>>),
     CanPark(oneshot::Sender<Result<bool, String>>),
     GetCapabilities(oneshot::Sender<Result<AscomMountCapabilities, String>>),
-    Stop(oneshot::Sender<()>),
+    Stop(oneshot::Sender<Result<(), String>>),
     AbortSlew(oneshot::Sender<Result<(), String>>),
     SetTracking(bool, oneshot::Sender<Result<(), String>>),
     GetTracking(oneshot::Sender<Result<bool, String>>),
@@ -331,12 +331,16 @@ impl AscomMountWrapper {
                         }
                     }
                     AscomMountCommand::Stop(reply) => {
-                        uninit_com();
-                        let _ = reply.send(());
-                        break;
+                        if let Some(m) = &mut mount {
+                            let _ = reply.send(m.abort_slew().map_err(|e| e.to_string()));
+                        } else {
+                            let _ = reply.send(Err("Mount not created".to_string()));
+                        }
                     }
                 }
             }
+
+            uninit_com();
         });
         
         Ok(Self {
@@ -375,7 +379,34 @@ impl AscomMountWrapper {
             .send(AscomMountCommand::GetCapabilities(tx))
             .await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
-        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_capabilities").await
+        let mut caps = Self::recv_with_timeout(rx, Timeouts::property_read(), "get_capabilities").await?;
+        match self.can_park().await {
+            Ok(can_park) => {
+                caps.can_park = can_park;
+            }
+            Err(err) => {
+                tracing::warn!("Failed to query mount CanPark: {}", err);
+            }
+        }
+        Ok(caps)
+    }
+
+    pub async fn can_park(&self) -> Result<bool, NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomMountCommand::CanPark(tx))
+            .await
+            .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "can_park").await
+    }
+
+    pub async fn stop(&self) -> Result<(), NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomMountCommand::Stop(tx))
+            .await
+            .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::connection(), "stop").await
     }
 }
 
@@ -405,10 +436,18 @@ impl NativeDevice for AscomMountWrapper {
     }
 
     async fn disconnect(&mut self) -> Result<(), NativeError> {
+        let stop_result = self.stop().await;
+        if let Err(err) = &stop_result {
+            tracing::warn!("Failed to stop mount before disconnect: {}", err);
+        }
         let (tx, rx) = oneshot::channel();
         self.sender.send(AscomMountCommand::Disconnect(tx)).await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
-        Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await
+        let disconnect_result = Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await;
+        match disconnect_result {
+            Err(err) => Err(err),
+            Ok(()) => stop_result,
+        }
     }
 }
 
@@ -614,6 +653,163 @@ impl AscomMountWrapper {
             .await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "supported_actions").await
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+
+    #[derive(Debug, Clone)]
+    pub struct TestMountResponses {
+        pub coordinates: (f64, f64),
+        pub alt_az: (f64, f64),
+        pub tracking: bool,
+        pub slewing: bool,
+        pub parked: bool,
+        pub side_of_pier: nightshade_native::traits::PierSide,
+        pub sidereal_time: f64,
+        pub can_park: bool,
+    }
+
+    impl Default for TestMountResponses {
+        fn default() -> Self {
+            Self {
+                coordinates: (0.0, 0.0),
+                alt_az: (0.0, 0.0),
+                tracking: false,
+                slewing: false,
+                parked: false,
+                side_of_pier: nightshade_native::traits::PierSide::Unknown,
+                sidereal_time: 0.0,
+                can_park: false,
+            }
+        }
+    }
+
+    pub fn build_test_mount_wrapper(responses: TestMountResponses) -> AscomMountWrapper {
+        let (tx, mut rx) = mpsc::channel(8);
+        let handle = thread::spawn(move || {
+            while let Some(cmd) = rx.blocking_recv() {
+                match cmd {
+                    AscomMountCommand::GetCoordinates(reply) => {
+                        let _ = reply.send(Ok(responses.coordinates));
+                    }
+                    AscomMountCommand::GetAltAz(reply) => {
+                        let _ = reply.send(Ok(responses.alt_az));
+                    }
+                    AscomMountCommand::GetTracking(reply) => {
+                        let _ = reply.send(Ok(responses.tracking));
+                    }
+                    AscomMountCommand::IsSlewing(reply) => {
+                        let _ = reply.send(Ok(responses.slewing));
+                    }
+                    AscomMountCommand::IsParked(reply) => {
+                        let _ = reply.send(Ok(responses.parked));
+                    }
+                    AscomMountCommand::GetSideOfPier(reply) => {
+                        let _ = reply.send(Ok(responses.side_of_pier));
+                    }
+                    AscomMountCommand::GetSiderealTime(reply) => {
+                        let _ = reply.send(Ok(responses.sidereal_time));
+                    }
+                    AscomMountCommand::CanPark(reply) => {
+                        let _ = reply.send(Ok(responses.can_park));
+                    }
+                    AscomMountCommand::Stop(reply) => {
+                        let _ = reply.send(Ok(()));
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        AscomMountWrapper {
+            id: "test-mount".to_string(),
+            name: "Test Mount".to_string(),
+            sender: tx,
+            _thread_handle: Arc::new(handle),
+        }
+    }
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    fn build_test_wrapper<F>(handler: F) -> AscomMountWrapper
+    where
+        F: FnMut(AscomMountCommand) -> bool + Send + 'static,
+    {
+        let (tx, mut rx) = mpsc::channel(8);
+        let handle = thread::spawn(move || {
+            let mut handler = handler;
+            while let Some(cmd) = rx.blocking_recv() {
+                if handler(cmd) {
+                    break;
+                }
+            }
+        });
+
+        AscomMountWrapper {
+            id: "test-mount".to_string(),
+            name: "Test Mount".to_string(),
+            sender: tx,
+            _thread_handle: Arc::new(handle),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_capabilities_uses_can_park_command() {
+        let wrapper = build_test_wrapper(|cmd| {
+            match cmd {
+                AscomMountCommand::GetCapabilities(reply) => {
+                    let caps = AscomMountCapabilities {
+                        can_park: false,
+                        ..Default::default()
+                    };
+                    let _ = reply.send(Ok(caps));
+                }
+                AscomMountCommand::CanPark(reply) => {
+                    let _ = reply.send(Ok(true));
+                }
+                _ => {}
+            }
+            false
+        });
+
+        let caps = wrapper.get_capabilities().await.expect("get_capabilities");
+        assert!(caps.can_park);
+    }
+
+    #[tokio::test]
+    async fn test_disconnect_stops_before_disconnect() {
+        let order = Arc::new(Mutex::new(Vec::new()));
+        let order_flag = Arc::clone(&order);
+        let mut wrapper = build_test_wrapper(move |cmd| {
+            match cmd {
+                AscomMountCommand::Disconnect(reply) => {
+                    order_flag.lock().expect("lock order").push("disconnect");
+                    let _ = reply.send(Ok(()));
+                }
+                AscomMountCommand::Stop(reply) => {
+                    order_flag.lock().expect("lock order").push("stop");
+                    let _ = reply.send(Ok(()));
+                }
+                _ => {}
+            }
+            let done = order_flag.lock().expect("lock order").len() >= 2;
+            done
+        });
+
+        wrapper.disconnect().await.expect("disconnect");
+        let order = order.lock().expect("lock order");
+        assert_eq!(order.as_slice(), ["stop", "disconnect"]);
     }
 }
 

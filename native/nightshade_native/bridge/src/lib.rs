@@ -175,14 +175,6 @@ fn try_create_runtime_with_fallbacks() -> Result<Runtime, String> {
     }
 }
 
-/// Try to create a runtime, returning an error instead of panicking
-/// Use this for cases where failure can be handled gracefully
-pub(crate) fn try_create_runtime() -> Result<Runtime, NightshadeError> {
-    Runtime::new().map_err(|e| {
-        NightshadeError::RuntimeInitFailed(format!("Failed to create Tokio runtime: {}", e))
-    })
-}
-
 /// Tracks whether the panic handler has been installed.
 /// Used to prevent installing the panic hook multiple times.
 static PANIC_HANDLER_INSTALLED: AtomicBool = AtomicBool::new(false);

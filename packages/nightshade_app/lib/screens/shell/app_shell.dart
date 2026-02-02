@@ -10,6 +10,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import '../../widgets/catalog_setup_dialog.dart';
 import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/mobile_sequence_overlay.dart';
+import '../../widgets/notification_toast_overlay.dart';
 import '../../widgets/weather/weather_alert_banner.dart';
 import 'widgets/title_bar.dart';
 import 'widgets/status_bar.dart';
@@ -203,7 +204,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 800;
+        final isMobile = constraints.maxWidth < NightshadeTokens.breakpointTablet;
 
         return TutorialOverlay(
           child: Scaffold(
@@ -290,6 +291,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                               // Mobile sequence overlay (only on mobile and sequencer screen)
                               if (isMobile && currentIndex == 4)
                                 const MobileSequenceOverlay(),
+                              // Toast notifications - always on top
+                              const NotificationToastOverlay(),
                             ],
                           ),
                         ),

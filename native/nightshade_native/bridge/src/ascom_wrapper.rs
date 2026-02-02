@@ -71,7 +71,7 @@ enum AscomCommand {
     GetDriverInfo(oneshot::Sender<Result<String, String>>),
     /// Get list of supported actions
     GetSupportedActions(oneshot::Sender<Result<Vec<String>, String>>),
-    Stop(oneshot::Sender<()>),
+    Stop(oneshot::Sender<Result<(), String>>),
 }
 
 /// Wrapper for ASCOM Camera that runs on a dedicated thread to support STA and Send/Sync
@@ -103,6 +103,9 @@ impl AscomCameraWrapper {
                 Err(e) => tracing::error!("Failed to create ASCOM camera {}: {}", prog_id_clone, e),
             }
             
+            // Track the last set temperature setpoint (ASCOM SetCCDTemperature is write-only)
+            let mut last_target_temp: Option<f64> = None;
+
             while let Some(cmd) = rx.blocking_recv() {
                 match cmd {
                     AscomCommand::Connect(reply) => {
@@ -150,9 +153,9 @@ impl AscomCameraWrapper {
                                 tracing::debug!("ASCOM cooler power: {}%", power);
                             }
 
-                            // Determine target temp (ASCOM SetCCDTemperature is write-only)
+                            // Use tracked target temp (ASCOM SetCCDTemperature is write-only)
                             let target_temp = if full_status.thermal.can_set_temperature.unwrap_or(false) {
-                                Some(-10.0) // Default target, would need to track actual setpoint
+                                last_target_temp
                             } else {
                                 None
                             };
@@ -400,6 +403,10 @@ impl AscomCameraWrapper {
                             let result = cam.set_ccd_temperature(target_temp)
                                 .and_then(|_| cam.set_cooler_on(enabled))
                                 .map_err(|e| format!("Failed to set cooler: {}", e));
+                            if result.is_ok() {
+                                // Track the setpoint since ASCOM SetCCDTemperature is write-only
+                                last_target_temp = Some(target_temp);
+                            }
                             let _ = reply.send(result);
                         } else {
                             let _ = reply.send(Err("Camera not created".to_string()));
@@ -457,8 +464,13 @@ impl AscomCameraWrapper {
                         }
                     }
                     AscomCommand::Stop(reply) => {
-                        let _ = reply.send(());
-                        break;
+                        if let Some(cam) = &mut camera {
+                            let result = cam.stop_exposure()
+                                .map_err(|e| format!("Failed to stop exposure: {}", e));
+                            let _ = reply.send(result);
+                        } else {
+                            let _ = reply.send(Err("Camera not created".to_string()));
+                        }
                     }
                 }
             }
@@ -573,6 +585,71 @@ impl AscomCameraWrapper {
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "supported_actions").await
     }
+
+    pub async fn stop_exposure(&mut self) -> Result<(), NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomCommand::Stop(tx))
+            .await
+            .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_write(), "stop_exposure").await
+    }
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    fn build_test_wrapper<F>(handler: F) -> AscomCameraWrapper
+    where
+        F: FnMut(AscomCommand) -> bool + Send + 'static,
+    {
+        let (tx, mut rx) = mpsc::channel(8);
+        let handle = thread::spawn(move || {
+            let mut handler = handler;
+            while let Some(cmd) = rx.blocking_recv() {
+                if handler(cmd) {
+                    break;
+                }
+            }
+        });
+
+        AscomCameraWrapper {
+            id: "test-camera".to_string(),
+            name: "Test Camera".to_string(),
+            sender: tx,
+            _thread_handle: Arc::new(handle),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_disconnect_sends_stop_command() {
+        let stop_called = Arc::new(AtomicBool::new(false));
+        let stop_flag = Arc::clone(&stop_called);
+
+        let mut wrapper = build_test_wrapper(move |cmd| {
+            match cmd {
+                AscomCommand::Stop(reply) => {
+                    stop_flag.store(true, Ordering::SeqCst);
+                    let _ = reply.send(Ok(()));
+                }
+                AscomCommand::Disconnect(reply) => {
+                    let _ = reply.send(Ok(()));
+                    return true;
+                }
+                _ => {}
+            }
+            false
+        });
+
+        wrapper.disconnect().await.expect("disconnect");
+        assert!(stop_called.load(Ordering::SeqCst));
+    }
 }
 
 #[async_trait::async_trait]
@@ -602,6 +679,9 @@ impl NativeDevice for AscomCameraWrapper {
     }
 
     async fn disconnect(&mut self) -> Result<(), NativeError> {
+        if let Err(err) = self.stop_exposure().await {
+            tracing::warn!("Failed to stop exposure before disconnect: {}", err);
+        }
         let (tx, rx) = oneshot::channel();
         self.sender.send(AscomCommand::Disconnect(tx)).await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;

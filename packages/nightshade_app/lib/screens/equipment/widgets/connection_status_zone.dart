@@ -17,6 +17,7 @@ class ConnectionStatusZone extends ConsumerStatefulWidget {
   final VoidCallback onConnectAll;
   final VoidCallback onDisconnectAll;
   final VoidCallback onEditProfile;
+  final VoidCallback? onSaveSetup;
 
   const ConnectionStatusZone({
     super.key,
@@ -24,6 +25,7 @@ class ConnectionStatusZone extends ConsumerStatefulWidget {
     required this.onConnectAll,
     required this.onDisconnectAll,
     required this.onEditProfile,
+    this.onSaveSetup,
   });
 
   @override
@@ -115,6 +117,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
               colors: colors,
               onTap: _toggle,
               onDisconnect: widget.onDisconnectAll,
+              onSaveSetup: widget.onSaveSetup,
             ),
 
           // Expandable content
@@ -164,17 +167,6 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
       case _OverallState.connected:
         // Compact bar handles this
         return const SizedBox.shrink();
-      case _OverallState.mismatch:
-        return _ErrorView(
-          devices: devices,
-          errorDevice: errorDevice,
-          connectedCount: connectedCount,
-          totalCount: totalCount,
-          colors: colors,
-          onRetry: widget.onConnectAll,
-          onSkip: _collapse, // Dismiss mismatch warning and continue
-          isMismatch: true,
-        );
       case _OverallState.partiallyConnected:
       case _OverallState.error:
         return _ErrorView(
@@ -184,7 +176,8 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
           totalCount: totalCount,
           colors: colors,
           onRetry: widget.onConnectAll,
-          onSkip: _collapse, // Dismiss error and continue with partial connections
+          onSkip: () {}, // TODO: Implement skip
+          onSaveSetup: widget.onSaveSetup,
         );
     }
   }
@@ -217,132 +210,13 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
   ) {
     final devices = <_DeviceStatus>[];
 
-    // Helper to check if connected device matches profile
-    // Uses flexible matching that handles different ID formats while still
-    // distinguishing between different models (e.g., ASI1600 vs ASI178)
-    bool isDeviceMismatch(String? profileId, String? connectedId, DeviceConnectionState state) {
-      if (state != DeviceConnectionState.connected) return false; // Not connected, no mismatch
-      if (profileId == null || connectedId == null) return false; // No ID to compare
-
-      // Debug logging
-      debugPrint('[MISMATCH CHECK] Profile: "$profileId" vs Connected: "$connectedId"');
-
-      final p = profileId.trim().toLowerCase();
-      final c = connectedId.trim().toLowerCase();
-
-      // Direct match
-      if (p == c) {
-        debugPrint('[MISMATCH CHECK] Direct match - no mismatch');
-        return false;
-      }
-
-      // Normalize by removing all non-alphanumeric characters
-      final normP = p.replaceAll(RegExp(r'[^a-z0-9]'), '');
-      final normC = c.replaceAll(RegExp(r'[^a-z0-9]'), '');
-      if (normP == normC) {
-        debugPrint('[MISMATCH CHECK] Normalized match - no mismatch');
-        return false;
-      }
-
-      // One contains the other (handles "ZWO EAF" containing "eaf")
-      if (normP.contains(normC) || normC.contains(normP)) {
-        debugPrint('[MISMATCH CHECK] Containment match - no mismatch');
-        return false;
-      }
-
-      // Split into words first to preserve word boundaries
-      // This ensures "phd2_guider" splits into ["phd2", "guider"] not ["phd2guider"]
-      final profileWords = p.split(RegExp(r'[_\-\s:\.]+'))
-          .map((w) => w.replaceAll(RegExp(r'[^a-z0-9]'), ''))
-          .where((w) => w.isNotEmpty)
-          .toList();
-      final connectedWords = c.split(RegExp(r'[_\-\s:\.]+'))
-          .map((w) => w.replaceAll(RegExp(r'[^a-z0-9]'), ''))
-          .where((w) => w.isNotEmpty)
-          .toList();
-
-      debugPrint('[MISMATCH CHECK] Profile words: $profileWords, Connected words: $connectedWords');
-
-      // Find words that contain numbers (most distinguishing identifiers)
-      final profileNumbered = profileWords.where((w) => RegExp(r'\d').hasMatch(w)).toSet();
-      final connectedNumbered = connectedWords.where((w) => RegExp(r'\d').hasMatch(w)).toSet();
-
-      debugPrint('[MISMATCH CHECK] Profile numbered: $profileNumbered, Connected numbered: $connectedNumbered');
-
-      // If both have numbered identifiers, they must share at least one
-      // This ensures ASI1600 doesn't match ASI178, but phd2 matches phd2
-      if (profileNumbered.isNotEmpty && connectedNumbered.isNotEmpty) {
-        if (profileNumbered.intersection(connectedNumbered).isNotEmpty) {
-          debugPrint('[MISMATCH CHECK] Numbered identifier match - no mismatch');
-          return false; // Match - same model number
-        }
-        // Check if one model contains another (e.g., "asi1600mmcool" contains "asi1600")
-        for (final pm in profileNumbered) {
-          for (final cm in connectedNumbered) {
-            if (pm.contains(cm) || cm.contains(pm)) {
-              debugPrint('[MISMATCH CHECK] Numbered containment match: $pm / $cm - no mismatch');
-              return false;
-            }
-          }
-        }
-        debugPrint('[MISMATCH CHECK] Different numbered identifiers - MISMATCH');
-        return true; // Different model numbers = different devices
-      }
-
-      // Use the words we already split for token matching
-      final pTokens = profileWords.where((t) => t.length >= 2).toSet();
-      final cTokens = connectedWords.where((t) => t.length >= 2).toSet();
-
-      if (pTokens.isEmpty || cTokens.isEmpty) {
-        debugPrint('[MISMATCH CHECK] Empty token sets - assuming mismatch');
-        return true;
-      }
-
-      // Check for matching tokens (handles "guider" vs "guiding" via common stem)
-      int matches = 0;
-      for (final pt in pTokens) {
-        for (final ct in cTokens) {
-          if (pt == ct || pt.contains(ct) || ct.contains(pt)) {
-            matches++;
-            break;
-          }
-          // Check for common stem (4+ chars) for word variations like "guider" vs "guiding"
-          if (pt.length >= 4 && ct.length >= 4) {
-            // Find longest common prefix
-            int commonLen = 0;
-            final minLen = pt.length < ct.length ? pt.length : ct.length;
-            for (int i = 0; i < minLen; i++) {
-              if (pt[i] == ct[i]) {
-                commonLen++;
-              } else {
-                break;
-              }
-            }
-            // If they share a stem of 4+ characters, consider it a match
-            if (commonLen >= 4) {
-              debugPrint('[MISMATCH CHECK] Token stem match: "$pt" and "$ct" share ${commonLen}-char prefix');
-              matches++;
-              break;
-            }
-          }
-        }
-      }
-
-      // Require significant overlap
-      final minTokens = pTokens.length < cTokens.length ? pTokens.length : cTokens.length;
-      final isMismatch = matches < (minTokens * 0.5).ceil(); // Mismatch if < 50% overlap
-      debugPrint('[MISMATCH CHECK] Token match result: $matches/$minTokens tokens matched, isMismatch=$isMismatch');
-      return isMismatch;
-    }
-
     if (profile.cameraId != null) {
       devices.add(_DeviceStatus(
         type: 'Camera',
         name: camera.deviceName ?? _formatDeviceId(profile.cameraId!),
         icon: LucideIcons.camera,
         state: camera.connectionState,
-        error: camera.lastError?.userMessage,
-        isMismatch: isDeviceMismatch(profile.cameraId, camera.deviceId, camera.connectionState),
+        error: null, // TODO: Get actual error
       ));
     }
 
@@ -352,8 +226,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: mount.deviceName ?? _formatDeviceId(profile.mountId!),
         icon: LucideIcons.compass,
         state: mount.connectionState,
-        error: mount.lastError?.userMessage,
-        isMismatch: isDeviceMismatch(profile.mountId, mount.deviceId, mount.connectionState),
+        error: null,
       ));
     }
 
@@ -363,8 +236,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: focuser.deviceName ?? _formatDeviceId(profile.focuserId!),
         icon: LucideIcons.focus,
         state: focuser.connectionState,
-        error: focuser.lastError?.userMessage,
-        isMismatch: isDeviceMismatch(profile.focuserId, focuser.deviceId, focuser.connectionState),
+        error: null,
       ));
     }
 
@@ -374,8 +246,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: filterWheel.deviceName ?? _formatDeviceId(profile.filterWheelId!),
         icon: LucideIcons.circle,
         state: filterWheel.connectionState,
-        error: filterWheel.lastError?.userMessage,
-        isMismatch: isDeviceMismatch(profile.filterWheelId, filterWheel.deviceId, filterWheel.connectionState),
+        error: null,
       ));
     }
 
@@ -385,132 +256,18 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: guider.deviceName ?? _formatDeviceId(profile.guiderId!),
         icon: LucideIcons.crosshair,
         state: guider.connectionState,
-        error: guider.lastError?.userMessage,
-        isMismatch: isDeviceMismatch(profile.guiderId, guider.deviceId, guider.connectionState),
+        error: null,
       ));
     }
 
     return devices;
   }
 
-  /// Extracts a user-friendly name from a device ID
-  /// Handles formats like:
-  /// - native:zwo:1 → "ZWO #2"
-  /// - native:zwo_eaf:0 → "ZWO EAF"
-  /// - ascom:ASCOM.PegasusAstroNYX101.Telescope → "PegasusAstro NYX101"
-  /// - phd2_guider → "PHD2 Guider"
   String _formatDeviceId(String id) {
-    final lowerId = id.toLowerCase();
-
-    // Handle native device IDs (native:vendor:index or native:vendor_type:index)
-    if (lowerId.startsWith('native:')) {
-      final parts = id.substring(7).split(':'); // Remove "native:" prefix
-      if (parts.isNotEmpty) {
-        final devicePart = parts[0]; // e.g., "zwo", "zwo_eaf", "zwo_efw"
-        final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
-
-        // Parse vendor_type format
-        if (devicePart.contains('_')) {
-          final subParts = devicePart.split('_');
-          final vendor = _capitalizeVendor(subParts[0]);
-          final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
-          return '$vendor $type';
-        }
-
-        // Just vendor with index
-        final vendor = _capitalizeVendor(devicePart);
-        if (index != null) {
-          return '$vendor #${index + 1}';
-        }
-        return vendor;
-      }
-    }
-
-    // Handle ASCOM device IDs (ascom:ASCOM.Vendor.Type)
-    if (lowerId.startsWith('ascom:')) {
-      final ascomId = id.substring(6); // Remove "ascom:" prefix
-      final parts = ascomId.split('.');
-      if (parts.length >= 2) {
-        // Try to extract vendor and model from ASCOM ID
-        // e.g., "ASCOM.PegasusAstroNYX101.Telescope" → "PegasusAstro NYX101"
-        // e.g., "ASCOM.ASICamera2.Camera" → "ASI Camera"
-        final vendorPart = parts.length > 1 ? parts[1] : parts[0];
-        return _formatAscomVendor(vendorPart);
-      }
-    }
-
-    // Handle Alpaca device IDs
-    if (lowerId.startsWith('alpaca:')) {
-      final parts = id.substring(7).split(':');
-      if (parts.isNotEmpty) {
-        final type = _capitalizeWord(parts[0]);
-        final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
-        if (index != null) {
-          return 'Alpaca $type #${index + 1}';
-        }
-        return 'Alpaca $type';
-      }
-    }
-
-    // Handle special IDs like phd2_guider
-    if (lowerId.contains('phd2')) {
-      return 'PHD2 Guiding';
-    }
-
-    // Handle dot-separated IDs (fallback for ASCOM-style)
     if (id.contains('.')) {
-      final parts = id.split('.');
-      return _formatAscomVendor(parts[parts.length > 1 ? 1 : 0]);
+      return id.split('.').last;
     }
-
-    // Handle underscore-separated IDs
-    if (id.contains('_')) {
-      return id.split('_').map(_capitalizeWord).join(' ');
-    }
-
-    // Return as-is if no pattern matched
     return id;
-  }
-
-  String _capitalizeVendor(String vendor) {
-    final lower = vendor.toLowerCase();
-    // Known vendor name capitalizations
-    const vendors = {
-      'zwo': 'ZWO',
-      'qhy': 'QHY',
-      'asi': 'ASI',
-      'svbony': 'SVBony',
-      'atik': 'Atik',
-      'fli': 'FLI',
-      'moravian': 'Moravian',
-      'touptek': 'Touptek',
-      'playerone': 'Player One',
-      'pegasus': 'Pegasus',
-      'skywatcher': 'Sky-Watcher',
-      'ioptron': 'iOptron',
-    };
-    return vendors[lower] ?? _capitalizeWord(vendor);
-  }
-
-  String _formatAscomVendor(String vendorPart) {
-    // Insert spaces before capital letters and clean up
-    // "PegasusAstroNYX101" → "Pegasus Astro NYX101"
-    // "ASICamera2" → "ASI Camera 2"
-    final spaced = vendorPart.replaceAllMapped(
-      RegExp(r'([a-z])([A-Z])'),
-      (m) => '${m[1]} ${m[2]}',
-    );
-    // Also handle number transitions
-    final withNumbers = spaced.replaceAllMapped(
-      RegExp(r'([A-Za-z])(\d)'),
-      (m) => '${m[1]} ${m[2]}',
-    );
-    return withNumbers.replaceAll(RegExp(r'_+'), ' ').trim();
-  }
-
-  String _capitalizeWord(String word) {
-    if (word.isEmpty) return word;
-    return word[0].toUpperCase() + word.substring(1).toLowerCase();
   }
 
   (_OverallState, int, int, _DeviceStatus?) _calculateOverallState(
@@ -523,19 +280,12 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
     int connected = 0;
     int connecting = 0;
     int error = 0;
-    int mismatched = 0;
     _DeviceStatus? errorDevice;
-    _DeviceStatus? mismatchDevice;
 
     for (final device in devices) {
       switch (device.state) {
         case DeviceConnectionState.connected:
-          if (device.isMismatch) {
-            mismatched++;
-            mismatchDevice ??= device;
-          } else {
-            connected++;
-          }
+          connected++;
           break;
         case DeviceConnectionState.connecting:
           connecting++;
@@ -553,11 +303,6 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
 
     if (connecting > 0) {
       return (_OverallState.connecting, connected, total, null);
-    }
-
-    // Check for mismatches - connected devices don't match profile
-    if (mismatched > 0) {
-      return (_OverallState.mismatch, connected, total, mismatchDevice);
     }
 
     if (error > 0 && connected == 0) {
@@ -582,8 +327,6 @@ enum _OverallState {
   connected,
   partiallyConnected,
   error,
-  /// Devices are connected but don't match the profile's device IDs
-  mismatch,
 }
 
 class _DeviceStatus {
@@ -592,8 +335,6 @@ class _DeviceStatus {
   final IconData icon;
   final DeviceConnectionState state;
   final String? error;
-  /// Whether the connected device doesn't match the profile's expected device ID
-  final bool isMismatch;
 
   _DeviceStatus({
     required this.type,
@@ -601,7 +342,6 @@ class _DeviceStatus {
     required this.icon,
     required this.state,
     this.error,
-    this.isMismatch = false,
   });
 }
 
@@ -667,6 +407,7 @@ class _CompactStatusBar extends StatelessWidget {
   final NightshadeColors colors;
   final VoidCallback onTap;
   final VoidCallback onDisconnect;
+  final VoidCallback? onSaveSetup;
 
   const _CompactStatusBar({
     required this.connectedCount,
@@ -676,6 +417,7 @@ class _CompactStatusBar extends StatelessWidget {
     required this.colors,
     required this.onTap,
     required this.onDisconnect,
+    this.onSaveSetup,
   });
 
   @override
@@ -744,6 +486,23 @@ class _CompactStatusBar extends StatelessWidget {
               }),
 
               const Spacer(),
+
+              // Save Setup button (when there are connected devices)
+              if (connectedCount > 0 && onSaveSetup != null)
+                Tooltip(
+                  message: 'Save all connected devices to profile',
+                  child: IconButton(
+                    onPressed: onSaveSetup,
+                    icon: Icon(
+                      LucideIcons.save,
+                      size: 16,
+                      color: colors.textSecondary,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  ),
+                ),
 
               // Disconnect button (only when connected)
               if (overallState == _OverallState.connected)
@@ -878,13 +637,13 @@ class _DisconnectedView extends StatelessWidget {
               const SizedBox(width: 12),
               OutlinedButton(
                 onPressed: onEdit,
-                child: const Text('Edit Profile'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: colors.textSecondary,
                   side: BorderSide(color: colors.border),
                   padding:
                       const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
                 ),
+                child: const Text('Edit Profile'),
               ),
             ],
           ),
@@ -1041,7 +800,7 @@ class _ErrorView extends StatelessWidget {
   final NightshadeColors colors;
   final VoidCallback onRetry;
   final VoidCallback onSkip;
-  final bool isMismatch;
+  final VoidCallback? onSaveSetup;
 
   const _ErrorView({
     required this.devices,
@@ -1051,7 +810,7 @@ class _ErrorView extends StatelessWidget {
     required this.colors,
     required this.onRetry,
     required this.onSkip,
-    this.isMismatch = false,
+    this.onSaveSetup,
   });
 
   @override
@@ -1061,15 +820,13 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Error or mismatch header
+          // Error header
           Row(
             children: [
               Icon(LucideIcons.alertTriangle, size: 18, color: colors.warning),
               const SizedBox(width: 12),
               Text(
-                isMismatch
-                    ? 'Profile Mismatch'
-                    : '$connectedCount/$totalCount Connected',
+                '$connectedCount/$totalCount Connected',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -1077,6 +834,26 @@ class _ErrorView extends StatelessWidget {
                 ),
               ),
               const Spacer(),
+              // Save Setup button (if devices are connected)
+              if (connectedCount > 0 && onSaveSetup != null) ...[
+                Tooltip(
+                  message: 'Save connected devices to profile',
+                  child: OutlinedButton.icon(
+                    onPressed: onSaveSetup,
+                    icon: Icon(LucideIcons.save, size: 14, color: colors.textSecondary),
+                    label: Text(
+                      'Save Setup',
+                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colors.textSecondary,
+                      side: BorderSide(color: colors.border),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               FilledButton(
                 onPressed: onRetry,
                 style: FilledButton.styleFrom(
@@ -1085,40 +862,12 @@ class _ErrorView extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 ),
-                child: Text(isMismatch ? 'Reconnect' : 'Retry'),
+                child: const Text('Retry'),
               ),
             ],
           ),
 
-          // Show mismatch warning
-          if (isMismatch) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.warning.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(LucideIcons.alertTriangle, size: 16, color: colors.warning),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Connected devices don\'t match the profile. Reconnect to use profile devices.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.warning,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          if (errorDevice != null && !isMismatch) ...[
+          if (errorDevice != null) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),

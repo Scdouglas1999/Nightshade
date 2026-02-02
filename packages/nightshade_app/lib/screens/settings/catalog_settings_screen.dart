@@ -4,6 +4,9 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
 
+import '../../utils/confirm_dialog.dart';
+import '../../utils/snackbar_helper.dart';
+
 /// Screen for managing astronomical catalog downloads and settings
 class CatalogSettingsScreen extends ConsumerStatefulWidget {
   const CatalogSettingsScreen({super.key});
@@ -119,12 +122,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
       await _loadCatalogStatus();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Catalogs downloaded successfully!'),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
+        context.showSuccessSnackBar('Catalogs downloaded successfully!');
       }
     } catch (e) {
       _showError('Download failed: $e');
@@ -163,12 +161,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
         if (success) {
           await _loadCatalogStatus();
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Catalog imported successfully!'),
-                backgroundColor: Colors.green.shade700,
-              ),
-            );
+            context.showSuccessSnackBar('Catalog imported successfully!');
           }
         } else {
           _showError('Failed to import catalog');
@@ -186,48 +179,28 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
   }
 
   Future<void> _deleteCatalogs() async {
-    final confirm = await showDialog<bool>(
+    final confirm = await ConfirmDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Catalogs'),
-        content: const Text(
-          'Are you sure you want to delete all downloaded catalogs? '
+      title: 'Delete Catalogs',
+      message: 'Are you sure you want to delete all downloaded catalogs? '
           'You will need to download them again to use the planetarium features.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete',
+      isDestructive: true,
     );
 
-    if (confirm == true) {
+    if (confirm) {
       await CatalogManager.instance.deleteCatalogs();
       await _loadCatalogStatus();
-      
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Catalogs deleted')),
-        );
+        context.showInfoSnackBar('Catalogs deleted');
       }
     }
   }
 
   void _showError(String message) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red.shade700,
-        ),
-      );
+      context.showErrorSnackBar(message);
     }
   }
 
@@ -988,12 +961,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
       await _loadCatalogStatus();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('GLADE+ catalog downloaded successfully!'),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
+        context.showSuccessSnackBar('GLADE+ catalog downloaded successfully!');
       }
     } catch (e) {
       _showError('Download failed: $e');
@@ -1032,12 +1000,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
         if (success) {
           await _loadCatalogStatus();
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('GLADE+ catalog imported successfully!'),
-                backgroundColor: Colors.green.shade700,
-              ),
-            );
+            context.showSuccessSnackBar('GLADE+ catalog imported successfully!');
           }
         } else {
           _showError('Failed to import annotation catalog');
@@ -1055,36 +1018,21 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
   }
 
   Future<void> _deleteAnnotationCatalog() async {
-    final confirm = await showDialog<bool>(
+    final confirm = await ConfirmDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Annotation Catalog'),
-        content: const Text(
-          'Are you sure you want to delete the annotation catalog? '
+      title: 'Delete Annotation Catalog',
+      message: 'Are you sure you want to delete the annotation catalog? '
           'You will need to download it again to use image annotation features.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete',
+      isDestructive: true,
     );
 
-    if (confirm == true) {
+    if (confirm) {
       await CatalogManager.instance.deleteAnnotationCatalog();
       await _loadCatalogStatus();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Annotation catalog deleted')),
-        );
+        context.showInfoSnackBar('Annotation catalog deleted');
       }
     }
   }

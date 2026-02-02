@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/update_manifest.dart';
@@ -45,6 +46,17 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
     _lanPushReceiver.onUpdateReceived = _onLanPushReceived;
     _lanPushReceiver.onProgress = _onLanPushProgress;
     _lanPushReceiver.onError = _onLanPushError;
+
+    final envServerUrl = Platform.environment['NIGHTSHADE_UPDATE_SERVER'];
+    if (envServerUrl != null && envServerUrl.trim().isNotEmpty) {
+      final envChannel = Platform.environment['NIGHTSHADE_UPDATE_CHANNEL'];
+      configure(
+        serverUrl: envServerUrl.trim(),
+        channel: (envChannel != null && envChannel.trim().isNotEmpty)
+            ? envChannel.trim()
+            : 'stable',
+      );
+    }
   }
 
   /// Configure the update server
@@ -72,6 +84,15 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   /// Check for updates
   Future<void> checkForUpdates() async {
     if (state.isBusy) return;
+    if (state.updateServerUrl == null || state.updateServerUrl!.isEmpty) {
+      print('[UpdateNotifier] Update server URL not configured, skipping update check');
+      state = state.copyWith(
+        status: UpdateStatus.upToDate,
+        lastCheckTime: DateTime.now(),
+        errorMessage: null,
+      );
+      return;
+    }
 
     state = state.copyWith(
       status: UpdateStatus.checking,

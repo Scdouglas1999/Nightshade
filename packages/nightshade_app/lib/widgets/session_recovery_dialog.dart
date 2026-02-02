@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Dialog for recovering interrupted imaging sessions
 class SessionRecoveryDialog extends ConsumerWidget {
@@ -22,8 +23,13 @@ class SessionRecoveryDialog extends ConsumerWidget {
           const Text('Incomplete Sessions Found'),
         ],
       ),
-      content: SizedBox(
-        width: 600,
+      content: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 600,
+          preferredHeight: 500,
+          minWidth: 400,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,6 +57,7 @@ class SessionRecoveryDialog extends ConsumerWidget {
                     onDiscard: () async {
                       await _discardSession(ref, session);
                       if (incompleteSessions.length == 1) {
+                        if (!context.mounted) return;
                         Navigator.of(context).pop();
                       }
                     },
@@ -68,6 +75,7 @@ class SessionRecoveryDialog extends ConsumerWidget {
             for (final session in incompleteSessions) {
               await _discardSession(ref, session);
             }
+            if (!context.mounted) return;
             Navigator.of(context).pop();
           },
           child: const Text('Discard All'),
@@ -157,7 +165,7 @@ class _SessionCard extends StatelessWidget {
                 Text(
                   _formatDateTime(session.startTime),
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ],

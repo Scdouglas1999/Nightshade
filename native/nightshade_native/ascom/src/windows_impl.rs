@@ -323,11 +323,7 @@ extern "system" {
     fn SafeArrayGetUBound(psa: *const SAFEARRAY, nDim: u32, plUbound: *mut i32) -> windows::core::HRESULT;
     fn SafeArrayAccessData(psa: *const SAFEARRAY, ppvData: *mut *mut std::ffi::c_void) -> windows::core::HRESULT;
     fn SafeArrayUnaccessData(psa: *const SAFEARRAY) -> windows::core::HRESULT;
-    fn SafeArrayGetElement(psa: *const SAFEARRAY, rgIndices: *const i32, pv: *mut std::ffi::c_void) -> windows::core::HRESULT;
 }
-
-// VARENUM is already imported, but we need to ensure we can use it in pattern matching
-use windows::Win32::System::Variant::VARENUM;
 
 const DISPID_PROPERTYPUT: i32 = -3;
 
@@ -616,60 +612,7 @@ fn variant_to_string(var: &VARIANT) -> Option<String> {
 
 /// Extract string array from VARIANT (for ASCOM SupportedActions, etc.)
 fn variant_to_string_array(var: &VARIANT) -> Option<Vec<String>> {
-    unsafe {
-        let vt = (*var.Anonymous.Anonymous).vt;
-
-        // Check if this is an array of variants or strings
-        if (vt.0 & VT_ARRAY.0) == 0 {
-            return None;
-        }
-
-        let psa: *mut SAFEARRAY = (*var.Anonymous.Anonymous).Anonymous.parray;
-        if psa.is_null() {
-            return Some(Vec::new());
-        }
-
-        // Get array bounds
-        let dims = SafeArrayGetDim(psa);
-        if dims != 1 {
-            // Only support 1D arrays
-            return Some(Vec::new());
-        }
-
-        let mut lower_bound: i32 = 0;
-        let mut upper_bound: i32 = 0;
-        if SafeArrayGetLBound(psa, 1, &mut lower_bound).is_err() {
-            return Some(Vec::new());
-        }
-        if SafeArrayGetUBound(psa, 1, &mut upper_bound).is_err() {
-            return Some(Vec::new());
-        }
-
-        let mut strings = Vec::new();
-        let base_vt = VARENUM(vt.0 & !VT_ARRAY.0);
-
-        for i in lower_bound..=upper_bound {
-            let index: [i32; 1] = [i];
-
-            if base_vt == VT_BSTR {
-                // Array of BSTR
-                let mut bstr = std::mem::zeroed::<windows::core::BSTR>();
-                if SafeArrayGetElement(psa, index.as_ptr(), &mut bstr as *mut _ as *mut _).is_ok() {
-                    strings.push(bstr.to_string());
-                }
-            } else if base_vt == VT_VARIANT {
-                // Array of VARIANT (each containing a BSTR)
-                let mut element = VARIANT::default();
-                if SafeArrayGetElement(psa, index.as_ptr(), &mut element as *mut _ as *mut _).is_ok() {
-                    if let Some(s) = variant_to_string(&element) {
-                        strings.push(s);
-                    }
-                }
-            }
-        }
-
-        Some(strings)
-    }
+    unsafe { extract_safearray_string(var).ok() }
 }
 
 /// Extract error message from EXCEPINFO structure
@@ -3248,6 +3191,201 @@ impl AscomSwitch {
             ).map_err(|e| format!("Failed to call SetSwitch: {}", e))?;
 
             Ok(())
+        }
+    }
+
+    pub fn get_switch_name(&self, id: i32) -> Result<String, String> {
+        unsafe {
+            let dispid = self.device.get_dispid("GetSwitchName")?;
+            let mut args = [variant_i32(id)];
+
+            let params = DISPPARAMS {
+                rgvarg: args.as_mut_ptr(),
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 1,
+                cNamedArgs: 0,
+            };
+
+            let mut result = VARIANT::default();
+            self.device.dispatch.Invoke(
+                dispid,
+                &GUID::zeroed(),
+                0,
+                DISPATCH_METHOD,
+                &params,
+                Some(&mut result),
+                None,
+                None,
+            ).map_err(|e| format!("Failed to call GetSwitchName: {}", e))?;
+
+            variant_to_string(&result).ok_or_else(|| "GetSwitchName did not return a string".to_string())
+        }
+    }
+
+    pub fn get_switch_description(&self, id: i32) -> Result<String, String> {
+        unsafe {
+            let dispid = self.device.get_dispid("GetSwitchDescription")?;
+            let mut args = [variant_i32(id)];
+
+            let params = DISPPARAMS {
+                rgvarg: args.as_mut_ptr(),
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 1,
+                cNamedArgs: 0,
+            };
+
+            let mut result = VARIANT::default();
+            self.device.dispatch.Invoke(
+                dispid,
+                &GUID::zeroed(),
+                0,
+                DISPATCH_METHOD,
+                &params,
+                Some(&mut result),
+                None,
+                None,
+            ).map_err(|e| format!("Failed to call GetSwitchDescription: {}", e))?;
+
+            variant_to_string(&result).ok_or_else(|| "GetSwitchDescription did not return a string".to_string())
+        }
+    }
+
+    pub fn get_switch_value(&self, id: i32) -> Result<f64, String> {
+        unsafe {
+            let dispid = self.device.get_dispid("GetSwitchValue")?;
+            let mut args = [variant_i32(id)];
+
+            let params = DISPPARAMS {
+                rgvarg: args.as_mut_ptr(),
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 1,
+                cNamedArgs: 0,
+            };
+
+            let mut result = VARIANT::default();
+            self.device.dispatch.Invoke(
+                dispid,
+                &GUID::zeroed(),
+                0,
+                DISPATCH_METHOD,
+                &params,
+                Some(&mut result),
+                None,
+                None,
+            ).map_err(|e| format!("Failed to call GetSwitchValue: {}", e))?;
+
+            variant_to_f64(&result).ok_or_else(|| "GetSwitchValue did not return a number".to_string())
+        }
+    }
+
+    pub fn set_switch_value(&mut self, id: i32, value: f64) -> Result<(), String> {
+        unsafe {
+            let dispid = self.device.get_dispid("SetSwitchValue")?;
+            let mut args = [variant_f64(value), variant_i32(id)];
+
+            let params = DISPPARAMS {
+                rgvarg: args.as_mut_ptr(),
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 2,
+                cNamedArgs: 0,
+            };
+
+            self.device.dispatch.Invoke(
+                dispid,
+                &GUID::zeroed(),
+                0,
+                DISPATCH_METHOD,
+                &params,
+                None,
+                None,
+                None,
+            ).map_err(|e| format!("Failed to call SetSwitchValue: {}", e))?;
+
+            Ok(())
+        }
+    }
+
+    pub fn min_switch_value(&self, id: i32) -> Result<f64, String> {
+        unsafe {
+            let dispid = self.device.get_dispid("MinSwitchValue")?;
+            let mut args = [variant_i32(id)];
+
+            let params = DISPPARAMS {
+                rgvarg: args.as_mut_ptr(),
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 1,
+                cNamedArgs: 0,
+            };
+
+            let mut result = VARIANT::default();
+            self.device.dispatch.Invoke(
+                dispid,
+                &GUID::zeroed(),
+                0,
+                DISPATCH_METHOD,
+                &params,
+                Some(&mut result),
+                None,
+                None,
+            ).map_err(|e| format!("Failed to call MinSwitchValue: {}", e))?;
+
+            variant_to_f64(&result).ok_or_else(|| "MinSwitchValue did not return a number".to_string())
+        }
+    }
+
+    pub fn max_switch_value(&self, id: i32) -> Result<f64, String> {
+        unsafe {
+            let dispid = self.device.get_dispid("MaxSwitchValue")?;
+            let mut args = [variant_i32(id)];
+
+            let params = DISPPARAMS {
+                rgvarg: args.as_mut_ptr(),
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 1,
+                cNamedArgs: 0,
+            };
+
+            let mut result = VARIANT::default();
+            self.device.dispatch.Invoke(
+                dispid,
+                &GUID::zeroed(),
+                0,
+                DISPATCH_METHOD,
+                &params,
+                Some(&mut result),
+                None,
+                None,
+            ).map_err(|e| format!("Failed to call MaxSwitchValue: {}", e))?;
+
+            variant_to_f64(&result).ok_or_else(|| "MaxSwitchValue did not return a number".to_string())
+        }
+    }
+
+    pub fn can_write(&self, id: i32) -> Result<bool, String> {
+        unsafe {
+            let dispid = self.device.get_dispid("CanWrite")?;
+            let mut args = [variant_i32(id)];
+
+            let params = DISPPARAMS {
+                rgvarg: args.as_mut_ptr(),
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 1,
+                cNamedArgs: 0,
+            };
+
+            let mut result = VARIANT::default();
+            self.device.dispatch.Invoke(
+                dispid,
+                &GUID::zeroed(),
+                0,
+                DISPATCH_METHOD,
+                &params,
+                Some(&mut result),
+                None,
+                None,
+            ).map_err(|e| format!("Failed to call CanWrite: {}", e))?;
+
+            variant_to_bool(&result).ok_or_else(|| "CanWrite did not return a bool".to_string())
         }
     }
 

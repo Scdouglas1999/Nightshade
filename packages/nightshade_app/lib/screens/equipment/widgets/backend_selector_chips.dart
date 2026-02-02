@@ -8,16 +8,16 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// marked with a star icon. The selected backend is highlighted.
 class BackendSelectorChips extends StatelessWidget {
   /// List of available backends for this device
-  final List<DriverBackend> availableBackends;
+  final List<DriverType> availableBackends;
 
   /// Currently selected backend
-  final DriverBackend selectedBackend;
+  final DriverType selectedBackend;
 
   /// The recommended backend (usually Native or best available)
-  final DriverBackend recommendedBackend;
+  final DriverType recommendedBackend;
 
   /// Called when user selects a different backend
-  final ValueChanged<DriverBackend> onBackendSelected;
+  final ValueChanged<DriverType> onBackendSelected;
 
   /// Whether the selector is enabled
   final bool isEnabled;
@@ -40,7 +40,7 @@ class BackendSelectorChips extends StatelessWidget {
     }
 
     // Sort backends by priority (Native first)
-    final sortedBackends = List<DriverBackend>.from(availableBackends);
+    final sortedBackends = List<DriverType>.from(availableBackends);
     sortedBackends.sort((a, b) => _backendPriority(a).compareTo(_backendPriority(b)));
 
     return Row(
@@ -74,24 +74,24 @@ class BackendSelectorChips extends StatelessWidget {
     );
   }
 
-  int _backendPriority(DriverBackend backend) {
+  int _backendPriority(DriverType backend) {
     switch (backend) {
-      case DriverBackend.native:
+      case DriverType.native:
         return 0;
-      case DriverBackend.ascom:
+      case DriverType.ascom:
         return 1;
-      case DriverBackend.alpaca:
+      case DriverType.alpaca:
         return 2;
-      case DriverBackend.indi:
+      case DriverType.indi:
         return 3;
-      case DriverBackend.simulator:
+      case DriverType.simulator:
         return 4;
     }
   }
 }
 
 class _BackendChip extends StatefulWidget {
-  final DriverBackend backend;
+  final DriverType backend;
   final bool isSelected;
   final bool isRecommended;
   final bool isEnabled;
@@ -114,15 +114,15 @@ class _BackendChipState extends State<_BackendChip> {
 
   Color _getBackendColor(NightshadeColors colors) {
     switch (widget.backend) {
-      case DriverBackend.native:
+      case DriverType.native:
         return colors.success; // Green for native (best)
-      case DriverBackend.ascom:
+      case DriverType.ascom:
         return colors.info; // Blue for ASCOM
-      case DriverBackend.alpaca:
+      case DriverType.alpaca:
         return colors.warning; // Orange for Alpaca
-      case DriverBackend.indi:
+      case DriverType.indi:
         return const Color(0xFF9333EA); // Purple for INDI
-      case DriverBackend.simulator:
+      case DriverType.simulator:
         return colors.textMuted; // Gray for simulator
     }
   }
@@ -206,10 +206,10 @@ class _BackendChipState extends State<_BackendChip> {
 
 /// A compact version of BackendSelectorChips for use in tight spaces
 class CompactBackendSelector extends StatelessWidget {
-  final List<DriverBackend> availableBackends;
-  final DriverBackend selectedBackend;
-  final DriverBackend recommendedBackend;
-  final ValueChanged<DriverBackend> onBackendSelected;
+  final List<DriverType> availableBackends;
+  final DriverType selectedBackend;
+  final DriverType recommendedBackend;
+  final ValueChanged<DriverType> onBackendSelected;
   final bool isEnabled;
 
   const CompactBackendSelector({
@@ -244,7 +244,7 @@ class CompactBackendSelector extends StatelessWidget {
     }
 
     // Multiple backends available - show as dropdown
-    return PopupMenuButton<DriverBackend>(
+    return PopupMenuButton<DriverType>(
       initialValue: selectedBackend,
       onSelected: isEnabled ? onBackendSelected : null,
       enabled: isEnabled,
@@ -254,7 +254,7 @@ class CompactBackendSelector extends StatelessWidget {
       itemBuilder: (context) {
         return availableBackends.map((backend) {
           final isRecommended = backend == recommendedBackend;
-          return PopupMenuItem<DriverBackend>(
+          return PopupMenuItem<DriverType>(
             value: backend,
             child: Row(
               children: [

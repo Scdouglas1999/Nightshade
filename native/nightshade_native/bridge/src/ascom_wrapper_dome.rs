@@ -16,7 +16,6 @@ enum AscomDomeCommand {
     GetShutterStatus(oneshot::Sender<Result<i32, String>>),
     GetSlewing(oneshot::Sender<Result<bool, String>>),
     GetAtPark(oneshot::Sender<Result<bool, String>>),
-    GetName(oneshot::Sender<Result<String, String>>),
     GetAzimuth(oneshot::Sender<Result<f64, String>>),
     SlewToAzimuth { azimuth: f64, reply: oneshot::Sender<Result<(), String>> },
     // Version query commands
@@ -95,9 +94,6 @@ impl AscomDomeWrapper {
                     }
                     AscomDomeCommand::GetAtPark(reply) => {
                         let _ = reply.send(dome.at_park());
-                    }
-                    AscomDomeCommand::GetName(reply) => {
-                        let _ = reply.send(dome.name());
                     }
                     AscomDomeCommand::GetAzimuth(reply) => {
                         let _ = reply.send(dome.azimuth());
@@ -202,21 +198,6 @@ impl AscomDomeWrapper {
         self.sender.send(AscomDomeCommand::GetAtPark(tx)).await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "at_park").await
-    }
-
-    pub async fn name(&self) -> Result<String, String> {
-        let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomDomeCommand::GetName(tx)).await
-            .map_err(|e| format!("Send error: {}", e))?;
-        Self::recv_with_timeout(rx, Timeouts::property_read(), "name").await
-    }
-
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
-    pub fn cached_name(&self) -> &str {
-        &self.name
     }
 
     pub async fn azimuth(&self) -> Result<f64, String> {

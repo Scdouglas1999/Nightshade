@@ -384,7 +384,7 @@ pub struct ConnectionStateGuard {
     device_id: String,
     rollback_state: crate::device::ConnectionState,
     committed: bool,
-    state_updater: Box<dyn FnOnce(String, crate::device::ConnectionState) + Send>,
+    state_updater: Option<Box<dyn FnOnce(String, crate::device::ConnectionState) + Send>>,
 }
 
 impl ConnectionStateGuard {
@@ -406,7 +406,7 @@ impl ConnectionStateGuard {
             device_id,
             rollback_state,
             committed: false,
-            state_updater: Box::new(state_updater),
+            state_updater: Some(Box::new(state_updater)),
         }
     }
 
@@ -424,17 +424,11 @@ impl Drop for ConnectionStateGuard {
                 self.device_id,
                 self.rollback_state
             );
-            // We need to take ownership of state_updater, but we're in Drop
-            // Create a no-op if already taken
-            let device_id = std::mem::take(&mut self.device_id);
-            let rollback_state = self.rollback_state;
-            // Note: We can't easily call the updater here since it requires ownership
-            // In practice, this guard is typically used with explicit rollback calls
-            tracing::warn!(
-                "ConnectionStateGuard dropped without commit - device {} state should be {:?}",
-                device_id,
-                rollback_state
-            );
+            if let Some(updater) = self.state_updater.take() {
+                let device_id = std::mem::take(&mut self.device_id);
+                let rollback_state = self.rollback_state;
+                updater(device_id, rollback_state);
+            }
         }
     }
 }
@@ -540,5 +534,32 @@ impl Drop for ScopedDeviceLock {
         if let Some(release) = self.release_fn.take() {
             release(std::mem::take(&mut self.device_id));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ConnectionStateGuard;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    #[test]
+    fn connection_state_guard_rolls_back_on_drop() {
+        let called = Arc::new(AtomicBool::new(false));
+        let called_clone = Arc::clone(&called);
+        {
+            let _guard = ConnectionStateGuard::new(
+                "dev-1".to_string(),
+                crate::device::ConnectionState::Disconnected,
+                move |id, state| {
+                    assert_eq!(id, "dev-1");
+                    assert_eq!(state, crate::device::ConnectionState::Disconnected);
+                    called_clone.store(true, Ordering::SeqCst);
+                },
+            );
+        }
+        assert!(called.load(Ordering::SeqCst));
     }
 }

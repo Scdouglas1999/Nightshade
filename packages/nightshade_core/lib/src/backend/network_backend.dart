@@ -768,7 +768,7 @@ class NetworkBackend implements NightshadeBackend {
     });
 
     // Parse using pure Dart types from JSON
-    return AutofocusResult.fromJson(response as Map<String, dynamic>);
+    return AutofocusResult.fromJson(response);
   }
 
   @override

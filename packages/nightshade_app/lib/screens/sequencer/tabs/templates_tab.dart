@@ -6,6 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../sequencer_screen.dart';
+import 'package:nightshade_app/utils/snackbar_helper.dart';
 
 /// Provider for templates list - loads from database with built-in fallbacks
 final sequenceTemplatesProvider = FutureProvider<List<Sequence>>((ref) async {
@@ -434,12 +435,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
   void _showSaveTemplateDialog(BuildContext context) {
     final currentSequence = ref.read(currentSequenceProvider);
     if (currentSequence == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('No sequence to save as template'),
-          backgroundColor: widget.colors.error,
-        ),
-      );
+      context.showErrorSnackBar('No sequence to save as template');
       return;
     }
 
@@ -848,20 +844,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     // Switch to the Builder tab so user can see the result
     ref.read(sequencerTabProvider.notifier).state = 0;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(LucideIcons.check, color: Colors.white, size: 16),
-            const SizedBox(width: 8),
-            Text('Added "${widget.template.name}" to ${target.targetName}'),
-          ],
-        ),
-        backgroundColor: widget.colors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+context.showSuccessSnackBar('Added "${widget.template.name}" to ${target.targetName}');
   }
 
   void _createNewSequenceFromTemplate(BuildContext context) {
@@ -908,20 +891,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     // Switch to the Builder tab so user can see the loaded sequence
     ref.read(sequencerTabProvider.notifier).state = 0;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(LucideIcons.check, color: Colors.white, size: 16),
-            const SizedBox(width: 8),
-            Text('Created sequence from "${widget.template.name}"'),
-          ],
-        ),
-        backgroundColor: widget.colors.success,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+context.showSuccessSnackBar('Created sequence from "${widget.template.name}"');
   }
 
   void _editTemplate(BuildContext context) {
@@ -963,20 +933,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     ref.read(currentSequenceProvider.notifier).loadSequence(editableSequence);
     ref.read(sequencerTabProvider.notifier).state = 0;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(LucideIcons.pencil, color: Colors.white, size: 16),
-            const SizedBox(width: 8),
-            Text('Editing "${widget.template.name}"'),
-          ],
-        ),
-        backgroundColor: widget.colors.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    context.showInfoSnackBar('Editing "${widget.template.name}"');
   }
 
   Future<void> _duplicateTemplate(BuildContext context) async {
@@ -991,29 +948,11 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         ref.invalidate(sequenceTemplatesProvider);
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(LucideIcons.copy, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  Text('Duplicated "${widget.template.name}"'),
-                ],
-              ),
-              backgroundColor: widget.colors.success,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          );
+          context.showSuccessSnackBar('Duplicated "${widget.template.name}"');
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to duplicate template: $e'),
-              backgroundColor: widget.colors.error,
-            ),
-          );
+          context.showErrorSnackBar('Failed to duplicate template: $e');
         }
       }
     } else {
@@ -1033,29 +972,11 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         ref.invalidate(sequenceTemplatesProvider);
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(LucideIcons.copy, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  Text('Duplicated "${widget.template.name}"'),
-                ],
-              ),
-              backgroundColor: widget.colors.success,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          );
+          context.showSuccessSnackBar('Duplicated "${widget.template.name}"');
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to duplicate template: $e'),
-              backgroundColor: widget.colors.error,
-            ),
-          );
+          context.showErrorSnackBar('Failed to duplicate template: $e');
         }
       }
     }
@@ -1065,20 +986,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     // Check if this is a built-in template (no database ID)
     final dbId = widget.template.databaseId;
     if (dbId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(LucideIcons.info, color: Colors.white, size: 16),
-              SizedBox(width: 8),
-              Text('Built-in templates cannot be deleted'),
-            ],
-          ),
-          backgroundColor: widget.colors.info,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
+      context.showInfoSnackBar('Built-in templates cannot be deleted');
       return;
     }
 
@@ -1113,29 +1021,11 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                 ref.invalidate(sequenceTemplatesProvider);
 
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          const Icon(LucideIcons.trash2, color: Colors.white, size: 16),
-                          const SizedBox(width: 8),
-                          Text('Deleted "${widget.template.name}"'),
-                        ],
-                      ),
-                      backgroundColor: widget.colors.success,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  );
+                  context.showSuccessSnackBar('Deleted "${widget.template.name}"');
                 }
               } catch (e) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to delete template: $e'),
-                      backgroundColor: widget.colors.error,
-                    ),
-                  );
+                  context.showErrorSnackBar('Failed to delete template: $e');
                 }
               }
             },
@@ -1287,12 +1177,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
 
   Future<void> _saveTemplate() async {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please enter a template name'),
-          backgroundColor: widget.colors.error,
-        ),
-      );
+      context.showErrorSnackBar('Please enter a template name');
       return;
     }
 
@@ -1319,29 +1204,11 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
       if (mounted) {
         Navigator.pop(context);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(LucideIcons.check, color: Colors.white, size: 16),
-                const SizedBox(width: 8),
-                Text('Template "${_nameController.text}" saved!'),
-              ],
-            ),
-            backgroundColor: widget.colors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        );
+        context.showSuccessSnackBar('Template "${_nameController.text}" saved!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save template: $e'),
-            backgroundColor: widget.colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to save template: $e');
       }
     } finally {
       if (mounted) {

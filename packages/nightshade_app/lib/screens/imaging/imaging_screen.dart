@@ -3,15 +3,21 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../services/mount_command_service.dart';
+import '../../utils/snackbar_helper.dart';
+import '../../utils/preview_transform.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import '../../widgets/annotation_overlay.dart';
 import '../settings/catalog_settings_screen.dart';
 import 'tabs/mount_tab.dart';
+import '../../widgets/focuser_controls.dart';
+import '../../widgets/filter_wheel_selector.dart';
 
 /// Provider to check if annotation catalog is installed
 final annotationCatalogInstalledProvider = FutureProvider<bool>((ref) async {
@@ -113,11 +119,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Capture failed: $e')),
-        );
-      }
+      context.showErrorSnackBar('Capture failed: $e');
     } finally {
       if (mounted) {
         setState(() => _isSingleCapture = false);
@@ -157,11 +159,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
             }
           },
           onError: (error) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Capture error: $error')),
-              );
-            }
+            context.showErrorSnackBar('Capture error: $error');
           });
     } finally {
       if (mounted) {
@@ -207,6 +205,12 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     setState(() {
       _zoomLevel = 1.0;
       _panOffset = Offset.zero;
+    });
+  }
+
+  void _panPreview(Offset delta) {
+    setState(() {
+      _panOffset += delta;
     });
   }
 
@@ -274,6 +278,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                         onFitToWindow: _fitToWindow,
                         onZoom1to1: _zoom1to1,
                         onAbortCapture: _abortCapture,
+                        onPanUpdate: _panPreview,
                         onToggleCrosshair: () =>
                             setState(() => _showCrosshair = !_showCrosshair),
                         onToggleGrid: () =>
@@ -479,7 +484,10 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 _ControlSection(
                   title: 'Filter',
                   colors: colors,
-                  child: _FilterSelector(colors: colors, isMobile: true),
+                  child: const FilterWheelSelector(
+                    style: FilterSelectorStyle.buttons,
+                    compact: true,
+                  ),
                 ),
               ],
             ),
@@ -596,7 +604,10 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 _ControlSection(
                   title: 'Filter',
                   colors: colors,
-                  child: _FilterSelector(colors: colors, isMobile: isMobile),
+                  child: FilterWheelSelector(
+                    style: FilterSelectorStyle.buttons,
+                    compact: isMobile,
+                  ),
                 ),
 
                 if (!isMobile) ...[
@@ -625,6 +636,7 @@ class _LivePreviewArea extends ConsumerWidget {
   final VoidCallback onFitToWindow;
   final VoidCallback onZoom1to1;
   final VoidCallback onAbortCapture;
+  final void Function(Offset delta) onPanUpdate;
   final VoidCallback onToggleCrosshair;
   final VoidCallback onToggleGrid;
   final VoidCallback onToggleStarOverlay;
@@ -641,6 +653,7 @@ class _LivePreviewArea extends ConsumerWidget {
     required this.onFitToWindow,
     required this.onZoom1to1,
     required this.onAbortCapture,
+    required this.onPanUpdate,
     required this.onToggleCrosshair,
     required this.onToggleGrid,
     required this.onToggleStarOverlay,
@@ -660,10 +673,34 @@ class _LivePreviewArea extends ConsumerWidget {
     final isExposing =
         exposureProgress.percent > 0 || exposureProgress.isDownloading;
 
-    return Container(
-      color: const Color(0xFF08080C),
-      child: Stack(
-        children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+        final imageOffset = currentImage != null
+            ? computeImageOffset(
+                viewportSize: viewportSize,
+                imageSize: Size(currentImage.width.toDouble(), currentImage.height.toDouble()),
+                zoomLevel: zoomLevel,
+                panOffset: panOffset,
+              )
+            : Offset.zero;
+
+        return Listener(
+          onPointerSignal: (signal) {
+            if (signal is PointerScrollEvent) {
+              if (signal.scrollDelta.dy > 0) {
+                onZoomOut();
+              } else if (signal.scrollDelta.dy < 0) {
+                onZoomIn();
+              }
+            }
+          },
+          child: GestureDetector(
+            onPanUpdate: (details) => onPanUpdate(details.delta),
+            child: Container(
+              color: const Color(0xFF08080C),
+              child: Stack(
+                children: [
           // Image display or placeholder
           if (currentImage != null)
             Positioned.fill(
@@ -754,7 +791,7 @@ class _LivePreviewArea extends ConsumerWidget {
                   stars: starDetectionResult.stars,
                   color: colors.accent.withValues(alpha: 0.8),
                   zoomLevel: zoomLevel,
-                  panOffset: panOffset,
+                  imageOffset: imageOffset,
                 ),
               ),
             ),
@@ -764,7 +801,7 @@ class _LivePreviewArea extends ConsumerWidget {
             Positioned.fill(
               child: _AnnotationOverlayWrapper(
                 zoomLevel: zoomLevel,
-                panOffset: panOffset,
+                imageOffset: imageOffset,
                 imageSize: Size(currentImage.width.toDouble(),
                     currentImage.height.toDouble()),
                 colors: colors,
@@ -903,8 +940,12 @@ class _LivePreviewArea extends ConsumerWidget {
               left: 16,
               child: _AnnotationStatusIndicator(colors: colors),
             ),
-        ],
-      ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1530,13 +1571,11 @@ class _BigActionButtonState extends State<_BigActionButton>
 class _CompactInput extends StatelessWidget {
   final String label;
   final String value;
-  final String? suffix;
   final NightshadeColors colors;
 
   const _CompactInput({
     required this.label,
     required this.value,
-    this.suffix,
     required this.colors,
   });
 
@@ -1561,27 +1600,13 @@ class _CompactInput extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: colors.border),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: colors.textPrimary,
-                  ),
-                ),
-              ),
-              if (suffix != null)
-                Text(
-                  suffix!,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colors.textMuted,
-                  ),
-                ),
-            ],
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: colors.textPrimary,
+            ),
           ),
         ),
       ],
@@ -1803,8 +1828,6 @@ class _ImageDisplayWidgetState extends State<_ImageDisplayWidget> {
 
       // Let's implement the conversion here for now, but mark it as a TODO to move to Rust.
 
-      final Completer<ui.Image> completer = Completer();
-
       // Create RGBA buffer
       final int numPixels = width * height;
       final Uint8List rgbaBytes = Uint8List(numPixels * 4);
@@ -1855,12 +1878,13 @@ class _ImageDisplayWidgetState extends State<_ImageDisplayWidget> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return InteractiveViewer(
-          minScale: 0.1,
-          maxScale: 8.0,
-          child: Center(
+    return ClipRect(
+      child: Center(
+        child: Transform.translate(
+          offset: widget.panOffset,
+          child: Transform.scale(
+            scale: widget.zoomLevel,
+            alignment: Alignment.center,
             child: CustomPaint(
               painter: _DecodedImagePainter(
                 image: _decodedImage!,
@@ -1871,8 +1895,8 @@ class _ImageDisplayWidgetState extends State<_ImageDisplayWidget> {
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -2050,13 +2074,13 @@ class _StarOverlayPainter extends CustomPainter {
   final List<DetectedStar> stars;
   final Color color;
   final double zoomLevel;
-  final Offset panOffset;
+  final Offset imageOffset;
 
   _StarOverlayPainter({
     required this.stars,
     required this.color,
     required this.zoomLevel,
-    required this.panOffset,
+    required this.imageOffset,
   });
 
   @override
@@ -2071,8 +2095,8 @@ class _StarOverlayPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     for (final star in stars) {
-      final x = star.x * zoomLevel + panOffset.dx;
-      final y = star.y * zoomLevel + panOffset.dy;
+      final x = star.x * zoomLevel + imageOffset.dx;
+      final y = star.y * zoomLevel + imageOffset.dy;
 
       // Skip stars outside the visible area
       if (x < -50 || x > size.width + 50 || y < -50 || y > size.height + 50) {
@@ -2106,213 +2130,7 @@ class _StarOverlayPainter extends CustomPainter {
     return stars != oldDelegate.stars ||
         color != oldDelegate.color ||
         zoomLevel != oldDelegate.zoomLevel ||
-        panOffset != oldDelegate.panOffset;
-  }
-}
-
-class _FilterSelector extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
-  final bool isMobile;
-
-  const _FilterSelector({required this.colors, this.isMobile = false});
-
-  @override
-  ConsumerState<_FilterSelector> createState() => _FilterSelectorState();
-}
-
-class _FilterSelectorState extends ConsumerState<_FilterSelector> {
-  String _selectedFilter = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final filterWheelState = ref.watch(filterWheelStateProvider);
-    final isConnected =
-        filterWheelState.connectionState == DeviceConnectionState.connected;
-    final filterNames = filterWheelState.filterNames;
-
-    if (!isConnected) {
-      return Container(
-        padding: EdgeInsets.symmetric(
-          vertical: widget.isMobile ? 6 : 8,
-          horizontal: widget.isMobile ? 8 : 12,
-        ),
-        decoration: BoxDecoration(
-          color: widget.colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: widget.colors.border),
-        ),
-        child: Text(
-          'No filter wheel connected',
-          style: TextStyle(
-            fontSize: widget.isMobile ? 11 : 12,
-            color: widget.colors.textMuted,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      );
-    }
-
-    if (filterNames.isEmpty) {
-      return Container(
-        padding: EdgeInsets.symmetric(
-          vertical: widget.isMobile ? 6 : 8,
-          horizontal: widget.isMobile ? 8 : 12,
-        ),
-        decoration: BoxDecoration(
-          color: widget.colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: widget.colors.border),
-        ),
-        child: Text(
-          'No filters configured',
-          style: TextStyle(
-            fontSize: widget.isMobile ? 11 : 12,
-            color: widget.colors.textMuted,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      );
-    }
-
-    // Update selected filter if needed
-    if (_selectedFilter.isEmpty && filterNames.isNotEmpty) {
-      // Try to find current position name
-      if (filterWheelState.currentPosition != null &&
-          filterWheelState.currentPosition! >= 0 &&
-          filterWheelState.currentPosition! < filterNames.length) {
-        _selectedFilter = filterNames[filterWheelState.currentPosition!];
-      } else {
-        _selectedFilter = filterNames[0];
-      }
-    }
-
-    final isMoving = filterWheelState.isMoving;
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < filterNames.length; i++) ...[
-            if (i > 0) const SizedBox(width: 4),
-            _FilterButton(
-              label: filterNames[i],
-              isSelected: _selectedFilter == filterNames[i],
-              color: _getFilterColor(filterNames[i]),
-              colors: widget.colors,
-              onTap: isMoving ? null : () => _selectFilter(filterNames[i], i),
-              isMobile: widget.isMobile,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Color _getFilterColor(String name) {
-    final lowerName = name.toLowerCase();
-    if (lowerName.contains('red') ||
-        lowerName == 'r' ||
-        lowerName == 'ha' ||
-        lowerName.contains('h-alpha')) {
-      return Colors.red;
-    } else if (lowerName.contains('green') || lowerName == 'g') {
-      return Colors.green;
-    } else if (lowerName.contains('blue') || lowerName == 'b') {
-      return Colors.blue;
-    } else if (lowerName.contains('lum') || lowerName == 'l') {
-      return Colors
-          .white; // Use white for Lum instead of grey for better visibility
-    } else if (lowerName.contains('oiii') || lowerName.contains('o3')) {
-      return Colors.cyan;
-    } else if (lowerName.contains('sii') || lowerName.contains('s2')) {
-      return Colors.orange;
-    }
-    return widget.colors.primary;
-  }
-
-  Future<void> _selectFilter(String label, int position) async {
-    debugPrint('[FilterSelector] Selecting filter "$label" at position $position');
-    setState(() => _selectedFilter = label);
-    try {
-      final deviceService = ref.read(deviceServiceProvider);
-      debugPrint('[FilterSelector] Calling setFilterWheelPosition($position)');
-      await deviceService.setFilterWheelPosition(position);
-      debugPrint('[FilterSelector] Filter change completed successfully');
-    } catch (e) {
-      debugPrint('[FilterSelector] Filter change failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to change filter: $e')),
-        );
-      }
-    }
-  }
-}
-
-class _FilterButton extends StatefulWidget {
-  final String label;
-  final bool isSelected;
-  final Color color;
-  final NightshadeColors colors;
-  final VoidCallback? onTap;
-  final bool isMobile;
-
-  const _FilterButton({
-    required this.label,
-    required this.isSelected,
-    required this.color,
-    required this.colors,
-    this.onTap,
-    this.isMobile = false,
-  });
-
-  @override
-  State<_FilterButton> createState() => _FilterButtonState();
-}
-
-class _FilterButtonState extends State<_FilterButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: widget.isMobile ? 32 : 36,
-          height: widget.isMobile ? 32 : 36,
-          decoration: BoxDecoration(
-            color: widget.isSelected
-                ? widget.color.withValues(alpha: 0.2)
-                : _isHovered
-                    ? widget.colors.surfaceAlt
-                    : widget.colors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: widget.isSelected
-                  ? widget.color.withValues(alpha: 0.5)
-                  : widget.colors.border,
-              width: widget.isSelected ? 2 : 1,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              widget.label,
-              style: TextStyle(
-                fontSize: widget.isMobile ? 10 : 11,
-                fontWeight: FontWeight.w600,
-                color: widget.isSelected
-                    ? widget.color
-                    : widget.colors.textSecondary,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+        imageOffset != oldDelegate.imageOffset;
   }
 }
 
@@ -2856,8 +2674,10 @@ class _CapturePanel extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () async {
+              // Capture context before closing dialog
+              final dialogContext = context;
               Navigator.of(context).pop();
-              await _endSession(ref);
+              await _endSession(ref, dialogContext);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: colors.warning,
@@ -2869,24 +2689,18 @@ class _CapturePanel extends ConsumerWidget {
     );
   }
 
-  Future<void> _endSession(WidgetRef ref) async {
+  Future<void> _endSession(WidgetRef ref, BuildContext context) async {
     try {
       final parkOnEnd = ref.read(_parkMountOnEndProvider);
-      final mountState = ref.read(mountStateProvider);
 
       // End the session
       await ref.read(sessionStateProvider.notifier).endSession();
 
-      // Park mount if requested and connected
-      if (parkOnEnd &&
-          mountState.connectionState == DeviceConnectionState.connected) {
-        try {
-          debugPrint('Parking mount after session end...');
-          await ref.read(deviceServiceProvider).parkMount();
-          debugPrint('Mount parked successfully');
-        } catch (e) {
-          debugPrint('Failed to park mount: $e');
-        }
+      // Park mount if requested (service handles connection check)
+      if (parkOnEnd) {
+        debugPrint('Parking mount after session end...');
+        final success = await ref.read(mountCommandServiceProvider).park(context);
+        debugPrint(success ? 'Mount parked successfully' : 'Mount park failed or not connected');
       }
     } catch (e) {
       debugPrint('Error ending session: $e');
@@ -2925,6 +2739,12 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
     final capabilitiesAsync = ref.watch(
         cameraCapabilitiesProvider(cameraState.deviceId ?? ''));
     final capabilities = capabilitiesAsync.valueOrNull;
+    final capabilitiesLoading = capabilitiesAsync.isLoading;
+    final capabilitiesError = capabilitiesAsync.hasError;
+    // Show cooling section if: loading, error (assume capable and let user try),
+    // or capabilities confirm camera supports cooling
+    final showCoolingSection = isConnected &&
+        (capabilitiesLoading || capabilitiesError || (capabilities?.canSetCcdTemperature ?? false));
 
     // Get binning options based on camera capabilities
     final binningOptions = ref.watch(
@@ -2968,8 +2788,8 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
               ),
             ),
 
-          // Cooling Section - only show if camera supports cooling
-          if (capabilities?.canSetCcdTemperature ?? false)
+          // Cooling Section - show if camera supports cooling or while loading capabilities
+          if (showCoolingSection)
             _PanelSection(
               title: 'Cooling',
               colors: widget.colors,
@@ -3096,12 +2916,7 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
                             // Update camera state
                             ref.read(cameraStateProvider.notifier).setCooling(true);
                           } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: Text('Failed to set cooling: $e')),
-                              );
-                            }
+                            context.showErrorSnackBar('Failed to set cooling: $e');
                           } finally {
                             if (mounted) setState(() => _isCooling = false);
                           }
@@ -3126,14 +2941,9 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
 
                             ref.read(coolingSettingsProvider.notifier).state =
                                 coolingSettings.copyWith(enabled: false);
+                            ref.read(cameraStateProvider.notifier).setCooling(false);
                           } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content:
-                                        Text('Failed to turn off cooler: $e')),
-                              );
-                            }
+                            context.showErrorSnackBar('Failed to turn off cooler: $e');
                           }
                         },
                       ),
@@ -3143,8 +2953,8 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
               ],
             ),
           ),
-          // Show "not supported" message when camera is connected but doesn't support cooling
-          if (isConnected && capabilities != null && !capabilities.canSetCcdTemperature)
+          // Show "not supported" message when camera is connected and capabilities confirm no cooling support
+          if (isConnected && !capabilitiesLoading && !capabilitiesError && capabilities != null && !capabilities.canSetCcdTemperature)
             _PanelSection(
               title: 'Cooling',
               colors: widget.colors,
@@ -3271,30 +3081,12 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
   // UI-only transient state (doesn't need to persist)
   bool _isRunningAutofocus = false;
 
-  Future<void> _moveFocuser(int delta) async {
-    final focusSettings = ref.read(focusSettingsProvider);
-    try {
-      final deviceService = ref.read(deviceServiceProvider);
-      await deviceService.moveFocuserRelative(delta * focusSettings.stepSize ~/ 100);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Focuser error: $e')),
-        );
-      }
-    }
-  }
-
   Future<void> _goToPosition(int position) async {
     try {
       final deviceService = ref.read(deviceServiceProvider);
       await deviceService.moveFocuserTo(position);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Focuser error: $e')),
-        );
-      }
+      context.showErrorSnackBar('Focuser error: $e');
     }
   }
 
@@ -3338,11 +3130,7 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
                   Navigator.of(context).pop();
                   _goToPosition(position);
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Invalid position. Must be between 0 and $maxPosition'),
-                    ),
-                  );
+                  context.showWarningSnackBar('Invalid position. Must be between 0 and $maxPosition');
                 }
               },
               child: const Text('Go'),
@@ -3358,18 +3146,25 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
     ref.read(sessionStateProvider.notifier).setAutofocusing(true);
 
     try {
-      // Simulate autofocus run
-      await Future.delayed(const Duration(seconds: 5));
+      final settings = ref.read(focusSettingsProvider);
+      final result = await ref.read(deviceServiceProvider).runAutofocus(
+        exposureTime: settings.exposureTime,
+        stepSize: settings.afStepSize,
+        stepsOut: settings.stepsOut,
+        method: settings.method,
+        binning: 1,
+      );
+
+      ref.read(autofocusResultProvider.notifier).state = result;
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Autofocus complete')),
+        context.showSuccessSnackBar(
+          'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}'
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Autofocus failed: $e')),
-        );
+        context.showErrorSnackBar('Autofocus failed: $e');
       }
     } finally {
       if (mounted) {
@@ -3487,41 +3282,10 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
                   ),
                 const SizedBox(height: 16),
 
-                // Movement buttons
-                Row(
-                  children: [
-                    _FocusButton(
-                      icon: LucideIcons.chevronsLeft,
-                      label: '<<',
-                      colors: widget.colors,
-                      isEnabled: isConnected && !isMoving,
-                      onTap: () => _moveFocuser(-10),
-                    ),
-                    const SizedBox(width: 4),
-                    _FocusButton(
-                      icon: LucideIcons.chevronLeft,
-                      label: '<',
-                      colors: widget.colors,
-                      isEnabled: isConnected && !isMoving,
-                      onTap: () => _moveFocuser(-1),
-                    ),
-                    const Spacer(),
-                    _FocusButton(
-                      icon: LucideIcons.chevronRight,
-                      label: '>',
-                      colors: widget.colors,
-                      isEnabled: isConnected && !isMoving,
-                      onTap: () => _moveFocuser(1),
-                    ),
-                    const SizedBox(width: 4),
-                    _FocusButton(
-                      icon: LucideIcons.chevronsRight,
-                      label: '>>',
-                      colors: widget.colors,
-                      isEnabled: isConnected && !isMoving,
-                      onTap: () => _moveFocuser(10),
-                    ),
-                  ],
+                // Movement buttons - using shared FocuserControls widget
+                const FocuserControls(
+                  compact: true,
+                  showAutofocus: false,
                 ),
                 const SizedBox(height: 12),
 
@@ -3695,11 +3459,7 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
       );
       ref.read(sessionStateProvider.notifier).setGuiding(true);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to start guiding: $e')),
-        );
-      }
+      context.showErrorSnackBar('Failed to start guiding: $e');
     } finally {
       if (mounted) setState(() => _isStartingGuiding = false);
     }
@@ -3711,11 +3471,7 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
       await deviceService.stopGuiding();
       ref.read(sessionStateProvider.notifier).setGuiding(false);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to stop guiding: $e')),
-        );
-      }
+      context.showErrorSnackBar('Failed to stop guiding: $e');
     }
   }
 
@@ -3731,11 +3487,7 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
         settleTime: ditherSettings.settleTime,
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Dither failed: $e')),
-        );
-      }
+      context.showErrorSnackBar('Dither failed: $e');
     } finally {
       if (mounted) {
         setState(() => _isDithering = false);
@@ -4104,16 +3856,12 @@ class _PanelSection extends StatelessWidget {
 class _InputRow extends StatelessWidget {
   final String label;
   final String? value;
-  final String? suffix;
-  final bool isDropdown;
   final NightshadeColors colors;
   final Widget? trailing;
 
   const _InputRow({
     required this.label,
     this.value,
-    this.suffix,
-    this.isDropdown = false,
     required this.colors,
     this.trailing,
   });
@@ -4152,20 +3900,6 @@ class _InputRow extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (suffix != null)
-                  Text(
-                    suffix!,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                if (isDropdown)
-                  Icon(
-                    LucideIcons.chevronDown,
-                    size: 12,
-                    color: colors.textMuted,
-                  ),
                 if (trailing != null) ...[
                   const SizedBox(width: 8),
                   trailing!,
@@ -4321,7 +4055,6 @@ class _SliderRow extends StatelessWidget {
   final double value;
   final double min;
   final double max;
-  final String? suffix;
   final NightshadeColors colors;
 
   const _SliderRow({
@@ -4329,7 +4062,6 @@ class _SliderRow extends StatelessWidget {
     required this.value,
     required this.min,
     required this.max,
-    this.suffix,
     required this.colors,
   });
 
@@ -4349,7 +4081,7 @@ class _SliderRow extends StatelessWidget {
               ),
             ),
             Text(
-              '${value.toInt()}${suffix ?? ''}',
+              '${value.toInt()}',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -4540,67 +4272,6 @@ class _SmallButtonState extends State<_SmallButton> {
   }
 }
 
-class _FocusButton extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final NightshadeColors colors;
-  final VoidCallback? onTap;
-  final bool isEnabled;
-
-  const _FocusButton({
-    required this.icon,
-    required this.label,
-    required this.colors,
-    this.onTap,
-    this.isEnabled = true,
-  });
-
-  @override
-  State<_FocusButton> createState() => _FocusButtonState();
-}
-
-class _FocusButtonState extends State<_FocusButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isEnabled = widget.isEnabled;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: isEnabled ? widget.onTap : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 44,
-          height: 36,
-          decoration: BoxDecoration(
-            color: _isHovered && isEnabled
-                ? widget.colors.primary.withValues(alpha: 0.1)
-                : widget.colors.background,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: _isHovered && isEnabled
-                  ? widget.colors.primary
-                  : widget.colors.border,
-            ),
-          ),
-          child: Icon(
-            widget.icon,
-            size: 16,
-            color: !isEnabled
-                ? widget.colors.textMuted
-                : _isHovered
-                    ? widget.colors.primary
-                    : widget.colors.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // =============================================================================
 // DEBAYERING CARD
 // =============================================================================
@@ -4729,13 +4400,13 @@ class _DebayeringCard extends ConsumerWidget {
 /// Wrapper widget for annotation overlay with object info popup
 class _AnnotationOverlayWrapper extends ConsumerStatefulWidget {
   final double zoomLevel;
-  final Offset panOffset;
+  final Offset imageOffset;
   final Size imageSize;
   final NightshadeColors colors;
 
   const _AnnotationOverlayWrapper({
     required this.zoomLevel,
-    required this.panOffset,
+    required this.imageOffset,
     required this.imageSize,
     required this.colors,
   });
@@ -4751,12 +4422,18 @@ class _AnnotationOverlayWrapperState
   Offset? _tooltipPosition;
 
   void _onObjectTapped(CelestialObjectAnnotation object) {
+    final screenPosition = imageToViewport(
+      imagePoint: Offset(object.x, object.y),
+      imageOffset: widget.imageOffset,
+      zoomLevel: widget.zoomLevel,
+    );
+
     setState(() {
       _selectedObject = object;
       // Position tooltip near the object
       _tooltipPosition = Offset(
-        object.x * widget.zoomLevel + widget.panOffset.dx + 20,
-        object.y * widget.zoomLevel + widget.panOffset.dy,
+        screenPosition.dx + 20,
+        screenPosition.dy,
       );
     });
   }
@@ -4775,11 +4452,17 @@ class _AnnotationOverlayWrapperState
     );
 
     if (result != null && mounted) {
+      final screenPosition = imageToViewport(
+        imagePoint: Offset(x, y),
+        imageOffset: widget.imageOffset,
+        zoomLevel: widget.zoomLevel,
+      );
+
       setState(() {
         _selectedObject = result;
         _tooltipPosition = Offset(
-          x * widget.zoomLevel + widget.panOffset.dx + 20,
-          y * widget.zoomLevel + widget.panOffset.dy,
+          screenPosition.dx + 20,
+          screenPosition.dy,
         );
       });
     }
@@ -4846,7 +4529,7 @@ class _AnnotationOverlayWrapperState
         AnnotationOverlay(
           annotation: annotation,
           zoomLevel: widget.zoomLevel,
-          panOffset: widget.panOffset,
+          imageOffset: widget.imageOffset,
           imageSize: widget.imageSize,
           onObjectTapped: _onObjectTapped,
           onIdentifyAt: _onIdentifyAt,

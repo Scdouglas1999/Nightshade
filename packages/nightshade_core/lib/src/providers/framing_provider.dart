@@ -7,7 +7,6 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_planetarium/src/catalogs/catalog_manager.dart'; // Explicit import to fix visibility issue
 

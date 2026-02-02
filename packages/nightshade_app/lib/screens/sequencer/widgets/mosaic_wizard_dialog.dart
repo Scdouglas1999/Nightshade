@@ -4,6 +4,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'dart:math' as math;
 
+import '../../../utils/snackbar_helper.dart';
+
 class MosaicWizardDialog extends ConsumerStatefulWidget {
   final double? initialRa;
   final double? initialDec;
@@ -194,12 +196,9 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     Navigator.of(context).pop();
 
     // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Generated mosaic with ${config.totalPanels} panels'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    if (mounted) {
+      context.showSuccessSnackBar('Generated mosaic with ${config.totalPanels} panels');
+    }
   }
 
   void _showValidationDialog(MosaicValidation validation) {
@@ -284,15 +283,21 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     final theme = Theme.of(context);
     final colors = theme.extension<NightshadeColors>()!;
     final panels = _calculatePanels();
-    final totalArea = _panelWidthArcmin * _panelsHorizontal * 
+    final totalArea = _panelWidthArcmin * _panelsHorizontal *
                      _panelHeightArcmin * _panelsVertical;
 
     return Dialog(
       backgroundColor: Colors.transparent,
-      child: Container(
-        width: 900,
-        height: 700,
-        decoration: BoxDecoration(
+      child: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 900,
+          preferredHeight: 700,
+          minWidth: 600,
+          minHeight: 500,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
           color: colors.background.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: colors.border, width: 1),
@@ -514,6 +519,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

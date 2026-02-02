@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' as drift;
-import 'package:nightshade_bridge/nightshade_bridge.dart' hide AppSettings, EventCategory, ImageStats, CapturedImageResult, FitsWriteHeader;
 import 'package:path/path.dart' as path;
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart';
@@ -14,6 +13,7 @@ import '../providers/backend_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/database_provider.dart';
+import '../providers/ui_notification_provider.dart';
 import '../backend/nightshade_backend.dart';
 import '../database/database.dart' show CapturedImagesCompanion;
 import 'notification_service.dart';
@@ -127,9 +127,13 @@ class ImagingService {
         final completed = await exposureCompleter.future.timeout(
           timeoutDuration,
           onTimeout: () {
-            // Timeout - exposure took too long, assume it completed
-            // This handles cases where the event was missed
+            // Timeout - exposure took too long, warn user but still try to retrieve image
+            // Events may have been missed but image could still be available
             print('[ImagingService] Exposure timeout reached, checking for image...');
+            _ref.read(uiNotificationProvider.notifier).showWarning(
+              'Exposure event not received in time - checking for image. Camera may be unresponsive.',
+              title: 'Exposure Timeout',
+            );
             return true;
           },
         );

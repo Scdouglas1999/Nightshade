@@ -6,7 +6,17 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart' hide sessionProgressProvider;
+import '../../services/mount_command_service.dart';
+import '../../utils/snackbar_helper.dart';
 import '../../widgets/astro_image_viewer.dart';
+import '../../widgets/capture_settings_panel.dart';
+import '../../widgets/focuser_controls.dart';
+import '../../widgets/operation_status_bar.dart';
+import '../../widgets/weather/dashboard_weather_widget.dart';
+import 'dashboard_layout.dart';
+import 'dashboard_layout_provider.dart';
+
+part 'dashboard_widgets.dart';
 
 // ============================================================================
 // Device ID Formatting Helpers
@@ -131,6 +141,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   late AnimationController _fadeController;
   late AnimationController _pulseController;
   late Animation<double> _fadeAnimation;
+  bool _isEditing = false;
 
   @override
   void initState() {
@@ -161,134 +172,985 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    
+
     // Ensure PHD2 controller is active and listening to events
     ref.watch(phd2ControllerProvider);
+    final layoutAsync = ref.watch(dashboardLayoutProvider);
 
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Welcome header with time
-            _WelcomeHeader(colors: colors),
+      child: layoutAsync.when(
+        data: (layout) => _ZoneBasedDashboard(
+          layout: layout,
+          colors: colors,
+          pulseController: _pulseController,
+          isEditing: _isEditing,
+          onToggleEdit: _toggleEdit,
+          onManageWidgets: _showWidgetPicker,
+          onResetLayout: _resetLayout,
+          onReorder: (dragged, target) {
+            ref.read(dashboardLayoutProvider.notifier).reorder(dragged, target);
+          },
+          onResize: (id) {
+            final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
+            ref.read(dashboardLayoutProvider.notifier).setTileSize(id, tile.size.next());
+          },
+          onToggleEnabled: (id, enabled) {
+            ref.read(dashboardLayoutProvider.notifier).setTileEnabled(id, enabled);
+          },
+          onSetZone: (id, zone) {
+            ref.read(dashboardLayoutProvider.notifier).setTileZone(id, zone);
+          },
+        ),
+        loading: () => const _DashboardLoading(),
+        error: (error, _) => _DashboardLayoutError(
+          error: error,
+          onReset: _resetLayout,
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 24),
+  void _toggleEdit() {
+    setState(() => _isEditing = !_isEditing);
+  }
 
-            // Main content grid
-            Row(
+  Future<void> _resetLayout() async {
+    await ref.read(dashboardLayoutProvider.notifier).resetLayout();
+  }
+
+  void _showWidgetPicker() {
+    showDialog(
+      context: context,
+      builder: (context) => const _WidgetPickerDialog(),
+    );
+  }
+}
+
+/// Zone-based dashboard layout implementing NINA-style command center design.
+///
+/// Layout structure:
+/// - Command Bar: Fixed header with session status, quick stats, clock, and edit controls
+/// - Primary Zone (60%): Main content area with hero live preview and capture controls
+/// - Secondary Zone (40%): Resizable sidebar with sequence, guiding, equipment
+/// - Tertiary Zone: Bottom row with compact status cards (mount, focus, weather)
+///
+/// Responsive breakpoints:
+/// - >1440px: Full three-zone layout
+/// - 1024-1440px: Primary + collapsible secondary panel
+/// - 768-1024px: Stacked (primary above secondary)
+/// - <768px: Single column with tabbed navigation
+class _ZoneBasedDashboard extends StatelessWidget {
+  final DashboardLayout layout;
+  final NightshadeColors colors;
+  final AnimationController pulseController;
+  final bool isEditing;
+  final VoidCallback onToggleEdit;
+  final VoidCallback onManageWidgets;
+  final VoidCallback onResetLayout;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
+  final void Function(DashboardWidgetId id) onResize;
+  final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
+  final void Function(DashboardWidgetId id, DashboardZone zone) onSetZone;
+
+  const _ZoneBasedDashboard({
+    required this.layout,
+    required this.colors,
+    required this.pulseController,
+    required this.isEditing,
+    required this.onToggleEdit,
+    required this.onManageWidgets,
+    required this.onResetLayout,
+    required this.onReorder,
+    required this.onResize,
+    required this.onToggleEnabled,
+    required this.onSetZone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screenWidth = constraints.maxWidth;
+
+        // Responsive layout selection based on breakpoints
+        if (screenWidth < NightshadeTokens.breakpointTablet) {
+          return _buildCompactLayout(context);
+        } else if (screenWidth < NightshadeTokens.breakpointDesktop) {
+          return _buildStackedLayout(context);
+        } else {
+          return _buildFullLayout(context, constraints);
+        }
+      },
+    );
+  }
+
+  /// Full three-zone layout for wide screens (>1024px)
+  Widget _buildFullLayout(BuildContext context, BoxConstraints constraints) {
+    final registry = {for (final def in dashboardWidgetRegistry) def.id: def};
+    final primaryTiles = layout.tilesForZone(DashboardZone.primary);
+    final secondaryTiles = layout.tilesForZone(DashboardZone.secondary);
+    final tertiaryTiles = layout.tilesForZone(DashboardZone.tertiary);
+
+    // Calculate secondary zone width from fraction
+    final availableWidth = constraints.maxWidth - 48; // padding
+    final secondaryWidth = (availableWidth * layout.secondaryZoneWidth).clamp(250.0, 500.0);
+    final primaryWidth = availableWidth - secondaryWidth - 16; // gap
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Command Bar (fixed)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          child: _CommandBar(
+            colors: colors,
+            pulseController: pulseController,
+            isEditing: isEditing,
+            onToggleEdit: onToggleEdit,
+            onManageWidgets: onManageWidgets,
+            onResetLayout: onResetLayout,
+          ),
+        ),
+
+        if (isEditing)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+            child: _EditModeBanner(colors: colors),
+          ),
+
+        // Main content area (scrollable)
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Left column - 60%
-                Expanded(
-                  flex: 6,
-                  child: Column(
-                    children: [
-                      // Live preview card
-                      _LivePreviewCard(
+                // Primary + Secondary zones (horizontal split)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Primary Zone (hero content - 60%)
+                    SizedBox(
+                      width: primaryWidth,
+                      child: _ZoneColumn(
+                        zone: DashboardZone.primary,
+                        tiles: primaryTiles,
+                        registry: registry,
                         colors: colors,
-                        pulseController: _pulseController,
+                        pulseController: pulseController,
+                        isEditing: isEditing,
+                        cardVariant: CardVariant.elevated,
+                        isHeroZone: true,
+                        onReorder: onReorder,
+                        onResize: onResize,
+                        onToggleEnabled: onToggleEnabled,
                       ),
+                    ),
 
-                      const SizedBox(height: 20),
+                    const SizedBox(width: 16),
 
-                      // Session progress
-                      _SessionProgressCard(colors: colors),
-
-                      const SizedBox(height: 20),
-
-                      // Guiding graph
-                      _GuidingCard(colors: colors),
-                    ],
-                  ),
+                    // Secondary Zone (supporting info - 40%)
+                    SizedBox(
+                      width: secondaryWidth,
+                      child: _ZoneColumn(
+                        zone: DashboardZone.secondary,
+                        tiles: secondaryTiles,
+                        registry: registry,
+                        colors: colors,
+                        pulseController: pulseController,
+                        isEditing: isEditing,
+                        cardVariant: CardVariant.elevated,
+                        isHeroZone: false,
+                        onReorder: onReorder,
+                        onResize: onResize,
+                        onToggleEnabled: onToggleEnabled,
+                      ),
+                    ),
+                  ],
                 ),
 
-                const SizedBox(width: 20),
+                const SizedBox(height: 16),
 
-                // Right column - 40%
-                Expanded(
-                  flex: 4,
-                  child: Column(
-                    children: [
-                      // Equipment status
-                      _EquipmentStatusCard(colors: colors),
-
-                      const SizedBox(height: 20),
-
-                      // Quick stats
-                      _QuickStatsCard(colors: colors),
-
-                      const SizedBox(height: 20),
-
-                      // Tonight's conditions
-                      _TonightCard(colors: colors),
-
-                      const SizedBox(height: 20),
-
-                      // Quick actions
-                      _QuickActionsCard(colors: colors),
-                    ],
+                // Tertiary Zone (bottom row - compact cards)
+                if (tertiaryTiles.isNotEmpty)
+                  _TertiaryZoneRow(
+                    tiles: tertiaryTiles,
+                    registry: registry,
+                    colors: colors,
+                    pulseController: pulseController,
+                    isEditing: isEditing,
+                    onReorder: onReorder,
+                    onResize: onResize,
+                    onToggleEnabled: onToggleEnabled,
                   ),
-                ),
               ],
             ),
-          ],
+          ),
         ),
+      ],
+    );
+  }
+
+  /// Stacked layout for medium screens (768-1024px)
+  Widget _buildStackedLayout(BuildContext context) {
+    final registry = {for (final def in dashboardWidgetRegistry) def.id: def};
+    final primaryTiles = layout.tilesForZone(DashboardZone.primary);
+    final secondaryTiles = layout.tilesForZone(DashboardZone.secondary);
+    final tertiaryTiles = layout.tilesForZone(DashboardZone.tertiary);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Command Bar (fixed)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: _CommandBar(
+            colors: colors,
+            pulseController: pulseController,
+            isEditing: isEditing,
+            onToggleEdit: onToggleEdit,
+            onManageWidgets: onManageWidgets,
+            onResetLayout: onResetLayout,
+          ),
+        ),
+
+        if (isEditing)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: _EditModeBanner(colors: colors),
+          ),
+
+        // Scrollable content
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Primary Zone
+                _ZoneColumn(
+                  zone: DashboardZone.primary,
+                  tiles: primaryTiles,
+                  registry: registry,
+                  colors: colors,
+                  pulseController: pulseController,
+                  isEditing: isEditing,
+                  cardVariant: CardVariant.elevated,
+                  isHeroZone: true,
+                  onReorder: onReorder,
+                  onResize: onResize,
+                  onToggleEnabled: onToggleEnabled,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Secondary Zone
+                _ZoneColumn(
+                  zone: DashboardZone.secondary,
+                  tiles: secondaryTiles,
+                  registry: registry,
+                  colors: colors,
+                  pulseController: pulseController,
+                  isEditing: isEditing,
+                  cardVariant: CardVariant.standard,
+                  isHeroZone: false,
+                  onReorder: onReorder,
+                  onResize: onResize,
+                  onToggleEnabled: onToggleEnabled,
+                ),
+
+                const SizedBox(height: 16),
+
+                // Tertiary Zone
+                if (tertiaryTiles.isNotEmpty)
+                  _TertiaryZoneRow(
+                    tiles: tertiaryTiles,
+                    registry: registry,
+                    colors: colors,
+                    pulseController: pulseController,
+                    isEditing: isEditing,
+                    onReorder: onReorder,
+                    onResize: onResize,
+                    onToggleEnabled: onToggleEnabled,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Compact layout for narrow screens (<768px)
+  Widget _buildCompactLayout(BuildContext context) {
+    final registry = {for (final def in dashboardWidgetRegistry) def.id: def};
+    final allTiles = layout.tiles.where((t) => t.enabled).toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Compact Command Bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: _CompactCommandBar(
+            colors: colors,
+            pulseController: pulseController,
+            isEditing: isEditing,
+            onToggleEdit: onToggleEdit,
+          ),
+        ),
+
+        if (isEditing)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: _EditModeBanner(colors: colors),
+          ),
+
+        // Single column scroll
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final tile in allTiles) ...[
+                  _buildTile(
+                    tile: tile,
+                    registry: registry,
+                    cardVariant: CardVariant.standard,
+                    isHero: tile.widgetId == DashboardWidgetId.livePreview,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTile({
+    required DashboardTileConfig tile,
+    required Map<DashboardWidgetId, DashboardWidgetDefinition> registry,
+    required CardVariant cardVariant,
+    required bool isHero,
+  }) {
+    final definition = registry[tile.widgetId];
+    if (definition == null) return const SizedBox.shrink();
+
+    final child = definition.builder(
+      // Using a BuildContext is a bit awkward here - builders will get it from NightshadeCard
+      WidgetsBinding.instance.rootElement!,
+      colors,
+      pulseController,
+    );
+
+    return _DashboardTile(
+      tile: tile,
+      width: double.infinity,
+      colors: colors,
+      child: child,
+      isEditing: isEditing,
+      cardVariant: cardVariant,
+      isHero: isHero,
+      onReorder: onReorder,
+      onResize: onResize,
+      onToggleEnabled: onToggleEnabled,
+    );
+  }
+}
+
+/// Command Bar: Fixed header with session status, quick stats, clock, and controls.
+///
+/// This is the central nervous system status display showing:
+/// - Session status indicator (Idle/Capturing with target name)
+/// - Quick stats strip: Temp | Focus | HFR | RMS
+/// - Clock/LST widget
+/// - Edit mode toggle and controls
+class _CommandBar extends ConsumerWidget {
+  final NightshadeColors colors;
+  final AnimationController pulseController;
+  final bool isEditing;
+  final VoidCallback onToggleEdit;
+  final VoidCallback onManageWidgets;
+  final VoidCallback onResetLayout;
+
+  const _CommandBar({
+    required this.colors,
+    required this.pulseController,
+    required this.isEditing,
+    required this.onToggleEdit,
+    required this.onManageWidgets,
+    required this.onResetLayout,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionState = ref.watch(sessionStateProvider);
+    final exposurePercent = ref.watch(exposureProgressProvider.select((s) => s.percent));
+    final isDownloading = ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
+
+    final isCapturing = sessionState.isCapturing || exposurePercent > 0 || isDownloading;
+    final targetName = sessionState.targetName ?? 'No Target';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: NightshadeTokens.borderRadiusLg,
+        border: Border.all(color: colors.border),
+        boxShadow: NightshadeTokens.elevationLevel1,
+      ),
+      child: Row(
+        children: [
+          // Session Status
+          _SessionStatusIndicator(
+            colors: colors,
+            pulseController: pulseController,
+            isCapturing: isCapturing,
+            targetName: targetName,
+          ),
+
+          const SizedBox(width: 24),
+
+          // Divider
+          Container(
+            width: 1,
+            height: 32,
+            color: colors.border,
+          ),
+
+          const SizedBox(width: 24),
+
+          // Quick Stats Strip
+          Expanded(
+            child: _QuickStatsStrip(colors: colors),
+          ),
+
+          const SizedBox(width: 24),
+
+          // Divider
+          Container(
+            width: 1,
+            height: 32,
+            color: colors.border,
+          ),
+
+          const SizedBox(width: 16),
+
+          // Clock/LST
+          _ClockWidget(colors: colors),
+
+          const SizedBox(width: 16),
+
+          // Edit Controls
+          _DashboardHeaderActions(
+            isEditing: isEditing,
+            onToggleEdit: onToggleEdit,
+            onManageWidgets: onManageWidgets,
+            onResetLayout: onResetLayout,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _WelcomeHeader extends StatelessWidget {
+/// Session status indicator showing capture state and current target.
+class _SessionStatusIndicator extends StatelessWidget {
   final NightshadeColors colors;
+  final AnimationController pulseController;
+  final bool isCapturing;
+  final String targetName;
 
-  const _WelcomeHeader({required this.colors});
+  const _SessionStatusIndicator({
+    required this.colors,
+    required this.pulseController,
+    required this.isCapturing,
+    required this.targetName,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final hour = now.hour;
-    String greeting;
-    if (hour < 12) {
-      greeting = 'Good morning';
-    } else if (hour < 17) {
-      greeting = 'Good afternoon';
-    } else {
-      greeting = 'Good evening';
-    }
-
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisSize: MainAxisSize.min,
       children: [
+        AnimatedBuilder(
+          animation: pulseController,
+          builder: (context, child) {
+            return Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isCapturing
+                    ? colors.success.withValues(alpha: 0.4 + pulseController.value * 0.4)
+                    : colors.textMuted.withValues(alpha: 0.4 + pulseController.value * 0.3),
+                boxShadow: isCapturing
+                    ? [
+                        BoxShadow(
+                          color: colors.success.withValues(alpha: 0.3),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 10),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              greeting,
+              isCapturing ? 'Capturing' : 'Idle',
               style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-                letterSpacing: -0.5,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isCapturing ? colors.success : colors.textSecondary,
               ),
             ),
-            const SizedBox(height: 4),
             Text(
-              'Ready to capture the cosmos?',
+              targetName,
               style: TextStyle(
-                fontSize: 14,
-                color: colors.textSecondary,
+                fontSize: 11,
+                color: colors.textMuted,
               ),
             ),
           ],
         ),
-        _ClockWidget(colors: colors),
       ],
     );
   }
 }
+
+/// Quick stats strip showing Temp | Focus | HFR | RMS in the command bar.
+class _QuickStatsStrip extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _QuickStatsStrip({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Camera temperature
+    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final cameraTemp = ref.watch(cameraStateProvider.select((s) => s.temperature));
+
+    // Focuser position
+    final focuserConnected = ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final focuserPosition = ref.watch(focuserStateProvider.select((s) => s.position));
+
+    // HFR from last image
+    final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
+
+    // Guiding RMS
+    final guiderConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
+    final guiderRms = ref.watch(guiderStateProvider.select((s) => s.rmsTotal));
+
+    // Format values
+    final tempValue = cameraConnected && cameraTemp != null
+        ? '${cameraTemp.toStringAsFixed(1)}°C'
+        : '---';
+    final focusValue = focuserConnected && focuserPosition != null
+        ? focuserPosition.toString()
+        : '---';
+    final hfrValue = hfr != null ? hfr.toStringAsFixed(2) : '---';
+    final rmsValue = guiderConnected && guiderIsGuiding && guiderRms != null
+        ? '${guiderRms.toStringAsFixed(2)}"'
+        : '---';
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _CommandBarStat(
+          icon: LucideIcons.thermometer,
+          label: 'Temp',
+          value: tempValue,
+          colors: colors,
+        ),
+        _CommandBarStat(
+          icon: LucideIcons.focus,
+          label: 'Focus',
+          value: focusValue,
+          colors: colors,
+        ),
+        _CommandBarStat(
+          icon: LucideIcons.target,
+          label: 'HFR',
+          value: hfrValue,
+          colors: colors,
+        ),
+        _CommandBarStat(
+          icon: LucideIcons.activity,
+          label: 'RMS',
+          value: rmsValue,
+          colors: colors,
+        ),
+      ],
+    );
+  }
+}
+
+class _CommandBarStat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+
+  const _CommandBarStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: colors.textMuted),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(fontSize: 9, color: colors.textMuted),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Compact command bar for narrow screens (<768px).
+class _CompactCommandBar extends ConsumerWidget {
+  final NightshadeColors colors;
+  final AnimationController pulseController;
+  final bool isEditing;
+  final VoidCallback onToggleEdit;
+
+  const _CompactCommandBar({
+    required this.colors,
+    required this.pulseController,
+    required this.isEditing,
+    required this.onToggleEdit,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionState = ref.watch(sessionStateProvider);
+    final exposurePercent = ref.watch(exposureProgressProvider.select((s) => s.percent));
+
+    final isCapturing = sessionState.isCapturing || exposurePercent > 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: NightshadeTokens.borderRadiusMd,
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          // Status dot
+          AnimatedBuilder(
+            animation: pulseController,
+            builder: (context, child) {
+              return Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isCapturing
+                      ? colors.success.withValues(alpha: 0.4 + pulseController.value * 0.4)
+                      : colors.textMuted.withValues(alpha: 0.4),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isCapturing ? 'Capturing' : 'Idle',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: isCapturing ? colors.success : colors.textSecondary,
+            ),
+          ),
+          const Spacer(),
+          // Edit button
+          NightshadeButton(
+            label: isEditing ? 'Done' : 'Edit',
+            icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
+            variant: isEditing ? ButtonVariant.primary : ButtonVariant.ghost,
+            size: ButtonSize.small,
+            onPressed: onToggleEdit,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Column of widgets for a specific zone.
+class _ZoneColumn extends StatelessWidget {
+  final DashboardZone zone;
+  final List<DashboardTileConfig> tiles;
+  final Map<DashboardWidgetId, DashboardWidgetDefinition> registry;
+  final NightshadeColors colors;
+  final AnimationController pulseController;
+  final bool isEditing;
+  final CardVariant cardVariant;
+  final bool isHeroZone;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
+  final void Function(DashboardWidgetId id) onResize;
+  final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
+
+  const _ZoneColumn({
+    required this.zone,
+    required this.tiles,
+    required this.registry,
+    required this.colors,
+    required this.pulseController,
+    required this.isEditing,
+    required this.cardVariant,
+    required this.isHeroZone,
+    required this.onReorder,
+    required this.onResize,
+    required this.onToggleEnabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (tiles.isEmpty) {
+      return _EmptyZonePlaceholder(zone: zone, colors: colors, isEditing: isEditing);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < tiles.length; i++) ...[
+          _buildZoneTile(tiles[i], i == 0 && isHeroZone),
+          if (i < tiles.length - 1) const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildZoneTile(DashboardTileConfig tile, bool isHero) {
+    final definition = registry[tile.widgetId];
+    if (definition == null) {
+      return _DashboardLayoutError(
+        title: 'Unknown widget',
+        buttonLabel: 'Hide Tile',
+        error: 'Missing widget definition for ${tile.widgetId.storageKey}.',
+        onReset: () => onToggleEnabled(tile.widgetId, false),
+      );
+    }
+
+    final child = Builder(
+      builder: (context) => definition.builder(context, colors, pulseController),
+    );
+
+    return _DashboardTile(
+      tile: tile,
+      width: double.infinity,
+      colors: colors,
+      child: child,
+      isEditing: isEditing,
+      cardVariant: isHero ? CardVariant.elevated : cardVariant,
+      isHero: isHero,
+      onReorder: onReorder,
+      onResize: onResize,
+      onToggleEnabled: onToggleEnabled,
+    );
+  }
+}
+
+/// Placeholder for empty zones in edit mode.
+class _EmptyZonePlaceholder extends StatelessWidget {
+  final DashboardZone zone;
+  final NightshadeColors colors;
+  final bool isEditing;
+
+  const _EmptyZonePlaceholder({
+    required this.zone,
+    required this.colors,
+    required this.isEditing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isEditing) return const SizedBox.shrink();
+
+    final zoneName = switch (zone) {
+      DashboardZone.primary => 'Primary',
+      DashboardZone.secondary => 'Secondary',
+      DashboardZone.tertiary => 'Tertiary',
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt.withValues(alpha: 0.5),
+        borderRadius: NightshadeTokens.borderRadiusLg,
+        border: Border.all(
+          color: colors.border,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(LucideIcons.layoutGrid, size: 32, color: colors.textMuted),
+          const SizedBox(height: 12),
+          Text(
+            '$zoneName Zone',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enable widgets to add them here',
+            style: TextStyle(fontSize: 12, color: colors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tertiary zone displayed as a horizontal row of compact cards.
+class _TertiaryZoneRow extends StatelessWidget {
+  final List<DashboardTileConfig> tiles;
+  final Map<DashboardWidgetId, DashboardWidgetDefinition> registry;
+  final NightshadeColors colors;
+  final AnimationController pulseController;
+  final bool isEditing;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
+  final void Function(DashboardWidgetId id) onResize;
+  final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
+
+  const _TertiaryZoneRow({
+    required this.tiles,
+    required this.registry,
+    required this.colors,
+    required this.pulseController,
+    required this.isEditing,
+    required this.onReorder,
+    required this.onResize,
+    required this.onToggleEnabled,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (tiles.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 12.0;
+        const minCardWidth = 250.0;
+        final maxCardsPerRow = ((constraints.maxWidth + spacing) / (minCardWidth + spacing)).floor().clamp(1, 4);
+
+        // If we have more cards than fit in one row, use grid layout
+        if (tiles.length > maxCardsPerRow) {
+          final cardsPerRow = maxCardsPerRow;
+          final cardWidth = (constraints.maxWidth - spacing * (cardsPerRow - 1)) / cardsPerRow;
+
+          final rows = <Widget>[];
+          for (var i = 0; i < tiles.length; i += cardsPerRow) {
+            final rowTiles = tiles.skip(i).take(cardsPerRow).toList();
+            rows.add(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var j = 0; j < rowTiles.length; j++) ...[
+                    SizedBox(
+                      width: cardWidth,
+                      child: _buildTertiaryTile(rowTiles[j]),
+                    ),
+                    if (j < rowTiles.length - 1) const SizedBox(width: spacing),
+                    if (j == rowTiles.length - 1 && rowTiles.length < cardsPerRow)
+                      const Expanded(child: SizedBox.shrink()),
+                  ],
+                ],
+              ),
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < rows.length; i++) ...[
+                rows[i],
+                if (i < rows.length - 1) const SizedBox(height: spacing),
+              ],
+            ],
+          );
+        }
+
+        // Single row - use Expanded for equal width
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < tiles.length; i++) ...[
+              Expanded(child: _buildTertiaryTile(tiles[i])),
+              if (i < tiles.length - 1) const SizedBox(width: spacing),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTertiaryTile(DashboardTileConfig tile) {
+    final definition = registry[tile.widgetId];
+    if (definition == null) return const SizedBox.shrink();
+
+    final child = Builder(
+      builder: (context) => definition.builder(context, colors, pulseController),
+    );
+
+    return _DashboardTile(
+      tile: tile,
+      width: double.infinity,
+      colors: colors,
+      child: child,
+      isEditing: isEditing,
+      cardVariant: CardVariant.standard,
+      isHero: false,
+      onReorder: onReorder,
+      onResize: onResize,
+      onToggleEnabled: onToggleEnabled,
+    );
+  }
+}
+
 
 class _ClockWidget extends ConsumerWidget {
   final NightshadeColors colors;
@@ -356,6 +1218,475 @@ class _ClockWidget extends ConsumerWidget {
   }
 }
 
+class _DashboardHeaderActions extends StatelessWidget {
+  final bool isEditing;
+  final VoidCallback onToggleEdit;
+  final VoidCallback onManageWidgets;
+  final VoidCallback onResetLayout;
+
+  const _DashboardHeaderActions({
+    required this.isEditing,
+    required this.onToggleEdit,
+    required this.onManageWidgets,
+    required this.onResetLayout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        NightshadeButton(
+          label: isEditing ? 'Done' : 'Edit Dashboard',
+          icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
+          variant: isEditing ? ButtonVariant.primary : ButtonVariant.outline,
+          size: ButtonSize.medium,
+          onPressed: onToggleEdit,
+        ),
+        if (isEditing) ...[
+          const SizedBox(width: 8),
+          NightshadeButton(
+            label: 'Widgets',
+            icon: LucideIcons.layoutGrid,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.medium,
+            onPressed: onManageWidgets,
+          ),
+          const SizedBox(width: 8),
+          NightshadeButton(
+            label: 'Reset',
+            icon: LucideIcons.refreshCw,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.medium,
+            onPressed: onResetLayout,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _EditModeBanner extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _EditModeBanner({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.grip, size: 16, color: colors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Edit mode: drag tiles to reorder, use the resize handle, or hide tiles.',
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// _DashboardGrid removed - replaced by _ZoneBasedDashboard
+
+class _DashboardTile extends StatelessWidget {
+  final DashboardTileConfig tile;
+  final double width;
+  final NightshadeColors colors;
+  final Widget child;
+  final bool isEditing;
+  final CardVariant cardVariant;
+  final bool isHero;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target)
+      onReorder;
+  final void Function(DashboardWidgetId id) onResize;
+  final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
+
+  const _DashboardTile({
+    required this.tile,
+    required this.width,
+    required this.colors,
+    required this.child,
+    required this.isEditing,
+    required this.onReorder,
+    required this.onResize,
+    required this.onToggleEnabled,
+    this.cardVariant = CardVariant.standard,
+    this.isHero = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DragTarget<DashboardWidgetId>(
+      onWillAccept: (data) => isEditing && data != tile.widgetId,
+      onAccept: (data) {
+        if (isEditing) onReorder(data, tile.widgetId);
+      },
+      builder: (context, candidateData, _) {
+        final isDropTarget = candidateData.isNotEmpty;
+        final frame = _DashboardTileFrame(
+          colors: colors,
+          isEditing: isEditing,
+          isDropTarget: isDropTarget,
+          size: tile.size,
+          child: child,
+          cardVariant: cardVariant,
+          isHero: isHero,
+          onResize: () => onResize(tile.widgetId),
+          onHide: () => onToggleEnabled(tile.widgetId, false),
+        );
+
+        if (!isEditing) {
+          return frame;
+        }
+
+        return LongPressDraggable<DashboardWidgetId>(
+          data: tile.widgetId,
+          feedback: Material(
+            color: Colors.transparent,
+            child: SizedBox(
+              width: width,
+              child: Opacity(
+                opacity: 0.9,
+                child: _DashboardTileFrame(
+                  colors: colors,
+                  isEditing: false,
+                  isDropTarget: false,
+                  size: tile.size,
+                  child: child,
+                  cardVariant: cardVariant,
+                  isHero: isHero,
+                  onResize: () {},
+                  onHide: () {},
+                ),
+              ),
+            ),
+          ),
+          childWhenDragging: Opacity(
+            opacity: 0.4,
+            child: frame,
+          ),
+          child: frame,
+        );
+      },
+    );
+  }
+}
+
+class _DashboardTileFrame extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool isEditing;
+  final bool isDropTarget;
+  final DashboardTileSize size;
+  final Widget child;
+  final CardVariant cardVariant;
+  final bool isHero;
+  final VoidCallback onResize;
+  final VoidCallback onHide;
+
+  const _DashboardTileFrame({
+    required this.colors,
+    required this.isEditing,
+    required this.isDropTarget,
+    required this.size,
+    required this.child,
+    required this.onResize,
+    required this.onHide,
+    this.cardVariant = CardVariant.standard,
+    this.isHero = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Hero treatment: premium shadows and accent glow for live preview
+    final List<BoxShadow> shadow;
+    if (isHero) {
+      shadow = [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.3),
+          blurRadius: 24,
+          offset: const Offset(0, 8),
+        ),
+        BoxShadow(
+          color: colors.primary.withValues(alpha: 0.1),
+          blurRadius: 16,
+          spreadRadius: -2,
+        ),
+      ];
+    } else if (cardVariant == CardVariant.elevated) {
+      shadow = NightshadeTokens.elevationLevel1to2;
+    } else if (cardVariant == CardVariant.subtle) {
+      shadow = [];
+    } else {
+      shadow = NightshadeTokens.elevationLevel1;
+    }
+
+    // Border with hero accent
+    final borderColor = isDropTarget
+        ? colors.primary.withValues(alpha: 0.7)
+        : isHero
+            ? colors.primary.withValues(alpha: 0.2)
+            : colors.border;
+
+    return Stack(
+      children: [
+        // Card container with visual hierarchy
+        AnimatedContainer(
+          duration: NightshadeTokens.durationNormal,
+          decoration: BoxDecoration(
+            borderRadius: NightshadeTokens.borderRadiusXl,
+            border: Border.all(
+              color: borderColor,
+              width: isDropTarget ? 2 : (isHero ? 1.5 : 1),
+            ),
+            boxShadow: shadow,
+          ),
+          child: ClipRRect(
+            borderRadius: NightshadeTokens.borderRadiusXl,
+            child: IgnorePointer(
+              ignoring: isEditing,
+              child: child,
+            ),
+          ),
+        ),
+
+        // Hero glow effect (top edge accent)
+        if (isHero)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 2,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colors.primary.withValues(alpha: 0.6),
+                    colors.accent.withValues(alpha: 0.3),
+                    colors.primary.withValues(alpha: 0.1),
+                  ],
+                  stops: const [0.0, 0.5, 1.0],
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+            ),
+          ),
+
+        // Edit mode controls
+        if (isEditing)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _EditIconButton(
+                  icon: LucideIcons.maximize2,
+                  tooltip: 'Resize (${size.label})',
+                  onTap: onResize,
+                ),
+                const SizedBox(width: 6),
+                _EditIconButton(
+                  icon: LucideIcons.eyeOff,
+                  tooltip: 'Hide tile',
+                  onTap: onHide,
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _EditIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _EditIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: colors.surfaceAlt.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Icon(
+              icon,
+              size: 14,
+              color: colors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardLoading extends StatelessWidget {
+  const _DashboardLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+}
+
+class _DashboardLayoutError extends StatelessWidget {
+  final Object error;
+  final VoidCallback onReset;
+  final String title;
+  final String buttonLabel;
+
+  const _DashboardLayoutError({
+    required this.error,
+    required this.onReset,
+    this.title = 'Dashboard Layout Error',
+    this.buttonLabel = 'Reset Layout',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    return _GlassCard(
+      colors: colors,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.alertTriangle, color: colors.warning, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            error.toString(),
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              label: buttonLabel,
+              icon: LucideIcons.refreshCw,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.medium,
+              onPressed: onReset,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WidgetPickerDialog extends ConsumerWidget {
+  const _WidgetPickerDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final layoutAsync = ref.watch(dashboardLayoutProvider);
+
+    return AlertDialog(
+      backgroundColor: colors.surface,
+      title: Text(
+        'Dashboard Widgets',
+        style: TextStyle(color: colors.textPrimary),
+      ),
+      content: SizedBox(
+        width: 420,
+        child: layoutAsync.when(
+          data: (layout) {
+            final tilesById = {
+              for (final tile in layout.tiles) tile.widgetId: tile,
+            };
+
+            return ListView.separated(
+              shrinkWrap: true,
+              itemCount: dashboardWidgetRegistry.length,
+              separatorBuilder: (_, __) => Divider(color: colors.border),
+              itemBuilder: (context, index) {
+                final definition = dashboardWidgetRegistry[index];
+                final tile = tilesById[definition.id];
+                final enabled = tile?.enabled ?? false;
+
+                return CheckboxListTile(
+                  value: enabled,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    ref
+                        .read(dashboardLayoutProvider.notifier)
+                        .setTileEnabled(definition.id, value);
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text(
+                    definition.title,
+                    style: TextStyle(color: colors.textPrimary),
+                  ),
+                  subtitle: Text(
+                    definition.subtitle,
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                  ),
+                );
+              },
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => Text(
+            'Failed to load widgets: $error',
+            style: TextStyle(color: colors.textSecondary),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Close', style: TextStyle(color: colors.primary)),
+        ),
+      ],
+    );
+  }
+}
+
 /// Live preview card - orchestrates smaller focused widgets
 class _LivePreviewCard extends StatelessWidget {
   final NightshadeColors colors;
@@ -370,54 +1701,43 @@ class _LivePreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _GlassCard(
       colors: colors,
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Header - split into own widget for capture status
+          // Header row - compact
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      LucideIcons.image,
-                      size: 16,
-                      color: colors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Live Preview',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(LucideIcons.image, size: 14, color: colors.primary),
               ),
-              // Capture status indicator - watches its own providers
-              _CaptureStatusIndicator(
-                colors: colors,
-                pulseController: pulseController,
+              const SizedBox(width: 10),
+              Text(
+                'Live Preview',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary),
               ),
+              const Spacer(),
+              _CaptureStatusIndicator(colors: colors, pulseController: pulseController),
             ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
-          // Image preview area - watches currentImageProvider and cameraStateProvider
-          _ImagePreviewArea(colors: colors),
+          // Image preview area with zoom controls - constrained height
+          SizedBox(
+            height: 300, // Fixed height for the image area
+            child: _ImagePreviewArea(colors: colors),
+          ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // Stats row - watches lastImageStatsProvider
+          // Stats row
           _ImageStatsRow(colors: colors),
         ],
       ),
@@ -474,10 +1794,393 @@ class _CaptureStatusIndicator extends ConsumerWidget {
 }
 
 /// Image preview area - only rebuilds when image or camera connection changes
-class _ImagePreviewArea extends ConsumerWidget {
+class _ImagePreviewArea extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
   const _ImagePreviewArea({required this.colors});
+
+  @override
+  ConsumerState<_ImagePreviewArea> createState() => _ImagePreviewAreaState();
+}
+
+class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
+  final TransformationController _transformController = TransformationController();
+  double _currentZoom = 1.0;
+  bool _isFitMode = true;
+  Size? _containerSize;
+
+  @override
+  void initState() {
+    super.initState();
+    _transformController.addListener(_onTransformChanged);
+  }
+
+  @override
+  void dispose() {
+    _transformController.removeListener(_onTransformChanged);
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  void _onTransformChanged() {
+    final scale = _transformController.value.getMaxScaleOnAxis();
+    if ((scale - _currentZoom).abs() > 0.01) {
+      setState(() {
+        _currentZoom = scale;
+        _isFitMode = false;
+      });
+    }
+  }
+
+  void _zoomToFit() {
+    final currentImage = ref.read(currentImageProvider);
+    if (currentImage == null || _containerSize == null) return;
+
+    final fitScale = _calculateFitScale(
+      _containerSize!,
+      currentImage.width,
+      currentImage.height,
+    );
+
+    final scaledWidth = currentImage.width * fitScale;
+    final scaledHeight = currentImage.height * fitScale;
+    final offsetX = (_containerSize!.width - scaledWidth) / 2;
+    final offsetY = (_containerSize!.height - scaledHeight) / 2;
+
+    setState(() {
+      _transformController.value = Matrix4.identity()
+        ..translate(offsetX, offsetY)
+        ..scale(fitScale);
+      _currentZoom = fitScale;
+      _isFitMode = true;
+    });
+  }
+
+  void _zoomTo100() {
+    final currentImage = ref.read(currentImageProvider);
+    if (currentImage == null || _containerSize == null) return;
+
+    // Center at 1:1 scale
+    final offsetX = (_containerSize!.width - currentImage.width) / 2;
+    final offsetY = (_containerSize!.height - currentImage.height) / 2;
+
+    setState(() {
+      _transformController.value = Matrix4.identity()
+        ..translate(offsetX, offsetY);
+      _currentZoom = 1.0;
+      _isFitMode = false;
+    });
+  }
+
+  void _zoomIn() {
+    final newScale = (_currentZoom * 1.25).clamp(0.1, 10.0);
+    _zoomToScale(newScale);
+  }
+
+  void _zoomOut() {
+    final newScale = (_currentZoom / 1.25).clamp(0.1, 10.0);
+    _zoomToScale(newScale);
+  }
+
+  void _zoomToScale(double newScale) {
+    if (_containerSize == null) return;
+
+    final center = Offset(_containerSize!.width / 2, _containerSize!.height / 2);
+    final scaleChange = newScale / _currentZoom;
+
+    final matrix = Matrix4.identity()
+      ..translate(center.dx, center.dy)
+      ..scale(scaleChange)
+      ..translate(-center.dx, -center.dy);
+
+    setState(() {
+      _transformController.value = matrix * _transformController.value;
+      _currentZoom = newScale;
+      _isFitMode = false;
+    });
+  }
+
+  double _calculateFitScale(Size containerSize, int imageWidth, int imageHeight) {
+    if (containerSize.isEmpty || imageWidth <= 0 || imageHeight <= 0) return 1.0;
+    final scaleX = containerSize.width / imageWidth;
+    final scaleY = containerSize.height / imageHeight;
+    return scaleX < scaleY ? scaleX : scaleY;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final currentImage = ref.watch(currentImageProvider);
+    final isConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+
+    String resolutionText = '--- × ---';
+    if (currentImage != null) {
+      resolutionText = '${currentImage.width} × ${currentImage.height}';
+    } else if (isConnected) {
+      resolutionText = 'Connected';
+    }
+
+    final zoomPercent = '${(_currentZoom * 100).toInt()}%';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Zoom toolbar
+        if (currentImage != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                _ZoomButton(
+                  icon: LucideIcons.minimize2,
+                  tooltip: 'Fit to view',
+                  isActive: _isFitMode,
+                  colors: colors,
+                  onPressed: _zoomToFit,
+                ),
+                const SizedBox(width: 4),
+                _ZoomButton(
+                  icon: LucideIcons.scan,
+                  tooltip: '100% (1:1)',
+                  colors: colors,
+                  onPressed: _zoomTo100,
+                ),
+                const SizedBox(width: 4),
+                _ZoomButton(
+                  icon: LucideIcons.zoomOut,
+                  tooltip: 'Zoom out',
+                  colors: colors,
+                  onPressed: _zoomOut,
+                ),
+                const SizedBox(width: 4),
+                _ZoomButton(
+                  icon: LucideIcons.zoomIn,
+                  tooltip: 'Zoom in',
+                  colors: colors,
+                  onPressed: _zoomIn,
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    zoomPercent,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textSecondary,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  resolutionText,
+                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                ),
+              ],
+            ),
+          ),
+
+        // Image area
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              _containerSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+              return Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A0A12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colors.border),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  // Listener to capture scroll events and prevent dashboard scrolling
+                  child: Listener(
+                    onPointerSignal: (event) {
+                      // Absorb scroll events when we have an image
+                      if (currentImage != null && event is PointerScrollEvent) {
+                        // Handle zoom here to prevent event from propagating
+                        final delta = event.scrollDelta.dy;
+                        final scaleFactor = delta > 0 ? 0.9 : 1.1;
+                        final newScale = (_currentZoom * scaleFactor).clamp(0.1, 10.0);
+
+                        if (newScale != _currentZoom) {
+                          final focalPoint = event.localPosition;
+                          final scaleChange = newScale / _currentZoom;
+
+                          final matrix = Matrix4.identity()
+                            ..translate(focalPoint.dx, focalPoint.dy)
+                            ..scale(scaleChange)
+                            ..translate(-focalPoint.dx, -focalPoint.dy);
+
+                          setState(() {
+                            _transformController.value = matrix * _transformController.value;
+                            _currentZoom = newScale;
+                            _isFitMode = false;
+                          });
+                        }
+                      }
+                    },
+                    child: Stack(
+                      children: [
+                        if (currentImage != null)
+                          Positioned.fill(
+                            child: InteractiveViewer(
+                              transformationController: _transformController,
+                              minScale: 0.1,
+                              maxScale: 10.0,
+                              panEnabled: true,
+                              scaleEnabled: true,
+                              // Disable built-in scroll handling - we handle it in Listener
+                              interactionEndFrictionCoefficient: 0.0,
+                              child: RawImage(
+                                image: null, // Handled by AstroImageViewer
+                                fit: BoxFit.contain,
+                                width: currentImage.width.toDouble(),
+                                height: currentImage.height.toDouble(),
+                              ),
+                            ),
+                          ),
+                        if (currentImage != null)
+                          Positioned.fill(
+                            child: _EnhancedImageDisplay(
+                              imageData: currentImage,
+                              transformController: _transformController,
+                              onTransformChanged: (controller) {
+                                final scale = controller.value.getMaxScaleOnAxis();
+                                if ((scale - _currentZoom).abs() > 0.01) {
+                                  setState(() {
+                                    _currentZoom = scale;
+                                    _isFitMode = false;
+                                  });
+                                }
+                              },
+                            ),
+                          )
+                        else ...[
+                          CustomPaint(
+                            painter: _StarFieldPainter(colors: colors),
+                            size: Size.infinite,
+                          ),
+                          Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: colors.surface.withValues(alpha: 0.8),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: colors.border),
+                                  ),
+                                  child: Icon(LucideIcons.camera, size: 32, color: colors.textMuted),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  isConnected ? 'No Image' : 'No Camera Connected',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: colors.textSecondary),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  isConnected ? 'Take a snapshot or start a sequence' : 'Connect a camera in Equipment',
+                                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Compact zoom button for the toolbar
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final bool isActive;
+  final NightshadeColors colors;
+  final VoidCallback onPressed;
+
+  const _ZoomButton({
+    required this.icon,
+    required this.tooltip,
+    required this.colors,
+    required this.onPressed,
+    this.isActive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: isActive ? colors.primary.withValues(alpha: 0.2) : colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: isActive ? colors.primary.withValues(alpha: 0.5) : colors.border.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 14,
+            color: isActive ? colors.primary : colors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Enhanced image display with proper scroll isolation
+class _EnhancedImageDisplay extends StatelessWidget {
+  final CapturedImageData imageData;
+  final TransformationController transformController;
+  final ValueChanged<TransformationController>? onTransformChanged;
+
+  const _EnhancedImageDisplay({
+    required this.imageData,
+    required this.transformController,
+    this.onTransformChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AstroImageViewer(
+      imageData: imageData.displayData,
+      width: imageData.width,
+      height: imageData.height,
+      isColor: imageData.isColor,
+      minScale: 0.1,
+      maxScale: 10.0,
+      enableInteraction: true,
+      onTransformChanged: onTransformChanged,
+    );
+  }
+}
+
+class _ImagePreviewAreaOld extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _ImagePreviewAreaOld({required this.colors});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -600,30 +2303,79 @@ class _ImageStatsRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lastStats = ref.watch(lastImageStatsProvider);
+    final currentImage = ref.watch(currentImageProvider);
 
-    return Row(
-      children: [
-        _MiniStat(
-          label: 'HFR',
-          value: lastStats?.hfr?.toStringAsFixed(2) ?? '---',
-          colors: colors,
-        ),
-        _MiniStat(
-          label: 'Stars',
-          value: lastStats?.starCount?.toString() ?? '---',
-          colors: colors,
-        ),
-        _MiniStat(
-          label: 'Median',
-          value: lastStats?.median?.toStringAsFixed(0) ?? '---',
-          colors: colors,
-        ),
-        _MiniStat(
-          label: 'Noise',
-          value: lastStats?.noise?.toStringAsFixed(1) ?? '---',
-          colors: colors,
-        ),
-      ],
+    // Get image dimensions from current image
+    final width = currentImage?.width;
+    final height = currentImage?.height;
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          // Top row - Image info
+          Row(
+            children: [
+              _StatCell(label: 'Size', value: width != null && height != null ? '${width}x$height' : '---', colors: colors),
+              _StatCell(label: 'Stars', value: lastStats?.starCount?.toString() ?? '---', colors: colors),
+              _StatCell(label: 'HFR', value: lastStats?.hfr?.toStringAsFixed(2) ?? '---', colors: colors, highlight: true),
+              _StatCell(label: 'FWHM', value: lastStats?.fwhm?.toStringAsFixed(2) ?? '---', colors: colors),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Bottom row - Pixel stats
+          Row(
+            children: [
+              _StatCell(label: 'Mean', value: lastStats?.mean?.toStringAsFixed(0) ?? '---', colors: colors),
+              _StatCell(label: 'Median', value: lastStats?.median?.toStringAsFixed(0) ?? '---', colors: colors),
+              _StatCell(label: 'Min', value: lastStats?.min?.toStringAsFixed(0) ?? '---', colors: colors),
+              _StatCell(label: 'Max', value: lastStats?.max?.toStringAsFixed(0) ?? '---', colors: colors),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact stat cell for the statistics grid
+class _StatCell extends StatelessWidget {
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+  final bool highlight;
+
+  const _StatCell({
+    required this.label,
+    required this.value,
+    required this.colors,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: highlight ? colors.primary : colors.textPrimary,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 9, color: colors.textMuted),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -761,10 +2513,14 @@ class _SessionProgressCard extends ConsumerWidget {
   String _formatDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
     if (hours > 0) {
       return '${hours}h ${minutes}m';
     }
-    return '${minutes}m';
+    if (minutes > 0) {
+      return '${minutes}m ${seconds}s';
+    }
+    return '${seconds}s';
   }
 
   String _formatIntegrationTime(double seconds) {
@@ -776,24 +2532,26 @@ class _SessionProgressCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(sessionStateProvider);
     final progress = ref.watch(sessionProgressProvider);
-    
+    final exposureSettings = ref.watch(exposureSettingsProvider);
+
     final isActive = sessionState.isActive;
     final progressValue = progress.clamp(0.0, 1.0);
-    
+    final targetName = sessionState.targetName ?? 'No target';
+
     // Format exposure count
-    final exposureText = '${sessionState.completedExposures} / ${sessionState.totalExposures}';
-    
+    final exposureText = '${sessionState.completedExposures}/${sessionState.totalExposures}';
+
     // Format integration time
     final integrationText = sessionState.totalIntegrationSecs > 0
         ? _formatIntegrationTime(sessionState.totalIntegrationSecs)
-        : '0h 0m';
-    
+        : '0m';
+
     // Format elapsed time
     final elapsedText = sessionState.startTime != null
         ? _formatDuration(DateTime.now().difference(sessionState.startTime!))
-        : '0h 0m';
-    
-    // Calculate remaining time (estimate based on progress)
+        : '---';
+
+    // Calculate remaining time
     String remainingText = '---';
     if (isActive && progressValue > 0 && progressValue < 1.0 && sessionState.startTime != null) {
       final elapsed = DateTime.now().difference(sessionState.startTime!);
@@ -806,111 +2564,162 @@ class _SessionProgressCard extends ConsumerWidget {
       }
     }
 
+    // Current exposure info
+    final currentExpText = '${exposureSettings.exposureTime}s ${exposureSettings.filter ?? "L"}';
+
     return _GlassCard(
       colors: colors,
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // Header with target name
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colors.accent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      LucideIcons.listOrdered,
-                      size: 16,
-                      color: colors.accent,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Session Progress',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isActive ? colors.success.withValues(alpha: 0.1) : colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  LucideIcons.target,
+                  size: 14,
+                  color: isActive ? colors.success : colors.textMuted,
+                ),
               ),
-              if (!isActive)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isActive ? targetName : 'Sequence',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (isActive)
+                      Text(
+                        currentExpText,
+                        style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                      ),
+                  ],
+                ),
+              ),
+              // Status badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isActive ? colors.success.withValues(alpha: 0.15) : colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  isActive ? 'Running' : 'Idle',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? colors.success : colors.textMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Progress bar with percentage
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 6,
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  child: Text(
-                    'No active sequence',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.textSecondary,
+                  child: FractionallySizedBox(
+                    widthFactor: progressValue,
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [colors.primary, colors.accent]),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
                     ),
                   ),
                 ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // Progress bar
-          Container(
-            height: 8,
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: FractionallySizedBox(
-              widthFactor: progressValue,
-              alignment: Alignment.centerLeft,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [colors.primary, colors.accent],
-                  ),
-                  borderRadius: BorderRadius.circular(4),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${(progressValue * 100).toInt()}%',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textSecondary,
                 ),
               ),
-            ),
+            ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
-          // Stats row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _SessionStat(
-                icon: LucideIcons.image,
-                label: 'Exposures',
-                value: exposureText,
-                colors: colors,
-              ),
-              _SessionStat(
-                icon: LucideIcons.timer,
-                label: 'Integration',
-                value: integrationText,
-                colors: colors,
-              ),
-              _SessionStat(
-                icon: LucideIcons.clock,
-                label: 'Elapsed',
-                value: elapsedText,
-                colors: colors,
-              ),
-              _SessionStat(
-                icon: LucideIcons.hourglass,
-                label: 'Remaining',
-                value: remainingText,
-                colors: colors,
-              ),
-            ],
+          // Stats grid - NINA-style compact layout
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                _CompactStat(label: 'Frames', value: exposureText, colors: colors),
+                _CompactStat(label: 'Total', value: integrationText, colors: colors),
+                _CompactStat(label: 'Elapsed', value: elapsedText, colors: colors),
+                _CompactStat(label: 'Remain', value: remainingText, colors: colors, highlight: isActive),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact stat for dense information display
+class _CompactStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+  final bool highlight;
+
+  const _CompactStat({
+    required this.label,
+    required this.value,
+    required this.colors,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: highlight ? colors.primary : colors.textPrimary,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 9, color: colors.textMuted),
           ),
         ],
       ),
@@ -969,112 +2778,162 @@ class _GuidingCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Use select() to only watch specific fields we need
-    final isConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final isGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
-    final rmsValue = ref.watch(guiderStateProvider.select((s) => s.rmsTotal));
+    final guiderState = ref.watch(guiderStateProvider);
     final guideGraphData = ref.watch(guideGraphProvider);
 
-    final rmsTotal = rmsValue?.toStringAsFixed(2) ?? '---';
+    final isConnected = guiderState.connectionState == DeviceConnectionState.connected;
+    final isGuiding = guiderState.isGuiding;
+    final rmsTotal = guiderState.rmsTotal?.toStringAsFixed(2) ?? '---';
+    final rmsRa = guiderState.rmsRa?.toStringAsFixed(2) ?? '---';
+    final rmsDec = guiderState.rmsDec?.toStringAsFixed(2) ?? '---';
+
+    // Guiding state text
+    final stateText = !isConnected
+        ? 'Disconnected'
+        : isGuiding
+            ? 'Guiding'
+            : 'Idle';
 
     return _GlassCard(
       colors: colors,
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // Header with state
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colors.info.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      LucideIcons.crosshair,
-                      size: 16,
-                      color: colors.info,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Guiding',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isGuiding ? colors.success.withValues(alpha: 0.1) : colors.info.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  LucideIcons.crosshair,
+                  size: 14,
+                  color: isGuiding ? colors.success : colors.info,
+                ),
               ),
-              Row(
-                children: [
-                  Text(
-                    'RMS: ',
-                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              const SizedBox(width: 10),
+              Text(
+                'Guiding',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary),
+              ),
+              const Spacer(),
+              // State badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isGuiding ? colors.success.withValues(alpha: 0.15) : colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  stateText,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: isGuiding ? colors.success : colors.textMuted,
                   ),
-                  Text(
-                    rmsTotal,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
 
-          // Graph
+          // RMS stats row - NINA style
           Container(
-            height: 100,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                _RmsStat(label: 'Total', value: '$rmsTotal"', colors: colors, highlight: true),
+                Container(width: 1, height: 24, color: colors.border.withValues(alpha: 0.3)),
+                _RmsStat(label: 'RA', value: '$rmsRa"', colors: colors, color: Colors.redAccent),
+                Container(width: 1, height: 24, color: colors.border.withValues(alpha: 0.3)),
+                _RmsStat(label: 'Dec', value: '$rmsDec"', colors: colors, color: Colors.blueAccent),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Graph - more compact
+          Container(
+            height: 80,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: isConnected && guideGraphData.isNotEmpty
-                ? ClipRect(
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
                     child: CustomPaint(
-                      painter: _DashboardGuidingGraphPainter(
-                        data: guideGraphData,
-                        colors: colors,
-                      ),
+                      painter: _DashboardGuidingGraphPainter(data: guideGraphData, colors: colors),
                       child: Container(),
                     ),
                   )
                 : Center(
                     child: Text(
-                      isConnected 
-                          ? (isGuiding ? 'Guiding active' : 'Start guiding to see graph')
-                          : 'Connect guider to see graph',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textMuted,
-                      ),
+                      isConnected ? 'Start guiding' : 'Connect guider',
+                      style: TextStyle(fontSize: 11, color: colors.textMuted),
                     ),
                   ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
 
+          // Legend row
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const _LegendItem(color: Colors.redAccent, label: 'RA'),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               const _LegendItem(color: Colors.blueAccent, label: 'Dec'),
-              const Spacer(),
-              Text(
-                'Scale: ±4"',
-                style: TextStyle(fontSize: 10, color: colors.textMuted),
-              ),
+              const SizedBox(width: 12),
+              Text('±4"', style: TextStyle(fontSize: 9, color: colors.textMuted)),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RmsStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+  final bool highlight;
+  final Color? color;
+
+  const _RmsStat({
+    required this.label,
+    required this.value,
+    required this.colors,
+    this.highlight = false,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: color ?? (highlight ? colors.primary : colors.textPrimary),
+            ),
+          ),
+          Text(label, style: TextStyle(fontSize: 9, color: colors.textMuted)),
         ],
       ),
     );
@@ -1173,6 +3032,772 @@ class _LegendItem extends StatelessWidget {
           style: TextStyle(fontSize: 11, color: colors.textSecondary),
         ),
       ],
+    );
+  }
+}
+
+class _CaptureSettingsCard extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+
+  const _CaptureSettingsCard({required this.colors});
+
+  @override
+  ConsumerState<_CaptureSettingsCard> createState() =>
+      _CaptureSettingsCardState();
+}
+
+class _CaptureSettingsCardState extends ConsumerState<_CaptureSettingsCard> {
+  bool _isLooping = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final exposureSettings = ref.watch(exposureSettingsProvider);
+    final exposureProgress = ref.watch(exposureProgressProvider);
+    final cameraState = ref.watch(cameraStateProvider);
+
+    final isConnected =
+        cameraState.connectionState == DeviceConnectionState.connected;
+    final isCapturing =
+        exposureProgress.percent > 0 || exposureProgress.isDownloading;
+
+    return _GlassCard(
+      colors: colors,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Settings - use Wrap for responsive layout
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              // Exposure
+              _CompactSettingField(
+                label: 'Exp',
+                value: exposureSettings.exposureTime.toString(),
+                suffix: 's',
+                colors: colors,
+                onChanged: (v) {
+                  final parsed = double.tryParse(v);
+                  if (parsed != null && parsed > 0) {
+                    ref.read(exposureSettingsProvider.notifier).state =
+                        exposureSettings.copyWith(exposureTime: parsed);
+                  }
+                },
+              ),
+              // Gain
+              _CompactSettingField(
+                label: 'Gain',
+                value: exposureSettings.gain.toString(),
+                colors: colors,
+                onChanged: (v) {
+                  final parsed = int.tryParse(v);
+                  if (parsed != null && parsed >= 0) {
+                    ref.read(exposureSettingsProvider.notifier).state =
+                        exposureSettings.copyWith(gain: parsed);
+                  }
+                },
+              ),
+              // Binning dropdown
+              _CompactDropdown(
+                label: 'Bin',
+                value: exposureSettings.binning,
+                items: const ['1x1', '2x2', '3x3', '4x4'],
+                colors: colors,
+                onChanged: (v) {
+                  if (v != null) {
+                    final parts = v.split('x');
+                    ref.read(exposureSettingsProvider.notifier).state =
+                        exposureSettings.copyWith(
+                      binningX: int.parse(parts[0]),
+                      binningY: int.parse(parts[1]),
+                    );
+                  }
+                },
+              ),
+              // Filter dropdown
+              _CompactDropdown(
+                label: 'Filter',
+                value: exposureSettings.filter ?? 'L',
+                items: const ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
+                colors: colors,
+                highlight: true,
+                onChanged: (v) {
+                  if (v != null) {
+                    ref.read(exposureSettingsProvider.notifier).state =
+                        exposureSettings.copyWith(filter: v);
+                  }
+                },
+              ),
+              // Frame type dropdown
+              _CompactDropdown(
+                label: 'Frame',
+                value: exposureSettings.frameType.displayName,
+                items: FrameType.values.map((t) => t.displayName).toList(),
+                colors: colors,
+                onChanged: (v) {
+                  if (v != null) {
+                    final type = FrameType.values.firstWhere(
+                      (t) => t.displayName == v,
+                      orElse: () => FrameType.light,
+                    );
+                    ref.read(exposureSettingsProvider.notifier).state =
+                        exposureSettings.copyWith(frameType: type);
+                  }
+                },
+              ),
+              // Progress indicator when capturing
+              if (isCapturing)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        value: exposureProgress.percent,
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(colors.primary),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${(exposureProgress.percent * 100).toInt()}%',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colors.primary,
+                      ),
+                    ),
+                  ],
+                )
+              else if (!isConnected)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: colors.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'No Camera',
+                    style: TextStyle(fontSize: 10, color: colors.warning),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Capture buttons row - compact
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: NightshadeButton(
+                  label: isCapturing
+                      ? (exposureProgress.isDownloading ? 'Downloading...' : 'Capturing...')
+                      : 'Capture',
+                  icon: isCapturing ? LucideIcons.loader2 : LucideIcons.camera,
+                  size: ButtonSize.small,
+                  onPressed: (!isConnected || isCapturing) ? null : _captureImage,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: NightshadeButton(
+                  label: _isLooping ? 'Stop' : 'Loop',
+                  icon: LucideIcons.repeat,
+                  variant: _isLooping ? ButtonVariant.primary : ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: (!isConnected || isCapturing) ? null : _toggleLoop,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: NightshadeButton(
+                  label: 'Abort',
+                  icon: LucideIcons.x,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: (isCapturing || _isLooping) ? _abortCapture : null,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _captureImage() async {
+    try {
+      final imagingService = ref.read(imagingServiceProvider);
+      final settings = ref.read(exposureSettingsProvider);
+      final result = await imagingService.captureImage(settings: settings);
+      if (result != null && mounted) {
+        ref.read(currentImageProvider.notifier).state = result;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Capture failed: $e')),
+        );
+      }
+    }
+  }
+
+  void _toggleLoop() async {
+    if (_isLooping) {
+      setState(() => _isLooping = false);
+      return;
+    }
+    setState(() => _isLooping = true);
+    while (_isLooping && mounted) {
+      await _captureImage();
+      if (_isLooping && mounted) {
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+    }
+    if (mounted) {
+      setState(() => _isLooping = false);
+    }
+  }
+
+  void _abortCapture() {
+    setState(() => _isLooping = false);
+    ref.read(imagingServiceProvider).cancelExposure();
+  }
+}
+
+/// Compact text field for inline settings editing
+class _CompactSettingField extends StatefulWidget {
+  final String label;
+  final String value;
+  final String? suffix;
+  final NightshadeColors colors;
+  final ValueChanged<String> onChanged;
+
+  const _CompactSettingField({
+    required this.label,
+    required this.value,
+    required this.colors,
+    required this.onChanged,
+    this.suffix,
+  });
+
+  @override
+  State<_CompactSettingField> createState() => _CompactSettingFieldState();
+}
+
+class _CompactSettingFieldState extends State<_CompactSettingField> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(_CompactSettingField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only update if the value changed externally (not from user input)
+    if (oldWidget.value != widget.value && _controller.text != widget.value) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${widget.label}:',
+          style: TextStyle(fontSize: 11, color: widget.colors.textMuted),
+        ),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 50,
+          height: 28,
+          child: TextField(
+            controller: _controller,
+            style: TextStyle(fontSize: 12, color: widget.colors.textPrimary),
+            textAlign: TextAlign.center,
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              filled: true,
+              fillColor: widget.colors.surfaceAlt,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(color: widget.colors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(color: widget.colors.primary),
+              ),
+            ),
+            onSubmitted: widget.onChanged,
+          ),
+        ),
+        if (widget.suffix != null) ...[
+          const SizedBox(width: 2),
+          Text(widget.suffix!, style: TextStyle(fontSize: 10, color: widget.colors.textMuted)),
+        ],
+      ],
+    );
+  }
+}
+
+/// Compact dropdown for inline settings
+class _CompactDropdown extends StatelessWidget {
+  final String label;
+  final String value;
+  final List<String> items;
+  final NightshadeColors colors;
+  final bool highlight;
+  final ValueChanged<String?> onChanged;
+
+  const _CompactDropdown({
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.colors,
+    required this.onChanged,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$label:',
+          style: TextStyle(fontSize: 11, color: colors.textMuted),
+        ),
+        const SizedBox(width: 4),
+        Container(
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: highlight ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: highlight ? colors.primary.withValues(alpha: 0.3) : colors.border.withValues(alpha: 0.5),
+            ),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isDense: true,
+              style: TextStyle(
+                fontSize: 12,
+                color: highlight ? colors.primary : colors.textPrimary,
+                fontWeight: highlight ? FontWeight.w600 : FontWeight.normal,
+              ),
+              dropdownColor: colors.surface,
+              icon: Icon(LucideIcons.chevronDown, size: 12, color: colors.textMuted),
+              items: items.map((item) => DropdownMenuItem(
+                value: item,
+                child: Text(item),
+              )).toList(),
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MountControlCard extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _MountControlCard({required this.colors});
+
+  String _formatRa(double ra) {
+    final hours = ra.floor();
+    final minutes = ((ra - hours) * 60).floor();
+    final seconds = (((ra - hours) * 60 - minutes) * 60).round();
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDec(double dec) {
+    final sign = dec >= 0 ? '+' : '-';
+    final absDec = dec.abs();
+    final degrees = absDec.floor();
+    final minutes = ((absDec - degrees) * 60).floor();
+    final seconds = (((absDec - degrees) * 60 - minutes) * 60).round();
+    return '$sign${degrees.toString().padLeft(2, '0')}°${minutes.toString().padLeft(2, '0')}\'${seconds.toString().padLeft(2, '0')}"';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mountState = ref.watch(mountStateProvider);
+    final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+
+    final raText = mountState.ra != null ? _formatRa(mountState.ra!) : '---';
+    final decText = mountState.dec != null ? _formatDec(mountState.dec!) : '---';
+    final pierText = isConnected ? (mountState.sideOfPier?.toUpperCase() ?? '---') : '---';
+
+    // Status with color
+    final (statusText, statusColor) = mountState.isSlewing
+        ? ('Slewing', colors.warning)
+        : mountState.isParked
+            ? ('Parked', colors.textMuted)
+            : mountState.isTracking
+                ? ('Tracking', colors.success)
+                : isConnected
+                    ? ('Idle', colors.textSecondary)
+                    : ('Off', colors.textMuted);
+
+    return _GlassCard(
+      colors: colors,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: mountState.isTracking ? colors.success.withValues(alpha: 0.1) : colors.info.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  LucideIcons.move3d,
+                  size: 14,
+                  color: mountState.isTracking ? colors.success : colors.info,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text('Mount', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // Coordinates - NINA style
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('RA', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                      Text(raText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Dec', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                      Text(decText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Pier', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                    Text(pierText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Buttons
+          Row(
+            children: [
+              Expanded(
+                child: NightshadeButton(
+                  label: mountState.isParked ? 'Unpark' : 'Park',
+                  icon: LucideIcons.parkingCircle,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).togglePark(context) : null,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: NightshadeButton(
+                  label: mountState.isTracking ? 'Stop' : 'Track',
+                  icon: LucideIcons.activity,
+                  variant: mountState.isTracking ? ButtonVariant.primary : ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).toggleTracking(context) : null,
+                ),
+              ),
+            ],
+          ),
+          if (mountState.isSlewing) ...[
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: NightshadeButton(
+                label: 'Abort Slew',
+                icon: LucideIcons.xCircle,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).abortSlew(context) : null,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FocusCard extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _FocusCard({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final focuserState = ref.watch(focuserStateProvider);
+    final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
+    final isConnected =
+        focuserState.connectionState == DeviceConnectionState.connected;
+
+    final positionText =
+        focuserState.position != null ? '${focuserState.position}' : '---';
+    final tempText = focuserState.temperature != null
+        ? '${focuserState.temperature!.toStringAsFixed(1)}°C'
+        : '---';
+    final hfrText = hfr != null ? hfr.toStringAsFixed(2) : '---';
+
+    return _GlassCard(
+      colors: colors,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Use compact mode for narrow cards (< 300px)
+          final isCompact = constraints.maxWidth < 300;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colors.accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      LucideIcons.focus,
+                      size: 16,
+                      color: colors.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Focus',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    isConnected ? 'OK' : 'Off',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isConnected ? colors.success : colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _MiniStat(
+                    label: 'Pos',
+                    value: positionText,
+                    colors: colors,
+                  ),
+                  _MiniStat(
+                    label: 'Temp',
+                    value: tempText,
+                    colors: colors,
+                  ),
+                  _MiniStat(
+                    label: 'HFR',
+                    value: hfrText,
+                    colors: colors,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Simplified controls for dashboard
+              if (isCompact)
+                SizedBox(
+                  width: double.infinity,
+                  child: NightshadeButton(
+                    label: 'Autofocus',
+                    icon: LucideIcons.focus,
+                    size: ButtonSize.small,
+                    onPressed: isConnected ? () {
+                      // Navigate to focus tab or show dialog
+                      context.showInfoSnackBar('Use Focus tab for autofocus');
+                    } : null,
+                  ),
+                )
+              else
+                const FocuserControls(
+                  compact: true,
+                  showAutofocus: true,
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AlertsCard extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _AlertsCard({required this.colors});
+
+  NightshadeAlertSeverity _mapSeverity(UiNotificationLevel level) {
+    return switch (level) {
+      UiNotificationLevel.info => NightshadeAlertSeverity.info,
+      UiNotificationLevel.success => NightshadeAlertSeverity.success,
+      UiNotificationLevel.warning => NightshadeAlertSeverity.warning,
+      UiNotificationLevel.error => NightshadeAlertSeverity.error,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifications = ref.watch(uiNotificationProvider);
+    final hasOperation = ref.watch(hasActiveOperationProvider);
+    final recent = notifications.reversed.take(2).toList(); // Show fewer in compact
+
+    return _GlassCard(
+      colors: colors,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  LucideIcons.bell,
+                  size: 16,
+                  color: colors.warning,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Alerts',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (notifications.isNotEmpty)
+                TextButton(
+                  onPressed: () => ref
+                      .read(uiNotificationProvider.notifier)
+                      .clearAll(),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Clear',
+                    style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (hasOperation) ...[
+            const OperationStatusBar(),
+            const SizedBox(height: 8),
+          ],
+          if (recent.isEmpty && !hasOperation)
+            Text(
+              'No active alerts.',
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            )
+          else
+            Column(
+              children: recent
+                  .map(
+                    (notification) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: NightshadeAlert(
+                        message: notification.message,
+                        title: notification.title,
+                        severity: _mapSeverity(notification.level),
+                        compact: true,
+                        onDismiss: () => ref
+                            .read(uiNotificationProvider.notifier)
+                            .dismiss(notification.id),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1535,7 +4160,7 @@ class _TonightCard extends ConsumerWidget {
 
     // Use select() to only watch the time field
     final now = ref.watch(observationTimeProvider.select((s) => s.time));
-    
+
     // Format astro twilight time
     String astroTwilightTime = '--:--';
     if (twilight.astronomicalDusk != null) {
@@ -1551,14 +4176,10 @@ class _TonightCard extends ConsumerWidget {
         }
       }
     }
-    
-    // Format moon info
-    String moonValue = '${moonInfo.illumination.toStringAsFixed(0)}%';
-    if (moonInfo.moonrise != null) {
-      final rise = moonInfo.moonrise!;
-      moonValue += ' @ ${rise.hour.toString().padLeft(2, '0')}:${rise.minute.toString().padLeft(2, '0')}';
-    }
-    
+
+    // Format moon info - compact version without moonrise time
+    final moonValue = '${moonInfo.illumination.toStringAsFixed(0)}%';
+
     // Calculate imaging window (darkness duration)
     String imagingWindow = '--:--';
     if (twilight.astronomicalDusk != null && twilight.astronomicalDawn != null) {
@@ -1567,11 +4188,12 @@ class _TonightCard extends ConsumerWidget {
       final minutes = duration.inMinutes % 60;
       imagingWindow = '${hours}h ${minutes}m';
     }
-    
+
     return _GlassCard(
       colors: colors,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -1599,25 +4221,25 @@ class _TonightCard extends ConsumerWidget {
             ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
           _TonightRow(
             icon: LucideIcons.sunset,
-            label: 'Astro Twilight',
+            label: 'Twilight',
             value: astroTwilightTime,
             colors: colors,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           _TonightRow(
             icon: LucideIcons.moonStar,
             label: 'Moon',
             value: moonValue,
             colors: colors,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           _TonightRow(
             icon: LucideIcons.timer,
-            label: 'Imaging Window',
+            label: 'Window',
             value: imagingWindow,
             colors: colors,
           ),
@@ -1645,12 +4267,14 @@ class _TonightRow extends StatelessWidget {
     return Row(
       children: [
         Icon(icon, size: 14, color: colors.textMuted),
-        const SizedBox(width: 10),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: colors.textSecondary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-        const Spacer(),
         Text(
           value,
           style: TextStyle(
@@ -1720,19 +4344,13 @@ class _QuickActionsCard extends ConsumerWidget {
                           exposureTime: settings.exposureTime,
                           hfr: result.stats.hfr,
                         );
-                        
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Snapshot captured')),
-                          );
-                        }
+
+                        if (!context.mounted) return;
+                        context.showSuccessSnackBar('Snapshot captured');
                       }
                     } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Snapshot failed: $e')),
-                        );
-                      }
+                      if (!context.mounted) return;
+                      context.showErrorSnackBar('Snapshot failed: $e');
                     } finally {
                       ref.read(sessionStateProvider.notifier).setCapturing(false);
                     }
@@ -1750,31 +4368,19 @@ class _QuickActionsCard extends ConsumerWidget {
                     final focuserState = ref.read(focuserStateProvider);
                     
                     if (cameraState.connectionState != DeviceConnectionState.connected) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Camera not connected')),
-                        );
-                      }
+                      context.showErrorSnackBar('Camera not connected');
                       return;
                     }
-                    
+
                     if (focuserState.connectionState != DeviceConnectionState.connected) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Focuser not connected')),
-                        );
-                      }
+                      context.showErrorSnackBar('Focuser not connected');
                       return;
                     }
-                    
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Autofocus: Use Sequencer for full autofocus routine'),
-                          duration: Duration(seconds: 3),
-                        ),
-                      );
-                    }
+
+                    context.showInfoSnackBar(
+                      'Autofocus: Use Sequencer for full autofocus routine',
+                      duration: const Duration(seconds: 3),
+                    );
                   },
                 ),
               ),
@@ -1795,14 +4401,10 @@ class _QuickActionsCard extends ConsumerWidget {
                     final targetDec = session.targetDec;
                     
                     if (targetRa == null || targetDec == null) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No target set. Please set a target first.'),
-                            duration: Duration(seconds: 3),
-                          ),
-                        );
-                      }
+                      context.showWarningSnackBar(
+                        'No target set. Please set a target first.',
+                        duration: const Duration(seconds: 3),
+                      );
                       return;
                     }
                     
@@ -1831,23 +4433,7 @@ class _QuickActionsCard extends ConsumerWidget {
                   colors: colors,
                   // Gate on canPark capability
                   onTap: (mountCapabilities?.canPark ?? true)
-                      ? () async {
-                          try {
-                            final deviceService = ref.read(deviceServiceProvider);
-                            await deviceService.parkMount();
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Mount parked')),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Failed to park mount: $e')),
-                              );
-                            }
-                          }
-                        }
+                      ? () => ref.read(mountCommandServiceProvider).park(context)
                       : null,
                 ),
               ),
@@ -1935,13 +4521,13 @@ class _GlassCard extends StatelessWidget {
   const _GlassCard({
     required this.colors,
     required this.child,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = const EdgeInsets.all(16),
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: padding,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -1954,7 +4540,10 @@ class _GlassCard extends StatelessWidget {
           ),
         ],
       ),
-      child: child,
+      child: Padding(
+        padding: padding,
+        child: child,
+      ),
     );
   }
 }
@@ -1997,7 +4586,7 @@ class _CenteringDialogState extends State<_CenteringDialog> {
   Future<void> _runCentering() async {
     try {
       final imagingService = widget.ref.read(imagingServiceProvider);
-      final deviceService = widget.ref.read(deviceServiceProvider);
+      final mountService = widget.ref.read(mountCommandServiceProvider);
       final settings = widget.ref.read(appSettingsProvider).value;
       final astapPath = settings?.astapPath ?? '';
 
@@ -2080,8 +4669,9 @@ class _CenteringDialogState extends State<_CenteringDialog> {
         // RA: arcsec / (15 * 3600) = hours, Dec: arcsec / 3600 = degrees
         final newRa = widget.targetRa - (raErrorArcsec / (15.0 * 3600.0)); // Correct for offset (hours)
         final newDec = widget.targetDec - (decErrorArcsec / 3600.0); // Correct for offset (degrees)
-        
-        await deviceService.slewMountToCoordinates(newRa, newDec);
+
+        // Use service without feedback - dialog shows its own status
+        await mountService.slewTo(context, newRa, newDec, showFeedback: false);
         
         // Wait for slew to complete
         await Future.delayed(const Duration(seconds: 2));

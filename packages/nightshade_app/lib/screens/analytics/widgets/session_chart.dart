@@ -116,13 +116,13 @@ class SessionChart extends StatelessWidget {
                     horizontalInterval: yRange / 4,
                     getDrawingHorizontalLine: (value) {
                       return FlLine(
-                        color: colors.border.withOpacity(0.3),
+                        color: colors.border.withValues(alpha: 0.3),
                         strokeWidth: 1,
                       );
                     },
                     getDrawingVerticalLine: (value) {
                       return FlLine(
-                        color: colors.border.withOpacity(0.3),
+                        color: colors.border.withValues(alpha: 0.3),
                         strokeWidth: 1,
                       );
                     },
@@ -194,7 +194,7 @@ class SessionChart extends StatelessWidget {
                       dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: lineColor.withOpacity(0.1),
+                        color: lineColor.withValues(alpha: 0.1),
                       ),
                     ),
                   ],

@@ -119,8 +119,8 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
     final offsetY = (containerSize.height - scaledHeight) / 2;
 
     _transformationController.value = Matrix4.identity()
-      ..translate(offsetX, offsetY)
-      ..scale(fitScale);
+      ..translateByDouble(offsetX, offsetY, 0, 1.0)
+      ..scaleByDouble(fitScale, fitScale, 1.0, 1.0);
 
     _initialScaleSet = true;
   }
@@ -228,9 +228,9 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
 
         // Create a new matrix that scales around the focal point
         final matrix = Matrix4.identity()
-          ..translate(focalPoint.dx, focalPoint.dy)
-          ..scale(scaleChange)
-          ..translate(-focalPoint.dx, -focalPoint.dy);
+          ..translateByDouble(focalPoint.dx, focalPoint.dy, 0, 1.0)
+          ..scaleByDouble(scaleChange, scaleChange, 1.0, 1.0)
+          ..translateByDouble(-focalPoint.dx, -focalPoint.dy, 0, 1.0);
 
         _transformationController.value = matrix * _transformationController.value;
 

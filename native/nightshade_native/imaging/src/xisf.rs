@@ -375,11 +375,6 @@ pub fn write_xisf(path: &Path, image: &ImageData, metadata: &XisfMetadata) -> Re
     Ok(())
 }
 
-/// Build XISF XML header
-fn build_xisf_xml(image: &ImageData, metadata: &XisfMetadata) -> String {
-    build_xisf_xml_with_location(image, metadata, 0, image.data.len())
-}
-
 /// Build XISF XML header with data location
 fn build_xisf_xml_with_location(
     image: &ImageData,

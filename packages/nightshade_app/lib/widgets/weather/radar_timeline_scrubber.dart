@@ -234,11 +234,13 @@ class _RadarTimelineScrubberState
                     });
                   },
                   onHorizontalDragUpdate: (details) {
+                    if (widget.frames.isEmpty) return;
                     final box = context.findRenderObject() as RenderBox?;
                     if (box == null) return;
 
                     final localPosition = box.globalToLocal(details.globalPosition);
                     final sliderWidth = box.size.width - 200; // Account for controls
+                    if (sliderWidth <= 0) return;
                     final relativeX = (localPosition.dx - 100).clamp(0.0, sliderWidth);
                     final fraction = relativeX / sliderWidth;
                     final newIndex = (fraction * widget.frames.length).floor()
@@ -328,12 +330,12 @@ class _RadarTimelineScrubberState
                 ),
                 decoration: BoxDecoration(
                   color: currentFrame.isForecast
-                      ? colors.warning.withOpacity(0.1)
+                      ? colors.warning.withValues(alpha: 0.1)
                       : colors.surfaceAlt,
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
                     color: currentFrame.isForecast
-                        ? colors.warning.withOpacity(0.3)
+                        ? colors.warning.withValues(alpha: 0.3)
                         : colors.border,
                   ),
                 ),
@@ -426,6 +428,9 @@ class _TimelineTrackPainter extends CustomPainter {
     const tickHeight = 12.0;
     const thumbRadius = 8.0;
     final trackY = size.height / 2;
+    final hasMultipleFrames = frames.length > 1;
+    final segmentWidth = hasMultipleFrames ? size.width / (frames.length - 1) : 0.0;
+    final singleFrameX = size.width / 2;
 
     // Draw track background
     final trackRect = RRect.fromRectAndRadius(
@@ -445,16 +450,14 @@ class _TimelineTrackPainter extends CustomPainter {
     canvas.drawRRect(trackRect, trackPaint);
 
     // Draw frame tick marks
-    final segmentWidth = size.width / (frames.length - 1);
-
     for (int i = 0; i < frames.length; i++) {
       final frame = frames[i];
-      final x = i * segmentWidth;
+      final x = hasMultipleFrames ? i * segmentWidth : singleFrameX;
 
       // Tick color based on frame type
       final tickColor = frame.isForecast
-          ? colors.warning.withOpacity(0.5)
-          : colors.textMuted.withOpacity(0.5);
+          ? colors.warning.withValues(alpha: 0.5)
+          : colors.textMuted.withValues(alpha: 0.5);
 
       final tickPaint = Paint()
         ..color = tickColor
@@ -470,7 +473,7 @@ class _TimelineTrackPainter extends CustomPainter {
 
     // Draw "now" marker if present
     if (nowIndex != null) {
-      final nowX = nowIndex! * segmentWidth;
+      final nowX = hasMultipleFrames ? nowIndex! * segmentWidth : singleFrameX;
       final nowPaint = Paint()
         ..color = colors.success
         ..strokeWidth = 3
@@ -503,7 +506,7 @@ class _TimelineTrackPainter extends CustomPainter {
     }
 
     // Draw progress fill up to current frame
-    if (currentIndex > 0) {
+    if (currentIndex > 0 && hasMultipleFrames) {
       final progressWidth = currentIndex * segmentWidth;
       final progressRect = RRect.fromRectAndRadius(
         Rect.fromLTWH(
@@ -516,14 +519,14 @@ class _TimelineTrackPainter extends CustomPainter {
       );
 
       final progressPaint = Paint()
-        ..color = colors.primary.withOpacity(0.3)
+        ..color = colors.primary.withValues(alpha: 0.3)
         ..style = PaintingStyle.fill;
 
       canvas.drawRRect(progressRect, progressPaint);
     }
 
     // Draw current position thumb
-    final thumbX = currentIndex * segmentWidth;
+    final thumbX = hasMultipleFrames ? currentIndex * segmentWidth : singleFrameX;
     final thumbPaint = Paint()
       ..color = colors.primary
       ..style = PaintingStyle.fill;

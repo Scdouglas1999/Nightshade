@@ -189,6 +189,24 @@ impl AscomFocuserWrapper {
             )),
         }
     }
+
+    async fn fetch_max_position(&self) -> Result<i32, NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomFocuserCommand::GetMaxPosition(tx))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_max_position").await
+    }
+
+    async fn fetch_step_size(&self) -> Result<f64, NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomFocuserCommand::GetStepSize(tx))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_step_size").await
+    }
 }
 
 #[async_trait::async_trait]
@@ -223,6 +241,24 @@ impl NativeDevice for AscomFocuserWrapper {
             "Focuser connected: max_position={}, step_size={}",
             info.max_position, info.step_size
         );
+
+        match self.fetch_max_position().await {
+            Ok(max_position) => {
+                self.max_position.store(max_position, Ordering::SeqCst);
+            }
+            Err(err) => {
+                tracing::warn!("Failed to refresh focuser max_position after connect: {}", err);
+            }
+        }
+
+        match self.fetch_step_size().await {
+            Ok(step_size) => {
+                self.step_size.store(step_size.to_bits(), Ordering::SeqCst);
+            }
+            Err(err) => {
+                tracing::warn!("Failed to refresh focuser step_size after connect: {}", err);
+            }
+        }
 
         Ok(())
     }
@@ -329,5 +365,65 @@ impl AscomFocuserWrapper {
             .await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "supported_actions").await
+    }
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_test_wrapper<F>(handler: F) -> AscomFocuserWrapper
+    where
+        F: FnMut(AscomFocuserCommand) -> bool + Send + 'static,
+    {
+        let (tx, mut rx) = mpsc::channel(8);
+        let handle = thread::spawn(move || {
+            let mut handler = handler;
+            while let Some(cmd) = rx.blocking_recv() {
+                if handler(cmd) {
+                    break;
+                }
+            }
+        });
+
+        AscomFocuserWrapper {
+            id: "test-focuser".to_string(),
+            name: "Test Focuser".to_string(),
+            sender: tx,
+            _thread_handle: Arc::new(handle),
+            max_position: AtomicI32::new(0),
+            step_size: AtomicU64::new(1.0f64.to_bits()),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_connect_refreshes_cached_limits_from_commands() {
+        let mut wrapper = build_test_wrapper(|cmd| {
+            match cmd {
+                AscomFocuserCommand::Connect(reply) => {
+                    let info = FocuserConnectInfo {
+                        max_position: 1000,
+                        step_size: 1.0,
+                    };
+                    let _ = reply.send(Ok(info));
+                }
+                AscomFocuserCommand::GetMaxPosition(reply) => {
+                    let _ = reply.send(Ok(1200));
+                }
+                AscomFocuserCommand::GetStepSize(reply) => {
+                    let _ = reply.send(Ok(2.5));
+                }
+                _ => {}
+            }
+            false
+        });
+
+        wrapper.connect().await.expect("connect");
+        assert_eq!(wrapper.get_max_position(), 1200);
+        assert!((wrapper.get_step_size() - 2.5).abs() < f64::EPSILON);
     }
 }

@@ -1,10 +1,13 @@
 import 'dart:math' as math;
+import 'dart:ui' show FrameTiming, FramePhase;
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../coordinate_system.dart';
 import '../celestial_object.dart';
 import '../rendering/sky_renderer.dart';
+import '../providers/performance_providers.dart';
 import '../providers/planetarium_providers.dart';
 
 /// Interactive sky view widget with pan, zoom, and object selection
@@ -132,10 +135,14 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       _popinController,
       _dsoPopinController,
     ]);
+
+    // Record frame timings for FPS/quality diagnostics.
+    SchedulerBinding.instance.addTimingsCallback(_handleFrameTimings);
   }
 
   @override
   void dispose() {
+    SchedulerBinding.instance.removeTimingsCallback(_handleFrameTimings);
     _zoomController.dispose();
     _twinkleController?.dispose();
     _selectionController.dispose();
@@ -143,6 +150,24 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     _popinController.dispose();
     _dsoPopinController.dispose();
     super.dispose();
+  }
+
+  void _handleFrameTimings(List<FrameTiming> timings) {
+    final monitor = ref.read(performanceMonitorProvider);
+    for (final timing in timings) {
+      final buildMs = timing.buildDuration.inMicroseconds / 1000;
+      final rasterMs = timing.rasterDuration.inMicroseconds / 1000;
+      final vsyncStart = timing.timestampInMicroseconds(FramePhase.vsyncStart);
+      final rasterFinish = timing.timestampInMicroseconds(FramePhase.rasterFinish);
+      final totalMs = rasterFinish > vsyncStart
+          ? (rasterFinish - vsyncStart) / 1000
+          : buildMs + rasterMs;
+      monitor.recordFrameTimings(
+        buildMs: buildMs,
+        rasterMs: rasterMs,
+        totalMs: totalMs,
+      );
+    }
   }
 
   void _onZoomAnimation() {

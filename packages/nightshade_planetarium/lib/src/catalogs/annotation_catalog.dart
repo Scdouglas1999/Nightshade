@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'catalog_manager.dart';
+import 'glade_plus_catalog.dart';
 import 'hyperleda_catalog.dart';
 
 /// Unified object type for annotation catalog
@@ -105,6 +106,22 @@ class AnnotationObject {
       distance: galaxy.distance,
       redshift: galaxy.redshift,
       source: 'HyperLEDA',
+    );
+  }
+
+  /// Create from GLADE+ data
+  factory AnnotationObject.fromGladePlus(GladePlusData galaxy) {
+    return AnnotationObject(
+      id: 'pgc_${galaxy.pgc}',
+      primaryName: galaxy.displayName,
+      alternateNames: const [],
+      ra: galaxy.ra,
+      dec: galaxy.dec,
+      type: AnnotationObjectType.galaxy,
+      magnitude: galaxy.magnitude,
+      distance: galaxy.distance,
+      redshift: galaxy.redshift,
+      source: 'GLADE+',
     );
   }
 
@@ -240,6 +257,7 @@ class AnnotationObject {
 class AnnotationCatalog {
   final OpenNgcCatalogLoader? _ngcLoader;
   final HyperLedaCatalogLoader? _ledaLoader;
+  final GladePlusCatalogLoader? _gladeLoader;
 
   List<AnnotationObject>? _mergedCatalog;
   Map<String, List<AnnotationObject>>? _spatialIndex;
@@ -248,11 +266,14 @@ class AnnotationCatalog {
   AnnotationCatalog({
     OpenNgcCatalogLoader? ngcLoader,
     HyperLedaCatalogLoader? ledaLoader,
+    GladePlusCatalogLoader? gladeLoader,
   })  : _ngcLoader = ngcLoader,
-        _ledaLoader = ledaLoader;
+        _ledaLoader = ledaLoader,
+        _gladeLoader = gladeLoader;
 
   /// Check if catalog is available
-  bool get isAvailable => _ngcLoader != null || _ledaLoader != null;
+  bool get isAvailable =>
+      _ngcLoader != null || _ledaLoader != null || _gladeLoader != null;
 
   /// Build spatial index key from RA/Dec
   String _gridKey(double ra, double dec) {
@@ -302,6 +323,7 @@ class AnnotationCatalog {
             final index = objects.indexOf(existing);
             if (index >= 0) {
               objects[index] = merged;
+              ngcByPosition[posKey] = merged;
             }
           } else {
             // Add new HyperLEDA object
@@ -310,6 +332,32 @@ class AnnotationCatalog {
         }
       } catch (e) {
         // Continue without HyperLEDA
+      }
+    }
+
+    // Load GLADE+ and merge/add
+    if (_gladeLoader != null) {
+      try {
+        final gladeData = await _gladeLoader!.loadAll();
+        for (final galaxy in gladeData) {
+          final obj = AnnotationObject.fromGladePlus(galaxy);
+
+          final posKey = '${obj.ra.toStringAsFixed(2)},${obj.dec.toStringAsFixed(2)}';
+          final existing = ngcByPosition[posKey];
+
+          if (existing != null) {
+            final merged = AnnotationObject.merged(existing, obj);
+            final index = objects.indexOf(existing);
+            if (index >= 0) {
+              objects[index] = merged;
+              ngcByPosition[posKey] = merged;
+            }
+          } else {
+            objects.add(obj);
+          }
+        }
+      } catch (e) {
+        // Continue without GLADE+
       }
     }
 
@@ -450,5 +498,6 @@ class AnnotationCatalog {
     _spatialIndex = null;
     _ngcLoader?.clearCache();
     _ledaLoader?.clearCache();
+    _gladeLoader?.clearCache();
   }
 }

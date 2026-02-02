@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/ui_notification_provider.dart';
 import 'logging_service.dart';
 
 /// Error severity levels matching Rust EventSeverity
@@ -120,10 +121,16 @@ class ErrorService {
   final Queue<ErrorEntry> _errorHistory = Queue<ErrorEntry>();
   final List<void Function(ErrorEntry)> _listeners = [];
   LoggingService? _loggingService;
+  UiNotificationNotifier? _uiNotificationNotifier;
 
   /// Set the logging service for file output integration
   void setLoggingService(LoggingService service) {
     _loggingService = service;
+  }
+
+  /// Set the UI notification notifier for displaying errors to the user
+  void setUiNotificationNotifier(UiNotificationNotifier notifier) {
+    _uiNotificationNotifier = notifier;
   }
 
   /// Log a structured error
@@ -144,9 +151,66 @@ class ErrorService {
       source: '${entry.category.name}:${entry.operation}',
     );
 
+    // Push to UI notifications for error and critical severity
+    if (_uiNotificationNotifier != null) {
+      final userFriendly = entry.userFriendly;
+      switch (entry.severity) {
+        case ErrorSeverity.error:
+          _uiNotificationNotifier!.showError(
+            userFriendly.fullMessage,
+            title: entry.deviceType != null
+                ? '${entry.deviceType} Error'
+                : '${_categoryToTitle(entry.category)} Error',
+          );
+          break;
+        case ErrorSeverity.critical:
+          _uiNotificationNotifier!.showError(
+            userFriendly.fullMessage,
+            title: 'Critical: ${_categoryToTitle(entry.category)}',
+            duration: const Duration(seconds: 15), // Persist longer for critical
+          );
+          break;
+        case ErrorSeverity.warning:
+          _uiNotificationNotifier!.showWarning(
+            userFriendly.userMessage,
+            title: entry.deviceType != null
+                ? '${entry.deviceType} Warning'
+                : '${_categoryToTitle(entry.category)} Warning',
+          );
+          break;
+        case ErrorSeverity.info:
+          // Info level doesn't push to UI notifications
+          break;
+      }
+    }
+
     // Notify listeners
     for (final listener in _listeners) {
       listener(entry);
+    }
+  }
+
+  /// Convert error category to user-friendly title
+  String _categoryToTitle(ErrorCategory category) {
+    switch (category) {
+      case ErrorCategory.device:
+        return 'Device';
+      case ErrorCategory.imaging:
+        return 'Imaging';
+      case ErrorCategory.sequencer:
+        return 'Sequence';
+      case ErrorCategory.guiding:
+        return 'Guiding';
+      case ErrorCategory.platesolve:
+        return 'Plate Solve';
+      case ErrorCategory.storage:
+        return 'Storage';
+      case ErrorCategory.network:
+        return 'Network';
+      case ErrorCategory.system:
+        return 'System';
+      case ErrorCategory.unknown:
+        return 'Error';
     }
   }
 
@@ -305,6 +369,13 @@ final errorServiceProvider = Provider<ErrorService>((ref) {
     service.setLoggingService(logging);
   } catch (_) {
     // Logging service not available, continue without file logging
+  }
+  // Wire up UI notifications for errors
+  try {
+    final uiNotifier = ref.watch(uiNotificationProvider.notifier);
+    service.setUiNotificationNotifier(uiNotifier);
+  } catch (_) {
+    // UI notification provider not available, continue without UI notifications
   }
   return service;
 });

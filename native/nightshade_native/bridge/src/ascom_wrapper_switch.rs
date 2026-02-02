@@ -13,7 +13,13 @@ enum AscomSwitchCommand {
     GetMaxSwitch(oneshot::Sender<Result<i32, String>>),
     GetSwitch(i32, oneshot::Sender<Result<bool, String>>),
     SetSwitch(i32, bool, oneshot::Sender<Result<(), String>>),
-    GetName(oneshot::Sender<Result<String, String>>),
+    GetSwitchName(i32, oneshot::Sender<Result<String, String>>),
+    GetSwitchDescription(i32, oneshot::Sender<Result<String, String>>),
+    GetSwitchValue(i32, oneshot::Sender<Result<f64, String>>),
+    SetSwitchValue(i32, f64, oneshot::Sender<Result<(), String>>),
+    GetMinSwitchValue(i32, oneshot::Sender<Result<f64, String>>),
+    GetMaxSwitchValue(i32, oneshot::Sender<Result<f64, String>>),
+    CanWrite(i32, oneshot::Sender<Result<bool, String>>),
     // Version query commands
     GetInterfaceVersion(oneshot::Sender<Result<i32, String>>),
     GetDriverVersion(oneshot::Sender<Result<String, String>>),
@@ -85,8 +91,26 @@ impl AscomSwitchWrapper {
                     AscomSwitchCommand::SetSwitch(id, state, reply) => {
                         let _ = reply.send(switch.set_switch(id, state));
                     }
-                    AscomSwitchCommand::GetName(reply) => {
-                        let _ = reply.send(switch.name());
+                    AscomSwitchCommand::GetSwitchName(id, reply) => {
+                        let _ = reply.send(switch.get_switch_name(id));
+                    }
+                    AscomSwitchCommand::GetSwitchDescription(id, reply) => {
+                        let _ = reply.send(switch.get_switch_description(id));
+                    }
+                    AscomSwitchCommand::GetSwitchValue(id, reply) => {
+                        let _ = reply.send(switch.get_switch_value(id));
+                    }
+                    AscomSwitchCommand::SetSwitchValue(id, value, reply) => {
+                        let _ = reply.send(switch.set_switch_value(id, value));
+                    }
+                    AscomSwitchCommand::GetMinSwitchValue(id, reply) => {
+                        let _ = reply.send(switch.min_switch_value(id));
+                    }
+                    AscomSwitchCommand::GetMaxSwitchValue(id, reply) => {
+                        let _ = reply.send(switch.max_switch_value(id));
+                    }
+                    AscomSwitchCommand::CanWrite(id, reply) => {
+                        let _ = reply.send(switch.can_write(id));
                     }
                     AscomSwitchCommand::GetInterfaceVersion(reply) => {
                         let _ = reply.send(switch.interface_version());
@@ -167,23 +191,53 @@ impl AscomSwitchWrapper {
         Self::recv_with_timeout(rx, Timeouts::property_write(), "set_switch").await
     }
 
-    pub async fn name(&self) -> Result<String, String> {
+    pub async fn get_switch_name(&self, id: i32) -> Result<String, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::GetName(tx)).await
+        self.sender.send(AscomSwitchCommand::GetSwitchName(id, tx)).await
             .map_err(|e| format!("Send error: {}", e))?;
-        Self::recv_with_timeout(rx, Timeouts::property_read(), "name").await
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_switch_name").await
     }
 
-    pub fn id(&self) -> &str {
-        &self.id
+    pub async fn get_switch_description(&self, id: i32) -> Result<String, String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender.send(AscomSwitchCommand::GetSwitchDescription(id, tx)).await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_switch_description").await
     }
 
-    pub fn cached_name(&self) -> &str {
-        &self.name
+    pub async fn get_switch_value(&self, id: i32) -> Result<f64, String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender.send(AscomSwitchCommand::GetSwitchValue(id, tx)).await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_switch_value").await
     }
 
-    pub fn cached_max_switch(&self) -> i32 {
-        self.max_switch
+    pub async fn set_switch_value(&mut self, id: i32, value: f64) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender.send(AscomSwitchCommand::SetSwitchValue(id, value, tx)).await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::property_write(), "set_switch_value").await
+    }
+
+    pub async fn get_min_switch_value(&self, id: i32) -> Result<f64, String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender.send(AscomSwitchCommand::GetMinSwitchValue(id, tx)).await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_min_switch_value").await
+    }
+
+    pub async fn get_max_switch_value(&self, id: i32) -> Result<f64, String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender.send(AscomSwitchCommand::GetMaxSwitchValue(id, tx)).await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_max_switch_value").await
+    }
+
+    pub async fn can_write(&self, id: i32) -> Result<bool, String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender.send(AscomSwitchCommand::CanWrite(id, tx)).await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "can_write").await
     }
 
     /// Get the ASCOM interface version number

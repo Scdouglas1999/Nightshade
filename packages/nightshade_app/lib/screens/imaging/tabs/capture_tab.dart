@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/astro_image_viewer.dart';
+import '../../../widgets/capture_settings_panel.dart';
 
 class CaptureTab extends ConsumerStatefulWidget {
   const CaptureTab({super.key});
@@ -18,7 +20,6 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
   bool _autoStretch = true;
   bool _showCrosshair = true;
   bool _showGrid = false;
-  bool _isLooping = false;
 
   // Zoom control state
   final GlobalKey<_ImageDisplayState> _imageDisplayKey = GlobalKey<_ImageDisplayState>();
@@ -34,8 +35,6 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
     final exposureProgress = ref.watch(exposureProgressProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final lastStats = ref.watch(lastImageStatsProvider);
-    // Watch exposure settings from provider (persists across navigation)
-    final exposureSettings = ref.watch(exposureSettingsProvider);
 
     final isConnected = cameraState.connectionState == DeviceConnectionState.connected;
     // Derive capture state from exposureProgress (single source of truth)
@@ -355,202 +354,9 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      'Capture Controls',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (!isConnected)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: colors.warning.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(LucideIcons.alertCircle, size: 12, color: colors.warning),
-                            const SizedBox(width: 4),
-                            Text(
-                              'No camera',
-                              style: TextStyle(fontSize: 10, color: colors.warning),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                // Exposure
-                _ControlRow(
-                  label: 'Exposure',
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: NightshadeTextField(
-                          initialValue: exposureSettings.exposureTime.toString(),
-                          onChanged: (value) {
-                            final parsed = double.tryParse(value);
-                            if (parsed != null && parsed > 0) {
-                              ref.read(exposureSettingsProvider.notifier).state =
-                                  exposureSettings.copyWith(exposureTime: parsed);
-                            }
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'sec',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Gain
-                _ControlRow(
-                  label: 'Gain',
-                  child: NightshadeTextField(
-                    initialValue: exposureSettings.gain.toString(),
-                    onChanged: (value) {
-                      final parsed = int.tryParse(value);
-                      if (parsed != null && parsed >= 0) {
-                        ref.read(exposureSettingsProvider.notifier).state =
-                            exposureSettings.copyWith(gain: parsed);
-                      }
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Offset
-                _ControlRow(
-                  label: 'Offset',
-                  child: NightshadeTextField(
-                    initialValue: exposureSettings.offset.toString(),
-                    onChanged: (value) {
-                      final parsed = int.tryParse(value);
-                      if (parsed != null && parsed >= 0) {
-                        ref.read(exposureSettingsProvider.notifier).state =
-                            exposureSettings.copyWith(offset: parsed);
-                      }
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Binning
-                _ControlRow(
-                  label: 'Binning',
-                  child: NightshadeDropdown(
-                    value: exposureSettings.binning,
-                    items: const ['1x1', '2x2', '3x3', '4x4'],
-                    onChanged: (value) {
-                      if (value != null) {
-                        final parts = value.split('x');
-                        ref.read(exposureSettingsProvider.notifier).state =
-                            exposureSettings.copyWith(
-                              binningX: int.parse(parts[0]),
-                              binningY: int.parse(parts[1]),
-                            );
-                      }
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Frame Type
-                _ControlRow(
-                  label: 'Frame',
-                  child: NightshadeDropdown(
-                    value: exposureSettings.frameType.displayName,
-                    items: FrameType.values.map((t) => t.displayName).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        final type = FrameType.values.firstWhere(
-                          (t) => t.displayName == value,
-                          orElse: () => FrameType.light,
-                        );
-                        ref.read(exposureSettingsProvider.notifier).state =
-                            exposureSettings.copyWith(frameType: type);
-                      }
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // Filter
-                _ControlRow(
-                  label: 'Filter',
-                  child: NightshadeDropdown(
-                    value: exposureSettings.filter ?? 'L',
-                    items: const ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
-                    onChanged: (value) {
-                      if (value != null) {
-                        ref.read(exposureSettingsProvider.notifier).state =
-                            exposureSettings.copyWith(filter: value);
-                      }
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Capture buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: NightshadeButton(
-                        label: isCapturing ? (exposureProgress.isDownloading ? 'Downloading...' : 'Capturing...') : 'Capture',
-                        icon: isCapturing ? LucideIcons.loader2 : LucideIcons.camera,
-                        size: ButtonSize.large,
-                        onPressed: (!isConnected || isCapturing) ? null : _captureImage,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 8),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: NightshadeButton(
-                        label: _isLooping ? 'Looping...' : 'Loop',
-                        icon: LucideIcons.repeat,
-                        variant: _isLooping ? ButtonVariant.primary : ButtonVariant.outline,
-                        onPressed: (!isConnected || isCapturing) ? null : _toggleLoop,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: NightshadeButton(
-                        label: 'Abort',
-                        icon: LucideIcons.x,
-                        variant: ButtonVariant.outline,
-                        onPressed: (isCapturing || _isLooping) ? _abortCapture : null,
-                      ),
-                    ),
-                  ],
+                CaptureSettingsPanel(
+                  showHeader: true,
+                  showConnectionBadge: true,
                 ),
 
                 const SizedBox(height: 24),
@@ -633,59 +439,6 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
     );
   }
 
-  Future<void> _captureImage() async {
-    // Note: capture state is now tracked via exposureProgressProvider (single source of truth)
-    // The imaging service updates exposureProgressProvider automatically
-    try {
-      final imagingService = ref.read(imagingServiceProvider);
-      // Get settings from provider (persists across navigation)
-      final settings = ref.read(exposureSettingsProvider);
-
-      final result = await imagingService.captureImage(settings: settings);
-
-      if (result != null && mounted) {
-        ref.read(currentImageProvider.notifier).state = result;
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Capture failed: $e'),
-            backgroundColor: Theme.of(context).extension<NightshadeColors>()!.error,
-          ),
-        );
-      }
-    }
-  }
-
-  void _toggleLoop() async {
-    if (_isLooping) {
-      setState(() => _isLooping = false);
-      return;
-    }
-    
-    setState(() => _isLooping = true);
-    
-    while (_isLooping && mounted) {
-      await _captureImage();
-      if (_isLooping && mounted) {
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-    }
-    
-    if (mounted) {
-      setState(() => _isLooping = false);
-    }
-  }
-
-  void _abortCapture() {
-    setState(() {
-      _isLooping = false;
-    });
-    ref.read(imagingServiceProvider).cancelExposure();
-    // exposureProgressProvider will be reset by the imaging service
-  }
-
   String _formatTime(DateTime time) {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
   }
@@ -720,8 +473,7 @@ class _ImageDisplayState extends State<_ImageDisplay> {
   ZoomMode _currentMode = ZoomMode.fit;
   double _currentScale = 1.0;
 
-  // Store the container size for calculations
-  Size? _containerSize;
+  // Store the container key for getting size
   final GlobalKey _containerKey = GlobalKey();
 
   @override
@@ -806,8 +558,8 @@ class _ImageDisplayState extends State<_ImageDisplay> {
     final offsetY = (containerSize.height - scaledHeight) / 2;
 
     final matrix = Matrix4.identity()
-      ..translate(offsetX, offsetY)
-      ..scale(scale);
+      ..translateByDouble(offsetX, offsetY, 0, 1.0)
+      ..scaleByDouble(scale, scale, 1.0, 1.0);
 
     _controller.value = matrix;
     setState(() {
@@ -830,8 +582,8 @@ class _ImageDisplayState extends State<_ImageDisplay> {
     final offsetY = (containerSize.height - imageHeight) / 2;
 
     final matrix = Matrix4.identity()
-      ..translate(offsetX, offsetY)
-      ..scale(1.0);
+      ..translateByDouble(offsetX, offsetY, 0, 1.0)
+      ..scaleByDouble(1.0, 1.0, 1.0, 1.0);
 
     _controller.value = matrix;
     setState(() {
@@ -846,9 +598,6 @@ class _ImageDisplayState extends State<_ImageDisplay> {
     final containerSize = _getContainerSize();
     if (containerSize == null) return;
 
-    final imageWidth = widget.imageData.width.toDouble();
-    final imageHeight = widget.imageData.height.toDouble();
-
     // Get current center point
     final currentMatrix = _controller.value;
     final currentScale = currentMatrix.getMaxScaleOnAxis();
@@ -862,8 +611,8 @@ class _ImageDisplayState extends State<_ImageDisplay> {
     final offsetY = containerSize.height / 2 - centerY * scale;
 
     final matrix = Matrix4.identity()
-      ..translate(offsetX, offsetY)
-      ..scale(scale);
+      ..translateByDouble(offsetX, offsetY, 0, 1.0)
+      ..scaleByDouble(scale, scale, 1.0, 1.0);
 
     _controller.value = matrix;
     setState(() {
@@ -913,9 +662,9 @@ class _ControllableImageViewer extends StatelessWidget {
             final scaleChange = newScale / currentScale;
 
             final matrix = Matrix4.identity()
-              ..translate(focalPoint.dx, focalPoint.dy)
-              ..scale(scaleChange)
-              ..translate(-focalPoint.dx, -focalPoint.dy);
+              ..translateByDouble(focalPoint.dx, focalPoint.dy, 0, 1.0)
+              ..scaleByDouble(scaleChange, scaleChange, 1.0, 1.0)
+              ..translateByDouble(-focalPoint.dx, -focalPoint.dy, 0, 1.0);
 
             controller.value = matrix * controller.value;
           }
@@ -1155,34 +904,6 @@ class _ToggleChip extends StatelessWidget {
           color: isActive ? colors.primary : colors.textSecondary,
         ),
       ),
-    );
-  }
-}
-
-class _ControlRow extends StatelessWidget {
-  final String label;
-  final Widget child;
-
-  const _ControlRow({required this.label, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
-    return Row(
-      children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textSecondary,
-            ),
-          ),
-        ),
-        Expanded(child: child),
-      ],
     );
   }
 }

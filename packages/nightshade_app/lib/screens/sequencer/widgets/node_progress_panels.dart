@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/snackbar_helper.dart';
+
 /// Factory that returns the appropriate progress panel widget for a node type
 Widget? getProgressPanelForNode({
   required SequenceNode node,
@@ -384,12 +386,7 @@ class _AutofocusProgressPanelState extends ConsumerState<_AutofocusProgressPanel
 
       if (deviceId == null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('No camera connected'),
-              backgroundColor: widget.colors.warning,
-            ),
-          );
+          context.showWarningSnackBar('No camera connected');
         }
         return;
       }
@@ -405,22 +402,12 @@ class _AutofocusProgressPanelState extends ConsumerState<_AutofocusProgressPanel
         });
 
         if (crops.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('No stars detected in image'),
-              backgroundColor: widget.colors.warning,
-            ),
-          );
+          context.showWarningSnackBar('No stars detected in image');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to refresh star crops: $e'),
-            backgroundColor: widget.colors.error,
-          ),
-        );
+        context.showErrorSnackBar('Failed to refresh star crops: $e');
       }
     } finally {
       if (mounted) {

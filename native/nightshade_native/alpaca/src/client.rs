@@ -459,15 +459,6 @@ impl AlpacaClient {
             .map_err(|e| AlpacaError::RequestFailed(e.to_string()))
     }
 
-    /// Create a client with a custom timeout value in milliseconds
-    fn create_custom_timeout_client(&self, timeout_ms: u64) -> Result<Client, AlpacaError> {
-        Client::builder()
-            .timeout(Duration::from_millis(timeout_ms))
-            .connect_timeout(Duration::from_millis(self.timeout_config.connect_ms))
-            .build()
-            .map_err(|e| AlpacaError::RequestFailed(e.to_string()))
-    }
-
     /// Execute a request with retry logic
     async fn execute_with_retry<F, Fut, T>(&self, operation: F) -> Result<T, AlpacaError>
     where

@@ -160,7 +160,7 @@ Future<HeadlessApiServer?> _startHeadlessServices(
 }) async {
   // Initialize database for API access
   try {
-    final _ = NightshadeDatabase();
+    container.read(databaseProvider);
     print('  ✓ Database initialized');
   } catch (e) {
     print('  ⚠ Database initialization failed: $e');

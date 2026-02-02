@@ -24,6 +24,14 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
   bool _hasShownUpdateDialog = false;
   OverlayEntry? _bannerOverlay;
   late final Stream<LanPushEvent> _lanPushStream;
+  static const _disabledUpdatesLog =
+      '[UpdateManager] Update server not configured, skipping update checks';
+
+  bool _isUpdateConfigured() {
+    final state = ref.read(updateProvider);
+    final url = state.updateServerUrl;
+    return url != null && url.trim().isNotEmpty;
+  }
 
   @override
   void initState() {
@@ -41,6 +49,10 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
   Future<void> _checkForStagedUpdate() async {
     if (!mounted) return;
+    if (!_isUpdateConfigured()) {
+      print(_disabledUpdatesLog);
+      return;
+    }
 
     print('[UpdateManager] Checking for staged updates...');
     final updateNotifier = ref.read(updateProvider.notifier);
@@ -57,6 +69,7 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
   void _onLanPushEvent(LanPushEvent event) {
     if (!mounted) return;
+    if (!_isUpdateConfigured()) return;
 
     switch (event) {
       case LanPushReceivedEvent(:final manifest, :final stagingPath):
@@ -112,6 +125,10 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
   Future<void> _checkForUpdates() async {
     if (!mounted) return;
+    if (!_isUpdateConfigured()) {
+      print(_disabledUpdatesLog);
+      return;
+    }
 
     final updateNotifier = ref.read(updateProvider.notifier);
     await updateNotifier.checkForUpdates();
