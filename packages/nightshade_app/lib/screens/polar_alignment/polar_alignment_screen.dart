@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../widgets/tutorial_keys/polar_alignment_keys.dart';
 
 /// Phase of polar alignment process
 enum PolarAlignPhase {
@@ -393,6 +394,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           tooltip: 'Northern or Southern hemisphere determines celestial pole position',
           colors: colors,
           child: SegmentedButton<bool>(
+            key: PolarAlignmentTutorialKeys.hemisphere,
             segments: const [
               ButtonSegment(value: true, label: Text('North')),
               ButtonSegment(value: false, label: Text('South')),
@@ -415,6 +417,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           tooltip: 'Longer exposures capture more stars but slow down iterations',
           colors: colors,
           child: Row(
+            key: PolarAlignmentTutorialKeys.exposure,
             children: [
               Expanded(
                 child: Slider(
@@ -491,6 +494,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
             tooltip: 'Distance between measurement points. Larger = more accurate but may hit mount limits',
             colors: colors,
             child: Row(
+              key: PolarAlignmentTutorialKeys.stepSize,
               children: [
                 Expanded(
                   child: Slider(
@@ -704,6 +708,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
   Widget _buildProgressSteps(NightshadeColors colors, PolarAlignPhase phase, int point) {
     return Container(
+      key: PolarAlignmentTutorialKeys.progress,
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
@@ -819,6 +824,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           Expanded(
             flex: 2,
             child: Container(
+              key: PolarAlignmentTutorialKeys.imageView,
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
                 borderRadius: BorderRadius.circular(8),
@@ -1118,6 +1124,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           SizedBox(
             width: 200,
             child: Container(
+              key: PolarAlignmentTutorialKeys.adjustment,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: colors.surface,
@@ -1375,6 +1382,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
   Widget _buildRightPanel(NightshadeColors colors, PolarAlignPhase phase, dynamic error) {
     return Container(
+      key: PolarAlignmentTutorialKeys.errorDisplay,
       color: colors.surface,
       child: Column(
         children: [
@@ -1492,6 +1500,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           // Action buttons
           if (phase == PolarAlignPhase.setup)
             FilledButton.icon(
+              key: PolarAlignmentTutorialKeys.startBtn,
               onPressed: _startAlignment,
               icon: const Icon(LucideIcons.play, size: 16),
               label: const Text('Start Alignment'),

@@ -164,4 +164,178 @@ abstract final class Responsive {
     }
     return 'desktop';
   }
+
+  // ===========================================================================
+  // Universal Scaling
+  // ===========================================================================
+
+  /// Calculate a universal scale factor based on screen dimensions.
+  ///
+  /// This provides a 0.85-1.25 range scale factor based on the screen's
+  /// minimum dimension relative to a reference size of 900px.
+  ///
+  /// - Smaller screens (< 900px min dimension): scale 0.85-1.0
+  /// - Standard screens (900-1200px): scale 1.0
+  /// - Large screens (> 1200px): scale 1.0-1.25
+  static double scaleFactor(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final minDimension = math.min(size.width, size.height);
+    
+    // Reference: 900px min dimension = 1.0 scale
+    if (minDimension < 900) {
+      // Scale down linearly from 1.0 to 0.85 as screen shrinks
+      return 0.85 + (minDimension / 900) * 0.15;
+    } else if (minDimension > 1200) {
+      // Scale up linearly from 1.0 to 1.25 as screen grows
+      final excess = (minDimension - 1200).clamp(0.0, 600.0);
+      return 1.0 + (excess / 600) * 0.25;
+    }
+    return 1.0;
+  }
+
+  /// Returns a spacing value scaled to screen size.
+  ///
+  /// Use this for padding, margins, and gaps that should adapt to screen size.
+  /// ```dart
+  /// padding: EdgeInsets.all(Responsive.spacing(context, 16)),
+  /// ```
+  static double spacing(BuildContext context, double baseValue) {
+    return baseValue * scaleFactor(context);
+  }
+
+  /// Returns a font size scaled to screen size.
+  ///
+  /// ```dart
+  /// Text('Hello', style: TextStyle(fontSize: Responsive.fontSize(context, 14))),
+  /// ```
+  static double fontSize(BuildContext context, double baseSize) {
+    // Font scaling is more conservative than spacing
+    final scale = scaleFactor(context);
+    // Keep font scaling in 0.9-1.15 range for readability
+    final fontScale = 0.9 + (scale - 0.85) * (0.25 / 0.4);
+    return baseSize * fontScale.clamp(0.9, 1.15);
+  }
+
+  /// Returns icon size scaled to screen size.
+  ///
+  /// ```dart
+  /// Icon(Icons.home, size: Responsive.iconSize(context, 24)),
+  /// ```
+  static double iconSize(BuildContext context, double baseSize) {
+    return baseSize * scaleFactor(context);
+  }
+
+  /// Returns scaled EdgeInsets for consistent responsive padding.
+  ///
+  /// ```dart
+  /// Padding(padding: Responsive.edgeInsets(context, all: 16)),
+  /// ```
+  static EdgeInsets edgeInsets(
+    BuildContext context, {
+    double? all,
+    double? horizontal,
+    double? vertical,
+    double? left,
+    double? top,
+    double? right,
+    double? bottom,
+  }) {
+    final scale = scaleFactor(context);
+    
+    if (all != null) {
+      return EdgeInsets.all(all * scale);
+    }
+    
+    return EdgeInsets.only(
+      left: (left ?? horizontal ?? 0) * scale,
+      top: (top ?? vertical ?? 0) * scale,
+      right: (right ?? horizontal ?? 0) * scale,
+      bottom: (bottom ?? vertical ?? 0) * scale,
+    );
+  }
+
+  // ===========================================================================
+  // Aspect Ratio Detection
+  // ===========================================================================
+
+  /// Returns true if the screen is in portrait orientation.
+  static bool isPortrait(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return size.height > size.width;
+  }
+
+  /// Returns true if the screen is in landscape orientation.
+  static bool isLandscape(BuildContext context) => !isPortrait(context);
+
+  /// Returns true if the screen is ultrawide (aspect ratio > 2.0).
+  ///
+  /// Ultrawide screens (21:9, 32:9) need special layout considerations.
+  static bool isUltraWideAspect(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return size.width / size.height > 2.0;
+  }
+
+  /// Returns true if the screen is approximately square (aspect ratio 0.8-1.25).
+  static bool isSquareAspect(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final ratio = size.width / size.height;
+    return ratio >= 0.8 && ratio <= 1.25;
+  }
+
+  /// Returns the aspect ratio of the screen (width / height).
+  static double aspectRatio(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return size.width / size.height;
+  }
+
+  /// Returns a value based on aspect ratio category.
+  ///
+  /// ```dart
+  /// final columns = Responsive.aspectValue(
+  ///   context,
+  ///   portrait: 1,
+  ///   square: 2,
+  ///   landscape: 3,
+  ///   ultrawide: 4,
+  /// );
+  /// ```
+  static T aspectValue<T>(
+    BuildContext context, {
+    required T portrait,
+    T? square,
+    required T landscape,
+    T? ultrawide,
+  }) {
+    if (isPortrait(context)) return portrait;
+    if (isSquareAspect(context)) return square ?? landscape;
+    if (isUltraWideAspect(context)) return ultrawide ?? landscape;
+    return landscape;
+  }
+
+  // ===========================================================================
+  // Layout Helpers
+  // ===========================================================================
+
+  /// Returns the number of columns for a grid based on screen width.
+  ///
+  /// [minItemWidth] - Minimum width for each item in logical pixels.
+  /// [maxColumns] - Maximum number of columns allowed.
+  static int gridColumns(
+    BuildContext context, {
+    double minItemWidth = 300,
+    int maxColumns = 6,
+  }) {
+    final width = MediaQuery.sizeOf(context).width;
+    final columns = (width / minItemWidth).floor();
+    return columns.clamp(1, maxColumns);
+  }
+
+  /// Returns the optimal panel width for slide-out panels based on screen size.
+  static double panelWidth(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (isMobile(context)) return width; // Full width on mobile
+    if (isTablet(context)) return math.min(400, width * 0.6);
+    if (isUltraWideAspect(context)) return math.min(500, width * 0.25);
+    return math.min(450, width * 0.35);
+  }
 }

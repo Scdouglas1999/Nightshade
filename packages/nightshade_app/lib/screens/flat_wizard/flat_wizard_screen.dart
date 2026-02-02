@@ -9,6 +9,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as p;
 
+import '../../widgets/tutorial_keys/flat_wizard_keys.dart';
 import 'widgets/flat_wizard_split_view.dart';
 import 'widgets/flat_preview_panel.dart';
 import 'widgets/save_path_dialog.dart';
@@ -78,7 +79,7 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
                 _SkyFlatsControls(),
               ],
             ),
-            previewPanel: const FlatPreviewPanel(),
+            previewPanel: FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
           ),
         ),
       ],
@@ -166,6 +167,7 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
     return Container(
       color: colors.surface,
       child: TabBar(
+        key: FlatWizardTutorialKeys.tabs,
         controller: _tabController,
         labelColor: colors.primary,
         unselectedLabelColor: colors.textSecondary,
@@ -257,13 +259,14 @@ class _BatchCaptureControls extends ConsumerWidget {
           // Filter checklist
           _SectionHeader(title: 'Filters', colors: colors),
           const SizedBox(height: 8),
-          const _FilterChecklist(),
+          _FilterChecklist(key: FlatWizardTutorialKeys.filterSelect),
           const SizedBox(height: 24),
 
           // Global settings
           _SectionHeader(title: 'Global Settings', colors: colors),
           const SizedBox(height: 8),
           _HistogramTargetSlider(
+            key: FlatWizardTutorialKeys.targetAdu,
             value: state.globalSettings.histogramTarget,
             onChanged: notifier.setHistogramTarget,
           ),
@@ -274,6 +277,7 @@ class _BatchCaptureControls extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           _FrameCountInput(
+            key: FlatWizardTutorialKeys.frameCount,
             value: state.globalSettings.frameCount,
             onChanged: notifier.setFrameCount,
           ),
@@ -327,13 +331,14 @@ class _SkyFlatsControls extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          const _FilterChecklist(),
+          _FilterChecklist(key: FlatWizardTutorialKeys.filterSelect),
           const SizedBox(height: 24),
 
           // Global settings
           _SectionHeader(title: 'Global Settings', colors: colors),
           const SizedBox(height: 8),
           _HistogramTargetSlider(
+            key: FlatWizardTutorialKeys.targetAdu,
             value: state.globalSettings.histogramTarget,
             onChanged: notifier.setHistogramTarget,
           ),
@@ -344,6 +349,7 @@ class _SkyFlatsControls extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           _FrameCountInput(
+            key: FlatWizardTutorialKeys.frameCount,
             value: state.globalSettings.frameCount,
             onChanged: notifier.setFrameCount,
           ),
@@ -379,7 +385,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _FilterSelector extends ConsumerWidget {
-  const _FilterSelector();
+  const _FilterSelector({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -419,7 +425,7 @@ class _FilterSelector extends ConsumerWidget {
 }
 
 class _FilterChecklist extends ConsumerWidget {
-  const _FilterChecklist();
+  const _FilterChecklist({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -518,6 +524,7 @@ class _HistogramTargetSlider extends StatelessWidget {
   final ValueChanged<double> onChanged;
 
   const _HistogramTargetSlider({
+    super.key,
     required this.value,
     required this.onChanged,
   });
@@ -617,6 +624,7 @@ class _FrameCountInput extends StatelessWidget {
   final ValueChanged<int> onChanged;
 
   const _FrameCountInput({
+    super.key,
     required this.value,
     required this.onChanged,
   });
@@ -822,6 +830,7 @@ class _ActionButtons extends ConsumerWidget {
           )
         else
           NightshadeButton(
+            key: FlatWizardTutorialKeys.startBtn,
             label: mode == FlatWizardMode.quick ? 'Start Capture' : 'Start Batch',
             onPressed: () => _startCapture(context, ref),
           ),

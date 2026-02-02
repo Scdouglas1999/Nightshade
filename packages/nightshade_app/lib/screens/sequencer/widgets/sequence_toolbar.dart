@@ -19,14 +19,15 @@ class SequenceToolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final sequence = ref.watch(currentSequenceProvider);
-    
+    final isTablet = Responsive.isTablet(context);
+
     final isIdle = executionState == SequenceExecutionState.idle;
     final isRunning = executionState == SequenceExecutionState.running;
     final isPaused = executionState == SequenceExecutionState.paused;
 
     return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      height: isTablet ? 56 : 64,
+      padding: EdgeInsets.symmetric(horizontal: isTablet ? 12 : 20),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
@@ -38,254 +39,273 @@ class SequenceToolbar extends ConsumerWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Playback controls
-          _PlaybackControls(
-            colors: colors,
-            isIdle: isIdle,
-            isRunning: isRunning,
-            isPaused: isPaused,
-            executionState: executionState,
-            onStart: () {
-              // Show pre-flight validation dialog before starting
-              showDialog(
-                context: context,
-                builder: (context) => PreFlightValidationDialog(
-                  onStartSequence: () {
-                    ref.read(sequenceActionServiceProvider).start();
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate if we need to hide some elements based on available width
+          // Thresholds are calibrated to prevent overflow at each breakpoint
+          final hideSecondaryActions = constraints.maxWidth < 1100;
+          final hideSequenceInfo = constraints.maxWidth < 1000;
+          final hideSimulation = constraints.maxWidth < 900;
+          final hideEquipmentStatus = constraints.maxWidth < 850;
+          final hideFileOps = constraints.maxWidth < 700;
+          
+          return Row(
+            children: [
+              // Playback controls - always visible
+              _PlaybackControls(
+                colors: colors,
+                isIdle: isIdle,
+                isRunning: isRunning,
+                isPaused: isPaused,
+                executionState: executionState,
+                onStart: () {
+                  // Show pre-flight validation dialog before starting
+                  showDialog(
+                    context: context,
+                    builder: (context) => PreFlightValidationDialog(
+                      onStartSequence: () {
+                        ref.read(sequenceActionServiceProvider).start();
+                      },
+                    ),
+                  );
+                },
+                onPause: () => ref.read(sequenceActionServiceProvider).pause(context),
+                onResume: () => ref.read(sequenceActionServiceProvider).resume(context),
+                onStop: () => ref.read(sequenceActionServiceProvider).stop(context),
+                onSkip: () => ref.read(sequenceActionServiceProvider).skip(context),
+                onReset: () => ref.read(sequenceActionServiceProvider).reset(),
+              ),
+
+              // File operations - hide on extremely narrow screens
+              if (!hideFileOps) ...[
+                const SizedBox(width: 24),
+                _Divider(colors: colors),
+                const SizedBox(width: 24),
+
+                _ToolbarIconButton(
+                  icon: LucideIcons.filePlus,
+                  tooltip: 'New Sequence',
+                  colors: colors,
+                  onPressed: () {
+                    ref.read(currentSequenceProvider.notifier).createSequence();
                   },
                 ),
-              );
-            },
-            onPause: () => ref.read(sequenceActionServiceProvider).pause(context),
-            onResume: () => ref.read(sequenceActionServiceProvider).resume(context),
-            onStop: () => ref.read(sequenceActionServiceProvider).stop(context),
-            onSkip: () => ref.read(sequenceActionServiceProvider).skip(context),
-            onReset: () => ref.read(sequenceActionServiceProvider).reset(),
-          ),
+                const SizedBox(width: 4),
+                _ToolbarIconButton(
+                  icon: LucideIcons.folderOpen,
+                  tooltip: 'Open Sequence',
+                  colors: colors,
+                  onPressed: () async {
+                    try {
+                      final fileService = ref.read(sequenceFileServiceProvider);
+                      final importedSequence = await fileService.importSequence();
+                      
+                      if (importedSequence != null) {
+                        ref.read(currentSequenceProvider.notifier).loadSequence(importedSequence);
 
-          const SizedBox(width: 24),
-          _Divider(colors: colors),
-          const SizedBox(width: 24),
+                        if (context.mounted) {
+                          context.showSuccessSnackBar('Sequence "${importedSequence.name}" loaded');
+                        }
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        context.showErrorSnackBar('Failed to load sequence: $e');
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(width: 4),
+                _ToolbarIconButton(
+                  icon: LucideIcons.save,
+                  tooltip: 'Save Sequence',
+                  colors: colors,
+                  onPressed: () async {
+                    final currentSequence = ref.read(currentSequenceProvider);
+                    if (currentSequence == null) {
+                      if (context.mounted) {
+                        context.showWarningSnackBar('No sequence to save');
+                      }
+                      return;
+                    }
 
-          // File operations
-          _ToolbarIconButton(
-            icon: LucideIcons.filePlus,
-            tooltip: 'New Sequence',
-            colors: colors,
-            onPressed: () {
-              ref.read(currentSequenceProvider.notifier).createSequence();
-            },
-          ),
-          const SizedBox(width: 4),
-          _ToolbarIconButton(
-            icon: LucideIcons.folderOpen,
-            tooltip: 'Open Sequence',
-            colors: colors,
-            onPressed: () async {
-              try {
-                final fileService = ref.read(sequenceFileServiceProvider);
-                final importedSequence = await fileService.importSequence();
-                
-                if (importedSequence != null) {
-                  ref.read(currentSequenceProvider.notifier).loadSequence(importedSequence);
+                    try {
+                      final fileService = ref.read(sequenceFileServiceProvider);
+                      await fileService.exportSequence(currentSequence);
 
-                  if (context.mounted) {
-                    context.showSuccessSnackBar('Sequence "${importedSequence.name}" loaded');
-                  }
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showErrorSnackBar('Failed to load sequence: $e');
-                }
-              }
-            },
-          ),
-          const SizedBox(width: 4),
-          _ToolbarIconButton(
-            icon: LucideIcons.save,
-            tooltip: 'Save Sequence',
-            colors: colors,
-            onPressed: () async {
-              final currentSequence = ref.read(currentSequenceProvider);
-              if (currentSequence == null) {
-                if (context.mounted) {
-                  context.showWarningSnackBar('No sequence to save');
-                }
-                return;
-              }
+                      if (context.mounted) {
+                        context.showSuccessSnackBar('Sequence "${currentSequence.name}" saved');
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        context.showErrorSnackBar('Failed to save sequence: $e');
+                      }
+                    }
+                  },
+                ),
+              ],
 
-              try {
-                final fileService = ref.read(sequenceFileServiceProvider);
-                await fileService.exportSequence(currentSequence);
+              // Secondary actions - hide on narrow screens
+              if (!hideSecondaryActions) ...[
+                const SizedBox(width: 24),
+                _Divider(colors: colors),
+                const SizedBox(width: 24),
 
-                if (context.mounted) {
-                  context.showSuccessSnackBar('Sequence "${currentSequence.name}" saved');
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showErrorSnackBar('Failed to save sequence: $e');
-                }
-              }
-            },
-          ),
+                // Polar Alignment
+                _ToolbarIconButton(
+                  icon: LucideIcons.compass,
+                  tooltip: 'Polar Alignment',
+                  colors: colors,
+                  onPressed: () {
+                    context.push('/polar-alignment');
+                  },
+                ),
 
-          const SizedBox(width: 24),
-          _Divider(colors: colors),
-          const SizedBox(width: 24),
+                const SizedBox(width: 24),
+                _Divider(colors: colors),
+                const SizedBox(width: 24),
 
-          // Polar Alignment
-          _ToolbarIconButton(
-            icon: LucideIcons.compass,
-            tooltip: 'Polar Alignment',
-            colors: colors,
-            onPressed: () {
-              context.push('/polar-alignment');
-            },
-          ),
+                // Slew to Target (if sequence has a target)
+                if (sequence != null && sequence.targetHeaders.isNotEmpty) ...[
+                  _ToolbarIconButton(
+                    icon: LucideIcons.navigation,
+                    tooltip: 'Slew to Target',
+                    colors: colors,
+                    onPressed: () async {
+                      final targetGroup = sequence.targetHeaders.first;
+                      try {
+                        final deviceService = ref.read(deviceServiceProvider);
+                        await deviceService.slewMountToCoordinates(
+                          targetGroup.raHours,
+                          targetGroup.decDegrees,
+                        );
 
-          const SizedBox(width: 24),
-          _Divider(colors: colors),
-          const SizedBox(width: 24),
-
-          // Slew to Target (if sequence has a target)
-          if (sequence != null && sequence.targetHeaders.isNotEmpty) ...[
-            _ToolbarIconButton(
-              icon: LucideIcons.navigation,
-              tooltip: 'Slew to Target',
-              colors: colors,
-              onPressed: () async {
-                final targetGroup = sequence.targetHeaders.first;
-                try {
-                  final deviceService = ref.read(deviceServiceProvider);
-                  await deviceService.slewMountToCoordinates(
-                    targetGroup.raHours,
-                    targetGroup.decDegrees,
-                  );
-
-                  if (context.mounted) {
-                    context.showInfoSnackBar('Slewing to ${targetGroup.targetName}');
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    context.showErrorSnackBar('Failed to slew: $e');
-                  }
-                }
-              },
-            ),
-            const SizedBox(width: 4),
-          ],
-
-          // Undo/Redo
-          _ToolbarIconButton(
-            icon: LucideIcons.undo2,
-            tooltip: 'Undo (Ctrl+Z)',
-            colors: colors,
-            onPressed: ref.read(currentSequenceProvider.notifier).canUndo
-                ? () => ref.read(currentSequenceProvider.notifier).undo()
-                : null,
-          ),
-          const SizedBox(width: 4),
-          _ToolbarIconButton(
-            icon: LucideIcons.redo2,
-            tooltip: 'Redo (Ctrl+Y)',
-            colors: colors,
-            onPressed: ref.read(currentSequenceProvider.notifier).canRedo
-                ? () => ref.read(currentSequenceProvider.notifier).redo()
-                : null,
-          ),
-
-          const Spacer(),
-
-          // Sequence info
-          if (sequence != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: colors.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${sequence.totalExposures} frames',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
+                        if (context.mounted) {
+                          context.showInfoSnackBar('Slewing to ${targetGroup.targetName}');
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          context.showErrorSnackBar('Failed to slew: $e');
+                        }
+                      }
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
-                  const SizedBox(width: 6),
-                  Text(
-                    _formatDuration(sequence.totalIntegrationSecs),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
+                  const SizedBox(width: 4),
                 ],
-              ),
-            ),
-            const SizedBox(width: 16),
-          ],
 
-          // Equipment status indicators
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: EquipmentStatusWidget(colors: colors),
-          ),
+                // Undo/Redo
+                _ToolbarIconButton(
+                  icon: LucideIcons.undo2,
+                  tooltip: 'Undo (Ctrl+Z)',
+                  colors: colors,
+                  onPressed: ref.read(currentSequenceProvider.notifier).canUndo
+                      ? () => ref.read(currentSequenceProvider.notifier).undo()
+                      : null,
+                ),
+                const SizedBox(width: 4),
+                _ToolbarIconButton(
+                  icon: LucideIcons.redo2,
+                  tooltip: 'Redo (Ctrl+Y)',
+                  colors: colors,
+                  onPressed: ref.read(currentSequenceProvider.notifier).canRedo
+                      ? () => ref.read(currentSequenceProvider.notifier).redo()
+                      : null,
+                ),
+              ],
 
-          // Simulation mode indicator
-          Consumer(
-            builder: (context, ref, child) {
-              final settingsAsync = ref.watch(appSettingsProvider);
-              final isSimulation = settingsAsync.valueOrNull?.useSimulationMode ?? false;
-              if (!isSimulation) return const SizedBox.shrink();
+              const Spacer(),
 
-              return Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              // Sequence info - hide on very narrow screens
+              if (!hideSequenceInfo && sequence != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: colors.warning.withValues(alpha: 0.4)),
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: colors.border),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.testTube, size: 14, color: colors.warning),
+                      Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
                       const SizedBox(width: 6),
                       Text(
-                        'SIMULATION',
+                        '${sequence.totalExposures} frames',
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: colors.warning,
-                          letterSpacing: 0.5,
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
+                      const SizedBox(width: 6),
+                      Text(
+                        _formatDuration(sequence.totalIntegrationSecs),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
                     ],
                   ),
                 ),
-              );
-            },
-          ),
+                const SizedBox(width: 16),
+              ],
 
-          // Status badge
-          _StatusBadge(
-            colors: colors,
-            executionState: executionState,
-          ),
-        ],
+              // Equipment status indicators - hide on narrow screens
+              if (!hideEquipmentStatus)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: EquipmentStatusWidget(colors: colors),
+                ),
+
+              // Simulation mode indicator - hide on narrow screens
+              if (!hideSimulation)
+                Consumer(
+                builder: (context, ref, child) {
+                  final settingsAsync = ref.watch(appSettingsProvider);
+                  final isSimulation = settingsAsync.valueOrNull?.useSimulationMode ?? false;
+                  if (!isSimulation) return const SizedBox.shrink();
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: colors.warning.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: colors.warning.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(LucideIcons.testTube, size: 14, color: colors.warning),
+                          const SizedBox(width: 6),
+                          Text(
+                            'SIMULATION',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: colors.warning,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              // Status badge
+              _StatusBadge(
+                colors: colors,
+                executionState: executionState,
+              ),
+            ],
+          );
+        },
       ),
     );
   }

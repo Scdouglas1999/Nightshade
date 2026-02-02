@@ -13,7 +13,9 @@ import '../../utils/snackbar_helper.dart';
 
 /// Screen for managing equipment profiles
 class EquipmentProfilesScreen extends ConsumerStatefulWidget {
-  const EquipmentProfilesScreen({super.key});
+  final bool isMobile;
+
+  const EquipmentProfilesScreen({super.key, this.isMobile = false});
 
   @override
   ConsumerState<EquipmentProfilesScreen> createState() => _EquipmentProfilesScreenState();
@@ -22,6 +24,8 @@ class EquipmentProfilesScreen extends ConsumerStatefulWidget {
 class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScreen> {
   EquipmentProfileModel? _selectedProfile;
   bool _isEditing = false;
+  // For mobile: track whether we're viewing the detail
+  bool _showingDetail = false;
 
   @override
   Widget build(BuildContext context) {
@@ -32,73 +36,137 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
       data: (state) {
-        // Auto-select active profile if none selected
-        if (_selectedProfile == null && state.activeProfile != null) {
+        // Auto-select active profile if none selected (desktop only)
+        if (!widget.isMobile && _selectedProfile == null && state.activeProfile != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             setState(() => _selectedProfile = state.activeProfile);
           });
         }
-        
-        return Row(
-          children: [
-            // Profile list sidebar
-            _ProfileList(
-              profiles: state.profiles,
-              selectedProfile: _selectedProfile,
-              activeProfile: state.activeProfile,
-              onProfileSelected: (profile) {
-                setState(() {
-                  _selectedProfile = profile;
-                  _isEditing = false;
-                });
-              },
-              onCreateProfile: () => _showCreateProfileDialog(context, colors),
-              onImportProfiles: () => _importProfiles(context, colors),
-              colors: colors,
-            ),
-            
-            // Profile details
-            Expanded(
-              child: _selectedProfile != null
-                  ? _ProfileDetails(
-                      profile: _selectedProfile!,
-                      isActive: _selectedProfile?.id == state.activeProfile?.id,
-                      isEditing: _isEditing,
-                      onEdit: () => setState(() => _isEditing = true),
-                      onSave: (updatedProfile) async {
-                        await ref.read(equipmentProfilesProvider.notifier).updateProfile(updatedProfile);
-                        setState(() {
-                          _selectedProfile = updatedProfile;
-                          _isEditing = false;
-                        });
-                      },
-                      onCancel: () => setState(() => _isEditing = false),
-                      onSetActive: () async {
-                        if (_selectedProfile?.id != null) {
-                          await ref.read(equipmentProfilesProvider.notifier).setActiveProfile(_selectedProfile!.id!);
-                        }
-                      },
-                      onDuplicate: () => _duplicateProfile(context, colors, _selectedProfile!),
-                      onDelete: () => _deleteProfile(context, colors, _selectedProfile!),
-                      onExport: () => _exportProfile(context, _selectedProfile!),
-                      onRefresh: () {
-                        // Refresh the profile data after syncing filters
-                        ref.invalidate(equipmentProfilesProvider);
-                        // Also update the selected profile
-                        final profiles = ref.read(equipmentProfileListProvider);
-                        final updated = profiles.firstWhere(
-                          (p) => p.id == _selectedProfile?.id,
-                          orElse: () => _selectedProfile!,
-                        );
-                        setState(() => _selectedProfile = updated);
-                      },
-                      colors: colors,
-                    )
-                  : _EmptyState(colors: colors),
-            ),
-          ],
-        );
+
+        if (widget.isMobile) {
+          return _buildMobileLayout(state, colors);
+        }
+
+        return _buildDesktopLayout(state, colors);
       },
+    );
+  }
+
+  Widget _buildMobileLayout(EquipmentProfilesState state, NightshadeColors colors) {
+    // Show detail view if a profile is selected and we're viewing detail
+    if (_showingDetail && _selectedProfile != null) {
+      return _ProfileDetails(
+        profile: _selectedProfile!,
+        isActive: _selectedProfile?.id == state.activeProfile?.id,
+        isEditing: _isEditing,
+        isMobile: true,
+        onBack: () => setState(() => _showingDetail = false),
+        onEdit: () => setState(() => _isEditing = true),
+        onSave: (updatedProfile) async {
+          await ref.read(equipmentProfilesProvider.notifier).updateProfile(updatedProfile);
+          setState(() {
+            _selectedProfile = updatedProfile;
+            _isEditing = false;
+          });
+        },
+        onCancel: () => setState(() => _isEditing = false),
+        onSetActive: () async {
+          if (_selectedProfile?.id != null) {
+            await ref.read(equipmentProfilesProvider.notifier).setActiveProfile(_selectedProfile!.id!);
+          }
+        },
+        onDuplicate: () => _duplicateProfile(context, colors, _selectedProfile!),
+        onDelete: () => _deleteProfile(context, colors, _selectedProfile!),
+        onExport: () => _exportProfile(context, _selectedProfile!),
+        onRefresh: () {
+          ref.invalidate(equipmentProfilesProvider);
+          final profiles = ref.read(equipmentProfileListProvider);
+          final updated = profiles.firstWhere(
+            (p) => p.id == _selectedProfile?.id,
+            orElse: () => _selectedProfile!,
+          );
+          setState(() => _selectedProfile = updated);
+        },
+        colors: colors,
+      );
+    }
+
+    // Show profile list
+    return _ProfileList(
+      profiles: state.profiles,
+      selectedProfile: _selectedProfile,
+      activeProfile: state.activeProfile,
+      isMobile: true,
+      onProfileSelected: (profile) {
+        setState(() {
+          _selectedProfile = profile;
+          _isEditing = false;
+          _showingDetail = true;
+        });
+      },
+      onCreateProfile: () => _showCreateProfileDialog(context, colors),
+      onImportProfiles: () => _importProfiles(context, colors),
+      colors: colors,
+    );
+  }
+
+  Widget _buildDesktopLayout(EquipmentProfilesState state, NightshadeColors colors) {
+    return Row(
+      children: [
+        // Profile list sidebar
+        _ProfileList(
+          profiles: state.profiles,
+          selectedProfile: _selectedProfile,
+          activeProfile: state.activeProfile,
+          onProfileSelected: (profile) {
+            setState(() {
+              _selectedProfile = profile;
+              _isEditing = false;
+            });
+          },
+          onCreateProfile: () => _showCreateProfileDialog(context, colors),
+          onImportProfiles: () => _importProfiles(context, colors),
+          colors: colors,
+        ),
+
+        // Profile details
+        Expanded(
+          child: _selectedProfile != null
+              ? _ProfileDetails(
+                  profile: _selectedProfile!,
+                  isActive: _selectedProfile?.id == state.activeProfile?.id,
+                  isEditing: _isEditing,
+                  onEdit: () => setState(() => _isEditing = true),
+                  onSave: (updatedProfile) async {
+                    await ref.read(equipmentProfilesProvider.notifier).updateProfile(updatedProfile);
+                    setState(() {
+                      _selectedProfile = updatedProfile;
+                      _isEditing = false;
+                    });
+                  },
+                  onCancel: () => setState(() => _isEditing = false),
+                  onSetActive: () async {
+                    if (_selectedProfile?.id != null) {
+                      await ref.read(equipmentProfilesProvider.notifier).setActiveProfile(_selectedProfile!.id!);
+                    }
+                  },
+                  onDuplicate: () => _duplicateProfile(context, colors, _selectedProfile!),
+                  onDelete: () => _deleteProfile(context, colors, _selectedProfile!),
+                  onExport: () => _exportProfile(context, _selectedProfile!),
+                  onRefresh: () {
+                    ref.invalidate(equipmentProfilesProvider);
+                    final profiles = ref.read(equipmentProfileListProvider);
+                    final updated = profiles.firstWhere(
+                      (p) => p.id == _selectedProfile?.id,
+                      orElse: () => _selectedProfile!,
+                    );
+                    setState(() => _selectedProfile = updated);
+                  },
+                  colors: colors,
+                )
+              : _EmptyState(colors: colors),
+        ),
+      ],
     );
   }
 
@@ -322,6 +390,7 @@ class _ProfileList extends StatelessWidget {
   final VoidCallback onCreateProfile;
   final VoidCallback onImportProfiles;
   final NightshadeColors colors;
+  final bool isMobile;
 
   const _ProfileList({
     required this.profiles,
@@ -331,22 +400,20 @@ class _ProfileList extends StatelessWidget {
     required this.onCreateProfile,
     required this.onImportProfiles,
     required this.colors,
+    this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 280,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(right: BorderSide(color: colors.border)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
+    final padding = isMobile ? 16.0 : 20.0;
+
+    Widget content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header - hide on mobile since parent shows it
+        if (!isMobile)
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(padding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -369,71 +436,85 @@ class _ProfileList extends StatelessWidget {
               ],
             ),
           ),
-          
-          // Actions
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: onCreateProfile,
-                    icon: const Icon(LucideIcons.plus, size: 16),
-                    label: const Text('New Profile'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
+
+        // Actions
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: onCreateProfile,
+                  icon: const Icon(LucideIcons.plus, size: 16),
+                  label: const Text('New Profile'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 10),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: onImportProfiles,
-                  icon: Icon(LucideIcons.download, color: colors.textSecondary, size: 18),
-                  tooltip: 'Import profiles',
-                  style: IconButton.styleFrom(
-                    backgroundColor: colors.surfaceAlt,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: colors.border),
-                    ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onImportProfiles,
+                icon: Icon(LucideIcons.download, color: colors.textSecondary, size: 18),
+                tooltip: 'Import profiles',
+                style: IconButton.styleFrom(
+                  backgroundColor: colors.surfaceAlt,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: colors.border),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          
-          // Profile list
-          Expanded(
-            child: profiles.isEmpty
-                ? Center(
-                    child: Text(
-                      'No profiles yet',
-                      style: TextStyle(color: colors.textMuted),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    itemCount: profiles.length,
-                    itemBuilder: (context, index) {
-                      final profile = profiles[index];
-                      final isSelected = profile.id == selectedProfile?.id;
-                      final isActive = profile.id == activeProfile?.id;
-                      
-                      return _ProfileListItem(
-                        profile: profile,
-                        isSelected: isSelected,
-                        isActive: isActive,
-                        onTap: () => onProfileSelected(profile),
-                        colors: colors,
-                      );
-                    },
+        ),
+        const SizedBox(height: 16),
+
+        // Profile list
+        Expanded(
+          child: profiles.isEmpty
+              ? Center(
+                  child: Text(
+                    'No profiles yet',
+                    style: TextStyle(color: colors.textMuted),
                   ),
-          ),
-        ],
+                )
+              : ListView.builder(
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 12),
+                  itemCount: profiles.length,
+                  itemBuilder: (context, index) {
+                    final profile = profiles[index];
+                    final isSelected = !isMobile && profile.id == selectedProfile?.id;
+                    final isActive = profile.id == activeProfile?.id;
+
+                    return _ProfileListItem(
+                      profile: profile,
+                      isSelected: isSelected,
+                      isActive: isActive,
+                      isMobile: isMobile,
+                      onTap: () => onProfileSelected(profile),
+                      colors: colors,
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+
+    // On mobile, just return the content without fixed width
+    if (isMobile) {
+      return content;
+    }
+
+    return Container(
+      width: 280,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(right: BorderSide(color: colors.border)),
       ),
+      child: content,
     );
   }
 }
@@ -444,6 +525,7 @@ class _ProfileListItem extends StatefulWidget {
   final bool isActive;
   final VoidCallback onTap;
   final NightshadeColors colors;
+  final bool isMobile;
 
   const _ProfileListItem({
     required this.profile,
@@ -451,6 +533,7 @@ class _ProfileListItem extends StatefulWidget {
     required this.isActive,
     required this.onTap,
     required this.colors,
+    this.isMobile = false,
   });
 
   @override
@@ -622,6 +705,8 @@ class _ProfileDetails extends ConsumerStatefulWidget {
   final VoidCallback onExport;
   final VoidCallback onRefresh;
   final NightshadeColors colors;
+  final bool isMobile;
+  final VoidCallback? onBack;
 
   const _ProfileDetails({
     required this.profile,
@@ -636,6 +721,8 @@ class _ProfileDetails extends ConsumerStatefulWidget {
     required this.onExport,
     required this.onRefresh,
     required this.colors,
+    this.isMobile = false,
+    this.onBack,
   });
 
   @override
@@ -872,8 +959,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
+    final padding = widget.isMobile ? 16.0 : 32.0;
+    final titleFontSize = widget.isMobile ? 20.0 : 24.0;
+
+    Widget content = SingleChildScrollView(
+      padding: EdgeInsets.all(padding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -888,7 +978,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       _EditableField(
                         controller: _nameController,
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: titleFontSize,
                           fontWeight: FontWeight.w700,
                           color: widget.colors.textPrimary,
                         ),
@@ -898,7 +988,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       Text(
                         widget.profile.name,
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: titleFontSize,
                           fontWeight: FontWeight.w700,
                           color: widget.colors.textPrimary,
                         ),
@@ -925,7 +1015,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                   ],
                 ),
               ),
-              
+
               // Action buttons
               if (widget.isEditing) ...[
                 TextButton(
@@ -1037,41 +1127,79 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             title: 'Optical Configuration',
             icon: LucideIcons.aperture,
             colors: widget.colors,
+            isMobile: widget.isMobile,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _FieldCard(
-                      label: 'Focal Length',
-                      value: widget.isEditing ? null : '${widget.profile.focalLength.toStringAsFixed(0)} mm',
-                      controller: widget.isEditing ? _focalLengthController : null,
-                      suffix: 'mm',
-                      colors: widget.colors,
+              widget.isMobile
+                  ? Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _FieldCard(
+                                label: 'Focal Length',
+                                value: widget.isEditing ? null : '${widget.profile.focalLength.toStringAsFixed(0)} mm',
+                                controller: widget.isEditing ? _focalLengthController : null,
+                                suffix: 'mm',
+                                colors: widget.colors,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _FieldCard(
+                                label: 'Aperture',
+                                value: widget.isEditing ? null : '${widget.profile.aperture.toStringAsFixed(0)} mm',
+                                controller: widget.isEditing ? _apertureController : null,
+                                suffix: 'mm',
+                                colors: widget.colors,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _FieldCard(
+                          label: 'Focal Ratio',
+                          value: widget.profile.calculatedFocalRatio != null
+                              ? 'f/${widget.profile.calculatedFocalRatio!.toStringAsFixed(1)}'
+                              : 'N/A',
+                          colors: widget.colors,
+                          readOnly: true,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: _FieldCard(
+                            label: 'Focal Length',
+                            value: widget.isEditing ? null : '${widget.profile.focalLength.toStringAsFixed(0)} mm',
+                            controller: widget.isEditing ? _focalLengthController : null,
+                            suffix: 'mm',
+                            colors: widget.colors,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _FieldCard(
+                            label: 'Aperture',
+                            value: widget.isEditing ? null : '${widget.profile.aperture.toStringAsFixed(0)} mm',
+                            controller: widget.isEditing ? _apertureController : null,
+                            suffix: 'mm',
+                            colors: widget.colors,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _FieldCard(
+                            label: 'Focal Ratio',
+                            value: widget.profile.calculatedFocalRatio != null
+                                ? 'f/${widget.profile.calculatedFocalRatio!.toStringAsFixed(1)}'
+                                : 'N/A',
+                            colors: widget.colors,
+                            readOnly: true,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _FieldCard(
-                      label: 'Aperture',
-                      value: widget.isEditing ? null : '${widget.profile.aperture.toStringAsFixed(0)} mm',
-                      controller: widget.isEditing ? _apertureController : null,
-                      suffix: 'mm',
-                      colors: widget.colors,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _FieldCard(
-                      label: 'Focal Ratio',
-                      value: widget.profile.calculatedFocalRatio != null 
-                          ? 'f/${widget.profile.calculatedFocalRatio!.toStringAsFixed(1)}'
-                          : 'N/A',
-                      colors: widget.colors,
-                      readOnly: true,
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -1081,68 +1209,132 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             title: 'Camera Defaults',
             icon: LucideIcons.camera,
             colors: widget.colors,
+            isMobile: widget.isMobile,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _FieldCard(
-                      label: 'Default Gain',
-                      value: widget.isEditing ? null : (widget.profile.defaultGain?.toString() ?? 'Not set'),
-                      controller: widget.isEditing ? _gainController : null,
-                      hint: 'e.g., 100',
-                      colors: widget.colors,
+              widget.isMobile
+                  ? Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _FieldCard(
+                                label: 'Default Gain',
+                                value: widget.isEditing ? null : (widget.profile.defaultGain?.toString() ?? 'Not set'),
+                                controller: widget.isEditing ? _gainController : null,
+                                hint: 'e.g., 100',
+                                colors: widget.colors,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _FieldCard(
+                                label: 'Default Offset',
+                                value: widget.isEditing ? null : (widget.profile.defaultOffset?.toString() ?? 'Not set'),
+                                controller: widget.isEditing ? _offsetController : null,
+                                hint: 'e.g., 10',
+                                colors: widget.colors,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _FieldCard(
+                          label: 'Cooling Temp',
+                          value: widget.isEditing ? null : (widget.profile.defaultCoolingTemp != null
+                              ? '${widget.profile.defaultCoolingTemp!.toStringAsFixed(0)}°C'
+                              : 'Not set'),
+                          controller: widget.isEditing ? _coolingController : null,
+                          suffix: '°C',
+                          hint: 'e.g., -10',
+                          colors: widget.colors,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: _FieldCard(
+                            label: 'Default Gain',
+                            value: widget.isEditing ? null : (widget.profile.defaultGain?.toString() ?? 'Not set'),
+                            controller: widget.isEditing ? _gainController : null,
+                            hint: 'e.g., 100',
+                            colors: widget.colors,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _FieldCard(
+                            label: 'Default Offset',
+                            value: widget.isEditing ? null : (widget.profile.defaultOffset?.toString() ?? 'Not set'),
+                            controller: widget.isEditing ? _offsetController : null,
+                            hint: 'e.g., 10',
+                            colors: widget.colors,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _FieldCard(
+                            label: 'Cooling Temp',
+                            value: widget.isEditing ? null : (widget.profile.defaultCoolingTemp != null
+                                ? '${widget.profile.defaultCoolingTemp!.toStringAsFixed(0)}°C'
+                                : 'Not set'),
+                            controller: widget.isEditing ? _coolingController : null,
+                            suffix: '°C',
+                            hint: 'e.g., -10',
+                            colors: widget.colors,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _FieldCard(
-                      label: 'Default Offset',
-                      value: widget.isEditing ? null : (widget.profile.defaultOffset?.toString() ?? 'Not set'),
-                      controller: widget.isEditing ? _offsetController : null,
-                      hint: 'e.g., 10',
-                      colors: widget.colors,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _FieldCard(
-                      label: 'Cooling Temp',
-                      value: widget.isEditing ? null : (widget.profile.defaultCoolingTemp != null 
-                          ? '${widget.profile.defaultCoolingTemp!.toStringAsFixed(0)}°C'
-                          : 'Not set'),
-                      controller: widget.isEditing ? _coolingController : null,
-                      suffix: '°C',
-                      hint: 'e.g., -10',
-                      colors: widget.colors,
-                    ),
-                  ),
-                ],
-              ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _BinningSelector(
-                      label: 'Binning X',
-                      value: _binX,
-                      enabled: widget.isEditing,
-                      onChanged: (v) => setState(() => _binX = v),
-                      colors: widget.colors,
+              widget.isMobile
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: _BinningSelector(
+                            label: 'Binning X',
+                            value: _binX,
+                            enabled: widget.isEditing,
+                            onChanged: (v) => setState(() => _binX = v),
+                            colors: widget.colors,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _BinningSelector(
+                            label: 'Binning Y',
+                            value: _binY,
+                            enabled: widget.isEditing,
+                            onChanged: (v) => setState(() => _binY = v),
+                            colors: widget.colors,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: _BinningSelector(
+                            label: 'Binning X',
+                            value: _binX,
+                            enabled: widget.isEditing,
+                            onChanged: (v) => setState(() => _binX = v),
+                            colors: widget.colors,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _BinningSelector(
+                            label: 'Binning Y',
+                            value: _binY,
+                            enabled: widget.isEditing,
+                            onChanged: (v) => setState(() => _binY = v),
+                            colors: widget.colors,
+                          ),
+                        ),
+                        const Expanded(flex: 2, child: SizedBox()),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _BinningSelector(
-                      label: 'Binning Y',
-                      value: _binY,
-                      enabled: widget.isEditing,
-                      onChanged: (v) => setState(() => _binY = v),
-                      colors: widget.colors,
-                    ),
-                  ),
-                  const Expanded(flex: 2, child: SizedBox()),
-                ],
-              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -1152,6 +1344,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             title: 'Filter Configuration',
             icon: LucideIcons.layers,
             colors: widget.colors,
+            isMobile: widget.isMobile,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1232,6 +1425,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
               title: 'Filter Focus Offsets',
               icon: LucideIcons.gitBranch,
               colors: widget.colors,
+              isMobile: widget.isMobile,
               children: [
                 Text(
                   'Focus position offset (in steps) when switching to each filter',
@@ -1249,6 +1443,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             title: 'Device Assignments',
             icon: LucideIcons.cpu,
             colors: widget.colors,
+            isMobile: widget.isMobile,
             trailing: widget.isEditing
                 ? TextButton.icon(
                     onPressed: _copyFromConnectedDevices,
@@ -1302,6 +1497,49 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
         ],
       ),
     );
+
+    // Wrap with mobile back button header if needed
+    if (widget.isMobile && widget.onBack != null) {
+      return Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: widget.colors.surface,
+              border: Border(bottom: BorderSide(color: widget.colors.border)),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(LucideIcons.arrowLeft, color: widget.colors.textPrimary),
+                      onPressed: widget.onBack,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.profile.name,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: widget.colors.textPrimary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(child: content),
+        ],
+      );
+    }
+
+    return content;
   }
 
   bool _hasDeviceAssignments() {
@@ -1471,6 +1709,9 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
         ? _filterControllers.map((c) => c.text.trim()).where((f) => f.isNotEmpty).toList()
         : widget.profile.filterNames;
 
+    final filterNameWidth = widget.isMobile ? 100.0 : 120.0;
+    final inputWidth = widget.isMobile ? 90.0 : 100.0;
+
     return filterNames.map((filterName) {
       // Ensure we have a controller for this filter
       if (!_filterOffsetControllers.containsKey(filterName)) {
@@ -1483,34 +1724,53 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(
           children: [
-            Container(
-              width: 120,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                filterName,
-                style: TextStyle(color: widget.colors.textPrimary),
+            Expanded(
+              flex: widget.isMobile ? 2 : 1,
+              child: Container(
+                constraints: BoxConstraints(minWidth: filterNameWidth),
+                padding: EdgeInsets.symmetric(
+                  horizontal: widget.isMobile ? 10 : 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  filterName,
+                  style: TextStyle(
+                    color: widget.colors.textPrimary,
+                    fontSize: widget.isMobile ? 13 : 14,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: widget.isMobile ? 10 : 12),
             if (widget.isEditing)
               SizedBox(
-                width: 100,
+                width: inputWidth,
                 child: TextFormField(
                   controller: controller,
                   keyboardType: const TextInputType.numberWithOptions(signed: true),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
                   ],
-                  style: TextStyle(color: widget.colors.textPrimary, fontSize: 14),
+                  style: TextStyle(
+                    color: widget.colors.textPrimary,
+                    fontSize: widget.isMobile ? 13 : 14,
+                  ),
                   decoration: InputDecoration(
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    suffixText: 'steps',
-                    suffixStyle: TextStyle(color: widget.colors.textMuted, fontSize: 12),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: widget.isMobile ? 6 : 8,
+                      vertical: 8,
+                    ),
+                    suffixText: widget.isMobile ? 'st' : 'steps',
+                    suffixStyle: TextStyle(
+                      color: widget.colors.textMuted,
+                      fontSize: widget.isMobile ? 11 : 12,
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(6),
                       borderSide: BorderSide(color: widget.colors.border),
@@ -1529,7 +1789,10 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             else
               Text(
                 '$offset steps',
-                style: TextStyle(color: widget.colors.textSecondary),
+                style: TextStyle(
+                  color: widget.colors.textSecondary,
+                  fontSize: widget.isMobile ? 13 : 14,
+                ),
               ),
           ],
         ),
@@ -1548,6 +1811,7 @@ class _Section extends StatelessWidget {
   final List<Widget> children;
   final Widget? trailing;
   final NightshadeColors colors;
+  final bool isMobile;
 
   const _Section({
     required this.title,
@@ -1555,37 +1819,40 @@ class _Section extends StatelessWidget {
     required this.children,
     this.trailing,
     required this.colors,
+    this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final sectionPadding = isMobile ? 16.0 : 20.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, size: 18, color: colors.primary),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
+            Icon(icon, size: isMobile ? 16 : 18, color: colors.primary),
+            SizedBox(width: isMobile ? 6 : 8),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: isMobile ? 13 : 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (trailing != null) ...[
-              const Spacer(),
-              trailing!,
-            ],
+            if (trailing != null) trailing!,
           ],
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: isMobile ? 12 : 16),
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(sectionPadding),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
             border: Border.all(color: colors.border),
           ),
           child: Column(

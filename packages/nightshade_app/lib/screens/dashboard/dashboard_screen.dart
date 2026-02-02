@@ -12,6 +12,7 @@ import '../../widgets/astro_image_viewer.dart';
 import '../../widgets/capture_settings_panel.dart';
 import '../../widgets/focuser_controls.dart';
 import '../../widgets/operation_status_bar.dart';
+import '../../widgets/tutorial_keys/dashboard_keys.dart';
 import '../../widgets/weather/dashboard_weather_widget.dart';
 import 'dashboard_layout.dart';
 import 'dashboard_layout_provider.dart';
@@ -286,16 +287,36 @@ class _ZoneBasedDashboard extends StatelessWidget {
   }
 
   /// Full three-zone layout for wide screens (>1024px)
+  ///
+  /// NINA-style command center layout with compact, information-dense zones:
+  /// - Primary zone (left): Live preview + capture controls + some tertiary cards
+  /// - Secondary zone (right): Sequence, guiding, equipment + overflow tertiary cards
   Widget _buildFullLayout(BuildContext context, BoxConstraints constraints) {
     final registry = {for (final def in dashboardWidgetRegistry) def.id: def};
     final primaryTiles = layout.tilesForZone(DashboardZone.primary);
     final secondaryTiles = layout.tilesForZone(DashboardZone.secondary);
     final tertiaryTiles = layout.tilesForZone(DashboardZone.tertiary);
 
-    // Calculate secondary zone width from fraction
+    // Calculate zone widths
     final availableWidth = constraints.maxWidth - 48; // padding
-    final secondaryWidth = (availableWidth * layout.secondaryZoneWidth).clamp(250.0, 500.0);
+    final secondaryWidth = (availableWidth * layout.secondaryZoneWidth).clamp(280.0, 360.0);
     final primaryWidth = availableWidth - secondaryWidth - 16; // gap
+
+    // On wide screens, split tertiary cards between primary and secondary zones
+    // Put Mount and Focus below the preview, move Weather/Tonight/Alerts to secondary
+    final tertiaryForPrimary = <DashboardTileConfig>[];
+    final tertiaryForSecondary = <DashboardTileConfig>[];
+
+    for (final tile in tertiaryTiles) {
+      // Mount and Focus stay with primary (they're about the current imaging session)
+      if (tile.widgetId == DashboardWidgetId.mountControl ||
+          tile.widgetId == DashboardWidgetId.focus) {
+        tertiaryForPrimary.add(tile);
+      } else {
+        // Weather, Tonight, Alerts go to secondary (environmental/planning info)
+        tertiaryForSecondary.add(tile);
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -319,71 +340,109 @@ class _ZoneBasedDashboard extends StatelessWidget {
             child: _EditModeBanner(colors: colors),
           ),
 
-        // Main content area (scrollable)
+        // Main content area
         Expanded(
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Primary + Secondary zones (horizontal split)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Primary Zone (hero content - 60%)
-                    SizedBox(
-                      width: primaryWidth,
-                      child: _ZoneColumn(
-                        zone: DashboardZone.primary,
-                        tiles: primaryTiles,
-                        registry: registry,
-                        colors: colors,
-                        pulseController: pulseController,
-                        isEditing: isEditing,
-                        cardVariant: CardVariant.elevated,
-                        isHeroZone: true,
-                        onReorder: onReorder,
-                        onResize: onResize,
-                        onToggleEnabled: onToggleEnabled,
-                      ),
-                    ),
+                // Left column: Primary + Mount/Focus (scrollable)
+                SizedBox(
+                  width: primaryWidth,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Primary Zone (Live Preview + Capture)
+                        _ZoneColumn(
+                          zone: DashboardZone.primary,
+                          tiles: primaryTiles,
+                          registry: registry,
+                          colors: colors,
+                          pulseController: pulseController,
+                          isEditing: isEditing,
+                          cardVariant: CardVariant.elevated,
+                          isHeroZone: true,
+                          onReorder: onReorder,
+                          onResize: onResize,
+                          onToggleEnabled: onToggleEnabled,
+                        ),
 
-                    const SizedBox(width: 16),
-
-                    // Secondary Zone (supporting info - 40%)
-                    SizedBox(
-                      width: secondaryWidth,
-                      child: _ZoneColumn(
-                        zone: DashboardZone.secondary,
-                        tiles: secondaryTiles,
-                        registry: registry,
-                        colors: colors,
-                        pulseController: pulseController,
-                        isEditing: isEditing,
-                        cardVariant: CardVariant.elevated,
-                        isHeroZone: false,
-                        onReorder: onReorder,
-                        onResize: onResize,
-                        onToggleEnabled: onToggleEnabled,
-                      ),
+                        // Mount & Focus below primary
+                        if (tertiaryForPrimary.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          _TertiaryZoneRow(
+                            tiles: tertiaryForPrimary,
+                            registry: registry,
+                            colors: colors,
+                            pulseController: pulseController,
+                            isEditing: isEditing,
+                            onReorder: onReorder,
+                            onResize: onResize,
+                            onToggleEnabled: onToggleEnabled,
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(width: 16),
 
-                // Tertiary Zone (bottom row - compact cards)
-                if (tertiaryTiles.isNotEmpty)
-                  _TertiaryZoneRow(
-                    tiles: tertiaryTiles,
-                    registry: registry,
-                    colors: colors,
-                    pulseController: pulseController,
-                    isEditing: isEditing,
-                    onReorder: onReorder,
-                    onResize: onResize,
-                    onToggleEnabled: onToggleEnabled,
+                // Right column: Secondary + Weather/Tonight/Alerts (scrollable)
+                SizedBox(
+                  width: secondaryWidth,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Secondary Zone (Sequence, Guiding, Equipment, Quick Actions)
+                        _ZoneColumn(
+                          zone: DashboardZone.secondary,
+                          tiles: secondaryTiles,
+                          registry: registry,
+                          colors: colors,
+                          pulseController: pulseController,
+                          isEditing: isEditing,
+                          cardVariant: CardVariant.elevated,
+                          isHeroZone: false,
+                          onReorder: onReorder,
+                          onResize: onResize,
+                          onToggleEnabled: onToggleEnabled,
+                        ),
+
+                        // Weather, Tonight, Alerts below secondary
+                        if (tertiaryForSecondary.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          ...tertiaryForSecondary.map((tile) {
+                            final definition = registry[tile.widgetId];
+                            if (definition == null) return const SizedBox.shrink();
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _DashboardTile(
+                                tile: tile,
+                                width: double.infinity,
+                                colors: colors,
+                                child: Builder(
+                                  builder: (context) => definition.builder(context, colors, pulseController),
+                                ),
+                                isEditing: isEditing,
+                                cardVariant: CardVariant.standard,
+                                isHero: false,
+                                onReorder: onReorder,
+                                onResize: onResize,
+                                onToggleEnabled: onToggleEnabled,
+                              ),
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
                   ),
+                ),
               ],
             ),
           ),
@@ -393,6 +452,8 @@ class _ZoneBasedDashboard extends StatelessWidget {
   }
 
   /// Stacked layout for medium screens (768-1024px)
+  ///
+  /// Places tertiary zone immediately after primary to maintain compact grouping.
   Widget _buildStackedLayout(BuildContext context) {
     final registry = {for (final def in dashboardWidgetRegistry) def.id: def};
     final primaryTiles = layout.tilesForZone(DashboardZone.primary);
@@ -426,6 +487,7 @@ class _ZoneBasedDashboard extends StatelessWidget {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Primary Zone
@@ -443,9 +505,24 @@ class _ZoneBasedDashboard extends StatelessWidget {
                   onToggleEnabled: onToggleEnabled,
                 ),
 
+                // Tertiary Zone immediately after primary (compact status cards)
+                if (tertiaryTiles.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _TertiaryZoneRow(
+                    tiles: tertiaryTiles,
+                    registry: registry,
+                    colors: colors,
+                    pulseController: pulseController,
+                    isEditing: isEditing,
+                    onReorder: onReorder,
+                    onResize: onResize,
+                    onToggleEnabled: onToggleEnabled,
+                  ),
+                ],
+
                 const SizedBox(height: 16),
 
-                // Secondary Zone
+                // Secondary Zone (last in stacked layout)
                 _ZoneColumn(
                   zone: DashboardZone.secondary,
                   tiles: secondaryTiles,
@@ -459,21 +536,6 @@ class _ZoneBasedDashboard extends StatelessWidget {
                   onResize: onResize,
                   onToggleEnabled: onToggleEnabled,
                 ),
-
-                const SizedBox(height: 16),
-
-                // Tertiary Zone
-                if (tertiaryTiles.isNotEmpty)
-                  _TertiaryZoneRow(
-                    tiles: tertiaryTiles,
-                    registry: registry,
-                    colors: colors,
-                    pulseController: pulseController,
-                    isEditing: isEditing,
-                    onReorder: onReorder,
-                    onResize: onResize,
-                    onToggleEnabled: onToggleEnabled,
-                  ),
               ],
             ),
           ),
@@ -483,10 +545,44 @@ class _ZoneBasedDashboard extends StatelessWidget {
   }
 
   /// Compact layout for narrow screens (<768px)
+  ///
+  /// Mobile-optimized layout with:
+  /// - Compact command bar at top
+  /// - Weather widget full width (prioritized for field use)
+  /// - Live preview full width
+  /// - Quick actions as horizontal scrollable row
+  /// - Device status cards in a wrap layout
+  /// - Session and other cards stacked vertically
   Widget _buildCompactLayout(BuildContext context) {
     final registry = {for (final def in dashboardWidgetRegistry) def.id: def};
     final allTiles = layout.tiles.where((t) => t.enabled).toList()
       ..sort((a, b) => a.order.compareTo(b.order));
+
+    // Categorize tiles for mobile-optimized ordering
+    final weatherTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.weather).firstOrNull;
+    final livePreviewTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.livePreview).firstOrNull;
+    final captureSettingsTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.captureSettings).firstOrNull;
+    final quickActionsTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.quickActions).firstOrNull;
+    final sessionTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.sequenceStatus).firstOrNull;
+
+    // Equipment-related tiles for wrap layout
+    final equipmentTiles = allTiles.where((t) =>
+      t.widgetId == DashboardWidgetId.equipmentStatus ||
+      t.widgetId == DashboardWidgetId.mountControl ||
+      t.widgetId == DashboardWidgetId.focus
+    ).toList();
+
+    // Other tiles (guiding, tonight, alerts, quick stats)
+    final otherTiles = allTiles.where((t) =>
+      t.widgetId != DashboardWidgetId.weather &&
+      t.widgetId != DashboardWidgetId.livePreview &&
+      t.widgetId != DashboardWidgetId.captureSettings &&
+      t.widgetId != DashboardWidgetId.quickActions &&
+      t.widgetId != DashboardWidgetId.sequenceStatus &&
+      t.widgetId != DashboardWidgetId.equipmentStatus &&
+      t.widgetId != DashboardWidgetId.mountControl &&
+      t.widgetId != DashboardWidgetId.focus
+    ).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -508,19 +604,90 @@ class _ZoneBasedDashboard extends StatelessWidget {
             child: _EditModeBanner(colors: colors),
           ),
 
-        // Single column scroll
+        // Mobile-optimized scrollable content
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final tile in allTiles) ...[
+                // 1. Weather - full width at top (important for field use)
+                if (weatherTile != null) ...[
+                  _buildTile(
+                    tile: weatherTile,
+                    registry: registry,
+                    cardVariant: CardVariant.standard,
+                    isHero: false,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // 2. Live Preview - full width hero
+                if (livePreviewTile != null) ...[
+                  _buildTile(
+                    tile: livePreviewTile,
+                    registry: registry,
+                    cardVariant: CardVariant.elevated,
+                    isHero: true,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // 3. Capture Settings - full width
+                if (captureSettingsTile != null) ...[
+                  _buildTile(
+                    tile: captureSettingsTile,
+                    registry: registry,
+                    cardVariant: CardVariant.standard,
+                    isHero: false,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // 4. Quick Actions - full width (responsive wrap inside)
+                if (quickActionsTile != null) ...[
+                  _buildTile(
+                    tile: quickActionsTile,
+                    registry: registry,
+                    cardVariant: CardVariant.standard,
+                    isHero: false,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // 5. Session Status - full width
+                if (sessionTile != null) ...[
+                  _buildTile(
+                    tile: sessionTile,
+                    registry: registry,
+                    cardVariant: CardVariant.standard,
+                    isHero: false,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // 6. Equipment tiles in responsive wrap layout
+                if (equipmentTiles.isNotEmpty) ...[
+                  _MobileEquipmentSection(
+                    tiles: equipmentTiles,
+                    registry: registry,
+                    colors: colors,
+                    pulseController: pulseController,
+                    isEditing: isEditing,
+                    onReorder: onReorder,
+                    onResize: onResize,
+                    onToggleEnabled: onToggleEnabled,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // 7. Other tiles stacked vertically
+                for (final tile in otherTiles) ...[
                   _buildTile(
                     tile: tile,
                     registry: registry,
                     cardVariant: CardVariant.standard,
-                    isHero: tile.widgetId == DashboardWidgetId.livePreview,
+                    isHero: false,
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -596,65 +763,90 @@ class _CommandBar extends ConsumerWidget {
     final isCapturing = sessionState.isCapturing || exposurePercent > 0 || isDownloading;
     final targetName = sessionState.targetName ?? 'No Target';
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-        boxShadow: NightshadeTokens.elevationLevel1,
-      ),
-      child: Row(
-        children: [
-          // Session Status
-          _SessionStatusIndicator(
-            colors: colors,
-            pulseController: pulseController,
-            isCapturing: isCapturing,
-            targetName: targetName,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        // Responsive thresholds for command bar elements
+        final showClock = width >= 900;
+        final showDividers = width >= 850;
+        final showStats = width >= 800;
+        final compactPadding = width < 900;
+
+        return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: compactPadding ? 12 : 16,
+            vertical: compactPadding ? 8 : 10,
           ),
-
-          const SizedBox(width: 24),
-
-          // Divider
-          Container(
-            width: 1,
-            height: 32,
-            color: colors.border,
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: NightshadeTokens.borderRadiusLg,
+            border: Border.all(color: colors.border),
+            boxShadow: NightshadeTokens.elevationLevel1,
           ),
+          child: Row(
+            children: [
+              // Session Status - always show but constrain width
+              Flexible(
+                flex: 0,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: width < 900 ? 120 : 180),
+                  child: _SessionStatusIndicator(
+                    colors: colors,
+                    pulseController: pulseController,
+                    isCapturing: isCapturing,
+                    targetName: targetName,
+                  ),
+                ),
+              ),
 
-          const SizedBox(width: 24),
+              if (showDividers) ...[
+                SizedBox(width: compactPadding ? 12 : 24),
+                Container(
+                  width: 1,
+                  height: 32,
+                  color: colors.border,
+                ),
+                SizedBox(width: compactPadding ? 12 : 24),
+              ] else
+                SizedBox(width: compactPadding ? 8 : 16),
 
-          // Quick Stats Strip
-          Expanded(
-            child: _QuickStatsStrip(colors: colors),
+              // Quick Stats Strip - only show on wider layouts
+              if (showStats)
+                Expanded(
+                  child: _QuickStatsStrip(colors: colors),
+                )
+              else
+                const Spacer(),
+
+              if (showDividers && showStats) ...[
+                SizedBox(width: compactPadding ? 12 : 24),
+                Container(
+                  width: 1,
+                  height: 32,
+                  color: colors.border,
+                ),
+              ],
+
+              SizedBox(width: compactPadding ? 8 : 16),
+
+              // Clock/LST - hide on narrower layouts
+              if (showClock) ...[
+                _ClockWidget(colors: colors),
+                SizedBox(width: compactPadding ? 8 : 16),
+              ],
+
+              // Edit Controls
+              _DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                compact: !showClock,
+              ),
+            ],
           ),
-
-          const SizedBox(width: 24),
-
-          // Divider
-          Container(
-            width: 1,
-            height: 32,
-            color: colors.border,
-          ),
-
-          const SizedBox(width: 16),
-
-          // Clock/LST
-          _ClockWidget(colors: colors),
-
-          const SizedBox(width: 16),
-
-          // Edit Controls
-          _DashboardHeaderActions(
-            isEditing: isEditing,
-            onToggleEdit: onToggleEdit,
-            onManageWidgets: onManageWidgets,
-            onResetLayout: onResetLayout,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -703,26 +895,30 @@ class _SessionStatusIndicator extends StatelessWidget {
           },
         ),
         const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              isCapturing ? 'Capturing' : 'Idle',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isCapturing ? colors.success : colors.textSecondary,
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                isCapturing ? 'Capturing' : 'Idle',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isCapturing ? colors.success : colors.textSecondary,
+                ),
               ),
-            ),
-            Text(
-              targetName,
-              style: TextStyle(
-                fontSize: 11,
-                color: colors.textMuted,
+              Text(
+                targetName,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textMuted,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -768,34 +964,43 @@ class _QuickStatsStrip extends ConsumerWidget {
         ? '${guiderRms.toStringAsFixed(2)}"'
         : '---';
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _CommandBarStat(
-          icon: LucideIcons.thermometer,
-          label: 'Temp',
-          value: tempValue,
-          colors: colors,
-        ),
-        _CommandBarStat(
-          icon: LucideIcons.focus,
-          label: 'Focus',
-          value: focusValue,
-          colors: colors,
-        ),
-        _CommandBarStat(
-          icon: LucideIcons.target,
-          label: 'HFR',
-          value: hfrValue,
-          colors: colors,
-        ),
-        _CommandBarStat(
-          icon: LucideIcons.activity,
-          label: 'RMS',
-          value: rmsValue,
-          colors: colors,
-        ),
-      ],
+    // Use FittedBox to scale down gracefully on narrower layouts
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.center,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _CommandBarStat(
+            icon: LucideIcons.thermometer,
+            label: 'Temp',
+            value: tempValue,
+            colors: colors,
+          ),
+          const SizedBox(width: 16),
+          _CommandBarStat(
+            icon: LucideIcons.focus,
+            label: 'Focus',
+            value: focusValue,
+            colors: colors,
+          ),
+          const SizedBox(width: 16),
+          _CommandBarStat(
+            icon: LucideIcons.target,
+            label: 'HFR',
+            value: hfrValue,
+            colors: colors,
+          ),
+          const SizedBox(width: 16),
+          _CommandBarStat(
+            icon: LucideIcons.activity,
+            label: 'RMS',
+            value: rmsValue,
+            colors: colors,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -845,6 +1050,10 @@ class _CommandBarStat extends StatelessWidget {
 }
 
 /// Compact command bar for narrow screens (<768px).
+///
+/// Mobile-optimized header showing:
+/// - Row 1: Session status + Edit button
+/// - Row 2 (optional): Compact quick stats (Temp | HFR | RMS) when capturing
 class _CompactCommandBar extends ConsumerWidget {
   final NightshadeColors colors;
   final AnimationController pulseController;
@@ -862,8 +1071,20 @@ class _CompactCommandBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(sessionStateProvider);
     final exposurePercent = ref.watch(exposureProgressProvider.select((s) => s.percent));
+    final isDownloading = ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
 
-    final isCapturing = sessionState.isCapturing || exposurePercent > 0;
+    final isCapturing = sessionState.isCapturing || exposurePercent > 0 || isDownloading;
+    final targetName = sessionState.targetName ?? 'No Target';
+
+    // Quick stats for mobile (only when capturing or has data)
+    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final cameraTemp = ref.watch(cameraStateProvider.select((s) => s.temperature));
+    final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
+    final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
+    final guiderRms = ref.watch(guiderStateProvider.select((s) => s.rmsTotal));
+
+    final showStats = isCapturing || cameraConnected;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -872,44 +1093,147 @@ class _CompactCommandBar extends ConsumerWidget {
         borderRadius: NightshadeTokens.borderRadiusMd,
         border: Border.all(color: colors.border),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Status dot
-          AnimatedBuilder(
-            animation: pulseController,
-            builder: (context, child) {
-              return Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isCapturing
-                      ? colors.success.withValues(alpha: 0.4 + pulseController.value * 0.4)
-                      : colors.textMuted.withValues(alpha: 0.4),
+          // Row 1: Status + Edit
+          Row(
+            children: [
+              // Status dot
+              AnimatedBuilder(
+                animation: pulseController,
+                builder: (context, child) {
+                  return Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isCapturing
+                          ? colors.success.withValues(alpha: 0.4 + pulseController.value * 0.4)
+                          : colors.textMuted.withValues(alpha: 0.4),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+              // Status and target name
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      isCapturing ? 'Capturing' : 'Idle',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isCapturing ? colors.success : colors.textSecondary,
+                      ),
+                    ),
+                    if (isCapturing)
+                      Text(
+                        targetName,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: colors.textMuted,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
                 ),
-              );
-            },
+              ),
+              // Edit button
+              NightshadeButton(
+                label: isEditing ? 'Done' : 'Edit',
+                icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
+                variant: isEditing ? ButtonVariant.primary : ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: onToggleEdit,
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(
-            isCapturing ? 'Capturing' : 'Idle',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: isCapturing ? colors.success : colors.textSecondary,
+
+          // Row 2: Compact quick stats (shown when capturing or has data)
+          if (showStats) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: colors.surface.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              // Use FittedBox to scale down stats on very narrow screens
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _MobileStatChip(
+                      label: 'Temp',
+                      value: cameraConnected && cameraTemp != null
+                          ? '${cameraTemp.toStringAsFixed(0)}°'
+                          : '---',
+                      colors: colors,
+                    ),
+                    const SizedBox(width: 12),
+                    _MobileStatChip(
+                      label: 'HFR',
+                      value: hfr != null ? hfr.toStringAsFixed(2) : '---',
+                      colors: colors,
+                    ),
+                    const SizedBox(width: 12),
+                    _MobileStatChip(
+                      label: 'RMS',
+                      value: guiderIsGuiding && guiderRms != null
+                          ? '${guiderRms.toStringAsFixed(1)}"'
+                          : '---',
+                      colors: colors,
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-          const Spacer(),
-          // Edit button
-          NightshadeButton(
-            label: isEditing ? 'Done' : 'Edit',
-            icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
-            variant: isEditing ? ButtonVariant.primary : ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: onToggleEdit,
-          ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// Compact stat display for mobile command bar.
+class _MobileStatChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+
+  const _MobileStatChip({
+    required this.label,
+    required this.value,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$label: ',
+          style: TextStyle(
+            fontSize: 10,
+            color: colors.textMuted,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -948,12 +1272,15 @@ class _ZoneColumn extends StatelessWidget {
       return _EmptyZonePlaceholder(zone: zone, colors: colors, isEditing: isEditing);
     }
 
+    // Use tighter spacing for secondary zone (8px) vs primary (16px)
+    final gapHeight = zone == DashboardZone.secondary ? 8.0 : 16.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (var i = 0; i < tiles.length; i++) ...[
           _buildZoneTile(tiles[i], i == 0 && isHeroZone),
-          if (i < tiles.length - 1) const SizedBox(height: 16),
+          if (i < tiles.length - 1) SizedBox(height: gapHeight),
         ],
       ],
     );
@@ -1045,8 +1372,13 @@ class _EmptyZonePlaceholder extends StatelessWidget {
   }
 }
 
-/// Tertiary zone displayed as a horizontal row of compact cards.
-class _TertiaryZoneRow extends StatelessWidget {
+/// Mobile equipment section with responsive wrap layout.
+///
+/// Displays equipment-related cards (Equipment Status, Mount Control, Focus) in a
+/// flexible wrap layout that adapts to available width:
+/// - On narrow screens: cards stack vertically (single column)
+/// - On wider mobile screens: cards flow in a 2-column wrap
+class _MobileEquipmentSection extends StatelessWidget {
   final List<DashboardTileConfig> tiles;
   final Map<DashboardWidgetId, DashboardWidgetDefinition> registry;
   final NightshadeColors colors;
@@ -1056,7 +1388,7 @@ class _TertiaryZoneRow extends StatelessWidget {
   final void Function(DashboardWidgetId id) onResize;
   final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
 
-  const _TertiaryZoneRow({
+  const _MobileEquipmentSection({
     required this.tiles,
     required this.registry,
     required this.colors,
@@ -1073,62 +1405,40 @@ class _TertiaryZoneRow extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        const spacing = 12.0;
-        const minCardWidth = 250.0;
-        final maxCardsPerRow = ((constraints.maxWidth + spacing) / (minCardWidth + spacing)).floor().clamp(1, 4);
+        final availableWidth = constraints.maxWidth;
+        // Use wrap layout for cards - 2 columns if width >= 400, otherwise single column
+        final useWrap = availableWidth >= 400;
+        final cardWidth = useWrap ? (availableWidth - 12) / 2 : availableWidth;
 
-        // If we have more cards than fit in one row, use grid layout
-        if (tiles.length > maxCardsPerRow) {
-          final cardsPerRow = maxCardsPerRow;
-          final cardWidth = (constraints.maxWidth - spacing * (cardsPerRow - 1)) / cardsPerRow;
-
-          final rows = <Widget>[];
-          for (var i = 0; i < tiles.length; i += cardsPerRow) {
-            final rowTiles = tiles.skip(i).take(cardsPerRow).toList();
-            rows.add(
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var j = 0; j < rowTiles.length; j++) ...[
-                    SizedBox(
-                      width: cardWidth,
-                      child: _buildTertiaryTile(rowTiles[j]),
-                    ),
-                    if (j < rowTiles.length - 1) const SizedBox(width: spacing),
-                    if (j == rowTiles.length - 1 && rowTiles.length < cardsPerRow)
-                      const Expanded(child: SizedBox.shrink()),
-                  ],
-                ],
-              ),
-            );
-          }
-
+        if (useWrap) {
+          // Wrap layout for wider mobile screens
+          return Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: tiles.map((tile) {
+              return SizedBox(
+                width: cardWidth,
+                child: _buildEquipmentTile(tile),
+              );
+            }).toList(),
+          );
+        } else {
+          // Stack vertically for narrow screens
           return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (var i = 0; i < rows.length; i++) ...[
-                rows[i],
-                if (i < rows.length - 1) const SizedBox(height: spacing),
+              for (var i = 0; i < tiles.length; i++) ...[
+                _buildEquipmentTile(tiles[i]),
+                if (i < tiles.length - 1) const SizedBox(height: 12),
               ],
             ],
           );
         }
-
-        // Single row - use Expanded for equal width
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var i = 0; i < tiles.length; i++) ...[
-              Expanded(child: _buildTertiaryTile(tiles[i])),
-              if (i < tiles.length - 1) const SizedBox(width: spacing),
-            ],
-          ],
-        );
       },
     );
   }
 
-  Widget _buildTertiaryTile(DashboardTileConfig tile) {
+  Widget _buildEquipmentTile(DashboardTileConfig tile) {
     final definition = registry[tile.widgetId];
     if (definition == null) return const SizedBox.shrink();
 
@@ -1147,6 +1457,200 @@ class _TertiaryZoneRow extends StatelessWidget {
       onReorder: onReorder,
       onResize: onResize,
       onToggleEnabled: onToggleEnabled,
+    );
+  }
+}
+
+/// Tertiary zone displayed as a horizontal row of compact cards.
+/// Uses ConsumerWidget to conditionally hide the Alerts card when empty.
+class _TertiaryZoneRow extends ConsumerWidget {
+  final List<DashboardTileConfig> tiles;
+  final Map<DashboardWidgetId, DashboardWidgetDefinition> registry;
+  final NightshadeColors colors;
+  final AnimationController pulseController;
+  final bool isEditing;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
+  final void Function(DashboardWidgetId id) onResize;
+  final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
+
+  /// Fixed minimum height for all tertiary zone cards to ensure consistent layout.
+  static const double _tertiaryCardMinHeight = 150.0;
+
+  /// Minimum width for tertiary cards.
+  static const double _minCardWidth = 200.0;
+
+  /// Maximum width for tertiary cards.
+  static const double _maxCardWidth = 400.0;
+
+  /// Spacing between cards.
+  static const double _cardSpacing = 12.0;
+
+  const _TertiaryZoneRow({
+    required this.tiles,
+    required this.registry,
+    required this.colors,
+    required this.pulseController,
+    required this.isEditing,
+    required this.onReorder,
+    required this.onResize,
+    required this.onToggleEnabled,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Check if alerts card should be hidden (no notifications and no active operation)
+    final notifications = ref.watch(uiNotificationProvider);
+    final hasOperation = ref.watch(hasActiveOperationProvider);
+    final alertsHasContent = notifications.isNotEmpty || hasOperation;
+
+    // Filter out Alerts card if it has no content (unless in edit mode where we show all)
+    final filteredTiles = tiles.where((tile) {
+      if (tile.widgetId == DashboardWidgetId.alerts && !alertsHasContent && !isEditing) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    if (filteredTiles.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        final cardCount = filteredTiles.length;
+
+        // Calculate optimal layout
+        final layout = _calculateCardLayout(availableWidth, cardCount);
+
+        // Build rows of cards
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: _buildCardRows(filteredTiles, layout),
+        );
+      },
+    );
+  }
+
+  /// Calculate the optimal card layout based on available width and card count.
+  /// Returns a record with (cardWidth, cardsPerRow).
+  ({double cardWidth, int cardsPerRow}) _calculateCardLayout(
+    double availableWidth,
+    int totalCards,
+  ) {
+    if (totalCards == 0) {
+      return (cardWidth: _minCardWidth, cardsPerRow: 1);
+    }
+
+    // Try fitting all cards in one row first
+    // Available width for cards = total width - spacing between cards
+    // For N cards: spacing = (N - 1) * _cardSpacing
+    double calculateCardWidth(int cardsInRow) {
+      if (cardsInRow <= 0) return _maxCardWidth;
+      final totalSpacing = (cardsInRow - 1) * _cardSpacing;
+      return (availableWidth - totalSpacing) / cardsInRow;
+    }
+
+    // Start with trying to fit all cards in one row
+    int cardsPerRow = totalCards;
+    double cardWidth = calculateCardWidth(cardsPerRow);
+
+    // If cards would be too narrow, reduce cards per row until they fit
+    while (cardWidth < _minCardWidth && cardsPerRow > 1) {
+      cardsPerRow--;
+      cardWidth = calculateCardWidth(cardsPerRow);
+    }
+
+    // On very narrow screens (mobile), allow full width even if below min
+    // This prevents horizontal overflow on small devices
+    if (cardsPerRow == 1) {
+      cardWidth = availableWidth; // Full width for single column
+    } else {
+      // Clamp to max width (cards won't exceed max even if there's extra space)
+      cardWidth = cardWidth.clamp(_minCardWidth, _maxCardWidth);
+    }
+
+    // If we're using max width and have leftover space, we might fit more cards
+    // but we already tried that above, so just use what we have
+
+    return (cardWidth: cardWidth, cardsPerRow: cardsPerRow);
+  }
+
+  /// Build rows of cards with equal widths within each row.
+  List<Widget> _buildCardRows(
+    List<DashboardTileConfig> tiles,
+    ({double cardWidth, int cardsPerRow}) layout,
+  ) {
+    final rows = <Widget>[];
+    final totalCards = tiles.length;
+    int startIndex = 0;
+
+    while (startIndex < totalCards) {
+      final remainingCards = totalCards - startIndex;
+      final cardsInThisRow = remainingCards < layout.cardsPerRow
+          ? remainingCards
+          : layout.cardsPerRow;
+
+      // Get tiles for this row
+      final rowTiles = tiles.sublist(startIndex, startIndex + cardsInThisRow);
+
+      // For the last row with fewer cards, we still want equal-width cards
+      // but they should expand to fill the row (up to max width each)
+      final rowWidget = _buildSingleRow(rowTiles, layout.cardWidth, layout.cardsPerRow);
+
+      if (rows.isNotEmpty) {
+        rows.add(const SizedBox(height: _cardSpacing));
+      }
+      rows.add(rowWidget);
+
+      startIndex += cardsInThisRow;
+    }
+
+    return rows;
+  }
+
+  /// Build a single row of cards.
+  Widget _buildSingleRow(
+    List<DashboardTileConfig> rowTiles,
+    double baseCardWidth,
+    int standardCardsPerRow,
+  ) {
+    // Use Row with Expanded children to distribute space evenly
+    // Cards have a fixed minHeight via _tertiaryCardMinHeight for consistent layout
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < rowTiles.length; i++) ...[
+          if (i > 0) const SizedBox(width: _cardSpacing),
+          Expanded(
+            child: _buildTertiaryTile(rowTiles[i]),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTertiaryTile(DashboardTileConfig tile) {
+    final definition = registry[tile.widgetId];
+    if (definition == null) return const SizedBox.shrink();
+
+    final child = Builder(
+      builder: (context) => definition.builder(context, colors, pulseController),
+    );
+
+    // Wrap in ConstrainedBox with minHeight for consistent card sizing
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _tertiaryCardMinHeight),
+      child: _DashboardTile(
+        tile: tile,
+        width: double.infinity,
+        colors: colors,
+        child: child,
+        isEditing: isEditing,
+        cardVariant: CardVariant.standard,
+        isHero: false,
+        onReorder: onReorder,
+        onResize: onResize,
+        onToggleEnabled: onToggleEnabled,
+      ),
     );
   }
 }
@@ -1173,7 +1677,7 @@ class _ClockWidget extends ConsumerWidget {
     final lst = ref.watch(localSiderealTimeProvider);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -1187,16 +1691,18 @@ class _ClockWidget extends ConsumerWidget {
         ),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(LucideIcons.clock, size: 18, color: colors.primary),
-          const SizedBox(width: 12),
+          Icon(LucideIcons.clock, size: 16, color: colors.primary),
+          const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -1223,41 +1729,46 @@ class _DashboardHeaderActions extends StatelessWidget {
   final VoidCallback onToggleEdit;
   final VoidCallback onManageWidgets;
   final VoidCallback onResetLayout;
+  final bool compact;
 
   const _DashboardHeaderActions({
     required this.isEditing,
     required this.onToggleEdit,
     required this.onManageWidgets,
     required this.onResetLayout,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final buttonSize = compact ? ButtonSize.small : ButtonSize.medium;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         NightshadeButton(
-          label: isEditing ? 'Done' : 'Edit Dashboard',
+          key: DashboardTutorialKeys.editButton,
+          label: isEditing ? 'Done' : (compact ? 'Edit' : 'Edit Dashboard'),
           icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
           variant: isEditing ? ButtonVariant.primary : ButtonVariant.outline,
-          size: ButtonSize.medium,
+          size: buttonSize,
           onPressed: onToggleEdit,
         ),
         if (isEditing) ...[
-          const SizedBox(width: 8),
+          SizedBox(width: compact ? 4 : 8),
           NightshadeButton(
-            label: 'Widgets',
+            label: compact ? '' : 'Widgets',
             icon: LucideIcons.layoutGrid,
             variant: ButtonVariant.outline,
-            size: ButtonSize.medium,
+            size: buttonSize,
             onPressed: onManageWidgets,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: compact ? 4 : 8),
           NightshadeButton(
-            label: 'Reset',
+            label: compact ? '' : 'Reset',
             icon: LucideIcons.refreshCw,
             variant: ButtonVariant.outline,
-            size: ButtonSize.medium,
+            size: buttonSize,
             onPressed: onResetLayout,
           ),
         ],
@@ -1286,7 +1797,7 @@ class _EditModeBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Edit mode: drag tiles to reorder, use the resize handle, or hide tiles.',
+              'Edit mode: long-press the grip handle to drag and reorder tiles.',
               style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ),
@@ -1430,12 +1941,14 @@ class _DashboardTileFrame extends StatelessWidget {
       shadow = NightshadeTokens.elevationLevel1;
     }
 
-    // Border with hero accent
+    // Border with hero accent and edit mode highlight
     final borderColor = isDropTarget
         ? colors.primary.withValues(alpha: 0.7)
-        : isHero
-            ? colors.primary.withValues(alpha: 0.2)
-            : colors.border;
+        : isEditing
+            ? colors.primary.withValues(alpha: 0.3)
+            : isHero
+                ? colors.primary.withValues(alpha: 0.2)
+                : colors.border;
 
     return Stack(
       children: [
@@ -1484,11 +1997,19 @@ class _DashboardTileFrame extends StatelessWidget {
             ),
           ),
 
-        // Edit mode controls
+        // Edit mode drag handle (top-left)
         if (isEditing)
           Positioned(
             top: 8,
-            right: 8,
+            left: 8,
+            child: _DragHandleIndicator(colors: colors),
+          ),
+
+        // Edit mode controls (top-right) - adjusted for larger touch targets
+        if (isEditing)
+          Positioned(
+            top: 4,
+            right: 4,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1497,7 +2018,7 @@ class _DashboardTileFrame extends StatelessWidget {
                   tooltip: 'Resize (${size.label})',
                   onTap: onResize,
                 ),
-                const SizedBox(width: 6),
+                // Touch areas now adjacent at 40px each
                 _EditIconButton(
                   icon: LucideIcons.eyeOff,
                   tooltip: 'Hide tile',
@@ -1511,6 +2032,7 @@ class _DashboardTileFrame extends StatelessWidget {
   }
 }
 
+/// Edit mode icon button with expanded touch target (40x40px) for field use.
 class _EditIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
@@ -1527,21 +2049,62 @@ class _EditIconButton extends StatelessWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: colors.surfaceAlt.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.all(6),
-            child: Icon(
-              icon,
-              size: 14,
-              color: colors.textSecondary,
+      // Expanded touch target: 40x40px for easier tapping
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: Center(
+              // Visual element stays compact at 26x26px
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  icon,
+                  size: 14,
+                  color: colors.textSecondary,
+                ),
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Drag handle indicator shown on tiles in edit mode.
+///
+/// Provides visual affordance that tiles can be long-pressed and dragged.
+class _DragHandleIndicator extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _DragHandleIndicator({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: colors.primary.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Icon(
+        LucideIcons.gripVertical,
+        size: 14,
+        color: colors.primary.withValues(alpha: 0.8),
       ),
     );
   }
@@ -1625,15 +2188,28 @@ class _WidgetPickerDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final layoutAsync = ref.watch(dashboardLayoutProvider);
+    final screenSize = MediaQuery.of(context).size;
+    // Responsive dialog width: 90% of screen on small screens, max 420px on larger
+    final dialogWidth = screenSize.width < 500
+        ? screenSize.width * 0.9
+        : 420.0;
 
     return AlertDialog(
       backgroundColor: colors.surface,
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: screenSize.width < 400 ? 16 : 40,
+        vertical: 24,
+      ),
       title: Text(
         'Dashboard Widgets',
-        style: TextStyle(color: colors.textPrimary),
+        style: TextStyle(color: colors.textPrimary, fontSize: screenSize.width < 400 ? 16 : 20),
       ),
-      content: SizedBox(
-        width: 420,
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: dialogWidth,
+          minWidth: 280,
+          maxHeight: screenSize.height * 0.7,
+        ),
         child: layoutAsync.when(
           data: (layout) {
             final tilesById = {
@@ -1688,58 +2264,96 @@ class _WidgetPickerDialog extends ConsumerWidget {
 }
 
 /// Live preview card - orchestrates smaller focused widgets
+///
+/// Uses a responsive aspect ratio for the image preview area that adapts
+/// to the available width:
+/// - Wide screens (>800px): 16:9 aspect ratio for cinematic preview
+/// - Medium screens (400-800px): 4:3 aspect ratio for balanced view
+/// - Narrow screens (<400px): 1:1 aspect ratio for compact display
+///
+/// The card fills the available width in its parent container.
 class _LivePreviewCard extends StatelessWidget {
   final NightshadeColors colors;
   final AnimationController pulseController;
 
   const _LivePreviewCard({
+    super.key,
     required this.colors,
     required this.pulseController,
   });
+
+  /// Calculate responsive aspect ratio based on available width.
+  double _getAspectRatio(double width) {
+    if (width > 800) {
+      // Wide screens: 16:9 cinematic aspect ratio
+      return 16 / 9;
+    } else if (width > 400) {
+      // Medium screens: 4:3 balanced aspect ratio
+      return 4 / 3;
+    } else {
+      // Narrow screens: 1:1 square aspect ratio
+      return 1.0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
       colors: colors,
       padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header row - compact
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+          final aspectRatio = _getAspectRatio(availableWidth);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
+              // Header row - compact
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(LucideIcons.image, size: 14, color: colors.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Live Preview',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary),
+                  ),
+                  const Spacer(),
+                  _CaptureStatusIndicator(colors: colors, pulseController: pulseController),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // Image preview area - constrained height to prevent dominating screen
+              // Max height of 400px ensures space for other content
+              // On very narrow screens (<320px), use smaller min height
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: 400,
+                  minHeight: availableWidth < 320 ? 150 : 200,
                 ),
-                child: Icon(LucideIcons.image, size: 14, color: colors.primary),
+                child: AspectRatio(
+                  aspectRatio: aspectRatio,
+                  child: _ImagePreviewArea(colors: colors),
+                ),
               ),
-              const SizedBox(width: 10),
-              Text(
-                'Live Preview',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary),
-              ),
-              const Spacer(),
-              _CaptureStatusIndicator(colors: colors, pulseController: pulseController),
+
+              const SizedBox(height: 10),
+
+              // Stats row
+              _ImageStatsRow(colors: colors),
             ],
-          ),
-
-          const SizedBox(height: 10),
-
-          // Image preview area with zoom controls - constrained height
-          SizedBox(
-            height: 300, // Fixed height for the image area
-            child: _ImagePreviewArea(colors: colors),
-          ),
-
-          const SizedBox(height: 10),
-
-          // Stats row
-          _ImageStatsRow(colors: colors),
-        ],
+          );
+        },
       ),
     );
   }
@@ -1804,108 +2418,7 @@ class _ImagePreviewArea extends ConsumerStatefulWidget {
 }
 
 class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
-  final TransformationController _transformController = TransformationController();
   double _currentZoom = 1.0;
-  bool _isFitMode = true;
-  Size? _containerSize;
-
-  @override
-  void initState() {
-    super.initState();
-    _transformController.addListener(_onTransformChanged);
-  }
-
-  @override
-  void dispose() {
-    _transformController.removeListener(_onTransformChanged);
-    _transformController.dispose();
-    super.dispose();
-  }
-
-  void _onTransformChanged() {
-    final scale = _transformController.value.getMaxScaleOnAxis();
-    if ((scale - _currentZoom).abs() > 0.01) {
-      setState(() {
-        _currentZoom = scale;
-        _isFitMode = false;
-      });
-    }
-  }
-
-  void _zoomToFit() {
-    final currentImage = ref.read(currentImageProvider);
-    if (currentImage == null || _containerSize == null) return;
-
-    final fitScale = _calculateFitScale(
-      _containerSize!,
-      currentImage.width,
-      currentImage.height,
-    );
-
-    final scaledWidth = currentImage.width * fitScale;
-    final scaledHeight = currentImage.height * fitScale;
-    final offsetX = (_containerSize!.width - scaledWidth) / 2;
-    final offsetY = (_containerSize!.height - scaledHeight) / 2;
-
-    setState(() {
-      _transformController.value = Matrix4.identity()
-        ..translate(offsetX, offsetY)
-        ..scale(fitScale);
-      _currentZoom = fitScale;
-      _isFitMode = true;
-    });
-  }
-
-  void _zoomTo100() {
-    final currentImage = ref.read(currentImageProvider);
-    if (currentImage == null || _containerSize == null) return;
-
-    // Center at 1:1 scale
-    final offsetX = (_containerSize!.width - currentImage.width) / 2;
-    final offsetY = (_containerSize!.height - currentImage.height) / 2;
-
-    setState(() {
-      _transformController.value = Matrix4.identity()
-        ..translate(offsetX, offsetY);
-      _currentZoom = 1.0;
-      _isFitMode = false;
-    });
-  }
-
-  void _zoomIn() {
-    final newScale = (_currentZoom * 1.25).clamp(0.1, 10.0);
-    _zoomToScale(newScale);
-  }
-
-  void _zoomOut() {
-    final newScale = (_currentZoom / 1.25).clamp(0.1, 10.0);
-    _zoomToScale(newScale);
-  }
-
-  void _zoomToScale(double newScale) {
-    if (_containerSize == null) return;
-
-    final center = Offset(_containerSize!.width / 2, _containerSize!.height / 2);
-    final scaleChange = newScale / _currentZoom;
-
-    final matrix = Matrix4.identity()
-      ..translate(center.dx, center.dy)
-      ..scale(scaleChange)
-      ..translate(-center.dx, -center.dy);
-
-    setState(() {
-      _transformController.value = matrix * _transformController.value;
-      _currentZoom = newScale;
-      _isFitMode = false;
-    });
-  }
-
-  double _calculateFitScale(Size containerSize, int imageWidth, int imageHeight) {
-    if (containerSize.isEmpty || imageWidth <= 0 || imageHeight <= 0) return 1.0;
-    final scaleX = containerSize.width / imageWidth;
-    final scaleY = containerSize.height / imageHeight;
-    return scaleX < scaleY ? scaleX : scaleY;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1913,318 +2426,39 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
     final currentImage = ref.watch(currentImageProvider);
     final isConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
 
-    String resolutionText = '--- × ---';
-    if (currentImage != null) {
-      resolutionText = '${currentImage.width} × ${currentImage.height}';
-    } else if (isConnected) {
-      resolutionText = 'Connected';
-    }
-
-    final zoomPercent = '${(_currentZoom * 100).toInt()}%';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Zoom toolbar
-        if (currentImage != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                _ZoomButton(
-                  icon: LucideIcons.minimize2,
-                  tooltip: 'Fit to view',
-                  isActive: _isFitMode,
-                  colors: colors,
-                  onPressed: _zoomToFit,
-                ),
-                const SizedBox(width: 4),
-                _ZoomButton(
-                  icon: LucideIcons.scan,
-                  tooltip: '100% (1:1)',
-                  colors: colors,
-                  onPressed: _zoomTo100,
-                ),
-                const SizedBox(width: 4),
-                _ZoomButton(
-                  icon: LucideIcons.zoomOut,
-                  tooltip: 'Zoom out',
-                  colors: colors,
-                  onPressed: _zoomOut,
-                ),
-                const SizedBox(width: 4),
-                _ZoomButton(
-                  icon: LucideIcons.zoomIn,
-                  tooltip: 'Zoom in',
-                  colors: colors,
-                  onPressed: _zoomIn,
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    zoomPercent,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textSecondary,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  resolutionText,
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
-                ),
-              ],
-            ),
-          ),
-
-        // Image area
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              _containerSize = Size(constraints.maxWidth, constraints.maxHeight);
-
-              return Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0A0A12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colors.border),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  // Listener to capture scroll events and prevent dashboard scrolling
-                  child: Listener(
-                    onPointerSignal: (event) {
-                      // Absorb scroll events when we have an image
-                      if (currentImage != null && event is PointerScrollEvent) {
-                        // Handle zoom here to prevent event from propagating
-                        final delta = event.scrollDelta.dy;
-                        final scaleFactor = delta > 0 ? 0.9 : 1.1;
-                        final newScale = (_currentZoom * scaleFactor).clamp(0.1, 10.0);
-
-                        if (newScale != _currentZoom) {
-                          final focalPoint = event.localPosition;
-                          final scaleChange = newScale / _currentZoom;
-
-                          final matrix = Matrix4.identity()
-                            ..translate(focalPoint.dx, focalPoint.dy)
-                            ..scale(scaleChange)
-                            ..translate(-focalPoint.dx, -focalPoint.dy);
-
-                          setState(() {
-                            _transformController.value = matrix * _transformController.value;
-                            _currentZoom = newScale;
-                            _isFitMode = false;
-                          });
-                        }
-                      }
-                    },
-                    child: Stack(
-                      children: [
-                        if (currentImage != null)
-                          Positioned.fill(
-                            child: InteractiveViewer(
-                              transformationController: _transformController,
-                              minScale: 0.1,
-                              maxScale: 10.0,
-                              panEnabled: true,
-                              scaleEnabled: true,
-                              // Disable built-in scroll handling - we handle it in Listener
-                              interactionEndFrictionCoefficient: 0.0,
-                              child: RawImage(
-                                image: null, // Handled by AstroImageViewer
-                                fit: BoxFit.contain,
-                                width: currentImage.width.toDouble(),
-                                height: currentImage.height.toDouble(),
-                              ),
-                            ),
-                          ),
-                        if (currentImage != null)
-                          Positioned.fill(
-                            child: _EnhancedImageDisplay(
-                              imageData: currentImage,
-                              transformController: _transformController,
-                              onTransformChanged: (controller) {
-                                final scale = controller.value.getMaxScaleOnAxis();
-                                if ((scale - _currentZoom).abs() > 0.01) {
-                                  setState(() {
-                                    _currentZoom = scale;
-                                    _isFitMode = false;
-                                  });
-                                }
-                              },
-                            ),
-                          )
-                        else ...[
-                          CustomPaint(
-                            painter: _StarFieldPainter(colors: colors),
-                            size: Size.infinite,
-                          ),
-                          Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: colors.surface.withValues(alpha: 0.8),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: colors.border),
-                                  ),
-                                  child: Icon(LucideIcons.camera, size: 32, color: colors.textMuted),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  isConnected ? 'No Image' : 'No Camera Connected',
-                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: colors.textSecondary),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  isConnected ? 'Take a snapshot or start a sequence' : 'Connect a camera in Equipment',
-                                  style: TextStyle(fontSize: 12, color: colors.textMuted),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Compact zoom button for the toolbar
-class _ZoomButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final bool isActive;
-  final NightshadeColors colors;
-  final VoidCallback onPressed;
-
-  const _ZoomButton({
-    required this.icon,
-    required this.tooltip,
-    required this.colors,
-    required this.onPressed,
-    this.isActive = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: isActive ? colors.primary.withValues(alpha: 0.2) : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: isActive ? colors.primary.withValues(alpha: 0.5) : colors.border.withValues(alpha: 0.5),
-            ),
-          ),
-          child: Icon(
-            icon,
-            size: 14,
-            color: isActive ? colors.primary : colors.textSecondary,
-          ),
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A0A12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
       ),
-    );
-  }
-}
-
-/// Enhanced image display with proper scroll isolation
-class _EnhancedImageDisplay extends StatelessWidget {
-  final CapturedImageData imageData;
-  final TransformationController transformController;
-  final ValueChanged<TransformationController>? onTransformChanged;
-
-  const _EnhancedImageDisplay({
-    required this.imageData,
-    required this.transformController,
-    this.onTransformChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AstroImageViewer(
-      imageData: imageData.displayData,
-      width: imageData.width,
-      height: imageData.height,
-      isColor: imageData.isColor,
-      minScale: 0.1,
-      maxScale: 10.0,
-      enableInteraction: true,
-      onTransformChanged: onTransformChanged,
-    );
-  }
-}
-
-class _ImagePreviewAreaOld extends ConsumerWidget {
-  final NightshadeColors colors;
-
-  const _ImagePreviewAreaOld({required this.colors});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentImage = ref.watch(currentImageProvider);
-    final isConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final cameraDeviceName = ref.watch(cameraStateProvider.select((s) => s.deviceName));
-
-    // Get resolution from camera state or image
-    String resolutionText = '--- × ---';
-    if (currentImage != null) {
-      resolutionText = '${currentImage.width} × ${currentImage.height}';
-    } else if (isConnected && cameraDeviceName != null) {
-      resolutionText = 'Connected';
-    }
-
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0A0A12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colors.border),
-        ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
         child: Stack(
           children: [
-            // Display actual image if available
             if (currentImage != null)
               Positioned.fill(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: _DashboardImageDisplay(
-                    imageData: currentImage,
-                  ),
+                child: AstroImageViewer(
+                  imageData: currentImage.displayData,
+                  width: currentImage.width,
+                  height: currentImage.height,
+                  isColor: currentImage.isColor,
+                  minScale: 0.1,
+                  maxScale: 10.0,
+                  enableInteraction: true,
+                  onTransformChanged: (controller) {
+                    final scale = controller.value.getMaxScaleOnAxis();
+                    if ((scale - _currentZoom).abs() > 0.01) {
+                      setState(() => _currentZoom = scale);
+                    }
+                  },
                 ),
               )
-            else
-              // Star field background animation (placeholder when no image)
+            else ...[
               CustomPaint(
                 painter: _StarFieldPainter(colors: colors),
                 size: Size.infinite,
               ),
-
-            // Center content (only show when no image)
-            if (currentImage == null)
               Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -2234,57 +2468,66 @@ class _ImagePreviewAreaOld extends ConsumerWidget {
                       decoration: BoxDecoration(
                         color: colors.surface.withValues(alpha: 0.8),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: colors.border,
-                        ),
+                        border: Border.all(color: colors.border),
                       ),
-                      child: Icon(
-                        LucideIcons.camera,
-                        size: 32,
-                        color: colors.textMuted,
-                      ),
+                      child: Icon(LucideIcons.camera, size: 32, color: colors.textMuted),
                     ),
                     const SizedBox(height: 16),
                     Text(
                       isConnected ? 'No Image' : 'No Camera Connected',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: colors.textSecondary,
-                      ),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: colors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      isConnected
-                          ? 'Start a sequence or take a snapshot'
-                          : 'Connect a camera in Equipment settings',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textMuted,
-                      ),
+                      isConnected ? 'Take a snapshot or start a sequence' : 'Connect a camera in Equipment',
+                      style: TextStyle(fontSize: 12, color: colors.textMuted),
                     ),
                   ],
                 ),
               ),
-
-            // Corner overlays
-            Positioned(
-              left: 12,
-              top: 12,
-              child: _OverlayChip(
-                icon: LucideIcons.maximize2,
-                label: resolutionText,
-                colors: colors,
-              ),
-            ),
+            ],
+            // Zoom indicator overlay in top-left
             if (currentImage != null)
               Positioned(
-                right: 12,
-                top: 12,
-                child: _OverlayChip(
-                  icon: LucideIcons.crosshair,
-                  label: 'Crosshair',
-                  colors: colors,
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colors.surface.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    '${(_currentZoom * 100).toInt()}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textSecondary,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+              ),
+            // Resolution overlay in top-right
+            if (currentImage != null)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: colors.surface.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+                  ),
+                  child: Text(
+                    '${currentImage.width} × ${currentImage.height}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.textSecondary,
+                    ),
+                  ),
                 ),
               ),
           ],
@@ -2380,26 +2623,6 @@ class _StatCell extends StatelessWidget {
   }
 }
 
-// Image display for dashboard with zoom/pan support
-class _DashboardImageDisplay extends StatelessWidget {
-  final CapturedImageData imageData;
-
-  const _DashboardImageDisplay({required this.imageData});
-
-  @override
-  Widget build(BuildContext context) {
-    return AstroImageViewer(
-      imageData: imageData.displayData,
-      width: imageData.width,
-      height: imageData.height,
-      isColor: imageData.isColor,
-      minScale: 0.5,
-      maxScale: 10.0,
-      enableInteraction: true,
-    );
-  }
-}
-
 class _StarFieldPainter extends CustomPainter {
   final NightshadeColors colors;
 
@@ -2423,44 +2646,6 @@ class _StarFieldPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _OverlayChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final NightshadeColors colors;
-
-  const _OverlayChip({
-    required this.icon,
-    required this.label,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.border.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: colors.textSecondary),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              color: colors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _MiniStat extends StatelessWidget {
@@ -2508,7 +2693,7 @@ class _MiniStat extends StatelessWidget {
 class _SessionProgressCard extends ConsumerWidget {
   final NightshadeColors colors;
 
-  const _SessionProgressCard({required this.colors});
+  const _SessionProgressCard({super.key, required this.colors});
 
   String _formatDuration(Duration duration) {
     final hours = duration.inHours;
@@ -2533,6 +2718,7 @@ class _SessionProgressCard extends ConsumerWidget {
     final sessionState = ref.watch(sessionStateProvider);
     final progress = ref.watch(sessionProgressProvider);
     final exposureSettings = ref.watch(exposureSettingsProvider);
+    final exposureProgress = ref.watch(exposureProgressProvider);
 
     final isActive = sessionState.isActive;
     final progressValue = progress.clamp(0.0, 1.0);
@@ -2569,7 +2755,7 @@ class _SessionProgressCard extends ConsumerWidget {
 
     return _GlassCard(
       colors: colors,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -2577,51 +2763,40 @@ class _SessionProgressCard extends ConsumerWidget {
           // Header with target name
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: isActive ? colors.success.withValues(alpha: 0.1) : colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Icon(
-                  LucideIcons.target,
-                  size: 14,
-                  color: isActive ? colors.success : colors.textMuted,
-                ),
+              Icon(
+                LucideIcons.target,
+                size: 14,
+                color: isActive ? colors.success : colors.textMuted,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isActive ? targetName : 'Sequence',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (isActive)
-                      Text(
-                        currentExpText,
-                        style: TextStyle(fontSize: 11, color: colors.textSecondary),
-                      ),
-                  ],
+                child: Text(
+                  isActive ? targetName : 'Sequence',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (isActive)
+                Text(
+                  currentExpText,
+                  style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                ),
+              const SizedBox(width: 8),
               // Status badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: isActive ? colors.success.withValues(alpha: 0.15) : colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   isActive ? 'Running' : 'Idle',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.w600,
                     color: isActive ? colors.success : colors.textMuted,
                   ),
@@ -2630,17 +2805,17 @@ class _SessionProgressCard extends ConsumerWidget {
             ],
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
 
           // Progress bar with percentage
           Row(
             children: [
               Expanded(
                 child: Container(
-                  height: 6,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(3),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                   child: FractionallySizedBox(
                     widthFactor: progressValue,
@@ -2648,7 +2823,7 @@ class _SessionProgressCard extends ConsumerWidget {
                     child: Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(colors: [colors.primary, colors.accent]),
-                        borderRadius: BorderRadius.circular(3),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
@@ -2666,22 +2841,102 @@ class _SessionProgressCard extends ConsumerWidget {
             ],
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
 
-          // Stats grid - NINA-style compact layout
+          // Current exposure progress row (only show when actively exposing)
+          if (exposureProgress.percent > 0 || exposureProgress.isDownloading)
+            _ExposureProgressRow(
+              progress: exposureProgress,
+              exposureTime: exposureSettings.exposureTime,
+              colors: colors,
+            ),
+
+          if (exposureProgress.percent > 0 || exposureProgress.isDownloading)
+            const SizedBox(height: 6),
+
+          // Stats grid - compact layout
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
             decoration: BoxDecoration(
               color: colors.surfaceAlt.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(4),
             ),
             child: Row(
               children: [
-                _CompactStat(label: 'Frames', value: exposureText, colors: colors),
-                _CompactStat(label: 'Total', value: integrationText, colors: colors),
-                _CompactStat(label: 'Elapsed', value: elapsedText, colors: colors),
-                _CompactStat(label: 'Remain', value: remainingText, colors: colors, highlight: isActive),
+                _CompactStat(label: 'Frm', value: exposureText, colors: colors),
+                _CompactStat(label: 'Int', value: integrationText, colors: colors),
+                _CompactStat(label: 'Elap', value: elapsedText, colors: colors),
+                _CompactStat(label: 'Rem', value: remainingText, colors: colors, highlight: isActive),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shows current exposure progress during active capture
+class _ExposureProgressRow extends StatelessWidget {
+  final ExposureProgress progress;
+  final double exposureTime;
+  final NightshadeColors colors;
+
+  const _ExposureProgressRow({
+    required this.progress,
+    required this.exposureTime,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final elapsedText = progress.elapsed.toStringAsFixed(1);
+    final totalText = exposureTime.toStringAsFixed(1);
+    final progressPercent = (progress.percent / 100).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            progress.isDownloading ? LucideIcons.download : LucideIcons.camera,
+            size: 12,
+            color: progress.isDownloading ? colors.info : colors.primary,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            progress.isDownloading
+                ? 'Downloading...'
+                : '$elapsedText s / $totalText s',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: colors.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: FractionallySizedBox(
+                widthFactor: progressPercent,
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: progress.isDownloading ? colors.info : colors.primary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -2774,7 +3029,7 @@ class _SessionStat extends StatelessWidget {
 class _GuidingCard extends ConsumerWidget {
   final NightshadeColors colors;
 
-  const _GuidingCard({required this.colors});
+  const _GuidingCard({super.key, required this.colors});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2796,43 +3051,46 @@ class _GuidingCard extends ConsumerWidget {
 
     return _GlassCard(
       colors: colors,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header with state
+          // Header with state and RMS inline
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: isGuiding ? colors.success.withValues(alpha: 0.1) : colors.info.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Icon(
-                  LucideIcons.crosshair,
-                  size: 14,
-                  color: isGuiding ? colors.success : colors.info,
-                ),
+              Icon(
+                LucideIcons.crosshair,
+                size: 14,
+                color: isGuiding ? colors.success : colors.textMuted,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Text(
                 'Guiding',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textPrimary),
               ),
               const Spacer(),
+              // Inline RMS values
+              Text(
+                '$rmsTotal"',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isGuiding ? colors.primary : colors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: 8),
               // State badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: isGuiding ? colors.success.withValues(alpha: 0.15) : colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   stateText,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.w600,
                     color: isGuiding ? colors.success : colors.textMuted,
                   ),
@@ -2841,38 +3099,18 @@ class _GuidingCard extends ConsumerWidget {
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
-          // RMS stats row - NINA style
+          // Graph - compact height
           Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              children: [
-                _RmsStat(label: 'Total', value: '$rmsTotal"', colors: colors, highlight: true),
-                Container(width: 1, height: 24, color: colors.border.withValues(alpha: 0.3)),
-                _RmsStat(label: 'RA', value: '$rmsRa"', colors: colors, color: Colors.redAccent),
-                Container(width: 1, height: 24, color: colors.border.withValues(alpha: 0.3)),
-                _RmsStat(label: 'Dec', value: '$rmsDec"', colors: colors, color: Colors.blueAccent),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Graph - more compact
-          Container(
-            height: 80,
+            height: 60,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(4),
             ),
             child: isConnected && guideGraphData.isNotEmpty
                 ? ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(4),
                     child: CustomPaint(
                       painter: _DashboardGuidingGraphPainter(data: guideGraphData, colors: colors),
                       child: Container(),
@@ -2881,59 +3119,28 @@ class _GuidingCard extends ConsumerWidget {
                 : Center(
                     child: Text(
                       isConnected ? 'Start guiding' : 'Connect guider',
-                      style: TextStyle(fontSize: 11, color: colors.textMuted),
+                      style: TextStyle(fontSize: 10, color: colors.textMuted),
                     ),
                   ),
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
 
-          // Legend row
+          // Compact stats row with legend
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const _LegendItem(color: Colors.redAccent, label: 'RA'),
-              const SizedBox(width: 12),
-              const _LegendItem(color: Colors.blueAccent, label: 'Dec'),
-              const SizedBox(width: 12),
+              Container(width: 10, height: 2, color: Colors.redAccent),
+              const SizedBox(width: 3),
+              Text('$rmsRa"', style: TextStyle(fontSize: 10, color: colors.textSecondary)),
+              const SizedBox(width: 10),
+              Container(width: 10, height: 2, color: Colors.blueAccent),
+              const SizedBox(width: 3),
+              Text('$rmsDec"', style: TextStyle(fontSize: 10, color: colors.textSecondary)),
+              const SizedBox(width: 10),
               Text('±4"', style: TextStyle(fontSize: 9, color: colors.textMuted)),
             ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RmsStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final NightshadeColors colors;
-  final bool highlight;
-  final Color? color;
-
-  const _RmsStat({
-    required this.label,
-    required this.value,
-    required this.colors,
-    this.highlight = false,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: color ?? (highlight ? colors.primary : colors.textPrimary),
-            ),
-          ),
-          Text(label, style: TextStyle(fontSize: 9, color: colors.textMuted)),
         ],
       ),
     );
@@ -3006,40 +3213,10 @@ class _DashboardGuidingGraphPainter extends CustomPainter {
   }
 }
 
-class _LegendItem extends StatelessWidget {
-  final Color color;
-  final String label;
-
-  const _LegendItem({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 3,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(1),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(fontSize: 11, color: colors.textSecondary),
-        ),
-      ],
-    );
-  }
-}
-
 class _CaptureSettingsCard extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
-  const _CaptureSettingsCard({required this.colors});
+  const _CaptureSettingsCard({super.key, required this.colors});
 
   @override
   ConsumerState<_CaptureSettingsCard> createState() =>
@@ -3426,7 +3603,9 @@ class _CompactDropdown extends StatelessWidget {
 class _MountControlCard extends ConsumerWidget {
   final NightshadeColors colors;
 
-  const _MountControlCard({required this.colors});
+  const _MountControlCard({super.key, required this.colors});
+
+  static const double _expandedThreshold = 280.0;
 
   String _formatRa(double ra) {
     final hours = ra.floor();
@@ -3442,6 +3621,16 @@ class _MountControlCard extends ConsumerWidget {
     final minutes = ((absDec - degrees) * 60).floor();
     final seconds = (((absDec - degrees) * 60 - minutes) * 60).round();
     return '$sign${degrees.toString().padLeft(2, '0')}°${minutes.toString().padLeft(2, '0')}\'${seconds.toString().padLeft(2, '0')}"';
+  }
+
+  String _trackingRateLabel(TrackingRate rate) {
+    return switch (rate) {
+      TrackingRate.sidereal => 'Sidereal',
+      TrackingRate.lunar => 'Lunar',
+      TrackingRate.solar => 'Solar',
+      TrackingRate.king => 'King',
+      TrackingRate.custom => 'Custom',
+    };
   }
 
   @override
@@ -3467,119 +3656,290 @@ class _MountControlCard extends ConsumerWidget {
     return _GlassCard(
       colors: colors,
       padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isExpanded = constraints.maxWidth >= _expandedThreshold;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: mountState.isTracking ? colors.success.withValues(alpha: 0.1) : colors.info.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
+                      LucideIcons.move3d,
+                      size: 14,
+                      color: mountState.isTracking ? colors.success : colors.info,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Mount', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              // Coordinates - NINA style
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: mountState.isTracking ? colors.success.withValues(alpha: 0.1) : colors.info.withValues(alpha: 0.1),
+                  color: colors.surfaceAlt.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Icon(
-                  LucideIcons.move3d,
-                  size: 14,
-                  color: mountState.isTracking ? colors.success : colors.info,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text('Mount', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary)),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          // Coordinates - NINA style
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('RA', style: TextStyle(fontSize: 9, color: colors.textMuted)),
-                      Text(raText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Dec', style: TextStyle(fontSize: 9, color: colors.textMuted)),
-                      Text(decText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: Row(
                   children: [
-                    Text('Pier', style: TextStyle(fontSize: 9, color: colors.textMuted)),
-                    Text(pierText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('RA', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                          Text(raText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Dec', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                          Text(decText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('Pier', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                        Text(pierText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Expanded mode: Directional controls and tracking rate
+              if (isExpanded && isConnected) ...[
+                const SizedBox(height: 10),
+
+                // Directional jog controls (N/S/E/W)
+                _MountDirectionalPad(
+                  colors: colors,
+                  isEnabled: isConnected && !mountState.isParked,
+                  onDirection: (direction) {
+                    ref.read(mountCommandServiceProvider).pulseGuide(context, direction);
+                  },
+                ),
+
+                const SizedBox(height: 10),
+
+                // Tracking rate selector
+                Row(
+                  children: [
+                    Text('Rate:', style: TextStyle(fontSize: 10, color: colors.textMuted)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Container(
+                        height: 28,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: colors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<TrackingRate>(
+                            value: mountState.trackingRate,
+                            isDense: true,
+                            isExpanded: true,
+                            style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                            dropdownColor: colors.surface,
+                            icon: Icon(LucideIcons.chevronDown, size: 12, color: colors.textMuted),
+                            items: TrackingRate.values.map((rate) => DropdownMenuItem(
+                              value: rate,
+                              child: Text(_trackingRateLabel(rate)),
+                            )).toList(),
+                            onChanged: mountState.canSetTrackingRate
+                                ? (rate) {
+                                    if (rate != null) {
+                                      ref.read(deviceServiceProvider).setMountTrackingRate(rate.index);
+                                    }
+                                  }
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ],
-            ),
-          ),
 
-          const SizedBox(height: 8),
+              const SizedBox(height: 8),
 
-          // Buttons
-          Row(
-            children: [
-              Expanded(
-                child: NightshadeButton(
-                  label: mountState.isParked ? 'Unpark' : 'Park',
-                  icon: LucideIcons.parkingCircle,
-                  variant: ButtonVariant.outline,
-                  size: ButtonSize.small,
-                  onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).togglePark(context) : null,
-                ),
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: NightshadeButton(
+                      label: mountState.isParked ? 'Unpark' : 'Park',
+                      icon: LucideIcons.parkingCircle,
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
+                      onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).togglePark(context) : null,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: NightshadeButton(
+                      label: mountState.isTracking ? 'Stop' : 'Track',
+                      icon: LucideIcons.activity,
+                      variant: mountState.isTracking ? ButtonVariant.primary : ButtonVariant.outline,
+                      size: ButtonSize.small,
+                      onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).toggleTracking(context) : null,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: NightshadeButton(
-                  label: mountState.isTracking ? 'Stop' : 'Track',
-                  icon: LucideIcons.activity,
-                  variant: mountState.isTracking ? ButtonVariant.primary : ButtonVariant.outline,
-                  size: ButtonSize.small,
-                  onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).toggleTracking(context) : null,
+              if (mountState.isSlewing) ...[
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: double.infinity,
+                  child: NightshadeButton(
+                    label: 'Abort Slew',
+                    icon: LucideIcons.xCircle,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).abortSlew(context) : null,
+                  ),
                 ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Directional pad for mount jog controls (N/S/E/W).
+class _MountDirectionalPad extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool isEnabled;
+  final void Function(String direction) onDirection;
+
+  const _MountDirectionalPad({
+    required this.colors,
+    required this.isEnabled,
+    required this.onDirection,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // West button
+          _DirectionalButton(
+            icon: LucideIcons.chevronLeft,
+            label: 'W',
+            colors: colors,
+            isEnabled: isEnabled,
+            onPressed: () => onDirection('west'),
+          ),
+          const SizedBox(width: 2),
+          // Column with North and South
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _DirectionalButton(
+                icon: LucideIcons.chevronUp,
+                label: 'N',
+                colors: colors,
+                isEnabled: isEnabled,
+                onPressed: () => onDirection('north'),
+              ),
+              const SizedBox(height: 2),
+              _DirectionalButton(
+                icon: LucideIcons.chevronDown,
+                label: 'S',
+                colors: colors,
+                isEnabled: isEnabled,
+                onPressed: () => onDirection('south'),
               ),
             ],
           ),
-          if (mountState.isSlewing) ...[
-            const SizedBox(height: 6),
-            SizedBox(
-              width: double.infinity,
-              child: NightshadeButton(
-                label: 'Abort Slew',
-                icon: LucideIcons.xCircle,
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).abortSlew(context) : null,
-              ),
-            ),
-          ],
+          const SizedBox(width: 2),
+          // East button
+          _DirectionalButton(
+            icon: LucideIcons.chevronRight,
+            label: 'E',
+            colors: colors,
+            isEnabled: isEnabled,
+            onPressed: () => onDirection('east'),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Individual directional button for mount jog.
+class _DirectionalButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final NightshadeColors colors;
+  final bool isEnabled;
+  final VoidCallback onPressed;
+
+  const _DirectionalButton({
+    required this.icon,
+    required this.label,
+    required this.colors,
+    required this.isEnabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: Material(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(4),
+        child: InkWell(
+          onTap: isEnabled ? onPressed : null,
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: Icon(
+              icon,
+              size: 16,
+              color: isEnabled ? colors.textPrimary : colors.textMuted,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -3588,12 +3948,15 @@ class _MountControlCard extends ConsumerWidget {
 class _FocusCard extends ConsumerWidget {
   final NightshadeColors colors;
 
-  const _FocusCard({required this.colors});
+  const _FocusCard({super.key, required this.colors});
+
+  static const double _expandedThreshold = 280.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final focuserState = ref.watch(focuserStateProvider);
     final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
+    final focusHistory = ref.watch(focusPositionHistoryProvider);
     final isConnected =
         focuserState.connectionState == DeviceConnectionState.connected;
 
@@ -3608,8 +3971,7 @@ class _FocusCard extends ConsumerWidget {
       colors: colors,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Use compact mode for narrow cards (< 300px)
-          final isCompact = constraints.maxWidth < 300;
+          final isExpanded = constraints.maxWidth >= _expandedThreshold;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3670,9 +4032,54 @@ class _FocusCard extends ConsumerWidget {
                   ),
                 ],
               ),
+
+              // Expanded mode: Show sparkline and fine focus controls
+              if (isExpanded && isConnected) ...[
+                const SizedBox(height: 10),
+
+                // Focus position history sparkline
+                if (focusHistory.length >= 2)
+                  _FocusPositionSparkline(
+                    positions: focusHistory,
+                    colors: colors,
+                  )
+                else
+                  Container(
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceAlt.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Move focuser to see history',
+                        style: TextStyle(fontSize: 10, color: colors.textMuted),
+                      ),
+                    ),
+                  ),
+
+                const SizedBox(height: 10),
+
+                // Fine focus controls (+1/-1, +10/-10)
+                _FineFocusControls(
+                  colors: colors,
+                  isEnabled: isConnected && !focuserState.isMoving,
+                  onMove: (steps) async {
+                    try {
+                      await ref.read(deviceServiceProvider).moveFocuserRelative(steps);
+                    } catch (e) {
+                      if (context.mounted) {
+                        context.showErrorSnackBar('Failed to move focuser: $e');
+                      }
+                    }
+                  },
+                ),
+              ],
+
               const SizedBox(height: 12),
-              // Simplified controls for dashboard
-              if (isCompact)
+
+              // Autofocus button (always shown) or full controls in expanded
+              if (!isExpanded)
                 SizedBox(
                   width: double.infinity,
                   child: NightshadeButton(
@@ -3680,7 +4087,6 @@ class _FocusCard extends ConsumerWidget {
                     icon: LucideIcons.focus,
                     size: ButtonSize.small,
                     onPressed: isConnected ? () {
-                      // Navigate to focus tab or show dialog
                       context.showInfoSnackBar('Use Focus tab for autofocus');
                     } : null,
                   ),
@@ -3693,6 +4099,326 @@ class _FocusCard extends ConsumerWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Sparkline widget showing focus position history with min/max labels.
+class _FocusPositionSparkline extends StatelessWidget {
+  final List<int> positions;
+  final NightshadeColors colors;
+
+  const _FocusPositionSparkline({
+    required this.positions,
+    required this.colors,
+  });
+
+  /// Format position value compactly (e.g., 12345 -> "12.3k")
+  String _formatPosition(int position) {
+    if (position >= 10000) {
+      return '${(position / 1000).toStringAsFixed(1)}k';
+    }
+    return position.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (positions.isEmpty) {
+      return Container(
+        height: 40,
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Center(
+          child: Text(
+            'No data',
+            style: TextStyle(fontSize: 10, color: colors.textMuted),
+          ),
+        ),
+      );
+    }
+
+    final minVal = positions.reduce(math.min);
+    final maxVal = positions.reduce(math.max);
+    final currentVal = positions.last;
+
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Stack(
+        children: [
+          // Sparkline chart with left padding for labels
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 28, right: 4, top: 4, bottom: 4),
+              child: CustomPaint(
+                size: const Size(double.infinity, 32),
+                painter: _SparklinePainter(
+                  values: positions.map((p) => p.toDouble()).toList(),
+                  lineColor: colors.accent,
+                  fillColor: colors.accent.withValues(alpha: 0.2),
+                ),
+              ),
+            ),
+          ),
+
+          // Max label (top-left)
+          Positioned(
+            left: 4,
+            top: 2,
+            child: Text(
+              _formatPosition(maxVal),
+              style: TextStyle(
+                fontSize: 8,
+                color: colors.textMuted,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+
+          // Min label (bottom-left)
+          Positioned(
+            left: 4,
+            bottom: 2,
+            child: Text(
+              _formatPosition(minVal),
+              style: TextStyle(
+                fontSize: 8,
+                color: colors.textMuted,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+
+          // Current value badge (right side)
+          Positioned(
+            right: 8,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colors.surfaceOverlay.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  _formatPosition(currentVal),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                    color: colors.accent,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Custom painter for sparkline chart.
+class _SparklinePainter extends CustomPainter {
+  final List<double> values;
+  final Color lineColor;
+  final Color fillColor;
+
+  _SparklinePainter({
+    required this.values,
+    required this.lineColor,
+    required this.fillColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final padding = 4.0;
+    final chartWidth = size.width - (padding * 2);
+    final chartHeight = size.height - (padding * 2);
+
+    // Find min/max for scaling
+    final minVal = values.reduce(math.min);
+    final maxVal = values.reduce(math.max);
+    final range = maxVal - minVal;
+
+    // If all values are the same, draw a flat line in the middle
+    final normalizedValues = range == 0
+        ? List.filled(values.length, 0.5)
+        : values.map((v) => (v - minVal) / range).toList();
+
+    // Build path
+    final path = Path();
+    final fillPath = Path();
+
+    for (int i = 0; i < normalizedValues.length; i++) {
+      final x = padding + (i / (normalizedValues.length - 1)) * chartWidth;
+      final y = padding + (1 - normalizedValues[i]) * chartHeight;
+
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height - padding);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+
+    // Complete fill path
+    fillPath.lineTo(padding + chartWidth, size.height - padding);
+    fillPath.close();
+
+    // Draw fill
+    final fillPaint = Paint()
+      ..color = fillColor
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(fillPath, fillPaint);
+
+    // Draw line
+    final linePaint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, linePaint);
+
+    // Draw current position dot (last point)
+    if (normalizedValues.isNotEmpty) {
+      final lastX = padding + chartWidth;
+      final lastY = padding + (1 - normalizedValues.last) * chartHeight;
+      final dotPaint = Paint()
+        ..color = lineColor
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(Offset(lastX, lastY), 3, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparklinePainter oldDelegate) {
+    return oldDelegate.values != values ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.fillColor != fillColor;
+  }
+}
+
+/// Fine focus controls for step-by-step movement.
+class _FineFocusControls extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool isEnabled;
+  final void Function(int steps) onMove;
+
+  const _FineFocusControls({
+    required this.colors,
+    required this.isEnabled,
+    required this.onMove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _FineStepButton(
+            label: '-10',
+            colors: colors,
+            isEnabled: isEnabled,
+            onPressed: () => onMove(-10),
+          ),
+          // Touch areas now adjacent - no spacer needed
+          _FineStepButton(
+            label: '-1',
+            colors: colors,
+            isEnabled: isEnabled,
+            onPressed: () => onMove(-1),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'Fine',
+            style: TextStyle(fontSize: 10, color: colors.textMuted),
+          ),
+          const SizedBox(width: 4),
+          _FineStepButton(
+            label: '+1',
+            colors: colors,
+            isEnabled: isEnabled,
+            onPressed: () => onMove(1),
+          ),
+          // Touch areas now adjacent - no spacer needed
+          _FineStepButton(
+            label: '+10',
+            colors: colors,
+            isEnabled: isEnabled,
+            onPressed: () => onMove(10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Individual button for fine focus steps.
+///
+/// Uses expanded touch target (48x40px) for field use with gloves while
+/// maintaining compact visual appearance.
+class _FineStepButton extends StatelessWidget {
+  final String label;
+  final NightshadeColors colors;
+  final bool isEnabled;
+  final VoidCallback onPressed;
+
+  const _FineStepButton({
+    required this.label,
+    required this.colors,
+    required this.isEnabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Expanded touch target: 48x40px for glove-friendly field use
+    return SizedBox(
+      width: 48,
+      height: 40,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isEnabled ? onPressed : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Center(
+            // Visual element stays compact
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isEnabled ? colors.textPrimary : colors.textMuted,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -3805,126 +4531,100 @@ class _AlertsCard extends ConsumerWidget {
 class _EquipmentStatusCard extends ConsumerWidget {
   final NightshadeColors colors;
 
-  const _EquipmentStatusCard({required this.colors});
+  const _EquipmentStatusCard({super.key, required this.colors});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Use select() to only rebuild when connection state, device name, or device ID changes
+    // Use select() to only rebuild when connection state changes
     final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final cameraName = ref.watch(cameraStateProvider.select((s) => s.deviceName));
-    final cameraId = ref.watch(cameraStateProvider.select((s) => s.deviceId));
-
     final mountConnected = ref.watch(mountStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final mountName = ref.watch(mountStateProvider.select((s) => s.deviceName));
-    final mountId = ref.watch(mountStateProvider.select((s) => s.deviceId));
-
     final guiderConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
-    final guiderName = ref.watch(guiderStateProvider.select((s) => s.deviceName));
-    final guiderId = ref.watch(guiderStateProvider.select((s) => s.deviceId));
-
     final focuserConnected = ref.watch(focuserStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final focuserName = ref.watch(focuserStateProvider.select((s) => s.deviceName));
-    final focuserId = ref.watch(focuserStateProvider.select((s) => s.deviceId));
-
     final filterWheelConnected = ref.watch(filterWheelStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final filterWheelName = ref.watch(filterWheelStateProvider.select((s) => s.deviceName));
-    final filterWheelId = ref.watch(filterWheelStateProvider.select((s) => s.deviceId));
 
     final connectedCount = [cameraConnected, mountConnected, guiderConnected, focuserConnected, filterWheelConnected]
         .where((c) => c).length;
 
     return _GlassCard(
       colors: colors,
+      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          // Header row
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colors.success.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      LucideIcons.plug,
-                      size: 16,
-                      color: colors.success,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Equipment',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
+              Icon(
+                LucideIcons.plug,
+                size: 14,
+                color: connectedCount > 0 ? colors.success : colors.textMuted,
               ),
+              const SizedBox(width: 8),
               Text(
-                '$connectedCount/5 connected',
+                'Equipment',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$connectedCount/5',
                 style: TextStyle(
                   fontSize: 11,
-                  color: colors.textMuted,
+                  fontWeight: FontWeight.w500,
+                  color: connectedCount == 5 ? colors.success : colors.textSecondary,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
 
-          // Equipment items (DYNAMIC)
-          _EquipmentItem(
-            icon: LucideIcons.camera,
-            name: 'Camera',
-            status: cameraConnected
-                ? _getDeviceDisplayName(cameraName, cameraId, 'Connected')
-                : 'Disconnected',
-            isConnected: cameraConnected,
-            colors: colors,
-          ),
-          _EquipmentItem(
-            icon: LucideIcons.move3d,
-            name: 'Mount',
-            status: mountConnected
-                ? _getDeviceDisplayName(mountName, mountId, 'Connected')
-                : 'Disconnected',
-            isConnected: mountConnected,
-            colors: colors,
-          ),
-          _EquipmentItem(
-            icon: LucideIcons.crosshair,
-            name: 'Guider',
-            status: guiderConnected
-                ? (guiderIsGuiding ? 'Guiding' : _getDeviceDisplayName(guiderName, guiderId, 'Connected'))
-                : 'Disconnected',
-            isConnected: guiderConnected,
-            colors: colors,
-          ),
-          _EquipmentItem(
-            icon: LucideIcons.focus,
-            name: 'Focuser',
-            status: focuserConnected
-                ? _getDeviceDisplayName(focuserName, focuserId, 'Connected')
-                : 'Disconnected',
-            isConnected: focuserConnected,
-            colors: colors,
-          ),
-          _EquipmentItem(
-            icon: LucideIcons.circle,
-            name: 'Filter Wheel',
-            status: filterWheelConnected
-                ? _getDeviceDisplayName(filterWheelName, filterWheelId, 'Connected')
-                : 'Disconnected',
-            isConnected: filterWheelConnected,
-            colors: colors,
-            isLast: true,
+          // Compact horizontal icon row
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _CompactEquipmentIcon(
+                  icon: LucideIcons.camera,
+                  label: 'Cam',
+                  isConnected: cameraConnected,
+                  colors: colors,
+                ),
+                _CompactEquipmentIcon(
+                  icon: LucideIcons.move3d,
+                  label: 'Mnt',
+                  isConnected: mountConnected,
+                  colors: colors,
+                ),
+                _CompactEquipmentIcon(
+                  icon: LucideIcons.crosshair,
+                  label: 'Gdr',
+                  isConnected: guiderConnected,
+                  colors: colors,
+                ),
+                _CompactEquipmentIcon(
+                  icon: LucideIcons.focus,
+                  label: 'Foc',
+                  isConnected: focuserConnected,
+                  colors: colors,
+                ),
+                _CompactEquipmentIcon(
+                  icon: LucideIcons.circle,
+                  label: 'FW',
+                  isConnected: filterWheelConnected,
+                  colors: colors,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -3932,67 +4632,51 @@ class _EquipmentStatusCard extends ConsumerWidget {
   }
 }
 
-class _EquipmentItem extends StatelessWidget {
+/// Compact equipment status icon for horizontal display
+class _CompactEquipmentIcon extends StatelessWidget {
   final IconData icon;
-  final String name;
-  final String status;
+  final String label;
   final bool isConnected;
   final NightshadeColors colors;
-  final bool isLast;
 
-  const _EquipmentItem({
+  const _CompactEquipmentIcon({
     required this.icon,
-    required this.name,
-    required this.status,
+    required this.label,
     required this.isConnected,
     required this.colors,
-    this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : Border(
-                bottom: BorderSide(
-                  color: colors.border.withValues(alpha: 0.5),
-                ),
-              ),
-      ),
-      child: Row(
+    return Tooltip(
+      message: '$label: ${isConnected ? "Connected" : "Disconnected"}',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 16,
-            color: isConnected ? colors.success : colors.textMuted,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              name,
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.textPrimary,
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isConnected
+                  ? colors.success.withValues(alpha: 0.15)
+                  : colors.surface,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: isConnected ? colors.success.withValues(alpha: 0.3) : colors.border,
+                width: 1,
               ),
             ),
-          ),
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
+            child: Icon(
+              icon,
+              size: 14,
               color: isConnected ? colors.success : colors.textMuted,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(height: 2),
           Text(
-            status,
+            label,
             style: TextStyle(
-              fontSize: 11,
-              color: colors.textSecondary,
+              fontSize: 8,
+              color: isConnected ? colors.textSecondary : colors.textMuted,
             ),
           ),
         ],
@@ -4288,6 +4972,12 @@ class _TonightRow extends StatelessWidget {
   }
 }
 
+/// Quick Actions card with responsive layout.
+///
+/// Adapts to available width:
+/// - Narrow (<280px): Single column stack
+/// - Medium (280-400px): 2x2 grid
+/// - Wide (>400px): Single row with all 4 buttons
 class _QuickActionsCard extends ConsumerWidget {
   final NightshadeColors colors;
 
@@ -4300,6 +4990,32 @@ class _QuickActionsCard extends ConsumerWidget {
     final mountCapabilitiesAsync = ref.watch(
         mountCapabilitiesProvider(mountState.deviceId ?? ''));
     final mountCapabilities = mountCapabilitiesAsync.valueOrNull;
+
+    // Build action buttons with their callbacks
+    final actionButtons = [
+      _ActionButtonData(
+        icon: LucideIcons.camera,
+        label: 'Snapshot',
+        onTap: () => _handleSnapshot(context, ref),
+      ),
+      _ActionButtonData(
+        icon: LucideIcons.focus,
+        label: 'Autofocus',
+        onTap: () => _handleAutofocus(context, ref),
+      ),
+      _ActionButtonData(
+        icon: LucideIcons.crosshair,
+        label: 'Center',
+        onTap: () => _handleCenter(context, ref),
+      ),
+      _ActionButtonData(
+        icon: LucideIcons.parkingCircle,
+        label: 'Park',
+        onTap: (mountCapabilities?.canPark ?? true)
+            ? () => ref.read(mountCommandServiceProvider).park(context)
+            : null,
+      ),
+    ];
 
     return _GlassCard(
       colors: colors,
@@ -4317,132 +5033,195 @@ class _QuickActionsCard extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
-          Row(
-            children: [
-              Expanded(
-                child: _ActionButton(
-                  icon: LucideIcons.camera,
-                  label: 'Snapshot',
-                  colors: colors,
-                  onTap: () async {
-                    try {
-                      final settings = ref.read(exposureSettingsProvider);
-                      final imagingService = ref.read(imagingServiceProvider);
-                      final sessionNotifier = ref.read(sessionStateProvider.notifier);
-                      
-                      sessionNotifier.setCapturing(true);
-                      
-                      final result = await imagingService.captureImage(
-                        settings: settings,
-                        targetName: ref.read(sessionStateProvider).targetName,
-                      );
-                      
-                      if (result != null) {
-                        ref.read(currentImageProvider.notifier).state = result;
-                        ref.read(lastImageStatsProvider.notifier).state = result.stats;
-                        sessionNotifier.recordExposureComplete(
-                          exposureTime: settings.exposureTime,
-                          hfr: result.stats.hfr,
-                        );
+          // Responsive button layout
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
 
-                        if (!context.mounted) return;
-                        context.showSuccessSnackBar('Snapshot captured');
-                      }
-                    } catch (e) {
-                      if (!context.mounted) return;
-                      context.showErrorSnackBar('Snapshot failed: $e');
-                    } finally {
-                      ref.read(sessionStateProvider.notifier).setCapturing(false);
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ActionButton(
-                  icon: LucideIcons.focus,
-                  label: 'Autofocus',
-                  colors: colors,
-                  onTap: () async {
-                    final cameraState = ref.read(cameraStateProvider);
-                    final focuserState = ref.read(focuserStateProvider);
-                    
-                    if (cameraState.connectionState != DeviceConnectionState.connected) {
-                      context.showErrorSnackBar('Camera not connected');
-                      return;
-                    }
-
-                    if (focuserState.connectionState != DeviceConnectionState.connected) {
-                      context.showErrorSnackBar('Focuser not connected');
-                      return;
-                    }
-
-                    context.showInfoSnackBar(
-                      'Autofocus: Use Sequencer for full autofocus routine',
-                      duration: const Duration(seconds: 3),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _ActionButton(
-                  icon: LucideIcons.crosshair,
-                  label: 'Center',
-                  colors: colors,
-                  onTap: () async {
-                    // Check if we have a target set
-                    final session = ref.read(sessionStateProvider);
-                    final targetRa = session.targetRa;
-                    final targetDec = session.targetDec;
-                    
-                    if (targetRa == null || targetDec == null) {
-                      context.showWarningSnackBar(
-                        'No target set. Please set a target first.',
-                        duration: const Duration(seconds: 3),
-                      );
-                      return;
-                    }
-                    
-                    // Show centering dialog
-                    if (context.mounted) {
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (ctx) => _CenteringDialog(
-                          ref: ref,
-                          targetRa: targetRa,
-                          targetDec: targetDec,
-                          targetName: session.targetName ?? 'Target',
-                          colors: colors,
+              if (width < 280) {
+                // Narrow: Single column stack
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < actionButtons.length; i++) ...[
+                      _ActionButton(
+                        icon: actionButtons[i].icon,
+                        label: actionButtons[i].label,
+                        colors: colors,
+                        onTap: actionButtons[i].onTap,
+                      ),
+                      if (i < actionButtons.length - 1) const SizedBox(height: 8),
+                    ],
+                  ],
+                );
+              } else if (width < 400) {
+                // Medium: 2x2 grid
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ActionButton(
+                            icon: actionButtons[0].icon,
+                            label: actionButtons[0].label,
+                            colors: colors,
+                            onTap: actionButtons[0].onTap,
+                          ),
                         ),
-                      );
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ActionButton(
-                  icon: LucideIcons.parkingCircle,
-                  label: 'Park',
-                  colors: colors,
-                  // Gate on canPark capability
-                  onTap: (mountCapabilities?.canPark ?? true)
-                      ? () => ref.read(mountCommandServiceProvider).park(context)
-                      : null,
-                ),
-              ),
-            ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ActionButton(
+                            icon: actionButtons[1].icon,
+                            label: actionButtons[1].label,
+                            colors: colors,
+                            onTap: actionButtons[1].onTap,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ActionButton(
+                            icon: actionButtons[2].icon,
+                            label: actionButtons[2].label,
+                            colors: colors,
+                            onTap: actionButtons[2].onTap,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ActionButton(
+                            icon: actionButtons[3].icon,
+                            label: actionButtons[3].label,
+                            colors: colors,
+                            onTap: actionButtons[3].onTap,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              } else {
+                // Wide: Single row with all buttons
+                return Row(
+                  children: [
+                    for (var i = 0; i < actionButtons.length; i++) ...[
+                      Expanded(
+                        child: _ActionButton(
+                          icon: actionButtons[i].icon,
+                          label: actionButtons[i].label,
+                          colors: colors,
+                          onTap: actionButtons[i].onTap,
+                        ),
+                      ),
+                      if (i < actionButtons.length - 1) const SizedBox(width: 8),
+                    ],
+                  ],
+                );
+              }
+            },
           ),
         ],
       ),
     );
   }
+
+  Future<void> _handleSnapshot(BuildContext context, WidgetRef ref) async {
+    try {
+      final settings = ref.read(exposureSettingsProvider);
+      final imagingService = ref.read(imagingServiceProvider);
+      final sessionNotifier = ref.read(sessionStateProvider.notifier);
+
+      sessionNotifier.setCapturing(true);
+
+      final result = await imagingService.captureImage(
+        settings: settings,
+        targetName: ref.read(sessionStateProvider).targetName,
+      );
+
+      if (result != null) {
+        ref.read(currentImageProvider.notifier).state = result;
+        ref.read(lastImageStatsProvider.notifier).state = result.stats;
+        sessionNotifier.recordExposureComplete(
+          exposureTime: settings.exposureTime,
+          hfr: result.stats.hfr,
+        );
+
+        if (!context.mounted) return;
+        context.showSuccessSnackBar('Snapshot captured');
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      context.showErrorSnackBar('Snapshot failed: $e');
+    } finally {
+      ref.read(sessionStateProvider.notifier).setCapturing(false);
+    }
+  }
+
+  void _handleAutofocus(BuildContext context, WidgetRef ref) {
+    final cameraState = ref.read(cameraStateProvider);
+    final focuserState = ref.read(focuserStateProvider);
+
+    if (cameraState.connectionState != DeviceConnectionState.connected) {
+      context.showErrorSnackBar('Camera not connected');
+      return;
+    }
+
+    if (focuserState.connectionState != DeviceConnectionState.connected) {
+      context.showErrorSnackBar('Focuser not connected');
+      return;
+    }
+
+    context.showInfoSnackBar(
+      'Autofocus: Use Sequencer for full autofocus routine',
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  void _handleCenter(BuildContext context, WidgetRef ref) {
+    // Check if we have a target set
+    final session = ref.read(sessionStateProvider);
+    final targetRa = session.targetRa;
+    final targetDec = session.targetDec;
+
+    if (targetRa == null || targetDec == null) {
+      context.showWarningSnackBar(
+        'No target set. Please set a target first.',
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
+    // Show centering dialog
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => _CenteringDialog(
+          ref: ref,
+          targetRa: targetRa,
+          targetDec: targetDec,
+          targetName: session.targetName ?? 'Target',
+          colors: colors,
+        ),
+      );
+    }
+  }
+}
+
+/// Data class for action button configuration.
+class _ActionButtonData {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _ActionButtonData({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
 }
 
 class _ActionButton extends StatefulWidget {
@@ -4695,8 +5474,15 @@ class _CenteringDialogState extends State<_CenteringDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 400;
+
     return AlertDialog(
       backgroundColor: widget.colors.surface,
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isSmallScreen ? 16 : 40,
+        vertical: 24,
+      ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: widget.colors.border),
@@ -4706,14 +5492,18 @@ class _CenteringDialogState extends State<_CenteringDialog> {
           Icon(
             _success ? LucideIcons.checkCircle : LucideIcons.crosshair,
             color: _success ? widget.colors.success : widget.colors.primary,
+            size: isSmallScreen ? 20 : 24,
           ),
-          const SizedBox(width: 12),
-          Text(
-            'Centering on ${widget.targetName}',
-            style: TextStyle(
-              color: widget.colors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              isSmallScreen ? 'Centering' : 'Centering on ${widget.targetName}',
+              style: TextStyle(
+                color: widget.colors.textPrimary,
+                fontSize: isSmallScreen ? 16 : 18,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

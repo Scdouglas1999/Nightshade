@@ -13,6 +13,9 @@ import 'package:intl/intl.dart';
 import 'widgets/filter_sidebar.dart';
 import '../../services/mount_command_service.dart';
 import '../../utils/snackbar_helper.dart';
+import '../../widgets/slew_dropdown_button.dart';
+import '../../widgets/tutorial_keys/planetarium_keys.dart';
+import '../imaging/centering_dialog.dart';
 
 /// Get display name and catalog tag for a DSO
 /// Returns (displayName, catalogTag)
@@ -224,6 +227,73 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     _dismissPopup();
   }
 
+  Future<void> _handleSlewAndCenter(CelestialCoordinate coords, String objectName) async {
+    // First slew to approximate position
+    final mountService = ref.read(mountCommandServiceProvider);
+    final success = await mountService.slewTo(context, coords.ra, coords.dec, showFeedback: false);
+
+    if (!success) {
+      return;
+    }
+
+    _dismissPopup();
+
+    // Show centering dialog
+    if (mounted) {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => CenteringDialog(
+          targetRa: coords.ra,
+          targetDec: coords.dec,
+          targetName: objectName,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleSlewCenterRotate(CelestialCoordinate coords, String objectName) async {
+    // First slew to approximate position
+    final mountService = ref.read(mountCommandServiceProvider);
+    final slewSuccess = await mountService.slewTo(context, coords.ra, coords.dec, showFeedback: false);
+
+    if (!slewSuccess) {
+      return;
+    }
+
+    _dismissPopup();
+
+    // Show centering dialog and wait for completion
+    CenteringResult? centeringResult;
+    if (mounted) {
+      centeringResult = await showDialog<CenteringResult>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => CenteringDialog(
+          targetRa: coords.ra,
+          targetDec: coords.dec,
+          targetName: objectName,
+        ),
+      );
+    }
+
+    // If centering failed or was cancelled, don't rotate
+    if (centeringResult == null || !centeringResult.success) {
+      if (mounted && centeringResult != null) {
+        context.showWarningSnackBar('Centering failed - rotation skipped');
+      }
+      return;
+    }
+
+    // Now rotate to a default angle (0 degrees for planetarium objects since no specific rotation is set)
+    // For planetarium objects, we don't have a target rotation, so we rotate to current rotator position
+    // This step would typically match the framing rotation, but for planetarium we skip actual rotation
+    // since there's no target angle defined
+    if (mounted) {
+      context.showInfoSnackBar('Centered on $objectName');
+    }
+  }
+
   Future<void> _handleSlewToCoordinates(CelestialCoordinate coords, {String? objectName}) async {
     // Check if mount is connected (still needed for showing confirmation dialog)
     final mountService = ref.read(mountCommandServiceProvider);
@@ -398,67 +468,74 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
   }
 
   /// Show filter bottom sheet for phone/tablet layout
+  /// Uses scrollable content to handle small screen heights
   void _showFilterBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.grey[900],
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
+      ),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (context) => Consumer(
         builder: (context, ref, _) {
           final config = ref.watch(skyRenderConfigProvider);
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white38,
-                    borderRadius: BorderRadius.circular(2),
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white38,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Filters',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('Stars'),
-                  value: config.showStars,
-                  onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleStars(),
-                ),
-                SwitchListTile(
-                  title: const Text('Planets'),
-                  value: config.showPlanets,
-                  onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).togglePlanets(),
-                ),
-                SwitchListTile(
-                  title: const Text('Deep Sky'),
-                  value: config.showDSOs,
-                  onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleDSOs(),
-                ),
-                const Divider(),
-                SwitchListTile(
-                  title: const Text('Grid'),
-                  value: config.showCoordinateGrid,
-                  onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleGrid(),
-                ),
-                SwitchListTile(
-                  title: const Text('Constellations'),
-                  value: config.showConstellationLines,
-                  onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleConstellationLines(),
-                ),
-                SwitchListTile(
-                  title: const Text('Ground'),
-                  value: ref.watch(showGroundPlaneProvider),
-                  onChanged: (v) => ref.read(showGroundPlaneProvider.notifier).state = v,
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Filters',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    title: const Text('Stars'),
+                    value: config.showStars,
+                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleStars(),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Planets'),
+                    value: config.showPlanets,
+                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).togglePlanets(),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Deep Sky'),
+                    value: config.showDSOs,
+                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleDSOs(),
+                  ),
+                  const Divider(),
+                  SwitchListTile(
+                    title: const Text('Grid'),
+                    value: config.showCoordinateGrid,
+                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleGrid(),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Constellations'),
+                    value: config.showConstellationLines,
+                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleConstellationLines(),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Ground'),
+                    value: ref.watch(showGroundPlaneProvider),
+                    onChanged: (v) => ref.read(showGroundPlaneProvider.notifier).state = v,
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -540,9 +617,98 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     });
   }
 
-  /// Check if device is a phone (narrow screen)
-  bool _isPhoneLayout(BuildContext context) {
-    return MediaQuery.of(context).size.width < 600;
+  /// Mobile breakpoint for responsive layout
+  static const double _mobileBreakpoint = 700;
+
+  /// Show object info bottom sheet on mobile
+  void _showObjectInfoBottomSheet(BuildContext context, NightshadeColors colors) {
+    final selectedObject = ref.read(selectedObjectProvider);
+    if (selectedObject.object == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.4,
+        minChildSize: 0.2,
+        maxChildSize: 0.85,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border.all(color: colors.border),
+          ),
+          child: Column(
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white38,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Content
+              Expanded(
+                child: _MobileObjectInfoContent(
+                  colors: colors,
+                  scrollController: scrollController,
+                  selectedObject: selectedObject,
+                  onSendToFraming: _sendToFraming,
+                  onAddToSequencer: _addToSequencer,
+                  onSlewToTarget: _handleSlewToTarget,
+                  onSlewAndCenter: () {
+                    final coords = selectedObject.coordinates;
+                    if (coords != null && selectedObject.object != null) {
+                      _handleSlewAndCenter(coords, selectedObject.object!.name);
+                    }
+                  },
+                  hasRotator: ref.watch(rotatorStateProvider).connectionState ==
+                      DeviceConnectionState.connected,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Show mobile search dialog
+  void _showMobileSearchDialog(BuildContext context, NightshadeColors colors) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border.all(color: colors.border),
+          ),
+          child: _MobileSearchSheet(
+            colors: colors,
+            scrollController: scrollController,
+            onObjectSelected: (obj) {
+              ref.read(selectedObjectProvider.notifier).selectObject(obj);
+              ref.read(skyViewStateProvider.notifier).lookAt(obj.coordinates);
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -602,309 +768,527 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
             }
           }
         },
-        child: Stack(
-          children: [
-            Row(
-              children: [
-                // Sky canvas (main area)
-                Expanded(
-                  child: Stack(
-                    key: _skyViewKey,
-                    children: [
-                      // Interactive sky view with right-click context menu (desktop)
-                      GestureDetector(
-                        onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
-                        child: InteractiveSkyView(
-                          showFOV: _showFOV,
-                          onObjectTapped: _handleObjectTapped,
-                        ),
-                      ),
-
-                      // Top overlay bar
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: _TopOverlay(colors: colors),
-                        ),
-                      ),
-
-                      // Performance overlay (debug builds only)
-                      if (kDebugMode)
-                        Positioned(
-                          top: 60,
-                          right: 16,
-                          child: Consumer(
-                            builder: (context, ref, _) {
-                              final monitor = ref.watch(performanceMonitorProvider);
-                              final refreshRate = ref.watch(displayRefreshRateProvider);
-                              final fps = monitor.estimatedFps;
-                              final cappedFps = fps > refreshRate ? refreshRate : fps;
-                              final buildMs = monitor.averageBuildTime;
-                              final rasterMs = monitor.averageRasterTime;
-
-                              return DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: colors.surface.withValues(alpha: 0.8),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: colors.border),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                  child: DefaultTextStyle(
-                                    style: TextStyle(
-                                      color: colors.textPrimary,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'FPS ${cappedFps.toStringAsFixed(1)} / ${refreshRate.toStringAsFixed(0)}Hz',
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          'UI ${buildMs.toStringAsFixed(1)}ms  GPU ${rasterMs.toStringAsFixed(1)}ms',
-                                          style: TextStyle(
-                                            color: colors.textSecondary,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-
-                      // Bottom info bar
-                      Positioned(
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: _BottomInfoBar(colors: colors),
-                        ),
-                      ),
-
-                      // View controls
-                      Positioned(
-                        top: 60,
-                        left: 16,
-                        child: _ViewControls(
-                          colors: colors,
-                          showFOV: _showFOV,
-                          onToggleFOV: () => setState(() => _showFOV = !_showFOV),
-                        ),
-                      ),
-
-                      // Slew controls
-                      Positioned(
-                        top: 220,
-                        left: 16,
-                        child: _SlewControls(
-                          colors: colors,
-                          slewMode: _slewMode,
-                          onToggleSlewMode: _toggleSlewMode,
-                          onStopSlew: _handleStopSlew,
-                        ),
-                      ),
-
-                      // Selected Object HUD
-                      Positioned(
-                        top: 100,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: _SelectedObjectHud(
-                            colors: colors,
-                            onSlew: () async {
-                              final selectedState = ref.read(selectedObjectProvider);
-                              final coords = selectedState.coordinates;
-                              if (coords != null) {
-                                await ref.read(mountCommandServiceProvider).slewTo(context, coords.ra, coords.dec);
-                              }
-                            },
-                          ),
-                        ),
-                      ),
-
-                      // Compass HUD (bottom-left, above time control)
-                      Positioned(
-                        left: AdaptiveSizing.of(context).edgePadding,
-                        bottom: AdaptiveSizing.of(context).edgePadding,
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final showCompass = ref.watch(showCompassHudProvider);
-                            if (!showCompass) return const SizedBox.shrink();
-
-                            final sizing = AdaptiveSizing.of(context);
-                            final (az, alt) = ref.watch(viewCenterAltAzProvider);
-                            return CompassHud(
-                              azimuth: az,
-                              altitude: alt,
-                              size: sizing.compassSize,
-                              showAltitude: !sizing.useCondensedHud,
-                            );
-                          },
-                        ),
-                      ),
-
-                      // Mini-map (bottom-right)
-                      Positioned(
-                        right: AdaptiveSizing.of(context).edgePadding,
-                        bottom: AdaptiveSizing.of(context).edgePadding,
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final showMinimap = ref.watch(showMinimapProvider);
-                            if (!showMinimap) return const SizedBox.shrink();
-
-                            final sizing = AdaptiveSizing.of(context);
-                            final (az, alt) = ref.watch(viewCenterAltAzProvider);
-                            final viewState = ref.watch(skyViewStateProvider);
-
-                            return SkyMinimap(
-                              azimuth: az,
-                              altitude: alt,
-                              fieldOfView: viewState.fieldOfView,
-                              rotation: viewState.rotation,
-                              size: sizing.minimapSize,
-                              onTap: (tapAz, tapAlt) {
-                                // Convert alt/az back to RA/Dec and update view
-                                final location = ref.read(observerLocationProvider);
-                                final time = ref.read(observationTimeProvider);
-                                final lst = AstronomyCalculations.localSiderealTime(time.time, location.longitude);
-
-                                final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
-                                  altDeg: tapAlt,
-                                  azDeg: tapAz,
-                                  latitudeDeg: location.latitude,
-                                  lstHours: lst,
-                                );
-
-                                ref.read(skyViewStateProvider.notifier).setCenter(ra / 15, dec);
-                              },
-                            );
-                          },
-                        ),
-                      ),
-
-                      // Time Control Panel
-                      Positioned(
-                        bottom: 110,
-                        left: 16,
-                        child: TimeControlPanel(
-                          backgroundColor: colors.surface.withValues(alpha: 0.9),
-                          textColor: colors.textPrimary,
-                          accentColor: colors.accent,
-                          compact: false,
-                        ),
-                      ),
-
-                      // Filter Sidebar (desktop only)
-                      if (!_isPhoneLayout(context))
-                        Positioned(
-                          top: 60,
-                          right: 0,
-                          bottom: 0,
-                          child: FilterSidebar(
-                            isExpanded: _filterSidebarExpanded,
-                            onToggle: () => setState(() => _filterSidebarExpanded = !_filterSidebarExpanded),
-                          ),
-                        ),
-
-                      // Filter FAB (phone only)
-                      if (_isPhoneLayout(context))
-                        Positioned(
-                          right: 16,
-                          bottom: 130,
-                          child: FloatingActionButton.small(
-                            heroTag: 'filter_fab',
-                            backgroundColor: colors.primary,
-                            onPressed: () => _showFilterBottomSheet(context),
-                            child: const Icon(LucideIcons.slidersHorizontal, size: 20),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-
-                // Right sidebar (desktop only)
-                if (!_isPhoneLayout(context))
-                  ResizablePanel(
-                  initialWidth: 340,
-                  minWidth: 250,
-                  maxWidth: 500,
-                  side: ResizeSide.left,
-                  child: Container(
-                    // width: 340, // Removed for ResizablePanel
-                    decoration: BoxDecoration(
-                      color: colors.surface,
-                      border: Border(left: BorderSide(color: colors.border)),
-                    ),
-                    child: Column(
-                      children: [
-                        // Search
-                        _SearchHeader(
-                          colors: colors,
-                          controller: _searchController,
-                          onSearch: (query) {
-                            ref.read(objectSearchProvider.notifier).search(query);
-                          },
-                        ),
-
-                        // Tabs
-                        Expanded(
-                          child: DefaultTabController(
-                            length: 4,
-                            child: Column(
-                              children: [
-                                _SidebarTabs(colors: colors),
-                                Expanded(
-                                  child: TabBarView(
-                                    children: [
-                                      _TonightTab(colors: colors),
-                                      _ObjectsTab(colors: colors),
-                                      _SearchResultsTab(colors: colors),
-                                      _InfoTab(colors: colors, selectedObject: selectedObject),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-            // Object info popup overlay
-            if (_showPopup && _popupObject != null)
-              _ObjectInfoPopup(
-                colors: colors,
-                object: _popupObject!,
-                coordinates: _popupCoordinates ?? _popupObject!.coordinates,
-                selectedObjectState: selectedObject,
-                position: _popupPosition,
-                onDismiss: _dismissPopup,
-                onSendToFraming: _sendToFraming,
-                onAddToSequencer: _addToSequencer,
-                onSlewToTarget: _handleSlewToTarget,
-              ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobile = constraints.maxWidth < _mobileBreakpoint;
+            if (isMobile) {
+              return _buildMobileLayout(context, colors, selectedObject);
+            }
+            return _buildDesktopLayout(context, colors, selectedObject);
+          },
         ),
       ),
+    );
+  }
+
+  /// Mobile layout with full-screen sky view and floating controls
+  Widget _buildMobileLayout(BuildContext context, NightshadeColors colors, SelectedObjectState selectedObject) {
+    final sizing = AdaptiveSizing.of(context);
+
+    return Stack(
+      key: _skyViewKey,
+      children: [
+        // Full-screen interactive sky view
+        Positioned.fill(
+          child: GestureDetector(
+            onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
+            child: InteractiveSkyView(
+              key: PlanetariumTutorialKeys.skyView,
+              showFOV: _showFOV,
+              onObjectTapped: _handleObjectTapped,
+            ),
+          ),
+        ),
+
+        // Top overlay bar (compact version for mobile)
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _MobileTopOverlay(colors: colors),
+        ),
+
+        // View controls (left side, smaller for mobile)
+        Positioned(
+          top: 70,
+          left: 12,
+          child: _MobileViewControls(
+            colors: colors,
+            showFOV: _showFOV,
+            onToggleFOV: () => setState(() => _showFOV = !_showFOV),
+          ),
+        ),
+
+        // Slew controls (below view controls)
+        Positioned(
+          top: 200,
+          left: 12,
+          child: _MobileSlewControls(
+            colors: colors,
+            slewMode: _slewMode,
+            onToggleSlewMode: _toggleSlewMode,
+            onStopSlew: _handleStopSlew,
+          ),
+        ),
+
+        // Compass HUD (bottom-left)
+        Positioned(
+          left: sizing.edgePadding,
+          bottom: 90 + sizing.edgePadding,
+          child: Consumer(
+            builder: (context, ref, _) {
+              final showCompass = ref.watch(showCompassHudProvider);
+              if (!showCompass) return const SizedBox.shrink();
+
+              final (az, alt) = ref.watch(viewCenterAltAzProvider);
+              return CompassHud(
+                azimuth: az,
+                altitude: alt,
+                size: 60, // Smaller for mobile
+                showAltitude: false,
+              );
+            },
+          ),
+        ),
+
+        // Mini-map (bottom-right, positioned to avoid FAB overlap)
+        // FABs take ~180px from bottom, so position minimap above them
+        Positioned(
+          right: sizing.edgePadding,
+          bottom: 200 + sizing.edgePadding, // Above the FABs
+          child: Consumer(
+            builder: (context, ref, _) {
+              final showMinimap = ref.watch(showMinimapProvider);
+              if (!showMinimap) return const SizedBox.shrink();
+
+              final (az, alt) = ref.watch(viewCenterAltAzProvider);
+              final viewState = ref.watch(skyViewStateProvider);
+
+              return SkyMinimap(
+                azimuth: az,
+                altitude: alt,
+                fieldOfView: viewState.fieldOfView,
+                rotation: viewState.rotation,
+                size: 80, // Smaller for mobile
+                onTap: (tapAz, tapAlt) {
+                  final location = ref.read(observerLocationProvider);
+                  final time = ref.read(observationTimeProvider);
+                  final lst = AstronomyCalculations.localSiderealTime(time.time, location.longitude);
+
+                  final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
+                    altDeg: tapAlt,
+                    azDeg: tapAz,
+                    latitudeDeg: location.latitude,
+                    lstHours: lst,
+                  );
+
+                  ref.read(skyViewStateProvider.notifier).setCenter(ra / 15, dec);
+                },
+              );
+            },
+          ),
+        ),
+
+        // Bottom info bar (compact)
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: _MobileBottomInfoBar(colors: colors),
+        ),
+
+        // Time Control Panel (compact, above bottom bar)
+        Positioned(
+          bottom: 50,
+          left: 12,
+          child: TimeControlPanel(
+            backgroundColor: colors.surface.withValues(alpha: 0.9),
+            textColor: colors.textPrimary,
+            accentColor: colors.accent,
+            compact: true,
+          ),
+        ),
+
+        // Floating action buttons (right side)
+        Positioned(
+          right: 12,
+          bottom: 60,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Search FAB
+              FloatingActionButton.small(
+                key: PlanetariumTutorialKeys.search,
+                heroTag: 'search_fab',
+                backgroundColor: colors.surface.withValues(alpha: 0.9),
+                onPressed: () => _showMobileSearchDialog(context, colors),
+                child: Icon(LucideIcons.search, size: 20, color: colors.textPrimary),
+              ),
+              const SizedBox(height: 12),
+              // Filter FAB
+              FloatingActionButton.small(
+                key: PlanetariumTutorialKeys.filterBtn,
+                heroTag: 'filter_fab',
+                backgroundColor: colors.surface.withValues(alpha: 0.9),
+                onPressed: () => _showFilterBottomSheet(context),
+                child: Icon(LucideIcons.slidersHorizontal, size: 20, color: colors.textPrimary),
+              ),
+              const SizedBox(height: 12),
+              // Object Info FAB (shows when object is selected)
+              if (selectedObject.object != null)
+                FloatingActionButton(
+                  heroTag: 'info_fab',
+                  backgroundColor: colors.primary,
+                  onPressed: () => _showObjectInfoBottomSheet(context, colors),
+                  child: const Icon(LucideIcons.info, size: 24, color: Colors.white),
+                ),
+            ],
+          ),
+        ),
+
+        // Selected Object HUD (compact version at top)
+        if (selectedObject.object != null)
+          Positioned(
+            top: 60,
+            left: 56, // Leave room for view controls
+            right: 56, // Leave room for FABs
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 300),
+                child: _MobileSelectedObjectHud(
+                  colors: colors,
+                  selectedObject: selectedObject,
+                  onTap: () => _showObjectInfoBottomSheet(context, colors),
+                ),
+              ),
+            ),
+          ),
+
+        // Object info popup overlay (for desktop-style popup when tapping objects)
+        if (_showPopup && _popupObject != null)
+          _ObjectInfoPopup(
+            colors: colors,
+            object: _popupObject!,
+            coordinates: _popupCoordinates ?? _popupObject!.coordinates,
+            selectedObjectState: selectedObject,
+            position: _popupPosition,
+            onDismiss: _dismissPopup,
+            onSendToFraming: _sendToFraming,
+            onAddToSequencer: _addToSequencer,
+            onSlewToTarget: _handleSlewToTarget,
+            onSlewAndCenter: () => _handleSlewAndCenter(
+              _popupCoordinates ?? _popupObject!.coordinates,
+              _popupObject!.name,
+            ),
+            onSlewCenterRotate: () => _handleSlewCenterRotate(
+              _popupCoordinates ?? _popupObject!.coordinates,
+              _popupObject!.name,
+            ),
+            hasRotator: ref.watch(rotatorStateProvider).connectionState ==
+                DeviceConnectionState.connected,
+          ),
+      ],
+    );
+  }
+
+  /// Desktop layout with side panels
+  Widget _buildDesktopLayout(BuildContext context, NightshadeColors colors, SelectedObjectState selectedObject) {
+    return Stack(
+      children: [
+        Row(
+          children: [
+            // Sky canvas (main area)
+            Expanded(
+              child: Stack(
+                key: _skyViewKey,
+                children: [
+                  // Interactive sky view with right-click context menu (desktop)
+                  GestureDetector(
+                    onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
+                    child: InteractiveSkyView(
+                      key: PlanetariumTutorialKeys.skyView,
+                      showFOV: _showFOV,
+                      onObjectTapped: _handleObjectTapped,
+                    ),
+                  ),
+
+                  // Top overlay bar
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: _TopOverlay(colors: colors),
+                    ),
+                  ),
+
+                  // Performance overlay (debug builds only)
+                  if (kDebugMode)
+                    Positioned(
+                      top: 60,
+                      right: 16,
+                      child: Consumer(
+                        builder: (context, ref, _) {
+                          final monitor = ref.watch(performanceMonitorProvider);
+                          final refreshRate = ref.watch(displayRefreshRateProvider);
+                          final fps = monitor.estimatedFps;
+                          final cappedFps = fps > refreshRate ? refreshRate : fps;
+                          final buildMs = monitor.averageBuildTime;
+                          final rasterMs = monitor.averageRasterTime;
+
+                          return DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: colors.surface.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: colors.border),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              child: DefaultTextStyle(
+                                style: TextStyle(
+                                  color: colors.textPrimary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'FPS ${cappedFps.toStringAsFixed(1)} / ${refreshRate.toStringAsFixed(0)}Hz',
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'UI ${buildMs.toStringAsFixed(1)}ms  GPU ${rasterMs.toStringAsFixed(1)}ms',
+                                      style: TextStyle(
+                                        color: colors.textSecondary,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                  // Bottom info bar
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: _BottomInfoBar(colors: colors),
+                    ),
+                  ),
+
+                  // View controls
+                  Positioned(
+                    top: 60,
+                    left: 16,
+                    child: _ViewControls(
+                      colors: colors,
+                      showFOV: _showFOV,
+                      onToggleFOV: () => setState(() => _showFOV = !_showFOV),
+                    ),
+                  ),
+
+                  // Slew controls
+                  Positioned(
+                    top: 220,
+                    left: 16,
+                    child: _SlewControls(
+                      colors: colors,
+                      slewMode: _slewMode,
+                      onToggleSlewMode: _toggleSlewMode,
+                      onStopSlew: _handleStopSlew,
+                    ),
+                  ),
+
+                  // Selected Object HUD
+                  Positioned(
+                    top: 100,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: _SelectedObjectHud(
+                        colors: colors,
+                        onSlew: () async {
+                          final selectedState = ref.read(selectedObjectProvider);
+                          final coords = selectedState.coordinates;
+                          if (coords != null) {
+                            await ref.read(mountCommandServiceProvider).slewTo(context, coords.ra, coords.dec);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // Compass HUD (bottom-left, above time control)
+                  Positioned(
+                    left: AdaptiveSizing.of(context).edgePadding,
+                    bottom: AdaptiveSizing.of(context).edgePadding,
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final showCompass = ref.watch(showCompassHudProvider);
+                        if (!showCompass) return const SizedBox.shrink();
+
+                        final sizing = AdaptiveSizing.of(context);
+                        final (az, alt) = ref.watch(viewCenterAltAzProvider);
+                        return CompassHud(
+                          azimuth: az,
+                          altitude: alt,
+                          size: sizing.compassSize,
+                          showAltitude: !sizing.useCondensedHud,
+                        );
+                      },
+                    ),
+                  ),
+
+                  // Mini-map (bottom-right)
+                  Positioned(
+                    right: AdaptiveSizing.of(context).edgePadding,
+                    bottom: AdaptiveSizing.of(context).edgePadding,
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final showMinimap = ref.watch(showMinimapProvider);
+                        if (!showMinimap) return const SizedBox.shrink();
+
+                        final sizing = AdaptiveSizing.of(context);
+                        final (az, alt) = ref.watch(viewCenterAltAzProvider);
+                        final viewState = ref.watch(skyViewStateProvider);
+
+                        return SkyMinimap(
+                          azimuth: az,
+                          altitude: alt,
+                          fieldOfView: viewState.fieldOfView,
+                          rotation: viewState.rotation,
+                          size: sizing.minimapSize,
+                          onTap: (tapAz, tapAlt) {
+                            // Convert alt/az back to RA/Dec and update view
+                            final location = ref.read(observerLocationProvider);
+                            final time = ref.read(observationTimeProvider);
+                            final lst = AstronomyCalculations.localSiderealTime(time.time, location.longitude);
+
+                            final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
+                              altDeg: tapAlt,
+                              azDeg: tapAz,
+                              latitudeDeg: location.latitude,
+                              lstHours: lst,
+                            );
+
+                            ref.read(skyViewStateProvider.notifier).setCenter(ra / 15, dec);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+                  // Time Control Panel
+                  Positioned(
+                    bottom: 110,
+                    left: 16,
+                    child: TimeControlPanel(
+                      backgroundColor: colors.surface.withValues(alpha: 0.9),
+                      textColor: colors.textPrimary,
+                      accentColor: colors.accent,
+                      compact: false,
+                    ),
+                  ),
+
+                  // Filter Sidebar (desktop only)
+                  Positioned(
+                    top: 60,
+                    right: 0,
+                    bottom: 0,
+                    child: FilterSidebar(
+                      isExpanded: _filterSidebarExpanded,
+                      onToggle: () => setState(() => _filterSidebarExpanded = !_filterSidebarExpanded),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Right sidebar (desktop only)
+            ResizablePanel(
+              initialWidth: 340,
+              minWidth: 250,
+              maxWidth: 500,
+              side: ResizeSide.left,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border(left: BorderSide(color: colors.border)),
+                ),
+                child: Column(
+                  children: [
+                    // Search
+                    _SearchHeader(
+                      colors: colors,
+                      controller: _searchController,
+                      onSearch: (query) {
+                        ref.read(objectSearchProvider.notifier).search(query);
+                      },
+                    ),
+
+                    // Tabs
+                    Expanded(
+                      child: DefaultTabController(
+                        length: 4,
+                        child: Column(
+                          children: [
+                            _SidebarTabs(colors: colors),
+                            Expanded(
+                              child: TabBarView(
+                                children: [
+                                  _TonightTab(colors: colors),
+                                  _ObjectsTab(colors: colors),
+                                  _SearchResultsTab(colors: colors),
+                                  _InfoTab(colors: colors, selectedObject: selectedObject),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        // Object info popup overlay
+        if (_showPopup && _popupObject != null)
+          _ObjectInfoPopup(
+            colors: colors,
+            object: _popupObject!,
+            coordinates: _popupCoordinates ?? _popupObject!.coordinates,
+            selectedObjectState: selectedObject,
+            position: _popupPosition,
+            onDismiss: _dismissPopup,
+            onSendToFraming: _sendToFraming,
+            onAddToSequencer: _addToSequencer,
+            onSlewToTarget: _handleSlewToTarget,
+            onSlewAndCenter: () => _handleSlewAndCenter(
+              _popupCoordinates ?? _popupObject!.coordinates,
+              _popupObject!.name,
+            ),
+            onSlewCenterRotate: () => _handleSlewCenterRotate(
+              _popupCoordinates ?? _popupObject!.coordinates,
+              _popupObject!.name,
+            ),
+            hasRotator: ref.watch(rotatorStateProvider).connectionState ==
+                DeviceConnectionState.connected,
+          ),
+      ],
     );
   }
 }
@@ -1176,6 +1560,7 @@ class _ViewControls extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           _ViewControlButton(
+            key: PlanetariumTutorialKeys.fovToggle,
             icon: LucideIcons.frame,
             isActive: showFOV,
             onTap: onToggleFOV,
@@ -1348,6 +1733,7 @@ class _SlewControls extends ConsumerWidget {
           Tooltip(
             message: slewMode ? 'Disable slew mode' : 'Enable slew mode',
             child: _SlewControlButton(
+              key: PlanetariumTutorialKeys.slewBtn,
               icon: LucideIcons.move,
               isActive: slewMode,
               isEnabled: isConnected,
@@ -1391,6 +1777,7 @@ class _SlewControlButton extends StatefulWidget {
   final VoidCallback? onTap;
 
   const _SlewControlButton({
+    super.key,
     required this.icon,
     required this.isActive,
     required this.isEnabled,
@@ -1448,6 +1835,7 @@ class _ViewControlButton extends StatefulWidget {
   final String? tooltip;
 
   const _ViewControlButton({
+    super.key,
     required this.icon,
     required this.onTap,
     this.isActive = false,
@@ -3163,6 +3551,9 @@ class _ObjectInfoPopup extends StatefulWidget {
   final VoidCallback onSendToFraming;
   final VoidCallback onAddToSequencer;
   final VoidCallback onSlewToTarget;
+  final VoidCallback onSlewAndCenter;
+  final VoidCallback onSlewCenterRotate;
+  final bool hasRotator;
 
   const _ObjectInfoPopup({
     required this.colors,
@@ -3174,6 +3565,9 @@ class _ObjectInfoPopup extends StatefulWidget {
     required this.onSendToFraming,
     required this.onAddToSequencer,
     required this.onSlewToTarget,
+    required this.onSlewAndCenter,
+    required this.onSlewCenterRotate,
+    required this.hasRotator,
   });
 
   @override
@@ -3254,6 +3648,7 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
           child: GestureDetector(
             onTap: () {}, // Prevent tap-through
             child: Container(
+              key: PlanetariumTutorialKeys.objectPopup,
               width: popupWidth,
               constraints: const BoxConstraints(maxHeight: popupHeight),
               decoration: BoxDecoration(
@@ -3623,17 +4018,18 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
       child: Row(
         children: [
           Expanded(
-            child: _PopupActionButton(
-              icon: LucideIcons.crosshair,
-              label: 'Slew',
+            child: _SlewPopupMenuButton(
               colors: widget.colors,
-              isPrimary: true,
-              onTap: widget.onSlewToTarget,
+              onSlew: widget.onSlewToTarget,
+              onSlewAndCenter: widget.onSlewAndCenter,
+              onSlewCenterRotate: widget.onSlewCenterRotate,
+              showRotateOption: widget.hasRotator,
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: _PopupActionButton(
+              key: PlanetariumTutorialKeys.sendFraming,
               icon: LucideIcons.frame,
               label: 'Framing',
               colors: widget.colors,
@@ -3643,6 +4039,7 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
           const SizedBox(width: 8),
           Expanded(
             child: _PopupActionButton(
+              key: PlanetariumTutorialKeys.addSequence,
               icon: LucideIcons.listPlus,
               label: 'Add to Sequence',
               colors: widget.colors,
@@ -3651,6 +4048,136 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Slew popup menu button for planetarium object popup
+class _SlewPopupMenuButton extends StatefulWidget {
+  final NightshadeColors colors;
+  final VoidCallback onSlew;
+  final VoidCallback onSlewAndCenter;
+  final VoidCallback onSlewCenterRotate;
+  final bool showRotateOption;
+
+  const _SlewPopupMenuButton({
+    required this.colors,
+    required this.onSlew,
+    required this.onSlewAndCenter,
+    required this.onSlewCenterRotate,
+    required this.showRotateOption,
+  });
+
+  @override
+  State<_SlewPopupMenuButton> createState() => _SlewPopupMenuButtonState();
+}
+
+class _SlewPopupMenuButtonState extends State<_SlewPopupMenuButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<SlewMode>(
+      onSelected: (mode) {
+        switch (mode) {
+          case SlewMode.slew:
+            widget.onSlew();
+            break;
+          case SlewMode.slewAndCenter:
+            widget.onSlewAndCenter();
+            break;
+          case SlewMode.slewCenterRotate:
+            widget.onSlewCenterRotate();
+            break;
+        }
+      },
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      color: widget.colors.surface,
+      itemBuilder: (context) => [
+        PopupMenuItem<SlewMode>(
+          value: SlewMode.slew,
+          child: Row(
+            children: [
+              Icon(LucideIcons.move, size: 16, color: widget.colors.textPrimary),
+              const SizedBox(width: 8),
+              Text('Slew', style: TextStyle(color: widget.colors.textPrimary)),
+            ],
+          ),
+        ),
+        PopupMenuItem<SlewMode>(
+          value: SlewMode.slewAndCenter,
+          child: Row(
+            children: [
+              Icon(LucideIcons.target, size: 16, color: widget.colors.textPrimary),
+              const SizedBox(width: 8),
+              Text('Slew & Center', style: TextStyle(color: widget.colors.textPrimary)),
+            ],
+          ),
+        ),
+        if (widget.showRotateOption)
+          PopupMenuItem<SlewMode>(
+            value: SlewMode.slewCenterRotate,
+            child: Row(
+              children: [
+                Icon(LucideIcons.rotateCw, size: 16, color: widget.colors.textPrimary),
+                const SizedBox(width: 8),
+                Text('Slew, Center & Rotate', style: TextStyle(color: widget.colors.textPrimary)),
+              ],
+            ),
+          ),
+      ],
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                widget.colors.primary,
+                widget.colors.primary.withValues(alpha: 0.8),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: _isHovered
+                ? [
+                    BoxShadow(
+                      color: widget.colors.primary.withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                LucideIcons.crosshair,
+                size: 14,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Slew',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                LucideIcons.chevronDown,
+                size: 12,
+                color: Colors.white70,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -3747,6 +4274,7 @@ class _PopupActionButton extends StatefulWidget {
   final VoidCallback onTap;
 
   const _PopupActionButton({
+    super.key,
     required this.icon,
     required this.label,
     required this.colors,
@@ -3932,6 +4460,1190 @@ class _SelectedObjectHud extends ConsumerWidget {
             onTap: onSlew,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// MOBILE-SPECIFIC WIDGETS
+// =============================================================================
+
+/// Compact top overlay for mobile screens
+/// Adapts layout for very narrow screens (below 360px)
+class _MobileTopOverlay extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _MobileTopOverlay({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final time = ref.watch(observationTimeProvider);
+    final lst = ref.watch(localSiderealTimeProvider);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isVeryNarrow = screenWidth < 360;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.8),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          children: [
+            // Time chip (compact)
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  DateFormat('HH:mm').format(time.time),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white70,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            // Only show LST on screens wide enough
+            if (!isVeryNarrow) ...[
+              const SizedBox(width: 8),
+              // LST chip
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'LST ${_formatHours(lst)}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.white70,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+            const Spacer(),
+            // Quick toggle buttons
+            _MobileToggleButton(
+              icon: LucideIcons.grid,
+              isActive: ref.watch(skyRenderConfigProvider).showCoordinateGrid,
+              onTap: ref.read(skyRenderConfigProvider.notifier).toggleGrid,
+            ),
+            _MobileToggleButton(
+              icon: LucideIcons.activity,
+              isActive: ref.watch(skyRenderConfigProvider).showConstellationLines,
+              onTap: ref.read(skyRenderConfigProvider.notifier).toggleConstellationLines,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatHours(double hours) {
+    final h = hours.floor();
+    final m = ((hours - h) * 60).floor();
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Compact toggle button for mobile top bar
+/// Minimum 44px touch target per accessibility guidelines
+class _MobileToggleButton extends StatelessWidget {
+  final IconData icon;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _MobileToggleButton({
+    required this.icon,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 44, // Minimum touch target
+        height: 44, // Minimum touch target
+        alignment: Alignment.center,
+        child: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: isActive
+                ? Colors.white.withValues(alpha: 0.2)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            icon,
+            size: 14,
+            color: isActive ? Colors.white : Colors.white70,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact view controls for mobile
+class _MobileViewControls extends ConsumerWidget {
+  final NightshadeColors colors;
+  final bool showFOV;
+  final VoidCallback onToggleFOV;
+
+  const _MobileViewControls({
+    required this.colors,
+    required this.showFOV,
+    required this.onToggleFOV,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final viewState = ref.watch(skyViewStateProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _MobileControlButton(
+            icon: LucideIcons.plus,
+            onTap: ref.read(skyViewStateProvider.notifier).zoomIn,
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text(
+              viewState.fieldOfView.toStringAsFixed(0),
+              style: const TextStyle(
+                fontSize: 9,
+                color: Colors.white70,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          _MobileControlButton(
+            icon: LucideIcons.minus,
+            onTap: ref.read(skyViewStateProvider.notifier).zoomOut,
+          ),
+          Container(
+            height: 1,
+            width: 20,
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            color: Colors.white24,
+          ),
+          _MobileControlButton(
+            icon: LucideIcons.home,
+            onTap: () {
+              ref.read(skyViewStateProvider.notifier).setCenter(0, 0);
+              ref.read(skyViewStateProvider.notifier).setFieldOfView(60);
+            },
+          ),
+          const SizedBox(height: 4),
+          _MobileControlButton(
+            key: PlanetariumTutorialKeys.fovToggle,
+            icon: LucideIcons.frame,
+            isActive: showFOV,
+            onTap: onToggleFOV,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact slew controls for mobile
+class _MobileSlewControls extends ConsumerWidget {
+  final NightshadeColors colors;
+  final bool slewMode;
+  final VoidCallback onToggleSlewMode;
+  final VoidCallback onStopSlew;
+
+  const _MobileSlewControls({
+    required this.colors,
+    required this.slewMode,
+    required this.onToggleSlewMode,
+    required this.onStopSlew,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mountState = ref.watch(mountStateProvider);
+    final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+    final isSlewing = mountState.isSlewing;
+
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+        border: slewMode
+            ? Border.all(color: const Color(0xFFFF9800), width: 2)
+            : null,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _MobileControlButton(
+            key: PlanetariumTutorialKeys.slewBtn,
+            icon: LucideIcons.move,
+            isActive: slewMode,
+            isEnabled: isConnected,
+            onTap: isConnected ? onToggleSlewMode : null,
+            activeColor: const Color(0xFFFF9800),
+          ),
+          const SizedBox(height: 4),
+          _MobileControlButton(
+            icon: LucideIcons.octagon,
+            isEnabled: isConnected && isSlewing,
+            onTap: isConnected && isSlewing ? onStopSlew : null,
+            activeColor: const Color(0xFFE53935),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact control button for mobile view/slew controls
+/// Uses 44px touch target with smaller visual appearance
+class _MobileControlButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool isActive;
+  final bool isEnabled;
+  final Color? activeColor;
+
+  const _MobileControlButton({
+    super.key,
+    required this.icon,
+    this.onTap,
+    this.isActive = false,
+    this.isEnabled = true,
+    this.activeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isActive
+        ? (activeColor ?? const Color(0xFF00E676))
+        : Colors.white70;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: isEnabled ? onTap : null,
+      child: Container(
+        width: 36, // Larger touch target
+        height: 36, // Larger touch target
+        alignment: Alignment.center,
+        child: Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: isActive
+                ? color.withValues(alpha: 0.2)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Icon(
+            icon,
+            size: 14,
+            color: isEnabled ? color : Colors.white24,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact bottom info bar for mobile
+/// Uses FittedBox to handle narrow screen overflow gracefully
+class _MobileBottomInfoBar extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _MobileBottomInfoBar({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final viewState = ref.watch(skyViewStateProvider);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.8),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'RA ${_formatRA(viewState.centerRA)}',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white60,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Dec ${_formatDec(viewState.centerDec)}',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white60,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'FOV ${viewState.fieldOfView.toStringAsFixed(0)}',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white60,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatRA(double ra) {
+    final h = ra.floor();
+    final m = ((ra - h) * 60).floor();
+    return '${h}h ${m}m';
+  }
+
+  String _formatDec(double dec) {
+    final sign = dec >= 0 ? '+' : '-';
+    final d = dec.abs().floor();
+    return "$sign$d";
+  }
+}
+
+/// Compact selected object HUD for mobile (tap to expand)
+class _MobileSelectedObjectHud extends StatelessWidget {
+  final NightshadeColors colors;
+  final SelectedObjectState selectedObject;
+  final VoidCallback onTap;
+
+  const _MobileSelectedObjectHud({
+    required this.colors,
+    required this.selectedObject,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final obj = selectedObject.object;
+    if (obj == null) return const SizedBox.shrink();
+
+    String displayName;
+    String catalogTag;
+    if (obj is DeepSkyObject) {
+      final info = getDsoDisplayInfo(obj);
+      displayName = info.$1;
+      catalogTag = info.$2;
+    } else {
+      displayName = obj.name;
+      catalogTag = obj is Star ? 'STAR' : obj.id;
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.surface.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: colors.primary.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                catalogTag,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: colors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              LucideIcons.chevronDown,
+              size: 14,
+              color: colors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Mobile object info bottom sheet content
+class _MobileObjectInfoContent extends ConsumerWidget {
+  final NightshadeColors colors;
+  final ScrollController scrollController;
+  final SelectedObjectState selectedObject;
+  final VoidCallback onSendToFraming;
+  final VoidCallback onAddToSequencer;
+  final VoidCallback onSlewToTarget;
+  final VoidCallback onSlewAndCenter;
+  final bool hasRotator;
+
+  const _MobileObjectInfoContent({
+    required this.colors,
+    required this.scrollController,
+    required this.selectedObject,
+    required this.onSendToFraming,
+    required this.onAddToSequencer,
+    required this.onSlewToTarget,
+    required this.onSlewAndCenter,
+    required this.hasRotator,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final obj = selectedObject.object;
+    if (obj == null) {
+      return Center(
+        child: Text(
+          'No object selected',
+          style: TextStyle(color: colors.textMuted),
+        ),
+      );
+    }
+
+    String displayName;
+    String catalogTag;
+    String typeName;
+    if (obj is DeepSkyObject) {
+      final info = getDsoDisplayInfo(obj);
+      displayName = info.$1;
+      catalogTag = info.$2;
+      typeName = obj.type.displayName;
+    } else if (obj is Star) {
+      displayName = obj.name;
+      catalogTag = 'STAR';
+      typeName = obj.spectralType != null ? 'Star (${obj.spectralType})' : 'Star';
+    } else {
+      displayName = obj.name;
+      catalogTag = obj.id;
+      typeName = 'Object';
+    }
+
+    final coords = selectedObject.coordinates;
+    final altAz = selectedObject.currentAltAz;
+
+    return ListView(
+      controller: scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
+        // Header
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                catalogTag,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: colors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    typeName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (obj.magnitude != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'mag ${obj.magnitude!.toStringAsFixed(1)}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        // Coordinates
+        if (coords != null)
+          _MobileInfoCard(
+            title: 'Coordinates',
+            colors: colors,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MobileInfoRow(
+                    label: 'RA',
+                    value: _formatRA(coords.ra),
+                    colors: colors,
+                  ),
+                ),
+                Expanded(
+                  child: _MobileInfoRow(
+                    label: 'Dec',
+                    value: _formatDec(coords.dec),
+                    colors: colors,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        const SizedBox(height: 12),
+
+        // Current position
+        if (altAz != null)
+          _MobileInfoCard(
+            title: 'Current Position',
+            colors: colors,
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MobileInfoRow(
+                    label: 'Altitude',
+                    value: altAz.$1.toStringAsFixed(1),
+                    colors: colors,
+                    valueColor: altAz.$1 > 30
+                        ? colors.success
+                        : altAz.$1 > 0
+                            ? colors.warning
+                            : colors.error,
+                  ),
+                ),
+                Expanded(
+                  child: _MobileInfoRow(
+                    label: 'Azimuth',
+                    value: altAz.$2.toStringAsFixed(1),
+                    colors: colors,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: (altAz.$1 > 30 ? colors.success : altAz.$1 > 0 ? colors.warning : colors.error)
+                        .withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    altAz.$1 > 30
+                        ? 'Excellent'
+                        : altAz.$1 > 15
+                            ? 'Good'
+                            : altAz.$1 > 0
+                                ? 'Low'
+                                : 'Below',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: altAz.$1 > 30 ? colors.success : altAz.$1 > 0 ? colors.warning : colors.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        const SizedBox(height: 20),
+
+        // Action buttons
+        Row(
+          children: [
+            Expanded(
+              child: _MobileActionButton(
+                icon: LucideIcons.crosshair,
+                label: 'Slew',
+                colors: colors,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onSlewToTarget();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _MobileActionButton(
+                icon: LucideIcons.target,
+                label: 'Center',
+                colors: colors,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onSlewAndCenter();
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _MobileActionButton(
+                icon: LucideIcons.frame,
+                label: 'Framing',
+                colors: colors,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onSendToFraming();
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _MobileActionButton(
+                icon: LucideIcons.listPlus,
+                label: 'Add to Sequence',
+                colors: colors,
+                isPrimary: true,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onAddToSequencer();
+                },
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  String _formatRA(double ra) {
+    final h = ra.floor();
+    final m = ((ra - h) * 60).floor();
+    final s = (((ra - h) * 60 - m) * 60).toStringAsFixed(1);
+    return '${h}h ${m}m ${s}s';
+  }
+
+  String _formatDec(double dec) {
+    final sign = dec >= 0 ? '+' : '-';
+    final d = dec.abs().floor();
+    final m = ((dec.abs() - d) * 60).floor();
+    return "$sign$d $m'";
+  }
+}
+
+/// Mobile info card container
+class _MobileInfoCard extends StatelessWidget {
+  final String title;
+  final NightshadeColors colors;
+  final Widget child;
+
+  const _MobileInfoCard({
+    required this.title,
+    required this.colors,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: colors.textMuted,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+/// Mobile info row
+class _MobileInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+  final Color? valueColor;
+
+  const _MobileInfoRow({
+    required this.label,
+    required this.value,
+    required this.colors,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: colors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: valueColor ?? colors.textPrimary,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Mobile action button
+class _MobileActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final NightshadeColors colors;
+  final bool isPrimary;
+  final VoidCallback onTap;
+
+  const _MobileActionButton({
+    required this.icon,
+    required this.label,
+    required this.colors,
+    this.isPrimary = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          gradient: isPrimary
+              ? LinearGradient(
+                  colors: [colors.primary, colors.primary.withValues(alpha: 0.8)],
+                )
+              : null,
+          color: isPrimary ? null : colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(10),
+          border: isPrimary ? null : Border.all(color: colors.border),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isPrimary ? Colors.white : colors.textPrimary,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isPrimary ? Colors.white : colors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Mobile search bottom sheet
+class _MobileSearchSheet extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+  final ScrollController scrollController;
+  final ValueChanged<CelestialObject> onObjectSelected;
+
+  const _MobileSearchSheet({
+    required this.colors,
+    required this.scrollController,
+    required this.onObjectSelected,
+  });
+
+  @override
+  ConsumerState<_MobileSearchSheet> createState() => _MobileSearchSheetState();
+}
+
+class _MobileSearchSheetState extends ConsumerState<_MobileSearchSheet> {
+  final _searchController = TextEditingController();
+  Timer? _debounceTimer;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    if (value.length >= 2) {
+      _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+        ref.read(objectSearchProvider.notifier).search(value);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final searchState = ref.watch(objectSearchProvider);
+
+    return Column(
+      children: [
+        // Search input
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            controller: _searchController,
+            autofocus: true,
+            style: TextStyle(fontSize: 14, color: widget.colors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'Search objects (M42, Orion, etc.)',
+              hintStyle: TextStyle(fontSize: 14, color: widget.colors.textMuted),
+              prefixIcon: Icon(LucideIcons.search, size: 18, color: widget.colors.textMuted),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(LucideIcons.x, size: 18, color: widget.colors.textMuted),
+                      onPressed: () {
+                        _searchController.clear();
+                        ref.read(objectSearchProvider.notifier).clear();
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: widget.colors.surfaceAlt,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: widget.colors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: widget.colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: widget.colors.primary),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            onChanged: _onSearchChanged,
+          ),
+        ),
+
+        // Results
+        Expanded(
+          child: _buildResults(searchState),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResults(ObjectSearchState searchState) {
+    if (_searchController.text.isEmpty) {
+      // Show quick picks when no search
+      return _buildQuickPicks();
+    }
+
+    if (searchState.isSearching) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (searchState.results.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.searchX, size: 48, color: widget.colors.textMuted),
+            const SizedBox(height: 16),
+            Text(
+              'No results found',
+              style: TextStyle(color: widget.colors.textMuted),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: searchState.results.length,
+      itemBuilder: (context, index) {
+        final obj = searchState.results[index];
+        return _MobileSearchResultTile(
+          object: obj,
+          colors: widget.colors,
+          onTap: () => widget.onObjectSelected(obj),
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickPicks() {
+    final bestTargets = ref.watch(bestTargetsProvider);
+
+    return ListView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
+        Text(
+          'Best Targets Tonight',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: widget.colors.textMuted,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        bestTargets.when(
+          data: (targets) {
+            if (targets.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Text(
+                    'No targets above 30 tonight',
+                    style: TextStyle(color: widget.colors.textMuted),
+                  ),
+                ),
+              );
+            }
+            return Column(
+              children: targets.take(10).map((item) {
+                final (dso, _) = item;
+                return _MobileSearchResultTile(
+                  object: dso,
+                  colors: widget.colors,
+                  onTap: () => widget.onObjectSelected(dso),
+                );
+              }).toList(),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(
+            child: Text('Error: $e', style: TextStyle(color: widget.colors.error)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Mobile search result tile
+class _MobileSearchResultTile extends StatelessWidget {
+  final CelestialObject object;
+  final NightshadeColors colors;
+  final VoidCallback onTap;
+
+  const _MobileSearchResultTile({
+    required this.object,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    String displayName;
+    String catalogTag;
+    String typeName;
+
+    if (object is DeepSkyObject) {
+      final info = getDsoDisplayInfo(object as DeepSkyObject);
+      displayName = info.$1;
+      catalogTag = info.$2;
+      typeName = (object as DeepSkyObject).type.displayName;
+    } else if (object is Star) {
+      displayName = object.name;
+      catalogTag = 'STAR';
+      typeName = 'Star';
+    } else {
+      displayName = object.name;
+      catalogTag = object.id;
+      typeName = 'Object';
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                catalogTag,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: colors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    typeName,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (object.magnitude != null)
+              Text(
+                'mag ${object.magnitude!.toStringAsFixed(1)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textSecondary,
+                ),
+              ),
+            const SizedBox(width: 8),
+            Icon(
+              LucideIcons.chevronRight,
+              size: 16,
+              color: colors.textMuted,
+            ),
+          ],
+        ),
       ),
     );
   }

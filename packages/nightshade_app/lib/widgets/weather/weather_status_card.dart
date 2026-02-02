@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../tutorial_keys/weather_keys.dart';
+
 /// Weather status card showing current conditions and alerts
 class WeatherStatusCard extends ConsumerStatefulWidget {
   /// Current weather alert (if any)
@@ -377,6 +379,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
     final cardinal = _degreesToCardinal(motion.directionDegrees);
 
     return Column(
+      key: WeatherTutorialKeys.cloudMotion,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Cloud metrics row

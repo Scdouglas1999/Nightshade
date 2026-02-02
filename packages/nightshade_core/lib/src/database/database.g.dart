@@ -2146,863 +2146,6 @@ class TargetsCompanion extends UpdateCompanion<Target> {
   }
 }
 
-class $ImagingSessionsTable extends ImagingSessions
-    with TableInfo<$ImagingSessionsTable, ImagingSession> {
-  @override
-  final GeneratedDatabase attachedDatabase;
-  final String? _alias;
-  $ImagingSessionsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _idMeta = const VerificationMeta('id');
-  @override
-  late final GeneratedColumn<int> id = GeneratedColumn<int>(
-      'id', aliasedName, false,
-      hasAutoIncrement: true,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
-  static const VerificationMeta _nameMeta = const VerificationMeta('name');
-  @override
-  late final GeneratedColumn<String> name = GeneratedColumn<String>(
-      'name', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _profileIdMeta =
-      const VerificationMeta('profileId');
-  @override
-  late final GeneratedColumn<int> profileId = GeneratedColumn<int>(
-      'profile_id', aliasedName, true,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultConstraints: GeneratedColumn.constraintIsAlways(
-          'REFERENCES equipment_profiles (id)'));
-  static const VerificationMeta _targetIdMeta =
-      const VerificationMeta('targetId');
-  @override
-  late final GeneratedColumn<int> targetId = GeneratedColumn<int>(
-      'target_id', aliasedName, true,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('REFERENCES targets (id)'));
-  static const VerificationMeta _startTimeMeta =
-      const VerificationMeta('startTime');
-  @override
-  late final GeneratedColumn<DateTime> startTime = GeneratedColumn<DateTime>(
-      'start_time', aliasedName, false,
-      type: DriftSqlType.dateTime, requiredDuringInsert: true);
-  static const VerificationMeta _endTimeMeta =
-      const VerificationMeta('endTime');
-  @override
-  late final GeneratedColumn<DateTime> endTime = GeneratedColumn<DateTime>(
-      'end_time', aliasedName, true,
-      type: DriftSqlType.dateTime, requiredDuringInsert: false);
-  static const VerificationMeta _totalExposuresMeta =
-      const VerificationMeta('totalExposures');
-  @override
-  late final GeneratedColumn<int> totalExposures = GeneratedColumn<int>(
-      'total_exposures', aliasedName, false,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultValue: const Constant(0));
-  static const VerificationMeta _successfulExposuresMeta =
-      const VerificationMeta('successfulExposures');
-  @override
-  late final GeneratedColumn<int> successfulExposures = GeneratedColumn<int>(
-      'successful_exposures', aliasedName, false,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultValue: const Constant(0));
-  static const VerificationMeta _failedExposuresMeta =
-      const VerificationMeta('failedExposures');
-  @override
-  late final GeneratedColumn<int> failedExposures = GeneratedColumn<int>(
-      'failed_exposures', aliasedName, false,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultValue: const Constant(0));
-  static const VerificationMeta _totalIntegrationSecsMeta =
-      const VerificationMeta('totalIntegrationSecs');
-  @override
-  late final GeneratedColumn<double> totalIntegrationSecs =
-      GeneratedColumn<double>('total_integration_secs', aliasedName, false,
-          type: DriftSqlType.double,
-          requiredDuringInsert: false,
-          defaultValue: const Constant(0.0));
-  static const VerificationMeta _avgTemperatureMeta =
-      const VerificationMeta('avgTemperature');
-  @override
-  late final GeneratedColumn<double> avgTemperature = GeneratedColumn<double>(
-      'avg_temperature', aliasedName, true,
-      type: DriftSqlType.double, requiredDuringInsert: false);
-  static const VerificationMeta _avgHumidityMeta =
-      const VerificationMeta('avgHumidity');
-  @override
-  late final GeneratedColumn<double> avgHumidity = GeneratedColumn<double>(
-      'avg_humidity', aliasedName, true,
-      type: DriftSqlType.double, requiredDuringInsert: false);
-  static const VerificationMeta _avgSeeingMeta =
-      const VerificationMeta('avgSeeing');
-  @override
-  late final GeneratedColumn<double> avgSeeing = GeneratedColumn<double>(
-      'avg_seeing', aliasedName, true,
-      type: DriftSqlType.double, requiredDuringInsert: false);
-  static const VerificationMeta _avgHfrMeta = const VerificationMeta('avgHfr');
-  @override
-  late final GeneratedColumn<double> avgHfr = GeneratedColumn<double>(
-      'avg_hfr', aliasedName, true,
-      type: DriftSqlType.double, requiredDuringInsert: false);
-  static const VerificationMeta _avgGuidingRmsMeta =
-      const VerificationMeta('avgGuidingRms');
-  @override
-  late final GeneratedColumn<double> avgGuidingRms = GeneratedColumn<double>(
-      'avg_guiding_rms', aliasedName, true,
-      type: DriftSqlType.double, requiredDuringInsert: false);
-  static const VerificationMeta _autofocusCountMeta =
-      const VerificationMeta('autofocusCount');
-  @override
-  late final GeneratedColumn<int> autofocusCount = GeneratedColumn<int>(
-      'autofocus_count', aliasedName, false,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultValue: const Constant(0));
-  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
-  @override
-  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
-      'notes', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _statusMeta = const VerificationMeta('status');
-  @override
-  late final GeneratedColumn<String> status = GeneratedColumn<String>(
-      'status', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: false,
-      defaultValue: const Constant('completed'));
-  @override
-  List<GeneratedColumn> get $columns => [
-        id,
-        name,
-        profileId,
-        targetId,
-        startTime,
-        endTime,
-        totalExposures,
-        successfulExposures,
-        failedExposures,
-        totalIntegrationSecs,
-        avgTemperature,
-        avgHumidity,
-        avgSeeing,
-        avgHfr,
-        avgGuidingRms,
-        autofocusCount,
-        notes,
-        status
-      ];
-  @override
-  String get aliasedName => _alias ?? actualTableName;
-  @override
-  String get actualTableName => $name;
-  static const String $name = 'imaging_sessions';
-  @override
-  VerificationContext validateIntegrity(Insertable<ImagingSession> instance,
-      {bool isInserting = false}) {
-    final context = VerificationContext();
-    final data = instance.toColumns(true);
-    if (data.containsKey('id')) {
-      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
-    }
-    if (data.containsKey('name')) {
-      context.handle(
-          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
-    }
-    if (data.containsKey('profile_id')) {
-      context.handle(_profileIdMeta,
-          profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta));
-    }
-    if (data.containsKey('target_id')) {
-      context.handle(_targetIdMeta,
-          targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta));
-    }
-    if (data.containsKey('start_time')) {
-      context.handle(_startTimeMeta,
-          startTime.isAcceptableOrUnknown(data['start_time']!, _startTimeMeta));
-    } else if (isInserting) {
-      context.missing(_startTimeMeta);
-    }
-    if (data.containsKey('end_time')) {
-      context.handle(_endTimeMeta,
-          endTime.isAcceptableOrUnknown(data['end_time']!, _endTimeMeta));
-    }
-    if (data.containsKey('total_exposures')) {
-      context.handle(
-          _totalExposuresMeta,
-          totalExposures.isAcceptableOrUnknown(
-              data['total_exposures']!, _totalExposuresMeta));
-    }
-    if (data.containsKey('successful_exposures')) {
-      context.handle(
-          _successfulExposuresMeta,
-          successfulExposures.isAcceptableOrUnknown(
-              data['successful_exposures']!, _successfulExposuresMeta));
-    }
-    if (data.containsKey('failed_exposures')) {
-      context.handle(
-          _failedExposuresMeta,
-          failedExposures.isAcceptableOrUnknown(
-              data['failed_exposures']!, _failedExposuresMeta));
-    }
-    if (data.containsKey('total_integration_secs')) {
-      context.handle(
-          _totalIntegrationSecsMeta,
-          totalIntegrationSecs.isAcceptableOrUnknown(
-              data['total_integration_secs']!, _totalIntegrationSecsMeta));
-    }
-    if (data.containsKey('avg_temperature')) {
-      context.handle(
-          _avgTemperatureMeta,
-          avgTemperature.isAcceptableOrUnknown(
-              data['avg_temperature']!, _avgTemperatureMeta));
-    }
-    if (data.containsKey('avg_humidity')) {
-      context.handle(
-          _avgHumidityMeta,
-          avgHumidity.isAcceptableOrUnknown(
-              data['avg_humidity']!, _avgHumidityMeta));
-    }
-    if (data.containsKey('avg_seeing')) {
-      context.handle(_avgSeeingMeta,
-          avgSeeing.isAcceptableOrUnknown(data['avg_seeing']!, _avgSeeingMeta));
-    }
-    if (data.containsKey('avg_hfr')) {
-      context.handle(_avgHfrMeta,
-          avgHfr.isAcceptableOrUnknown(data['avg_hfr']!, _avgHfrMeta));
-    }
-    if (data.containsKey('avg_guiding_rms')) {
-      context.handle(
-          _avgGuidingRmsMeta,
-          avgGuidingRms.isAcceptableOrUnknown(
-              data['avg_guiding_rms']!, _avgGuidingRmsMeta));
-    }
-    if (data.containsKey('autofocus_count')) {
-      context.handle(
-          _autofocusCountMeta,
-          autofocusCount.isAcceptableOrUnknown(
-              data['autofocus_count']!, _autofocusCountMeta));
-    }
-    if (data.containsKey('notes')) {
-      context.handle(
-          _notesMeta, notes.isAcceptableOrUnknown(data['notes']!, _notesMeta));
-    }
-    if (data.containsKey('status')) {
-      context.handle(_statusMeta,
-          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
-    }
-    return context;
-  }
-
-  @override
-  Set<GeneratedColumn> get $primaryKey => {id};
-  @override
-  ImagingSession map(Map<String, dynamic> data, {String? tablePrefix}) {
-    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return ImagingSession(
-      id: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
-      name: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}name']),
-      profileId: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}profile_id']),
-      targetId: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}target_id']),
-      startTime: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}start_time'])!,
-      endTime: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}end_time']),
-      totalExposures: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}total_exposures'])!,
-      successfulExposures: attachedDatabase.typeMapping.read(
-          DriftSqlType.int, data['${effectivePrefix}successful_exposures'])!,
-      failedExposures: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}failed_exposures'])!,
-      totalIntegrationSecs: attachedDatabase.typeMapping.read(
-          DriftSqlType.double,
-          data['${effectivePrefix}total_integration_secs'])!,
-      avgTemperature: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}avg_temperature']),
-      avgHumidity: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}avg_humidity']),
-      avgSeeing: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}avg_seeing']),
-      avgHfr: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}avg_hfr']),
-      avgGuidingRms: attachedDatabase.typeMapping
-          .read(DriftSqlType.double, data['${effectivePrefix}avg_guiding_rms']),
-      autofocusCount: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}autofocus_count'])!,
-      notes: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}notes']),
-      status: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
-    );
-  }
-
-  @override
-  $ImagingSessionsTable createAlias(String alias) {
-    return $ImagingSessionsTable(attachedDatabase, alias);
-  }
-}
-
-class ImagingSession extends DataClass implements Insertable<ImagingSession> {
-  final int id;
-  final String? name;
-  final int? profileId;
-  final int? targetId;
-  final DateTime startTime;
-  final DateTime? endTime;
-  final int totalExposures;
-  final int successfulExposures;
-  final int failedExposures;
-  final double totalIntegrationSecs;
-  final double? avgTemperature;
-  final double? avgHumidity;
-  final double? avgSeeing;
-  final double? avgHfr;
-  final double? avgGuidingRms;
-  final int autofocusCount;
-  final String? notes;
-  final String status;
-  const ImagingSession(
-      {required this.id,
-      this.name,
-      this.profileId,
-      this.targetId,
-      required this.startTime,
-      this.endTime,
-      required this.totalExposures,
-      required this.successfulExposures,
-      required this.failedExposures,
-      required this.totalIntegrationSecs,
-      this.avgTemperature,
-      this.avgHumidity,
-      this.avgSeeing,
-      this.avgHfr,
-      this.avgGuidingRms,
-      required this.autofocusCount,
-      this.notes,
-      required this.status});
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    map['id'] = Variable<int>(id);
-    if (!nullToAbsent || name != null) {
-      map['name'] = Variable<String>(name);
-    }
-    if (!nullToAbsent || profileId != null) {
-      map['profile_id'] = Variable<int>(profileId);
-    }
-    if (!nullToAbsent || targetId != null) {
-      map['target_id'] = Variable<int>(targetId);
-    }
-    map['start_time'] = Variable<DateTime>(startTime);
-    if (!nullToAbsent || endTime != null) {
-      map['end_time'] = Variable<DateTime>(endTime);
-    }
-    map['total_exposures'] = Variable<int>(totalExposures);
-    map['successful_exposures'] = Variable<int>(successfulExposures);
-    map['failed_exposures'] = Variable<int>(failedExposures);
-    map['total_integration_secs'] = Variable<double>(totalIntegrationSecs);
-    if (!nullToAbsent || avgTemperature != null) {
-      map['avg_temperature'] = Variable<double>(avgTemperature);
-    }
-    if (!nullToAbsent || avgHumidity != null) {
-      map['avg_humidity'] = Variable<double>(avgHumidity);
-    }
-    if (!nullToAbsent || avgSeeing != null) {
-      map['avg_seeing'] = Variable<double>(avgSeeing);
-    }
-    if (!nullToAbsent || avgHfr != null) {
-      map['avg_hfr'] = Variable<double>(avgHfr);
-    }
-    if (!nullToAbsent || avgGuidingRms != null) {
-      map['avg_guiding_rms'] = Variable<double>(avgGuidingRms);
-    }
-    map['autofocus_count'] = Variable<int>(autofocusCount);
-    if (!nullToAbsent || notes != null) {
-      map['notes'] = Variable<String>(notes);
-    }
-    map['status'] = Variable<String>(status);
-    return map;
-  }
-
-  ImagingSessionsCompanion toCompanion(bool nullToAbsent) {
-    return ImagingSessionsCompanion(
-      id: Value(id),
-      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
-      profileId: profileId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(profileId),
-      targetId: targetId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(targetId),
-      startTime: Value(startTime),
-      endTime: endTime == null && nullToAbsent
-          ? const Value.absent()
-          : Value(endTime),
-      totalExposures: Value(totalExposures),
-      successfulExposures: Value(successfulExposures),
-      failedExposures: Value(failedExposures),
-      totalIntegrationSecs: Value(totalIntegrationSecs),
-      avgTemperature: avgTemperature == null && nullToAbsent
-          ? const Value.absent()
-          : Value(avgTemperature),
-      avgHumidity: avgHumidity == null && nullToAbsent
-          ? const Value.absent()
-          : Value(avgHumidity),
-      avgSeeing: avgSeeing == null && nullToAbsent
-          ? const Value.absent()
-          : Value(avgSeeing),
-      avgHfr:
-          avgHfr == null && nullToAbsent ? const Value.absent() : Value(avgHfr),
-      avgGuidingRms: avgGuidingRms == null && nullToAbsent
-          ? const Value.absent()
-          : Value(avgGuidingRms),
-      autofocusCount: Value(autofocusCount),
-      notes:
-          notes == null && nullToAbsent ? const Value.absent() : Value(notes),
-      status: Value(status),
-    );
-  }
-
-  factory ImagingSession.fromJson(Map<String, dynamic> json,
-      {ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return ImagingSession(
-      id: serializer.fromJson<int>(json['id']),
-      name: serializer.fromJson<String?>(json['name']),
-      profileId: serializer.fromJson<int?>(json['profileId']),
-      targetId: serializer.fromJson<int?>(json['targetId']),
-      startTime: serializer.fromJson<DateTime>(json['startTime']),
-      endTime: serializer.fromJson<DateTime?>(json['endTime']),
-      totalExposures: serializer.fromJson<int>(json['totalExposures']),
-      successfulExposures:
-          serializer.fromJson<int>(json['successfulExposures']),
-      failedExposures: serializer.fromJson<int>(json['failedExposures']),
-      totalIntegrationSecs:
-          serializer.fromJson<double>(json['totalIntegrationSecs']),
-      avgTemperature: serializer.fromJson<double?>(json['avgTemperature']),
-      avgHumidity: serializer.fromJson<double?>(json['avgHumidity']),
-      avgSeeing: serializer.fromJson<double?>(json['avgSeeing']),
-      avgHfr: serializer.fromJson<double?>(json['avgHfr']),
-      avgGuidingRms: serializer.fromJson<double?>(json['avgGuidingRms']),
-      autofocusCount: serializer.fromJson<int>(json['autofocusCount']),
-      notes: serializer.fromJson<String?>(json['notes']),
-      status: serializer.fromJson<String>(json['status']),
-    );
-  }
-  @override
-  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
-    serializer ??= driftRuntimeOptions.defaultSerializer;
-    return <String, dynamic>{
-      'id': serializer.toJson<int>(id),
-      'name': serializer.toJson<String?>(name),
-      'profileId': serializer.toJson<int?>(profileId),
-      'targetId': serializer.toJson<int?>(targetId),
-      'startTime': serializer.toJson<DateTime>(startTime),
-      'endTime': serializer.toJson<DateTime?>(endTime),
-      'totalExposures': serializer.toJson<int>(totalExposures),
-      'successfulExposures': serializer.toJson<int>(successfulExposures),
-      'failedExposures': serializer.toJson<int>(failedExposures),
-      'totalIntegrationSecs': serializer.toJson<double>(totalIntegrationSecs),
-      'avgTemperature': serializer.toJson<double?>(avgTemperature),
-      'avgHumidity': serializer.toJson<double?>(avgHumidity),
-      'avgSeeing': serializer.toJson<double?>(avgSeeing),
-      'avgHfr': serializer.toJson<double?>(avgHfr),
-      'avgGuidingRms': serializer.toJson<double?>(avgGuidingRms),
-      'autofocusCount': serializer.toJson<int>(autofocusCount),
-      'notes': serializer.toJson<String?>(notes),
-      'status': serializer.toJson<String>(status),
-    };
-  }
-
-  ImagingSession copyWith(
-          {int? id,
-          Value<String?> name = const Value.absent(),
-          Value<int?> profileId = const Value.absent(),
-          Value<int?> targetId = const Value.absent(),
-          DateTime? startTime,
-          Value<DateTime?> endTime = const Value.absent(),
-          int? totalExposures,
-          int? successfulExposures,
-          int? failedExposures,
-          double? totalIntegrationSecs,
-          Value<double?> avgTemperature = const Value.absent(),
-          Value<double?> avgHumidity = const Value.absent(),
-          Value<double?> avgSeeing = const Value.absent(),
-          Value<double?> avgHfr = const Value.absent(),
-          Value<double?> avgGuidingRms = const Value.absent(),
-          int? autofocusCount,
-          Value<String?> notes = const Value.absent(),
-          String? status}) =>
-      ImagingSession(
-        id: id ?? this.id,
-        name: name.present ? name.value : this.name,
-        profileId: profileId.present ? profileId.value : this.profileId,
-        targetId: targetId.present ? targetId.value : this.targetId,
-        startTime: startTime ?? this.startTime,
-        endTime: endTime.present ? endTime.value : this.endTime,
-        totalExposures: totalExposures ?? this.totalExposures,
-        successfulExposures: successfulExposures ?? this.successfulExposures,
-        failedExposures: failedExposures ?? this.failedExposures,
-        totalIntegrationSecs: totalIntegrationSecs ?? this.totalIntegrationSecs,
-        avgTemperature:
-            avgTemperature.present ? avgTemperature.value : this.avgTemperature,
-        avgHumidity: avgHumidity.present ? avgHumidity.value : this.avgHumidity,
-        avgSeeing: avgSeeing.present ? avgSeeing.value : this.avgSeeing,
-        avgHfr: avgHfr.present ? avgHfr.value : this.avgHfr,
-        avgGuidingRms:
-            avgGuidingRms.present ? avgGuidingRms.value : this.avgGuidingRms,
-        autofocusCount: autofocusCount ?? this.autofocusCount,
-        notes: notes.present ? notes.value : this.notes,
-        status: status ?? this.status,
-      );
-  ImagingSession copyWithCompanion(ImagingSessionsCompanion data) {
-    return ImagingSession(
-      id: data.id.present ? data.id.value : this.id,
-      name: data.name.present ? data.name.value : this.name,
-      profileId: data.profileId.present ? data.profileId.value : this.profileId,
-      targetId: data.targetId.present ? data.targetId.value : this.targetId,
-      startTime: data.startTime.present ? data.startTime.value : this.startTime,
-      endTime: data.endTime.present ? data.endTime.value : this.endTime,
-      totalExposures: data.totalExposures.present
-          ? data.totalExposures.value
-          : this.totalExposures,
-      successfulExposures: data.successfulExposures.present
-          ? data.successfulExposures.value
-          : this.successfulExposures,
-      failedExposures: data.failedExposures.present
-          ? data.failedExposures.value
-          : this.failedExposures,
-      totalIntegrationSecs: data.totalIntegrationSecs.present
-          ? data.totalIntegrationSecs.value
-          : this.totalIntegrationSecs,
-      avgTemperature: data.avgTemperature.present
-          ? data.avgTemperature.value
-          : this.avgTemperature,
-      avgHumidity:
-          data.avgHumidity.present ? data.avgHumidity.value : this.avgHumidity,
-      avgSeeing: data.avgSeeing.present ? data.avgSeeing.value : this.avgSeeing,
-      avgHfr: data.avgHfr.present ? data.avgHfr.value : this.avgHfr,
-      avgGuidingRms: data.avgGuidingRms.present
-          ? data.avgGuidingRms.value
-          : this.avgGuidingRms,
-      autofocusCount: data.autofocusCount.present
-          ? data.autofocusCount.value
-          : this.autofocusCount,
-      notes: data.notes.present ? data.notes.value : this.notes,
-      status: data.status.present ? data.status.value : this.status,
-    );
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ImagingSession(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('profileId: $profileId, ')
-          ..write('targetId: $targetId, ')
-          ..write('startTime: $startTime, ')
-          ..write('endTime: $endTime, ')
-          ..write('totalExposures: $totalExposures, ')
-          ..write('successfulExposures: $successfulExposures, ')
-          ..write('failedExposures: $failedExposures, ')
-          ..write('totalIntegrationSecs: $totalIntegrationSecs, ')
-          ..write('avgTemperature: $avgTemperature, ')
-          ..write('avgHumidity: $avgHumidity, ')
-          ..write('avgSeeing: $avgSeeing, ')
-          ..write('avgHfr: $avgHfr, ')
-          ..write('avgGuidingRms: $avgGuidingRms, ')
-          ..write('autofocusCount: $autofocusCount, ')
-          ..write('notes: $notes, ')
-          ..write('status: $status')
-          ..write(')'))
-        .toString();
-  }
-
-  @override
-  int get hashCode => Object.hash(
-      id,
-      name,
-      profileId,
-      targetId,
-      startTime,
-      endTime,
-      totalExposures,
-      successfulExposures,
-      failedExposures,
-      totalIntegrationSecs,
-      avgTemperature,
-      avgHumidity,
-      avgSeeing,
-      avgHfr,
-      avgGuidingRms,
-      autofocusCount,
-      notes,
-      status);
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is ImagingSession &&
-          other.id == this.id &&
-          other.name == this.name &&
-          other.profileId == this.profileId &&
-          other.targetId == this.targetId &&
-          other.startTime == this.startTime &&
-          other.endTime == this.endTime &&
-          other.totalExposures == this.totalExposures &&
-          other.successfulExposures == this.successfulExposures &&
-          other.failedExposures == this.failedExposures &&
-          other.totalIntegrationSecs == this.totalIntegrationSecs &&
-          other.avgTemperature == this.avgTemperature &&
-          other.avgHumidity == this.avgHumidity &&
-          other.avgSeeing == this.avgSeeing &&
-          other.avgHfr == this.avgHfr &&
-          other.avgGuidingRms == this.avgGuidingRms &&
-          other.autofocusCount == this.autofocusCount &&
-          other.notes == this.notes &&
-          other.status == this.status);
-}
-
-class ImagingSessionsCompanion extends UpdateCompanion<ImagingSession> {
-  final Value<int> id;
-  final Value<String?> name;
-  final Value<int?> profileId;
-  final Value<int?> targetId;
-  final Value<DateTime> startTime;
-  final Value<DateTime?> endTime;
-  final Value<int> totalExposures;
-  final Value<int> successfulExposures;
-  final Value<int> failedExposures;
-  final Value<double> totalIntegrationSecs;
-  final Value<double?> avgTemperature;
-  final Value<double?> avgHumidity;
-  final Value<double?> avgSeeing;
-  final Value<double?> avgHfr;
-  final Value<double?> avgGuidingRms;
-  final Value<int> autofocusCount;
-  final Value<String?> notes;
-  final Value<String> status;
-  const ImagingSessionsCompanion({
-    this.id = const Value.absent(),
-    this.name = const Value.absent(),
-    this.profileId = const Value.absent(),
-    this.targetId = const Value.absent(),
-    this.startTime = const Value.absent(),
-    this.endTime = const Value.absent(),
-    this.totalExposures = const Value.absent(),
-    this.successfulExposures = const Value.absent(),
-    this.failedExposures = const Value.absent(),
-    this.totalIntegrationSecs = const Value.absent(),
-    this.avgTemperature = const Value.absent(),
-    this.avgHumidity = const Value.absent(),
-    this.avgSeeing = const Value.absent(),
-    this.avgHfr = const Value.absent(),
-    this.avgGuidingRms = const Value.absent(),
-    this.autofocusCount = const Value.absent(),
-    this.notes = const Value.absent(),
-    this.status = const Value.absent(),
-  });
-  ImagingSessionsCompanion.insert({
-    this.id = const Value.absent(),
-    this.name = const Value.absent(),
-    this.profileId = const Value.absent(),
-    this.targetId = const Value.absent(),
-    required DateTime startTime,
-    this.endTime = const Value.absent(),
-    this.totalExposures = const Value.absent(),
-    this.successfulExposures = const Value.absent(),
-    this.failedExposures = const Value.absent(),
-    this.totalIntegrationSecs = const Value.absent(),
-    this.avgTemperature = const Value.absent(),
-    this.avgHumidity = const Value.absent(),
-    this.avgSeeing = const Value.absent(),
-    this.avgHfr = const Value.absent(),
-    this.avgGuidingRms = const Value.absent(),
-    this.autofocusCount = const Value.absent(),
-    this.notes = const Value.absent(),
-    this.status = const Value.absent(),
-  }) : startTime = Value(startTime);
-  static Insertable<ImagingSession> custom({
-    Expression<int>? id,
-    Expression<String>? name,
-    Expression<int>? profileId,
-    Expression<int>? targetId,
-    Expression<DateTime>? startTime,
-    Expression<DateTime>? endTime,
-    Expression<int>? totalExposures,
-    Expression<int>? successfulExposures,
-    Expression<int>? failedExposures,
-    Expression<double>? totalIntegrationSecs,
-    Expression<double>? avgTemperature,
-    Expression<double>? avgHumidity,
-    Expression<double>? avgSeeing,
-    Expression<double>? avgHfr,
-    Expression<double>? avgGuidingRms,
-    Expression<int>? autofocusCount,
-    Expression<String>? notes,
-    Expression<String>? status,
-  }) {
-    return RawValuesInsertable({
-      if (id != null) 'id': id,
-      if (name != null) 'name': name,
-      if (profileId != null) 'profile_id': profileId,
-      if (targetId != null) 'target_id': targetId,
-      if (startTime != null) 'start_time': startTime,
-      if (endTime != null) 'end_time': endTime,
-      if (totalExposures != null) 'total_exposures': totalExposures,
-      if (successfulExposures != null)
-        'successful_exposures': successfulExposures,
-      if (failedExposures != null) 'failed_exposures': failedExposures,
-      if (totalIntegrationSecs != null)
-        'total_integration_secs': totalIntegrationSecs,
-      if (avgTemperature != null) 'avg_temperature': avgTemperature,
-      if (avgHumidity != null) 'avg_humidity': avgHumidity,
-      if (avgSeeing != null) 'avg_seeing': avgSeeing,
-      if (avgHfr != null) 'avg_hfr': avgHfr,
-      if (avgGuidingRms != null) 'avg_guiding_rms': avgGuidingRms,
-      if (autofocusCount != null) 'autofocus_count': autofocusCount,
-      if (notes != null) 'notes': notes,
-      if (status != null) 'status': status,
-    });
-  }
-
-  ImagingSessionsCompanion copyWith(
-      {Value<int>? id,
-      Value<String?>? name,
-      Value<int?>? profileId,
-      Value<int?>? targetId,
-      Value<DateTime>? startTime,
-      Value<DateTime?>? endTime,
-      Value<int>? totalExposures,
-      Value<int>? successfulExposures,
-      Value<int>? failedExposures,
-      Value<double>? totalIntegrationSecs,
-      Value<double?>? avgTemperature,
-      Value<double?>? avgHumidity,
-      Value<double?>? avgSeeing,
-      Value<double?>? avgHfr,
-      Value<double?>? avgGuidingRms,
-      Value<int>? autofocusCount,
-      Value<String?>? notes,
-      Value<String>? status}) {
-    return ImagingSessionsCompanion(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      profileId: profileId ?? this.profileId,
-      targetId: targetId ?? this.targetId,
-      startTime: startTime ?? this.startTime,
-      endTime: endTime ?? this.endTime,
-      totalExposures: totalExposures ?? this.totalExposures,
-      successfulExposures: successfulExposures ?? this.successfulExposures,
-      failedExposures: failedExposures ?? this.failedExposures,
-      totalIntegrationSecs: totalIntegrationSecs ?? this.totalIntegrationSecs,
-      avgTemperature: avgTemperature ?? this.avgTemperature,
-      avgHumidity: avgHumidity ?? this.avgHumidity,
-      avgSeeing: avgSeeing ?? this.avgSeeing,
-      avgHfr: avgHfr ?? this.avgHfr,
-      avgGuidingRms: avgGuidingRms ?? this.avgGuidingRms,
-      autofocusCount: autofocusCount ?? this.autofocusCount,
-      notes: notes ?? this.notes,
-      status: status ?? this.status,
-    );
-  }
-
-  @override
-  Map<String, Expression> toColumns(bool nullToAbsent) {
-    final map = <String, Expression>{};
-    if (id.present) {
-      map['id'] = Variable<int>(id.value);
-    }
-    if (name.present) {
-      map['name'] = Variable<String>(name.value);
-    }
-    if (profileId.present) {
-      map['profile_id'] = Variable<int>(profileId.value);
-    }
-    if (targetId.present) {
-      map['target_id'] = Variable<int>(targetId.value);
-    }
-    if (startTime.present) {
-      map['start_time'] = Variable<DateTime>(startTime.value);
-    }
-    if (endTime.present) {
-      map['end_time'] = Variable<DateTime>(endTime.value);
-    }
-    if (totalExposures.present) {
-      map['total_exposures'] = Variable<int>(totalExposures.value);
-    }
-    if (successfulExposures.present) {
-      map['successful_exposures'] = Variable<int>(successfulExposures.value);
-    }
-    if (failedExposures.present) {
-      map['failed_exposures'] = Variable<int>(failedExposures.value);
-    }
-    if (totalIntegrationSecs.present) {
-      map['total_integration_secs'] =
-          Variable<double>(totalIntegrationSecs.value);
-    }
-    if (avgTemperature.present) {
-      map['avg_temperature'] = Variable<double>(avgTemperature.value);
-    }
-    if (avgHumidity.present) {
-      map['avg_humidity'] = Variable<double>(avgHumidity.value);
-    }
-    if (avgSeeing.present) {
-      map['avg_seeing'] = Variable<double>(avgSeeing.value);
-    }
-    if (avgHfr.present) {
-      map['avg_hfr'] = Variable<double>(avgHfr.value);
-    }
-    if (avgGuidingRms.present) {
-      map['avg_guiding_rms'] = Variable<double>(avgGuidingRms.value);
-    }
-    if (autofocusCount.present) {
-      map['autofocus_count'] = Variable<int>(autofocusCount.value);
-    }
-    if (notes.present) {
-      map['notes'] = Variable<String>(notes.value);
-    }
-    if (status.present) {
-      map['status'] = Variable<String>(status.value);
-    }
-    return map;
-  }
-
-  @override
-  String toString() {
-    return (StringBuffer('ImagingSessionsCompanion(')
-          ..write('id: $id, ')
-          ..write('name: $name, ')
-          ..write('profileId: $profileId, ')
-          ..write('targetId: $targetId, ')
-          ..write('startTime: $startTime, ')
-          ..write('endTime: $endTime, ')
-          ..write('totalExposures: $totalExposures, ')
-          ..write('successfulExposures: $successfulExposures, ')
-          ..write('failedExposures: $failedExposures, ')
-          ..write('totalIntegrationSecs: $totalIntegrationSecs, ')
-          ..write('avgTemperature: $avgTemperature, ')
-          ..write('avgHumidity: $avgHumidity, ')
-          ..write('avgSeeing: $avgSeeing, ')
-          ..write('avgHfr: $avgHfr, ')
-          ..write('avgGuidingRms: $avgGuidingRms, ')
-          ..write('autofocusCount: $autofocusCount, ')
-          ..write('notes: $notes, ')
-          ..write('status: $status')
-          ..write(')'))
-        .toString();
-  }
-}
-
 class $SequencesTable extends Sequences
     with TableInfo<$SequencesTable, Sequence> {
   @override
@@ -3437,6 +2580,956 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isTemplate: $isTemplate')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ImagingSessionsTable extends ImagingSessions
+    with TableInfo<$ImagingSessionsTable, ImagingSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ImagingSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+      'name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _profileIdMeta =
+      const VerificationMeta('profileId');
+  @override
+  late final GeneratedColumn<int> profileId = GeneratedColumn<int>(
+      'profile_id', aliasedName, true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES equipment_profiles (id)'));
+  static const VerificationMeta _targetIdMeta =
+      const VerificationMeta('targetId');
+  @override
+  late final GeneratedColumn<int> targetId = GeneratedColumn<int>(
+      'target_id', aliasedName, true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES targets (id)'));
+  static const VerificationMeta _startTimeMeta =
+      const VerificationMeta('startTime');
+  @override
+  late final GeneratedColumn<DateTime> startTime = GeneratedColumn<DateTime>(
+      'start_time', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _endTimeMeta =
+      const VerificationMeta('endTime');
+  @override
+  late final GeneratedColumn<DateTime> endTime = GeneratedColumn<DateTime>(
+      'end_time', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _totalExposuresMeta =
+      const VerificationMeta('totalExposures');
+  @override
+  late final GeneratedColumn<int> totalExposures = GeneratedColumn<int>(
+      'total_exposures', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _successfulExposuresMeta =
+      const VerificationMeta('successfulExposures');
+  @override
+  late final GeneratedColumn<int> successfulExposures = GeneratedColumn<int>(
+      'successful_exposures', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _failedExposuresMeta =
+      const VerificationMeta('failedExposures');
+  @override
+  late final GeneratedColumn<int> failedExposures = GeneratedColumn<int>(
+      'failed_exposures', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _totalIntegrationSecsMeta =
+      const VerificationMeta('totalIntegrationSecs');
+  @override
+  late final GeneratedColumn<double> totalIntegrationSecs =
+      GeneratedColumn<double>('total_integration_secs', aliasedName, false,
+          type: DriftSqlType.double,
+          requiredDuringInsert: false,
+          defaultValue: const Constant(0.0));
+  static const VerificationMeta _avgTemperatureMeta =
+      const VerificationMeta('avgTemperature');
+  @override
+  late final GeneratedColumn<double> avgTemperature = GeneratedColumn<double>(
+      'avg_temperature', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _avgHumidityMeta =
+      const VerificationMeta('avgHumidity');
+  @override
+  late final GeneratedColumn<double> avgHumidity = GeneratedColumn<double>(
+      'avg_humidity', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _avgSeeingMeta =
+      const VerificationMeta('avgSeeing');
+  @override
+  late final GeneratedColumn<double> avgSeeing = GeneratedColumn<double>(
+      'avg_seeing', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _avgHfrMeta = const VerificationMeta('avgHfr');
+  @override
+  late final GeneratedColumn<double> avgHfr = GeneratedColumn<double>(
+      'avg_hfr', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _avgGuidingRmsMeta =
+      const VerificationMeta('avgGuidingRms');
+  @override
+  late final GeneratedColumn<double> avgGuidingRms = GeneratedColumn<double>(
+      'avg_guiding_rms', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _autofocusCountMeta =
+      const VerificationMeta('autofocusCount');
+  @override
+  late final GeneratedColumn<int> autofocusCount = GeneratedColumn<int>(
+      'autofocus_count', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+      'notes', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('completed'));
+  static const VerificationMeta _sequenceIdMeta =
+      const VerificationMeta('sequenceId');
+  @override
+  late final GeneratedColumn<int> sequenceId = GeneratedColumn<int>(
+      'sequence_id', aliasedName, true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('REFERENCES sequences (id)'));
+  static const VerificationMeta _equipmentSnapshotMeta =
+      const VerificationMeta('equipmentSnapshot');
+  @override
+  late final GeneratedColumn<String> equipmentSnapshot =
+      GeneratedColumn<String>('equipment_snapshot', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        name,
+        profileId,
+        targetId,
+        startTime,
+        endTime,
+        totalExposures,
+        successfulExposures,
+        failedExposures,
+        totalIntegrationSecs,
+        avgTemperature,
+        avgHumidity,
+        avgSeeing,
+        avgHfr,
+        avgGuidingRms,
+        autofocusCount,
+        notes,
+        status,
+        sequenceId,
+        equipmentSnapshot
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'imaging_sessions';
+  @override
+  VerificationContext validateIntegrity(Insertable<ImagingSession> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    }
+    if (data.containsKey('profile_id')) {
+      context.handle(_profileIdMeta,
+          profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta));
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(_targetIdMeta,
+          targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta));
+    }
+    if (data.containsKey('start_time')) {
+      context.handle(_startTimeMeta,
+          startTime.isAcceptableOrUnknown(data['start_time']!, _startTimeMeta));
+    } else if (isInserting) {
+      context.missing(_startTimeMeta);
+    }
+    if (data.containsKey('end_time')) {
+      context.handle(_endTimeMeta,
+          endTime.isAcceptableOrUnknown(data['end_time']!, _endTimeMeta));
+    }
+    if (data.containsKey('total_exposures')) {
+      context.handle(
+          _totalExposuresMeta,
+          totalExposures.isAcceptableOrUnknown(
+              data['total_exposures']!, _totalExposuresMeta));
+    }
+    if (data.containsKey('successful_exposures')) {
+      context.handle(
+          _successfulExposuresMeta,
+          successfulExposures.isAcceptableOrUnknown(
+              data['successful_exposures']!, _successfulExposuresMeta));
+    }
+    if (data.containsKey('failed_exposures')) {
+      context.handle(
+          _failedExposuresMeta,
+          failedExposures.isAcceptableOrUnknown(
+              data['failed_exposures']!, _failedExposuresMeta));
+    }
+    if (data.containsKey('total_integration_secs')) {
+      context.handle(
+          _totalIntegrationSecsMeta,
+          totalIntegrationSecs.isAcceptableOrUnknown(
+              data['total_integration_secs']!, _totalIntegrationSecsMeta));
+    }
+    if (data.containsKey('avg_temperature')) {
+      context.handle(
+          _avgTemperatureMeta,
+          avgTemperature.isAcceptableOrUnknown(
+              data['avg_temperature']!, _avgTemperatureMeta));
+    }
+    if (data.containsKey('avg_humidity')) {
+      context.handle(
+          _avgHumidityMeta,
+          avgHumidity.isAcceptableOrUnknown(
+              data['avg_humidity']!, _avgHumidityMeta));
+    }
+    if (data.containsKey('avg_seeing')) {
+      context.handle(_avgSeeingMeta,
+          avgSeeing.isAcceptableOrUnknown(data['avg_seeing']!, _avgSeeingMeta));
+    }
+    if (data.containsKey('avg_hfr')) {
+      context.handle(_avgHfrMeta,
+          avgHfr.isAcceptableOrUnknown(data['avg_hfr']!, _avgHfrMeta));
+    }
+    if (data.containsKey('avg_guiding_rms')) {
+      context.handle(
+          _avgGuidingRmsMeta,
+          avgGuidingRms.isAcceptableOrUnknown(
+              data['avg_guiding_rms']!, _avgGuidingRmsMeta));
+    }
+    if (data.containsKey('autofocus_count')) {
+      context.handle(
+          _autofocusCountMeta,
+          autofocusCount.isAcceptableOrUnknown(
+              data['autofocus_count']!, _autofocusCountMeta));
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+          _notesMeta, notes.isAcceptableOrUnknown(data['notes']!, _notesMeta));
+    }
+    if (data.containsKey('status')) {
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+    }
+    if (data.containsKey('sequence_id')) {
+      context.handle(
+          _sequenceIdMeta,
+          sequenceId.isAcceptableOrUnknown(
+              data['sequence_id']!, _sequenceIdMeta));
+    }
+    if (data.containsKey('equipment_snapshot')) {
+      context.handle(
+          _equipmentSnapshotMeta,
+          equipmentSnapshot.isAcceptableOrUnknown(
+              data['equipment_snapshot']!, _equipmentSnapshotMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ImagingSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ImagingSession(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}name']),
+      profileId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}profile_id']),
+      targetId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}target_id']),
+      startTime: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}start_time'])!,
+      endTime: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}end_time']),
+      totalExposures: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}total_exposures'])!,
+      successfulExposures: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}successful_exposures'])!,
+      failedExposures: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}failed_exposures'])!,
+      totalIntegrationSecs: attachedDatabase.typeMapping.read(
+          DriftSqlType.double,
+          data['${effectivePrefix}total_integration_secs'])!,
+      avgTemperature: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}avg_temperature']),
+      avgHumidity: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}avg_humidity']),
+      avgSeeing: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}avg_seeing']),
+      avgHfr: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}avg_hfr']),
+      avgGuidingRms: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}avg_guiding_rms']),
+      autofocusCount: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}autofocus_count'])!,
+      notes: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}notes']),
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      sequenceId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}sequence_id']),
+      equipmentSnapshot: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}equipment_snapshot']),
+    );
+  }
+
+  @override
+  $ImagingSessionsTable createAlias(String alias) {
+    return $ImagingSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class ImagingSession extends DataClass implements Insertable<ImagingSession> {
+  final int id;
+  final String? name;
+  final int? profileId;
+  final int? targetId;
+  final DateTime startTime;
+  final DateTime? endTime;
+  final int totalExposures;
+  final int successfulExposures;
+  final int failedExposures;
+  final double totalIntegrationSecs;
+  final double? avgTemperature;
+  final double? avgHumidity;
+  final double? avgSeeing;
+  final double? avgHfr;
+  final double? avgGuidingRms;
+  final int autofocusCount;
+  final String? notes;
+  final String status;
+  final int? sequenceId;
+  final String? equipmentSnapshot;
+  const ImagingSession(
+      {required this.id,
+      this.name,
+      this.profileId,
+      this.targetId,
+      required this.startTime,
+      this.endTime,
+      required this.totalExposures,
+      required this.successfulExposures,
+      required this.failedExposures,
+      required this.totalIntegrationSecs,
+      this.avgTemperature,
+      this.avgHumidity,
+      this.avgSeeing,
+      this.avgHfr,
+      this.avgGuidingRms,
+      required this.autofocusCount,
+      this.notes,
+      required this.status,
+      this.sequenceId,
+      this.equipmentSnapshot});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || name != null) {
+      map['name'] = Variable<String>(name);
+    }
+    if (!nullToAbsent || profileId != null) {
+      map['profile_id'] = Variable<int>(profileId);
+    }
+    if (!nullToAbsent || targetId != null) {
+      map['target_id'] = Variable<int>(targetId);
+    }
+    map['start_time'] = Variable<DateTime>(startTime);
+    if (!nullToAbsent || endTime != null) {
+      map['end_time'] = Variable<DateTime>(endTime);
+    }
+    map['total_exposures'] = Variable<int>(totalExposures);
+    map['successful_exposures'] = Variable<int>(successfulExposures);
+    map['failed_exposures'] = Variable<int>(failedExposures);
+    map['total_integration_secs'] = Variable<double>(totalIntegrationSecs);
+    if (!nullToAbsent || avgTemperature != null) {
+      map['avg_temperature'] = Variable<double>(avgTemperature);
+    }
+    if (!nullToAbsent || avgHumidity != null) {
+      map['avg_humidity'] = Variable<double>(avgHumidity);
+    }
+    if (!nullToAbsent || avgSeeing != null) {
+      map['avg_seeing'] = Variable<double>(avgSeeing);
+    }
+    if (!nullToAbsent || avgHfr != null) {
+      map['avg_hfr'] = Variable<double>(avgHfr);
+    }
+    if (!nullToAbsent || avgGuidingRms != null) {
+      map['avg_guiding_rms'] = Variable<double>(avgGuidingRms);
+    }
+    map['autofocus_count'] = Variable<int>(autofocusCount);
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || sequenceId != null) {
+      map['sequence_id'] = Variable<int>(sequenceId);
+    }
+    if (!nullToAbsent || equipmentSnapshot != null) {
+      map['equipment_snapshot'] = Variable<String>(equipmentSnapshot);
+    }
+    return map;
+  }
+
+  ImagingSessionsCompanion toCompanion(bool nullToAbsent) {
+    return ImagingSessionsCompanion(
+      id: Value(id),
+      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
+      profileId: profileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileId),
+      targetId: targetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetId),
+      startTime: Value(startTime),
+      endTime: endTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endTime),
+      totalExposures: Value(totalExposures),
+      successfulExposures: Value(successfulExposures),
+      failedExposures: Value(failedExposures),
+      totalIntegrationSecs: Value(totalIntegrationSecs),
+      avgTemperature: avgTemperature == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avgTemperature),
+      avgHumidity: avgHumidity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avgHumidity),
+      avgSeeing: avgSeeing == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avgSeeing),
+      avgHfr:
+          avgHfr == null && nullToAbsent ? const Value.absent() : Value(avgHfr),
+      avgGuidingRms: avgGuidingRms == null && nullToAbsent
+          ? const Value.absent()
+          : Value(avgGuidingRms),
+      autofocusCount: Value(autofocusCount),
+      notes:
+          notes == null && nullToAbsent ? const Value.absent() : Value(notes),
+      status: Value(status),
+      sequenceId: sequenceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sequenceId),
+      equipmentSnapshot: equipmentSnapshot == null && nullToAbsent
+          ? const Value.absent()
+          : Value(equipmentSnapshot),
+    );
+  }
+
+  factory ImagingSession.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ImagingSession(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String?>(json['name']),
+      profileId: serializer.fromJson<int?>(json['profileId']),
+      targetId: serializer.fromJson<int?>(json['targetId']),
+      startTime: serializer.fromJson<DateTime>(json['startTime']),
+      endTime: serializer.fromJson<DateTime?>(json['endTime']),
+      totalExposures: serializer.fromJson<int>(json['totalExposures']),
+      successfulExposures:
+          serializer.fromJson<int>(json['successfulExposures']),
+      failedExposures: serializer.fromJson<int>(json['failedExposures']),
+      totalIntegrationSecs:
+          serializer.fromJson<double>(json['totalIntegrationSecs']),
+      avgTemperature: serializer.fromJson<double?>(json['avgTemperature']),
+      avgHumidity: serializer.fromJson<double?>(json['avgHumidity']),
+      avgSeeing: serializer.fromJson<double?>(json['avgSeeing']),
+      avgHfr: serializer.fromJson<double?>(json['avgHfr']),
+      avgGuidingRms: serializer.fromJson<double?>(json['avgGuidingRms']),
+      autofocusCount: serializer.fromJson<int>(json['autofocusCount']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      status: serializer.fromJson<String>(json['status']),
+      sequenceId: serializer.fromJson<int?>(json['sequenceId']),
+      equipmentSnapshot:
+          serializer.fromJson<String?>(json['equipmentSnapshot']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String?>(name),
+      'profileId': serializer.toJson<int?>(profileId),
+      'targetId': serializer.toJson<int?>(targetId),
+      'startTime': serializer.toJson<DateTime>(startTime),
+      'endTime': serializer.toJson<DateTime?>(endTime),
+      'totalExposures': serializer.toJson<int>(totalExposures),
+      'successfulExposures': serializer.toJson<int>(successfulExposures),
+      'failedExposures': serializer.toJson<int>(failedExposures),
+      'totalIntegrationSecs': serializer.toJson<double>(totalIntegrationSecs),
+      'avgTemperature': serializer.toJson<double?>(avgTemperature),
+      'avgHumidity': serializer.toJson<double?>(avgHumidity),
+      'avgSeeing': serializer.toJson<double?>(avgSeeing),
+      'avgHfr': serializer.toJson<double?>(avgHfr),
+      'avgGuidingRms': serializer.toJson<double?>(avgGuidingRms),
+      'autofocusCount': serializer.toJson<int>(autofocusCount),
+      'notes': serializer.toJson<String?>(notes),
+      'status': serializer.toJson<String>(status),
+      'sequenceId': serializer.toJson<int?>(sequenceId),
+      'equipmentSnapshot': serializer.toJson<String?>(equipmentSnapshot),
+    };
+  }
+
+  ImagingSession copyWith(
+          {int? id,
+          Value<String?> name = const Value.absent(),
+          Value<int?> profileId = const Value.absent(),
+          Value<int?> targetId = const Value.absent(),
+          DateTime? startTime,
+          Value<DateTime?> endTime = const Value.absent(),
+          int? totalExposures,
+          int? successfulExposures,
+          int? failedExposures,
+          double? totalIntegrationSecs,
+          Value<double?> avgTemperature = const Value.absent(),
+          Value<double?> avgHumidity = const Value.absent(),
+          Value<double?> avgSeeing = const Value.absent(),
+          Value<double?> avgHfr = const Value.absent(),
+          Value<double?> avgGuidingRms = const Value.absent(),
+          int? autofocusCount,
+          Value<String?> notes = const Value.absent(),
+          String? status,
+          Value<int?> sequenceId = const Value.absent(),
+          Value<String?> equipmentSnapshot = const Value.absent()}) =>
+      ImagingSession(
+        id: id ?? this.id,
+        name: name.present ? name.value : this.name,
+        profileId: profileId.present ? profileId.value : this.profileId,
+        targetId: targetId.present ? targetId.value : this.targetId,
+        startTime: startTime ?? this.startTime,
+        endTime: endTime.present ? endTime.value : this.endTime,
+        totalExposures: totalExposures ?? this.totalExposures,
+        successfulExposures: successfulExposures ?? this.successfulExposures,
+        failedExposures: failedExposures ?? this.failedExposures,
+        totalIntegrationSecs: totalIntegrationSecs ?? this.totalIntegrationSecs,
+        avgTemperature:
+            avgTemperature.present ? avgTemperature.value : this.avgTemperature,
+        avgHumidity: avgHumidity.present ? avgHumidity.value : this.avgHumidity,
+        avgSeeing: avgSeeing.present ? avgSeeing.value : this.avgSeeing,
+        avgHfr: avgHfr.present ? avgHfr.value : this.avgHfr,
+        avgGuidingRms:
+            avgGuidingRms.present ? avgGuidingRms.value : this.avgGuidingRms,
+        autofocusCount: autofocusCount ?? this.autofocusCount,
+        notes: notes.present ? notes.value : this.notes,
+        status: status ?? this.status,
+        sequenceId: sequenceId.present ? sequenceId.value : this.sequenceId,
+        equipmentSnapshot: equipmentSnapshot.present
+            ? equipmentSnapshot.value
+            : this.equipmentSnapshot,
+      );
+  ImagingSession copyWithCompanion(ImagingSessionsCompanion data) {
+    return ImagingSession(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      profileId: data.profileId.present ? data.profileId.value : this.profileId,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      startTime: data.startTime.present ? data.startTime.value : this.startTime,
+      endTime: data.endTime.present ? data.endTime.value : this.endTime,
+      totalExposures: data.totalExposures.present
+          ? data.totalExposures.value
+          : this.totalExposures,
+      successfulExposures: data.successfulExposures.present
+          ? data.successfulExposures.value
+          : this.successfulExposures,
+      failedExposures: data.failedExposures.present
+          ? data.failedExposures.value
+          : this.failedExposures,
+      totalIntegrationSecs: data.totalIntegrationSecs.present
+          ? data.totalIntegrationSecs.value
+          : this.totalIntegrationSecs,
+      avgTemperature: data.avgTemperature.present
+          ? data.avgTemperature.value
+          : this.avgTemperature,
+      avgHumidity:
+          data.avgHumidity.present ? data.avgHumidity.value : this.avgHumidity,
+      avgSeeing: data.avgSeeing.present ? data.avgSeeing.value : this.avgSeeing,
+      avgHfr: data.avgHfr.present ? data.avgHfr.value : this.avgHfr,
+      avgGuidingRms: data.avgGuidingRms.present
+          ? data.avgGuidingRms.value
+          : this.avgGuidingRms,
+      autofocusCount: data.autofocusCount.present
+          ? data.autofocusCount.value
+          : this.autofocusCount,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      status: data.status.present ? data.status.value : this.status,
+      sequenceId:
+          data.sequenceId.present ? data.sequenceId.value : this.sequenceId,
+      equipmentSnapshot: data.equipmentSnapshot.present
+          ? data.equipmentSnapshot.value
+          : this.equipmentSnapshot,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImagingSession(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('profileId: $profileId, ')
+          ..write('targetId: $targetId, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
+          ..write('totalExposures: $totalExposures, ')
+          ..write('successfulExposures: $successfulExposures, ')
+          ..write('failedExposures: $failedExposures, ')
+          ..write('totalIntegrationSecs: $totalIntegrationSecs, ')
+          ..write('avgTemperature: $avgTemperature, ')
+          ..write('avgHumidity: $avgHumidity, ')
+          ..write('avgSeeing: $avgSeeing, ')
+          ..write('avgHfr: $avgHfr, ')
+          ..write('avgGuidingRms: $avgGuidingRms, ')
+          ..write('autofocusCount: $autofocusCount, ')
+          ..write('notes: $notes, ')
+          ..write('status: $status, ')
+          ..write('sequenceId: $sequenceId, ')
+          ..write('equipmentSnapshot: $equipmentSnapshot')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      name,
+      profileId,
+      targetId,
+      startTime,
+      endTime,
+      totalExposures,
+      successfulExposures,
+      failedExposures,
+      totalIntegrationSecs,
+      avgTemperature,
+      avgHumidity,
+      avgSeeing,
+      avgHfr,
+      avgGuidingRms,
+      autofocusCount,
+      notes,
+      status,
+      sequenceId,
+      equipmentSnapshot);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ImagingSession &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.profileId == this.profileId &&
+          other.targetId == this.targetId &&
+          other.startTime == this.startTime &&
+          other.endTime == this.endTime &&
+          other.totalExposures == this.totalExposures &&
+          other.successfulExposures == this.successfulExposures &&
+          other.failedExposures == this.failedExposures &&
+          other.totalIntegrationSecs == this.totalIntegrationSecs &&
+          other.avgTemperature == this.avgTemperature &&
+          other.avgHumidity == this.avgHumidity &&
+          other.avgSeeing == this.avgSeeing &&
+          other.avgHfr == this.avgHfr &&
+          other.avgGuidingRms == this.avgGuidingRms &&
+          other.autofocusCount == this.autofocusCount &&
+          other.notes == this.notes &&
+          other.status == this.status &&
+          other.sequenceId == this.sequenceId &&
+          other.equipmentSnapshot == this.equipmentSnapshot);
+}
+
+class ImagingSessionsCompanion extends UpdateCompanion<ImagingSession> {
+  final Value<int> id;
+  final Value<String?> name;
+  final Value<int?> profileId;
+  final Value<int?> targetId;
+  final Value<DateTime> startTime;
+  final Value<DateTime?> endTime;
+  final Value<int> totalExposures;
+  final Value<int> successfulExposures;
+  final Value<int> failedExposures;
+  final Value<double> totalIntegrationSecs;
+  final Value<double?> avgTemperature;
+  final Value<double?> avgHumidity;
+  final Value<double?> avgSeeing;
+  final Value<double?> avgHfr;
+  final Value<double?> avgGuidingRms;
+  final Value<int> autofocusCount;
+  final Value<String?> notes;
+  final Value<String> status;
+  final Value<int?> sequenceId;
+  final Value<String?> equipmentSnapshot;
+  const ImagingSessionsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.startTime = const Value.absent(),
+    this.endTime = const Value.absent(),
+    this.totalExposures = const Value.absent(),
+    this.successfulExposures = const Value.absent(),
+    this.failedExposures = const Value.absent(),
+    this.totalIntegrationSecs = const Value.absent(),
+    this.avgTemperature = const Value.absent(),
+    this.avgHumidity = const Value.absent(),
+    this.avgSeeing = const Value.absent(),
+    this.avgHfr = const Value.absent(),
+    this.avgGuidingRms = const Value.absent(),
+    this.autofocusCount = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.status = const Value.absent(),
+    this.sequenceId = const Value.absent(),
+    this.equipmentSnapshot = const Value.absent(),
+  });
+  ImagingSessionsCompanion.insert({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.targetId = const Value.absent(),
+    required DateTime startTime,
+    this.endTime = const Value.absent(),
+    this.totalExposures = const Value.absent(),
+    this.successfulExposures = const Value.absent(),
+    this.failedExposures = const Value.absent(),
+    this.totalIntegrationSecs = const Value.absent(),
+    this.avgTemperature = const Value.absent(),
+    this.avgHumidity = const Value.absent(),
+    this.avgSeeing = const Value.absent(),
+    this.avgHfr = const Value.absent(),
+    this.avgGuidingRms = const Value.absent(),
+    this.autofocusCount = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.status = const Value.absent(),
+    this.sequenceId = const Value.absent(),
+    this.equipmentSnapshot = const Value.absent(),
+  }) : startTime = Value(startTime);
+  static Insertable<ImagingSession> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<int>? profileId,
+    Expression<int>? targetId,
+    Expression<DateTime>? startTime,
+    Expression<DateTime>? endTime,
+    Expression<int>? totalExposures,
+    Expression<int>? successfulExposures,
+    Expression<int>? failedExposures,
+    Expression<double>? totalIntegrationSecs,
+    Expression<double>? avgTemperature,
+    Expression<double>? avgHumidity,
+    Expression<double>? avgSeeing,
+    Expression<double>? avgHfr,
+    Expression<double>? avgGuidingRms,
+    Expression<int>? autofocusCount,
+    Expression<String>? notes,
+    Expression<String>? status,
+    Expression<int>? sequenceId,
+    Expression<String>? equipmentSnapshot,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (profileId != null) 'profile_id': profileId,
+      if (targetId != null) 'target_id': targetId,
+      if (startTime != null) 'start_time': startTime,
+      if (endTime != null) 'end_time': endTime,
+      if (totalExposures != null) 'total_exposures': totalExposures,
+      if (successfulExposures != null)
+        'successful_exposures': successfulExposures,
+      if (failedExposures != null) 'failed_exposures': failedExposures,
+      if (totalIntegrationSecs != null)
+        'total_integration_secs': totalIntegrationSecs,
+      if (avgTemperature != null) 'avg_temperature': avgTemperature,
+      if (avgHumidity != null) 'avg_humidity': avgHumidity,
+      if (avgSeeing != null) 'avg_seeing': avgSeeing,
+      if (avgHfr != null) 'avg_hfr': avgHfr,
+      if (avgGuidingRms != null) 'avg_guiding_rms': avgGuidingRms,
+      if (autofocusCount != null) 'autofocus_count': autofocusCount,
+      if (notes != null) 'notes': notes,
+      if (status != null) 'status': status,
+      if (sequenceId != null) 'sequence_id': sequenceId,
+      if (equipmentSnapshot != null) 'equipment_snapshot': equipmentSnapshot,
+    });
+  }
+
+  ImagingSessionsCompanion copyWith(
+      {Value<int>? id,
+      Value<String?>? name,
+      Value<int?>? profileId,
+      Value<int?>? targetId,
+      Value<DateTime>? startTime,
+      Value<DateTime?>? endTime,
+      Value<int>? totalExposures,
+      Value<int>? successfulExposures,
+      Value<int>? failedExposures,
+      Value<double>? totalIntegrationSecs,
+      Value<double?>? avgTemperature,
+      Value<double?>? avgHumidity,
+      Value<double?>? avgSeeing,
+      Value<double?>? avgHfr,
+      Value<double?>? avgGuidingRms,
+      Value<int>? autofocusCount,
+      Value<String?>? notes,
+      Value<String>? status,
+      Value<int?>? sequenceId,
+      Value<String?>? equipmentSnapshot}) {
+    return ImagingSessionsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      profileId: profileId ?? this.profileId,
+      targetId: targetId ?? this.targetId,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      totalExposures: totalExposures ?? this.totalExposures,
+      successfulExposures: successfulExposures ?? this.successfulExposures,
+      failedExposures: failedExposures ?? this.failedExposures,
+      totalIntegrationSecs: totalIntegrationSecs ?? this.totalIntegrationSecs,
+      avgTemperature: avgTemperature ?? this.avgTemperature,
+      avgHumidity: avgHumidity ?? this.avgHumidity,
+      avgSeeing: avgSeeing ?? this.avgSeeing,
+      avgHfr: avgHfr ?? this.avgHfr,
+      avgGuidingRms: avgGuidingRms ?? this.avgGuidingRms,
+      autofocusCount: autofocusCount ?? this.autofocusCount,
+      notes: notes ?? this.notes,
+      status: status ?? this.status,
+      sequenceId: sequenceId ?? this.sequenceId,
+      equipmentSnapshot: equipmentSnapshot ?? this.equipmentSnapshot,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (profileId.present) {
+      map['profile_id'] = Variable<int>(profileId.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<int>(targetId.value);
+    }
+    if (startTime.present) {
+      map['start_time'] = Variable<DateTime>(startTime.value);
+    }
+    if (endTime.present) {
+      map['end_time'] = Variable<DateTime>(endTime.value);
+    }
+    if (totalExposures.present) {
+      map['total_exposures'] = Variable<int>(totalExposures.value);
+    }
+    if (successfulExposures.present) {
+      map['successful_exposures'] = Variable<int>(successfulExposures.value);
+    }
+    if (failedExposures.present) {
+      map['failed_exposures'] = Variable<int>(failedExposures.value);
+    }
+    if (totalIntegrationSecs.present) {
+      map['total_integration_secs'] =
+          Variable<double>(totalIntegrationSecs.value);
+    }
+    if (avgTemperature.present) {
+      map['avg_temperature'] = Variable<double>(avgTemperature.value);
+    }
+    if (avgHumidity.present) {
+      map['avg_humidity'] = Variable<double>(avgHumidity.value);
+    }
+    if (avgSeeing.present) {
+      map['avg_seeing'] = Variable<double>(avgSeeing.value);
+    }
+    if (avgHfr.present) {
+      map['avg_hfr'] = Variable<double>(avgHfr.value);
+    }
+    if (avgGuidingRms.present) {
+      map['avg_guiding_rms'] = Variable<double>(avgGuidingRms.value);
+    }
+    if (autofocusCount.present) {
+      map['autofocus_count'] = Variable<int>(autofocusCount.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (sequenceId.present) {
+      map['sequence_id'] = Variable<int>(sequenceId.value);
+    }
+    if (equipmentSnapshot.present) {
+      map['equipment_snapshot'] = Variable<String>(equipmentSnapshot.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImagingSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('profileId: $profileId, ')
+          ..write('targetId: $targetId, ')
+          ..write('startTime: $startTime, ')
+          ..write('endTime: $endTime, ')
+          ..write('totalExposures: $totalExposures, ')
+          ..write('successfulExposures: $successfulExposures, ')
+          ..write('failedExposures: $failedExposures, ')
+          ..write('totalIntegrationSecs: $totalIntegrationSecs, ')
+          ..write('avgTemperature: $avgTemperature, ')
+          ..write('avgHumidity: $avgHumidity, ')
+          ..write('avgSeeing: $avgSeeing, ')
+          ..write('avgHfr: $avgHfr, ')
+          ..write('avgGuidingRms: $avgGuidingRms, ')
+          ..write('autofocusCount: $autofocusCount, ')
+          ..write('notes: $notes, ')
+          ..write('status: $status, ')
+          ..write('sequenceId: $sequenceId, ')
+          ..write('equipmentSnapshot: $equipmentSnapshot')
           ..write(')'))
         .toString();
   }
@@ -8022,15 +8115,423 @@ class FlatHistoryCompanion extends UpdateCompanion<FlatHistoryEntry> {
   }
 }
 
+class $TutorialProgressTable extends TutorialProgress
+    with TableInfo<$TutorialProgressTable, TutorialProgressEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TutorialProgressTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _categoryMeta =
+      const VerificationMeta('category');
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+      'category', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'));
+  static const VerificationMeta _lastStepIndexMeta =
+      const VerificationMeta('lastStepIndex');
+  @override
+  late final GeneratedColumn<int> lastStepIndex = GeneratedColumn<int>(
+      'last_step_index', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _completedMeta =
+      const VerificationMeta('completed');
+  @override
+  late final GeneratedColumn<bool> completed = GeneratedColumn<bool>(
+      'completed', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("completed" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _startedAtMeta =
+      const VerificationMeta('startedAt');
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+      'started_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _completedAtMeta =
+      const VerificationMeta('completedAt');
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+      'completed_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _dismissedMeta =
+      const VerificationMeta('dismissed');
+  @override
+  late final GeneratedColumn<bool> dismissed = GeneratedColumn<bool>(
+      'dismissed', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("dismissed" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        category,
+        lastStepIndex,
+        completed,
+        startedAt,
+        completedAt,
+        dismissed
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'tutorial_progress';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<TutorialProgressEntry> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('category')) {
+      context.handle(_categoryMeta,
+          category.isAcceptableOrUnknown(data['category']!, _categoryMeta));
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('last_step_index')) {
+      context.handle(
+          _lastStepIndexMeta,
+          lastStepIndex.isAcceptableOrUnknown(
+              data['last_step_index']!, _lastStepIndexMeta));
+    }
+    if (data.containsKey('completed')) {
+      context.handle(_completedMeta,
+          completed.isAcceptableOrUnknown(data['completed']!, _completedMeta));
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(_startedAtMeta,
+          startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta));
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+          _completedAtMeta,
+          completedAt.isAcceptableOrUnknown(
+              data['completed_at']!, _completedAtMeta));
+    }
+    if (data.containsKey('dismissed')) {
+      context.handle(_dismissedMeta,
+          dismissed.isAcceptableOrUnknown(data['dismissed']!, _dismissedMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TutorialProgressEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TutorialProgressEntry(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      category: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}category'])!,
+      lastStepIndex: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}last_step_index'])!,
+      completed: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}completed'])!,
+      startedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}started_at'])!,
+      completedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}completed_at']),
+      dismissed: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}dismissed'])!,
+    );
+  }
+
+  @override
+  $TutorialProgressTable createAlias(String alias) {
+    return $TutorialProgressTable(attachedDatabase, alias);
+  }
+}
+
+class TutorialProgressEntry extends DataClass
+    implements Insertable<TutorialProgressEntry> {
+  /// Auto-incrementing primary key
+  final int id;
+
+  /// Tutorial category name (TutorialCategory.name, e.g., 'firstLight')
+  /// Unique constraint ensures only one progress entry per category
+  final String category;
+
+  /// Last step index the user was on (0-indexed)
+  final int lastStepIndex;
+
+  /// Whether this tutorial has been fully completed
+  final bool completed;
+
+  /// When the user first started this tutorial
+  final DateTime startedAt;
+
+  /// When the tutorial was completed (null if not completed)
+  final DateTime? completedAt;
+
+  /// Whether the user explicitly dismissed this tutorial without completing
+  final bool dismissed;
+  const TutorialProgressEntry(
+      {required this.id,
+      required this.category,
+      required this.lastStepIndex,
+      required this.completed,
+      required this.startedAt,
+      this.completedAt,
+      required this.dismissed});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['category'] = Variable<String>(category);
+    map['last_step_index'] = Variable<int>(lastStepIndex);
+    map['completed'] = Variable<bool>(completed);
+    map['started_at'] = Variable<DateTime>(startedAt);
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<DateTime>(completedAt);
+    }
+    map['dismissed'] = Variable<bool>(dismissed);
+    return map;
+  }
+
+  TutorialProgressCompanion toCompanion(bool nullToAbsent) {
+    return TutorialProgressCompanion(
+      id: Value(id),
+      category: Value(category),
+      lastStepIndex: Value(lastStepIndex),
+      completed: Value(completed),
+      startedAt: Value(startedAt),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+      dismissed: Value(dismissed),
+    );
+  }
+
+  factory TutorialProgressEntry.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TutorialProgressEntry(
+      id: serializer.fromJson<int>(json['id']),
+      category: serializer.fromJson<String>(json['category']),
+      lastStepIndex: serializer.fromJson<int>(json['lastStepIndex']),
+      completed: serializer.fromJson<bool>(json['completed']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+      dismissed: serializer.fromJson<bool>(json['dismissed']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'category': serializer.toJson<String>(category),
+      'lastStepIndex': serializer.toJson<int>(lastStepIndex),
+      'completed': serializer.toJson<bool>(completed),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'completedAt': serializer.toJson<DateTime?>(completedAt),
+      'dismissed': serializer.toJson<bool>(dismissed),
+    };
+  }
+
+  TutorialProgressEntry copyWith(
+          {int? id,
+          String? category,
+          int? lastStepIndex,
+          bool? completed,
+          DateTime? startedAt,
+          Value<DateTime?> completedAt = const Value.absent(),
+          bool? dismissed}) =>
+      TutorialProgressEntry(
+        id: id ?? this.id,
+        category: category ?? this.category,
+        lastStepIndex: lastStepIndex ?? this.lastStepIndex,
+        completed: completed ?? this.completed,
+        startedAt: startedAt ?? this.startedAt,
+        completedAt: completedAt.present ? completedAt.value : this.completedAt,
+        dismissed: dismissed ?? this.dismissed,
+      );
+  TutorialProgressEntry copyWithCompanion(TutorialProgressCompanion data) {
+    return TutorialProgressEntry(
+      id: data.id.present ? data.id.value : this.id,
+      category: data.category.present ? data.category.value : this.category,
+      lastStepIndex: data.lastStepIndex.present
+          ? data.lastStepIndex.value
+          : this.lastStepIndex,
+      completed: data.completed.present ? data.completed.value : this.completed,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      completedAt:
+          data.completedAt.present ? data.completedAt.value : this.completedAt,
+      dismissed: data.dismissed.present ? data.dismissed.value : this.dismissed,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TutorialProgressEntry(')
+          ..write('id: $id, ')
+          ..write('category: $category, ')
+          ..write('lastStepIndex: $lastStepIndex, ')
+          ..write('completed: $completed, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('dismissed: $dismissed')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, category, lastStepIndex, completed,
+      startedAt, completedAt, dismissed);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TutorialProgressEntry &&
+          other.id == this.id &&
+          other.category == this.category &&
+          other.lastStepIndex == this.lastStepIndex &&
+          other.completed == this.completed &&
+          other.startedAt == this.startedAt &&
+          other.completedAt == this.completedAt &&
+          other.dismissed == this.dismissed);
+}
+
+class TutorialProgressCompanion extends UpdateCompanion<TutorialProgressEntry> {
+  final Value<int> id;
+  final Value<String> category;
+  final Value<int> lastStepIndex;
+  final Value<bool> completed;
+  final Value<DateTime> startedAt;
+  final Value<DateTime?> completedAt;
+  final Value<bool> dismissed;
+  const TutorialProgressCompanion({
+    this.id = const Value.absent(),
+    this.category = const Value.absent(),
+    this.lastStepIndex = const Value.absent(),
+    this.completed = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.dismissed = const Value.absent(),
+  });
+  TutorialProgressCompanion.insert({
+    this.id = const Value.absent(),
+    required String category,
+    this.lastStepIndex = const Value.absent(),
+    this.completed = const Value.absent(),
+    required DateTime startedAt,
+    this.completedAt = const Value.absent(),
+    this.dismissed = const Value.absent(),
+  })  : category = Value(category),
+        startedAt = Value(startedAt);
+  static Insertable<TutorialProgressEntry> custom({
+    Expression<int>? id,
+    Expression<String>? category,
+    Expression<int>? lastStepIndex,
+    Expression<bool>? completed,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? completedAt,
+    Expression<bool>? dismissed,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (category != null) 'category': category,
+      if (lastStepIndex != null) 'last_step_index': lastStepIndex,
+      if (completed != null) 'completed': completed,
+      if (startedAt != null) 'started_at': startedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (dismissed != null) 'dismissed': dismissed,
+    });
+  }
+
+  TutorialProgressCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? category,
+      Value<int>? lastStepIndex,
+      Value<bool>? completed,
+      Value<DateTime>? startedAt,
+      Value<DateTime?>? completedAt,
+      Value<bool>? dismissed}) {
+    return TutorialProgressCompanion(
+      id: id ?? this.id,
+      category: category ?? this.category,
+      lastStepIndex: lastStepIndex ?? this.lastStepIndex,
+      completed: completed ?? this.completed,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      dismissed: dismissed ?? this.dismissed,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (lastStepIndex.present) {
+      map['last_step_index'] = Variable<int>(lastStepIndex.value);
+    }
+    if (completed.present) {
+      map['completed'] = Variable<bool>(completed.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    if (dismissed.present) {
+      map['dismissed'] = Variable<bool>(dismissed.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TutorialProgressCompanion(')
+          ..write('id: $id, ')
+          ..write('category: $category, ')
+          ..write('lastStepIndex: $lastStepIndex, ')
+          ..write('completed: $completed, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('dismissed: $dismissed')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NightshadeDatabase extends GeneratedDatabase {
   _$NightshadeDatabase(QueryExecutor e) : super(e);
   $NightshadeDatabaseManager get managers => $NightshadeDatabaseManager(this);
   late final $EquipmentProfilesTable equipmentProfiles =
       $EquipmentProfilesTable(this);
   late final $TargetsTable targets = $TargetsTable(this);
+  late final $SequencesTable sequences = $SequencesTable(this);
   late final $ImagingSessionsTable imagingSessions =
       $ImagingSessionsTable(this);
-  late final $SequencesTable sequences = $SequencesTable(this);
   late final $SequenceNodesTable sequenceNodes = $SequenceNodesTable(this);
   late final $SequenceCheckpointsTable sequenceCheckpoints =
       $SequenceCheckpointsTable(this);
@@ -8040,6 +8541,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final $WeatherSettingsTable weatherSettings =
       $WeatherSettingsTable(this);
   late final $FlatHistoryTable flatHistory = $FlatHistoryTable(this);
+  late final $TutorialProgressTable tutorialProgress =
+      $TutorialProgressTable(this);
   late final Index idxProfilesName = Index('idx_profiles_name',
       'CREATE INDEX idx_profiles_name ON equipment_profiles (name)');
   late final Index idxProfilesActive = Index('idx_profiles_active',
@@ -8105,6 +8608,9 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       'CREATE INDEX idx_flat_history_filter ON flat_history (filter_name)');
   late final Index idxFlatHistoryTimestamp = Index('idx_flat_history_timestamp',
       'CREATE INDEX idx_flat_history_timestamp ON flat_history (timestamp)');
+  late final Index idxTutorialProgressCategory = Index(
+      'idx_tutorial_progress_category',
+      'CREATE INDEX idx_tutorial_progress_category ON tutorial_progress (category)');
   late final ImagesDao imagesDao = ImagesDao(this as NightshadeDatabase);
   late final EquipmentProfilesDao equipmentProfilesDao =
       EquipmentProfilesDao(this as NightshadeDatabase);
@@ -8119,6 +8625,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       WeatherSettingsDao(this as NightshadeDatabase);
   late final FlatHistoryDao flatHistoryDao =
       FlatHistoryDao(this as NightshadeDatabase);
+  late final TutorialProgressDao tutorialProgressDao =
+      TutorialProgressDao(this as NightshadeDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -8126,8 +8634,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
         equipmentProfiles,
         targets,
-        imagingSessions,
         sequences,
+        imagingSessions,
         sequenceNodes,
         sequenceCheckpoints,
         capturedImages,
@@ -8135,6 +8643,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         appSettings,
         weatherSettings,
         flatHistory,
+        tutorialProgress,
         idxProfilesName,
         idxProfilesActive,
         idxSessionsTarget,
@@ -8166,7 +8675,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         idxMetadataKey,
         idxFlatHistoryProfile,
         idxFlatHistoryFilter,
-        idxFlatHistoryTimestamp
+        idxFlatHistoryTimestamp,
+        idxTutorialProgressCategory
       ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
@@ -9428,638 +9938,6 @@ typedef $$TargetsTableProcessedTableManager = ProcessedTableManager<
         {bool imagingSessionsRefs,
         bool sequenceNodesRefs,
         bool capturedImagesRefs})>;
-typedef $$ImagingSessionsTableCreateCompanionBuilder = ImagingSessionsCompanion
-    Function({
-  Value<int> id,
-  Value<String?> name,
-  Value<int?> profileId,
-  Value<int?> targetId,
-  required DateTime startTime,
-  Value<DateTime?> endTime,
-  Value<int> totalExposures,
-  Value<int> successfulExposures,
-  Value<int> failedExposures,
-  Value<double> totalIntegrationSecs,
-  Value<double?> avgTemperature,
-  Value<double?> avgHumidity,
-  Value<double?> avgSeeing,
-  Value<double?> avgHfr,
-  Value<double?> avgGuidingRms,
-  Value<int> autofocusCount,
-  Value<String?> notes,
-  Value<String> status,
-});
-typedef $$ImagingSessionsTableUpdateCompanionBuilder = ImagingSessionsCompanion
-    Function({
-  Value<int> id,
-  Value<String?> name,
-  Value<int?> profileId,
-  Value<int?> targetId,
-  Value<DateTime> startTime,
-  Value<DateTime?> endTime,
-  Value<int> totalExposures,
-  Value<int> successfulExposures,
-  Value<int> failedExposures,
-  Value<double> totalIntegrationSecs,
-  Value<double?> avgTemperature,
-  Value<double?> avgHumidity,
-  Value<double?> avgSeeing,
-  Value<double?> avgHfr,
-  Value<double?> avgGuidingRms,
-  Value<int> autofocusCount,
-  Value<String?> notes,
-  Value<String> status,
-});
-
-final class $$ImagingSessionsTableReferences extends BaseReferences<
-    _$NightshadeDatabase, $ImagingSessionsTable, ImagingSession> {
-  $$ImagingSessionsTableReferences(
-      super.$_db, super.$_table, super.$_typedResult);
-
-  static $EquipmentProfilesTable _profileIdTable(_$NightshadeDatabase db) =>
-      db.equipmentProfiles.createAlias($_aliasNameGenerator(
-          db.imagingSessions.profileId, db.equipmentProfiles.id));
-
-  $$EquipmentProfilesTableProcessedTableManager? get profileId {
-    if ($_item.profileId == null) return null;
-    final manager =
-        $$EquipmentProfilesTableTableManager($_db, $_db.equipmentProfiles)
-            .filter((f) => f.id($_item.profileId!));
-    final item = $_typedResult.readTableOrNull(_profileIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: [item]));
-  }
-
-  static $TargetsTable _targetIdTable(_$NightshadeDatabase db) =>
-      db.targets.createAlias(
-          $_aliasNameGenerator(db.imagingSessions.targetId, db.targets.id));
-
-  $$TargetsTableProcessedTableManager? get targetId {
-    if ($_item.targetId == null) return null;
-    final manager = $$TargetsTableTableManager($_db, $_db.targets)
-        .filter((f) => f.id($_item.targetId!));
-    final item = $_typedResult.readTableOrNull(_targetIdTable($_db));
-    if (item == null) return manager;
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: [item]));
-  }
-
-  static MultiTypedResultKey<$CapturedImagesTable, List<CapturedImage>>
-      _capturedImagesRefsTable(_$NightshadeDatabase db) =>
-          MultiTypedResultKey.fromTable(db.capturedImages,
-              aliasName: $_aliasNameGenerator(
-                  db.imagingSessions.id, db.capturedImages.sessionId));
-
-  $$CapturedImagesTableProcessedTableManager get capturedImagesRefs {
-    final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.sessionId.id($_item.id));
-
-    final cache = $_typedResult.readTableOrNull(_capturedImagesRefsTable($_db));
-    return ProcessedTableManager(
-        manager.$state.copyWith(prefetchedData: cache));
-  }
-}
-
-class $$ImagingSessionsTableFilterComposer
-    extends Composer<_$NightshadeDatabase, $ImagingSessionsTable> {
-  $$ImagingSessionsTableFilterComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnFilters<int> get id => $composableBuilder(
-      column: $table.id, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get name => $composableBuilder(
-      column: $table.name, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<DateTime> get startTime => $composableBuilder(
-      column: $table.startTime, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<DateTime> get endTime => $composableBuilder(
-      column: $table.endTime, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<int> get totalExposures => $composableBuilder(
-      column: $table.totalExposures,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<int> get successfulExposures => $composableBuilder(
-      column: $table.successfulExposures,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<int> get failedExposures => $composableBuilder(
-      column: $table.failedExposures,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get totalIntegrationSecs => $composableBuilder(
-      column: $table.totalIntegrationSecs,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get avgTemperature => $composableBuilder(
-      column: $table.avgTemperature,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get avgHumidity => $composableBuilder(
-      column: $table.avgHumidity, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get avgSeeing => $composableBuilder(
-      column: $table.avgSeeing, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get avgHfr => $composableBuilder(
-      column: $table.avgHfr, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<double> get avgGuidingRms => $composableBuilder(
-      column: $table.avgGuidingRms, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<int> get autofocusCount => $composableBuilder(
-      column: $table.autofocusCount,
-      builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get notes => $composableBuilder(
-      column: $table.notes, builder: (column) => ColumnFilters(column));
-
-  ColumnFilters<String> get status => $composableBuilder(
-      column: $table.status, builder: (column) => ColumnFilters(column));
-
-  $$EquipmentProfilesTableFilterComposer get profileId {
-    final $$EquipmentProfilesTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.profileId,
-        referencedTable: $db.equipmentProfiles,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$EquipmentProfilesTableFilterComposer(
-              $db: $db,
-              $table: $db.equipmentProfiles,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
-  $$TargetsTableFilterComposer get targetId {
-    final $$TargetsTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.targetId,
-        referencedTable: $db.targets,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$TargetsTableFilterComposer(
-              $db: $db,
-              $table: $db.targets,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
-  Expression<bool> capturedImagesRefs(
-      Expression<bool> Function($$CapturedImagesTableFilterComposer f) f) {
-    final $$CapturedImagesTableFilterComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.capturedImages,
-        getReferencedColumn: (t) => t.sessionId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$CapturedImagesTableFilterComposer(
-              $db: $db,
-              $table: $db.capturedImages,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
-  }
-}
-
-class $$ImagingSessionsTableOrderingComposer
-    extends Composer<_$NightshadeDatabase, $ImagingSessionsTable> {
-  $$ImagingSessionsTableOrderingComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  ColumnOrderings<int> get id => $composableBuilder(
-      column: $table.id, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get name => $composableBuilder(
-      column: $table.name, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<DateTime> get startTime => $composableBuilder(
-      column: $table.startTime, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<DateTime> get endTime => $composableBuilder(
-      column: $table.endTime, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<int> get totalExposures => $composableBuilder(
-      column: $table.totalExposures,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<int> get successfulExposures => $composableBuilder(
-      column: $table.successfulExposures,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<int> get failedExposures => $composableBuilder(
-      column: $table.failedExposures,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get totalIntegrationSecs => $composableBuilder(
-      column: $table.totalIntegrationSecs,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get avgTemperature => $composableBuilder(
-      column: $table.avgTemperature,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get avgHumidity => $composableBuilder(
-      column: $table.avgHumidity, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get avgSeeing => $composableBuilder(
-      column: $table.avgSeeing, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get avgHfr => $composableBuilder(
-      column: $table.avgHfr, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<double> get avgGuidingRms => $composableBuilder(
-      column: $table.avgGuidingRms,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<int> get autofocusCount => $composableBuilder(
-      column: $table.autofocusCount,
-      builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get notes => $composableBuilder(
-      column: $table.notes, builder: (column) => ColumnOrderings(column));
-
-  ColumnOrderings<String> get status => $composableBuilder(
-      column: $table.status, builder: (column) => ColumnOrderings(column));
-
-  $$EquipmentProfilesTableOrderingComposer get profileId {
-    final $$EquipmentProfilesTableOrderingComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.profileId,
-        referencedTable: $db.equipmentProfiles,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$EquipmentProfilesTableOrderingComposer(
-              $db: $db,
-              $table: $db.equipmentProfiles,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
-  $$TargetsTableOrderingComposer get targetId {
-    final $$TargetsTableOrderingComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.targetId,
-        referencedTable: $db.targets,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$TargetsTableOrderingComposer(
-              $db: $db,
-              $table: $db.targets,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-}
-
-class $$ImagingSessionsTableAnnotationComposer
-    extends Composer<_$NightshadeDatabase, $ImagingSessionsTable> {
-  $$ImagingSessionsTableAnnotationComposer({
-    required super.$db,
-    required super.$table,
-    super.joinBuilder,
-    super.$addJoinBuilderToRootComposer,
-    super.$removeJoinBuilderFromRootComposer,
-  });
-  GeneratedColumn<int> get id =>
-      $composableBuilder(column: $table.id, builder: (column) => column);
-
-  GeneratedColumn<String> get name =>
-      $composableBuilder(column: $table.name, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get startTime =>
-      $composableBuilder(column: $table.startTime, builder: (column) => column);
-
-  GeneratedColumn<DateTime> get endTime =>
-      $composableBuilder(column: $table.endTime, builder: (column) => column);
-
-  GeneratedColumn<int> get totalExposures => $composableBuilder(
-      column: $table.totalExposures, builder: (column) => column);
-
-  GeneratedColumn<int> get successfulExposures => $composableBuilder(
-      column: $table.successfulExposures, builder: (column) => column);
-
-  GeneratedColumn<int> get failedExposures => $composableBuilder(
-      column: $table.failedExposures, builder: (column) => column);
-
-  GeneratedColumn<double> get totalIntegrationSecs => $composableBuilder(
-      column: $table.totalIntegrationSecs, builder: (column) => column);
-
-  GeneratedColumn<double> get avgTemperature => $composableBuilder(
-      column: $table.avgTemperature, builder: (column) => column);
-
-  GeneratedColumn<double> get avgHumidity => $composableBuilder(
-      column: $table.avgHumidity, builder: (column) => column);
-
-  GeneratedColumn<double> get avgSeeing =>
-      $composableBuilder(column: $table.avgSeeing, builder: (column) => column);
-
-  GeneratedColumn<double> get avgHfr =>
-      $composableBuilder(column: $table.avgHfr, builder: (column) => column);
-
-  GeneratedColumn<double> get avgGuidingRms => $composableBuilder(
-      column: $table.avgGuidingRms, builder: (column) => column);
-
-  GeneratedColumn<int> get autofocusCount => $composableBuilder(
-      column: $table.autofocusCount, builder: (column) => column);
-
-  GeneratedColumn<String> get notes =>
-      $composableBuilder(column: $table.notes, builder: (column) => column);
-
-  GeneratedColumn<String> get status =>
-      $composableBuilder(column: $table.status, builder: (column) => column);
-
-  $$EquipmentProfilesTableAnnotationComposer get profileId {
-    final $$EquipmentProfilesTableAnnotationComposer composer =
-        $composerBuilder(
-            composer: this,
-            getCurrentColumn: (t) => t.profileId,
-            referencedTable: $db.equipmentProfiles,
-            getReferencedColumn: (t) => t.id,
-            builder: (joinBuilder,
-                    {$addJoinBuilderToRootComposer,
-                    $removeJoinBuilderFromRootComposer}) =>
-                $$EquipmentProfilesTableAnnotationComposer(
-                  $db: $db,
-                  $table: $db.equipmentProfiles,
-                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-                  joinBuilder: joinBuilder,
-                  $removeJoinBuilderFromRootComposer:
-                      $removeJoinBuilderFromRootComposer,
-                ));
-    return composer;
-  }
-
-  $$TargetsTableAnnotationComposer get targetId {
-    final $$TargetsTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.targetId,
-        referencedTable: $db.targets,
-        getReferencedColumn: (t) => t.id,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$TargetsTableAnnotationComposer(
-              $db: $db,
-              $table: $db.targets,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return composer;
-  }
-
-  Expression<T> capturedImagesRefs<T extends Object>(
-      Expression<T> Function($$CapturedImagesTableAnnotationComposer a) f) {
-    final $$CapturedImagesTableAnnotationComposer composer = $composerBuilder(
-        composer: this,
-        getCurrentColumn: (t) => t.id,
-        referencedTable: $db.capturedImages,
-        getReferencedColumn: (t) => t.sessionId,
-        builder: (joinBuilder,
-                {$addJoinBuilderToRootComposer,
-                $removeJoinBuilderFromRootComposer}) =>
-            $$CapturedImagesTableAnnotationComposer(
-              $db: $db,
-              $table: $db.capturedImages,
-              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
-              joinBuilder: joinBuilder,
-              $removeJoinBuilderFromRootComposer:
-                  $removeJoinBuilderFromRootComposer,
-            ));
-    return f(composer);
-  }
-}
-
-class $$ImagingSessionsTableTableManager extends RootTableManager<
-    _$NightshadeDatabase,
-    $ImagingSessionsTable,
-    ImagingSession,
-    $$ImagingSessionsTableFilterComposer,
-    $$ImagingSessionsTableOrderingComposer,
-    $$ImagingSessionsTableAnnotationComposer,
-    $$ImagingSessionsTableCreateCompanionBuilder,
-    $$ImagingSessionsTableUpdateCompanionBuilder,
-    (ImagingSession, $$ImagingSessionsTableReferences),
-    ImagingSession,
-    PrefetchHooks Function(
-        {bool profileId, bool targetId, bool capturedImagesRefs})> {
-  $$ImagingSessionsTableTableManager(
-      _$NightshadeDatabase db, $ImagingSessionsTable table)
-      : super(TableManagerState(
-          db: db,
-          table: table,
-          createFilteringComposer: () =>
-              $$ImagingSessionsTableFilterComposer($db: db, $table: table),
-          createOrderingComposer: () =>
-              $$ImagingSessionsTableOrderingComposer($db: db, $table: table),
-          createComputedFieldComposer: () =>
-              $$ImagingSessionsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            Value<String?> name = const Value.absent(),
-            Value<int?> profileId = const Value.absent(),
-            Value<int?> targetId = const Value.absent(),
-            Value<DateTime> startTime = const Value.absent(),
-            Value<DateTime?> endTime = const Value.absent(),
-            Value<int> totalExposures = const Value.absent(),
-            Value<int> successfulExposures = const Value.absent(),
-            Value<int> failedExposures = const Value.absent(),
-            Value<double> totalIntegrationSecs = const Value.absent(),
-            Value<double?> avgTemperature = const Value.absent(),
-            Value<double?> avgHumidity = const Value.absent(),
-            Value<double?> avgSeeing = const Value.absent(),
-            Value<double?> avgHfr = const Value.absent(),
-            Value<double?> avgGuidingRms = const Value.absent(),
-            Value<int> autofocusCount = const Value.absent(),
-            Value<String?> notes = const Value.absent(),
-            Value<String> status = const Value.absent(),
-          }) =>
-              ImagingSessionsCompanion(
-            id: id,
-            name: name,
-            profileId: profileId,
-            targetId: targetId,
-            startTime: startTime,
-            endTime: endTime,
-            totalExposures: totalExposures,
-            successfulExposures: successfulExposures,
-            failedExposures: failedExposures,
-            totalIntegrationSecs: totalIntegrationSecs,
-            avgTemperature: avgTemperature,
-            avgHumidity: avgHumidity,
-            avgSeeing: avgSeeing,
-            avgHfr: avgHfr,
-            avgGuidingRms: avgGuidingRms,
-            autofocusCount: autofocusCount,
-            notes: notes,
-            status: status,
-          ),
-          createCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            Value<String?> name = const Value.absent(),
-            Value<int?> profileId = const Value.absent(),
-            Value<int?> targetId = const Value.absent(),
-            required DateTime startTime,
-            Value<DateTime?> endTime = const Value.absent(),
-            Value<int> totalExposures = const Value.absent(),
-            Value<int> successfulExposures = const Value.absent(),
-            Value<int> failedExposures = const Value.absent(),
-            Value<double> totalIntegrationSecs = const Value.absent(),
-            Value<double?> avgTemperature = const Value.absent(),
-            Value<double?> avgHumidity = const Value.absent(),
-            Value<double?> avgSeeing = const Value.absent(),
-            Value<double?> avgHfr = const Value.absent(),
-            Value<double?> avgGuidingRms = const Value.absent(),
-            Value<int> autofocusCount = const Value.absent(),
-            Value<String?> notes = const Value.absent(),
-            Value<String> status = const Value.absent(),
-          }) =>
-              ImagingSessionsCompanion.insert(
-            id: id,
-            name: name,
-            profileId: profileId,
-            targetId: targetId,
-            startTime: startTime,
-            endTime: endTime,
-            totalExposures: totalExposures,
-            successfulExposures: successfulExposures,
-            failedExposures: failedExposures,
-            totalIntegrationSecs: totalIntegrationSecs,
-            avgTemperature: avgTemperature,
-            avgHumidity: avgHumidity,
-            avgSeeing: avgSeeing,
-            avgHfr: avgHfr,
-            avgGuidingRms: avgGuidingRms,
-            autofocusCount: autofocusCount,
-            notes: notes,
-            status: status,
-          ),
-          withReferenceMapper: (p0) => p0
-              .map((e) => (
-                    e.readTable(table),
-                    $$ImagingSessionsTableReferences(db, table, e)
-                  ))
-              .toList(),
-          prefetchHooksCallback: (
-              {profileId = false,
-              targetId = false,
-              capturedImagesRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (capturedImagesRefs) db.capturedImages
-              ],
-              addJoins: <
-                  T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic>>(state) {
-                if (profileId) {
-                  state = state.withJoin(
-                    currentTable: table,
-                    currentColumn: table.profileId,
-                    referencedTable:
-                        $$ImagingSessionsTableReferences._profileIdTable(db),
-                    referencedColumn:
-                        $$ImagingSessionsTableReferences._profileIdTable(db).id,
-                  ) as T;
-                }
-                if (targetId) {
-                  state = state.withJoin(
-                    currentTable: table,
-                    currentColumn: table.targetId,
-                    referencedTable:
-                        $$ImagingSessionsTableReferences._targetIdTable(db),
-                    referencedColumn:
-                        $$ImagingSessionsTableReferences._targetIdTable(db).id,
-                  ) as T;
-                }
-
-                return state;
-              },
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (capturedImagesRefs)
-                    await $_getPrefetchedData(
-                        currentTable: table,
-                        referencedTable: $$ImagingSessionsTableReferences
-                            ._capturedImagesRefsTable(db),
-                        managerFromTypedResult: (p0) =>
-                            $$ImagingSessionsTableReferences(db, table, p0)
-                                .capturedImagesRefs,
-                        referencedItemsForCurrentItem:
-                            (item, referencedItems) => referencedItems
-                                .where((e) => e.sessionId == item.id),
-                        typedResults: items)
-                ];
-              },
-            );
-          },
-        ));
-}
-
-typedef $$ImagingSessionsTableProcessedTableManager = ProcessedTableManager<
-    _$NightshadeDatabase,
-    $ImagingSessionsTable,
-    ImagingSession,
-    $$ImagingSessionsTableFilterComposer,
-    $$ImagingSessionsTableOrderingComposer,
-    $$ImagingSessionsTableAnnotationComposer,
-    $$ImagingSessionsTableCreateCompanionBuilder,
-    $$ImagingSessionsTableUpdateCompanionBuilder,
-    (ImagingSession, $$ImagingSessionsTableReferences),
-    ImagingSession,
-    PrefetchHooks Function(
-        {bool profileId, bool targetId, bool capturedImagesRefs})>;
 typedef $$SequencesTableCreateCompanionBuilder = SequencesCompanion Function({
   Value<int> id,
   required String name,
@@ -10084,6 +9962,23 @@ typedef $$SequencesTableUpdateCompanionBuilder = SequencesCompanion Function({
 final class $$SequencesTableReferences
     extends BaseReferences<_$NightshadeDatabase, $SequencesTable, Sequence> {
   $$SequencesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$ImagingSessionsTable, List<ImagingSession>>
+      _imagingSessionsRefsTable(_$NightshadeDatabase db) =>
+          MultiTypedResultKey.fromTable(db.imagingSessions,
+              aliasName: $_aliasNameGenerator(
+                  db.sequences.id, db.imagingSessions.sequenceId));
+
+  $$ImagingSessionsTableProcessedTableManager get imagingSessionsRefs {
+    final manager =
+        $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
+            .filter((f) => f.sequenceId.id($_item.id));
+
+    final cache =
+        $_typedResult.readTableOrNull(_imagingSessionsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
 
   static MultiTypedResultKey<$SequenceNodesTable, List<SequenceNode>>
       _sequenceNodesRefsTable(_$NightshadeDatabase db) =>
@@ -10152,6 +10047,27 @@ class $$SequencesTableFilterComposer
 
   ColumnFilters<bool> get isTemplate => $composableBuilder(
       column: $table.isTemplate, builder: (column) => ColumnFilters(column));
+
+  Expression<bool> imagingSessionsRefs(
+      Expression<bool> Function($$ImagingSessionsTableFilterComposer f) f) {
+    final $$ImagingSessionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.imagingSessions,
+        getReferencedColumn: (t) => t.sequenceId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ImagingSessionsTableFilterComposer(
+              $db: $db,
+              $table: $db.imagingSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 
   Expression<bool> sequenceNodesRefs(
       Expression<bool> Function($$SequenceNodesTableFilterComposer f) f) {
@@ -10264,6 +10180,27 @@ class $$SequencesTableAnnotationComposer
   GeneratedColumn<bool> get isTemplate => $composableBuilder(
       column: $table.isTemplate, builder: (column) => column);
 
+  Expression<T> imagingSessionsRefs<T extends Object>(
+      Expression<T> Function($$ImagingSessionsTableAnnotationComposer a) f) {
+    final $$ImagingSessionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.imagingSessions,
+        getReferencedColumn: (t) => t.sequenceId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ImagingSessionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.imagingSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
   Expression<T> sequenceNodesRefs<T extends Object>(
       Expression<T> Function($$SequenceNodesTableAnnotationComposer a) f) {
     final $$SequenceNodesTableAnnotationComposer composer = $composerBuilder(
@@ -10321,7 +10258,9 @@ class $$SequencesTableTableManager extends RootTableManager<
     (Sequence, $$SequencesTableReferences),
     Sequence,
     PrefetchHooks Function(
-        {bool sequenceNodesRefs, bool sequenceCheckpointsRefs})> {
+        {bool imagingSessionsRefs,
+        bool sequenceNodesRefs,
+        bool sequenceCheckpointsRefs})> {
   $$SequencesTableTableManager(_$NightshadeDatabase db, $SequencesTable table)
       : super(TableManagerState(
           db: db,
@@ -10379,16 +10318,31 @@ class $$SequencesTableTableManager extends RootTableManager<
                   ))
               .toList(),
           prefetchHooksCallback: (
-              {sequenceNodesRefs = false, sequenceCheckpointsRefs = false}) {
+              {imagingSessionsRefs = false,
+              sequenceNodesRefs = false,
+              sequenceCheckpointsRefs = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [
+                if (imagingSessionsRefs) db.imagingSessions,
                 if (sequenceNodesRefs) db.sequenceNodes,
                 if (sequenceCheckpointsRefs) db.sequenceCheckpoints
               ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
+                  if (imagingSessionsRefs)
+                    await $_getPrefetchedData(
+                        currentTable: table,
+                        referencedTable: $$SequencesTableReferences
+                            ._imagingSessionsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$SequencesTableReferences(db, table, p0)
+                                .imagingSessionsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.sequenceId == item.id),
+                        typedResults: items),
                   if (sequenceNodesRefs)
                     await $_getPrefetchedData(
                         currentTable: table,
@@ -10432,7 +10386,756 @@ typedef $$SequencesTableProcessedTableManager = ProcessedTableManager<
     (Sequence, $$SequencesTableReferences),
     Sequence,
     PrefetchHooks Function(
-        {bool sequenceNodesRefs, bool sequenceCheckpointsRefs})>;
+        {bool imagingSessionsRefs,
+        bool sequenceNodesRefs,
+        bool sequenceCheckpointsRefs})>;
+typedef $$ImagingSessionsTableCreateCompanionBuilder = ImagingSessionsCompanion
+    Function({
+  Value<int> id,
+  Value<String?> name,
+  Value<int?> profileId,
+  Value<int?> targetId,
+  required DateTime startTime,
+  Value<DateTime?> endTime,
+  Value<int> totalExposures,
+  Value<int> successfulExposures,
+  Value<int> failedExposures,
+  Value<double> totalIntegrationSecs,
+  Value<double?> avgTemperature,
+  Value<double?> avgHumidity,
+  Value<double?> avgSeeing,
+  Value<double?> avgHfr,
+  Value<double?> avgGuidingRms,
+  Value<int> autofocusCount,
+  Value<String?> notes,
+  Value<String> status,
+  Value<int?> sequenceId,
+  Value<String?> equipmentSnapshot,
+});
+typedef $$ImagingSessionsTableUpdateCompanionBuilder = ImagingSessionsCompanion
+    Function({
+  Value<int> id,
+  Value<String?> name,
+  Value<int?> profileId,
+  Value<int?> targetId,
+  Value<DateTime> startTime,
+  Value<DateTime?> endTime,
+  Value<int> totalExposures,
+  Value<int> successfulExposures,
+  Value<int> failedExposures,
+  Value<double> totalIntegrationSecs,
+  Value<double?> avgTemperature,
+  Value<double?> avgHumidity,
+  Value<double?> avgSeeing,
+  Value<double?> avgHfr,
+  Value<double?> avgGuidingRms,
+  Value<int> autofocusCount,
+  Value<String?> notes,
+  Value<String> status,
+  Value<int?> sequenceId,
+  Value<String?> equipmentSnapshot,
+});
+
+final class $$ImagingSessionsTableReferences extends BaseReferences<
+    _$NightshadeDatabase, $ImagingSessionsTable, ImagingSession> {
+  $$ImagingSessionsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $EquipmentProfilesTable _profileIdTable(_$NightshadeDatabase db) =>
+      db.equipmentProfiles.createAlias($_aliasNameGenerator(
+          db.imagingSessions.profileId, db.equipmentProfiles.id));
+
+  $$EquipmentProfilesTableProcessedTableManager? get profileId {
+    if ($_item.profileId == null) return null;
+    final manager =
+        $$EquipmentProfilesTableTableManager($_db, $_db.equipmentProfiles)
+            .filter((f) => f.id($_item.profileId!));
+    final item = $_typedResult.readTableOrNull(_profileIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $TargetsTable _targetIdTable(_$NightshadeDatabase db) =>
+      db.targets.createAlias(
+          $_aliasNameGenerator(db.imagingSessions.targetId, db.targets.id));
+
+  $$TargetsTableProcessedTableManager? get targetId {
+    if ($_item.targetId == null) return null;
+    final manager = $$TargetsTableTableManager($_db, $_db.targets)
+        .filter((f) => f.id($_item.targetId!));
+    final item = $_typedResult.readTableOrNull(_targetIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $SequencesTable _sequenceIdTable(_$NightshadeDatabase db) =>
+      db.sequences.createAlias(
+          $_aliasNameGenerator(db.imagingSessions.sequenceId, db.sequences.id));
+
+  $$SequencesTableProcessedTableManager? get sequenceId {
+    if ($_item.sequenceId == null) return null;
+    final manager = $$SequencesTableTableManager($_db, $_db.sequences)
+        .filter((f) => f.id($_item.sequenceId!));
+    final item = $_typedResult.readTableOrNull(_sequenceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static MultiTypedResultKey<$CapturedImagesTable, List<CapturedImage>>
+      _capturedImagesRefsTable(_$NightshadeDatabase db) =>
+          MultiTypedResultKey.fromTable(db.capturedImages,
+              aliasName: $_aliasNameGenerator(
+                  db.imagingSessions.id, db.capturedImages.sessionId));
+
+  $$CapturedImagesTableProcessedTableManager get capturedImagesRefs {
+    final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
+        .filter((f) => f.sessionId.id($_item.id));
+
+    final cache = $_typedResult.readTableOrNull(_capturedImagesRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
+class $$ImagingSessionsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $ImagingSessionsTable> {
+  $$ImagingSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get startTime => $composableBuilder(
+      column: $table.startTime, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get endTime => $composableBuilder(
+      column: $table.endTime, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get totalExposures => $composableBuilder(
+      column: $table.totalExposures,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get successfulExposures => $composableBuilder(
+      column: $table.successfulExposures,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get failedExposures => $composableBuilder(
+      column: $table.failedExposures,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get totalIntegrationSecs => $composableBuilder(
+      column: $table.totalIntegrationSecs,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get avgTemperature => $composableBuilder(
+      column: $table.avgTemperature,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get avgHumidity => $composableBuilder(
+      column: $table.avgHumidity, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get avgSeeing => $composableBuilder(
+      column: $table.avgSeeing, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get avgHfr => $composableBuilder(
+      column: $table.avgHfr, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get avgGuidingRms => $composableBuilder(
+      column: $table.avgGuidingRms, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get autofocusCount => $composableBuilder(
+      column: $table.autofocusCount,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get notes => $composableBuilder(
+      column: $table.notes, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get equipmentSnapshot => $composableBuilder(
+      column: $table.equipmentSnapshot,
+      builder: (column) => ColumnFilters(column));
+
+  $$EquipmentProfilesTableFilterComposer get profileId {
+    final $$EquipmentProfilesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.profileId,
+        referencedTable: $db.equipmentProfiles,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$EquipmentProfilesTableFilterComposer(
+              $db: $db,
+              $table: $db.equipmentProfiles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$TargetsTableFilterComposer get targetId {
+    final $$TargetsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.targetId,
+        referencedTable: $db.targets,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$TargetsTableFilterComposer(
+              $db: $db,
+              $table: $db.targets,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SequencesTableFilterComposer get sequenceId {
+    final $$SequencesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sequenceId,
+        referencedTable: $db.sequences,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SequencesTableFilterComposer(
+              $db: $db,
+              $table: $db.sequences,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  Expression<bool> capturedImagesRefs(
+      Expression<bool> Function($$CapturedImagesTableFilterComposer f) f) {
+    final $$CapturedImagesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.capturedImages,
+        getReferencedColumn: (t) => t.sessionId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$CapturedImagesTableFilterComposer(
+              $db: $db,
+              $table: $db.capturedImages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+}
+
+class $$ImagingSessionsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $ImagingSessionsTable> {
+  $$ImagingSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(
+      column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get startTime => $composableBuilder(
+      column: $table.startTime, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get endTime => $composableBuilder(
+      column: $table.endTime, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get totalExposures => $composableBuilder(
+      column: $table.totalExposures,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get successfulExposures => $composableBuilder(
+      column: $table.successfulExposures,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get failedExposures => $composableBuilder(
+      column: $table.failedExposures,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get totalIntegrationSecs => $composableBuilder(
+      column: $table.totalIntegrationSecs,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get avgTemperature => $composableBuilder(
+      column: $table.avgTemperature,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get avgHumidity => $composableBuilder(
+      column: $table.avgHumidity, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get avgSeeing => $composableBuilder(
+      column: $table.avgSeeing, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get avgHfr => $composableBuilder(
+      column: $table.avgHfr, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get avgGuidingRms => $composableBuilder(
+      column: $table.avgGuidingRms,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get autofocusCount => $composableBuilder(
+      column: $table.autofocusCount,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+      column: $table.notes, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get status => $composableBuilder(
+      column: $table.status, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get equipmentSnapshot => $composableBuilder(
+      column: $table.equipmentSnapshot,
+      builder: (column) => ColumnOrderings(column));
+
+  $$EquipmentProfilesTableOrderingComposer get profileId {
+    final $$EquipmentProfilesTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.profileId,
+        referencedTable: $db.equipmentProfiles,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$EquipmentProfilesTableOrderingComposer(
+              $db: $db,
+              $table: $db.equipmentProfiles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$TargetsTableOrderingComposer get targetId {
+    final $$TargetsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.targetId,
+        referencedTable: $db.targets,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$TargetsTableOrderingComposer(
+              $db: $db,
+              $table: $db.targets,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SequencesTableOrderingComposer get sequenceId {
+    final $$SequencesTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sequenceId,
+        referencedTable: $db.sequences,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SequencesTableOrderingComposer(
+              $db: $db,
+              $table: $db.sequences,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ImagingSessionsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $ImagingSessionsTable> {
+  $$ImagingSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startTime =>
+      $composableBuilder(column: $table.startTime, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get endTime =>
+      $composableBuilder(column: $table.endTime, builder: (column) => column);
+
+  GeneratedColumn<int> get totalExposures => $composableBuilder(
+      column: $table.totalExposures, builder: (column) => column);
+
+  GeneratedColumn<int> get successfulExposures => $composableBuilder(
+      column: $table.successfulExposures, builder: (column) => column);
+
+  GeneratedColumn<int> get failedExposures => $composableBuilder(
+      column: $table.failedExposures, builder: (column) => column);
+
+  GeneratedColumn<double> get totalIntegrationSecs => $composableBuilder(
+      column: $table.totalIntegrationSecs, builder: (column) => column);
+
+  GeneratedColumn<double> get avgTemperature => $composableBuilder(
+      column: $table.avgTemperature, builder: (column) => column);
+
+  GeneratedColumn<double> get avgHumidity => $composableBuilder(
+      column: $table.avgHumidity, builder: (column) => column);
+
+  GeneratedColumn<double> get avgSeeing =>
+      $composableBuilder(column: $table.avgSeeing, builder: (column) => column);
+
+  GeneratedColumn<double> get avgHfr =>
+      $composableBuilder(column: $table.avgHfr, builder: (column) => column);
+
+  GeneratedColumn<double> get avgGuidingRms => $composableBuilder(
+      column: $table.avgGuidingRms, builder: (column) => column);
+
+  GeneratedColumn<int> get autofocusCount => $composableBuilder(
+      column: $table.autofocusCount, builder: (column) => column);
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get equipmentSnapshot => $composableBuilder(
+      column: $table.equipmentSnapshot, builder: (column) => column);
+
+  $$EquipmentProfilesTableAnnotationComposer get profileId {
+    final $$EquipmentProfilesTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.profileId,
+            referencedTable: $db.equipmentProfiles,
+            getReferencedColumn: (t) => t.id,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$EquipmentProfilesTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.equipmentProfiles,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return composer;
+  }
+
+  $$TargetsTableAnnotationComposer get targetId {
+    final $$TargetsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.targetId,
+        referencedTable: $db.targets,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$TargetsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.targets,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$SequencesTableAnnotationComposer get sequenceId {
+    final $$SequencesTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sequenceId,
+        referencedTable: $db.sequences,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$SequencesTableAnnotationComposer(
+              $db: $db,
+              $table: $db.sequences,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  Expression<T> capturedImagesRefs<T extends Object>(
+      Expression<T> Function($$CapturedImagesTableAnnotationComposer a) f) {
+    final $$CapturedImagesTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.capturedImages,
+        getReferencedColumn: (t) => t.sessionId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$CapturedImagesTableAnnotationComposer(
+              $db: $db,
+              $table: $db.capturedImages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+}
+
+class $$ImagingSessionsTableTableManager extends RootTableManager<
+    _$NightshadeDatabase,
+    $ImagingSessionsTable,
+    ImagingSession,
+    $$ImagingSessionsTableFilterComposer,
+    $$ImagingSessionsTableOrderingComposer,
+    $$ImagingSessionsTableAnnotationComposer,
+    $$ImagingSessionsTableCreateCompanionBuilder,
+    $$ImagingSessionsTableUpdateCompanionBuilder,
+    (ImagingSession, $$ImagingSessionsTableReferences),
+    ImagingSession,
+    PrefetchHooks Function(
+        {bool profileId,
+        bool targetId,
+        bool sequenceId,
+        bool capturedImagesRefs})> {
+  $$ImagingSessionsTableTableManager(
+      _$NightshadeDatabase db, $ImagingSessionsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ImagingSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ImagingSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ImagingSessionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String?> name = const Value.absent(),
+            Value<int?> profileId = const Value.absent(),
+            Value<int?> targetId = const Value.absent(),
+            Value<DateTime> startTime = const Value.absent(),
+            Value<DateTime?> endTime = const Value.absent(),
+            Value<int> totalExposures = const Value.absent(),
+            Value<int> successfulExposures = const Value.absent(),
+            Value<int> failedExposures = const Value.absent(),
+            Value<double> totalIntegrationSecs = const Value.absent(),
+            Value<double?> avgTemperature = const Value.absent(),
+            Value<double?> avgHumidity = const Value.absent(),
+            Value<double?> avgSeeing = const Value.absent(),
+            Value<double?> avgHfr = const Value.absent(),
+            Value<double?> avgGuidingRms = const Value.absent(),
+            Value<int> autofocusCount = const Value.absent(),
+            Value<String?> notes = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int?> sequenceId = const Value.absent(),
+            Value<String?> equipmentSnapshot = const Value.absent(),
+          }) =>
+              ImagingSessionsCompanion(
+            id: id,
+            name: name,
+            profileId: profileId,
+            targetId: targetId,
+            startTime: startTime,
+            endTime: endTime,
+            totalExposures: totalExposures,
+            successfulExposures: successfulExposures,
+            failedExposures: failedExposures,
+            totalIntegrationSecs: totalIntegrationSecs,
+            avgTemperature: avgTemperature,
+            avgHumidity: avgHumidity,
+            avgSeeing: avgSeeing,
+            avgHfr: avgHfr,
+            avgGuidingRms: avgGuidingRms,
+            autofocusCount: autofocusCount,
+            notes: notes,
+            status: status,
+            sequenceId: sequenceId,
+            equipmentSnapshot: equipmentSnapshot,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String?> name = const Value.absent(),
+            Value<int?> profileId = const Value.absent(),
+            Value<int?> targetId = const Value.absent(),
+            required DateTime startTime,
+            Value<DateTime?> endTime = const Value.absent(),
+            Value<int> totalExposures = const Value.absent(),
+            Value<int> successfulExposures = const Value.absent(),
+            Value<int> failedExposures = const Value.absent(),
+            Value<double> totalIntegrationSecs = const Value.absent(),
+            Value<double?> avgTemperature = const Value.absent(),
+            Value<double?> avgHumidity = const Value.absent(),
+            Value<double?> avgSeeing = const Value.absent(),
+            Value<double?> avgHfr = const Value.absent(),
+            Value<double?> avgGuidingRms = const Value.absent(),
+            Value<int> autofocusCount = const Value.absent(),
+            Value<String?> notes = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int?> sequenceId = const Value.absent(),
+            Value<String?> equipmentSnapshot = const Value.absent(),
+          }) =>
+              ImagingSessionsCompanion.insert(
+            id: id,
+            name: name,
+            profileId: profileId,
+            targetId: targetId,
+            startTime: startTime,
+            endTime: endTime,
+            totalExposures: totalExposures,
+            successfulExposures: successfulExposures,
+            failedExposures: failedExposures,
+            totalIntegrationSecs: totalIntegrationSecs,
+            avgTemperature: avgTemperature,
+            avgHumidity: avgHumidity,
+            avgSeeing: avgSeeing,
+            avgHfr: avgHfr,
+            avgGuidingRms: avgGuidingRms,
+            autofocusCount: autofocusCount,
+            notes: notes,
+            status: status,
+            sequenceId: sequenceId,
+            equipmentSnapshot: equipmentSnapshot,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$ImagingSessionsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: (
+              {profileId = false,
+              targetId = false,
+              sequenceId = false,
+              capturedImagesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (capturedImagesRefs) db.capturedImages
+              ],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (profileId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.profileId,
+                    referencedTable:
+                        $$ImagingSessionsTableReferences._profileIdTable(db),
+                    referencedColumn:
+                        $$ImagingSessionsTableReferences._profileIdTable(db).id,
+                  ) as T;
+                }
+                if (targetId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.targetId,
+                    referencedTable:
+                        $$ImagingSessionsTableReferences._targetIdTable(db),
+                    referencedColumn:
+                        $$ImagingSessionsTableReferences._targetIdTable(db).id,
+                  ) as T;
+                }
+                if (sequenceId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.sequenceId,
+                    referencedTable:
+                        $$ImagingSessionsTableReferences._sequenceIdTable(db),
+                    referencedColumn: $$ImagingSessionsTableReferences
+                        ._sequenceIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (capturedImagesRefs)
+                    await $_getPrefetchedData(
+                        currentTable: table,
+                        referencedTable: $$ImagingSessionsTableReferences
+                            ._capturedImagesRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$ImagingSessionsTableReferences(db, table, p0)
+                                .capturedImagesRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.sessionId == item.id),
+                        typedResults: items)
+                ];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$ImagingSessionsTableProcessedTableManager = ProcessedTableManager<
+    _$NightshadeDatabase,
+    $ImagingSessionsTable,
+    ImagingSession,
+    $$ImagingSessionsTableFilterComposer,
+    $$ImagingSessionsTableOrderingComposer,
+    $$ImagingSessionsTableAnnotationComposer,
+    $$ImagingSessionsTableCreateCompanionBuilder,
+    $$ImagingSessionsTableUpdateCompanionBuilder,
+    (ImagingSession, $$ImagingSessionsTableReferences),
+    ImagingSession,
+    PrefetchHooks Function(
+        {bool profileId,
+        bool targetId,
+        bool sequenceId,
+        bool capturedImagesRefs})>;
 typedef $$SequenceNodesTableCreateCompanionBuilder = SequenceNodesCompanion
     Function({
   Value<int> id,
@@ -13144,6 +13847,207 @@ typedef $$FlatHistoryTableProcessedTableManager = ProcessedTableManager<
     ),
     FlatHistoryEntry,
     PrefetchHooks Function()>;
+typedef $$TutorialProgressTableCreateCompanionBuilder
+    = TutorialProgressCompanion Function({
+  Value<int> id,
+  required String category,
+  Value<int> lastStepIndex,
+  Value<bool> completed,
+  required DateTime startedAt,
+  Value<DateTime?> completedAt,
+  Value<bool> dismissed,
+});
+typedef $$TutorialProgressTableUpdateCompanionBuilder
+    = TutorialProgressCompanion Function({
+  Value<int> id,
+  Value<String> category,
+  Value<int> lastStepIndex,
+  Value<bool> completed,
+  Value<DateTime> startedAt,
+  Value<DateTime?> completedAt,
+  Value<bool> dismissed,
+});
+
+class $$TutorialProgressTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $TutorialProgressTable> {
+  $$TutorialProgressTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get category => $composableBuilder(
+      column: $table.category, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get lastStepIndex => $composableBuilder(
+      column: $table.lastStepIndex, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get completed => $composableBuilder(
+      column: $table.completed, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+      column: $table.completedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get dismissed => $composableBuilder(
+      column: $table.dismissed, builder: (column) => ColumnFilters(column));
+}
+
+class $$TutorialProgressTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $TutorialProgressTable> {
+  $$TutorialProgressTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get category => $composableBuilder(
+      column: $table.category, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get lastStepIndex => $composableBuilder(
+      column: $table.lastStepIndex,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get completed => $composableBuilder(
+      column: $table.completed, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+      column: $table.completedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get dismissed => $composableBuilder(
+      column: $table.dismissed, builder: (column) => ColumnOrderings(column));
+}
+
+class $$TutorialProgressTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $TutorialProgressTable> {
+  $$TutorialProgressTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<int> get lastStepIndex => $composableBuilder(
+      column: $table.lastStepIndex, builder: (column) => column);
+
+  GeneratedColumn<bool> get completed =>
+      $composableBuilder(column: $table.completed, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+      column: $table.completedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get dismissed =>
+      $composableBuilder(column: $table.dismissed, builder: (column) => column);
+}
+
+class $$TutorialProgressTableTableManager extends RootTableManager<
+    _$NightshadeDatabase,
+    $TutorialProgressTable,
+    TutorialProgressEntry,
+    $$TutorialProgressTableFilterComposer,
+    $$TutorialProgressTableOrderingComposer,
+    $$TutorialProgressTableAnnotationComposer,
+    $$TutorialProgressTableCreateCompanionBuilder,
+    $$TutorialProgressTableUpdateCompanionBuilder,
+    (
+      TutorialProgressEntry,
+      BaseReferences<_$NightshadeDatabase, $TutorialProgressTable,
+          TutorialProgressEntry>
+    ),
+    TutorialProgressEntry,
+    PrefetchHooks Function()> {
+  $$TutorialProgressTableTableManager(
+      _$NightshadeDatabase db, $TutorialProgressTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TutorialProgressTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TutorialProgressTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TutorialProgressTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> category = const Value.absent(),
+            Value<int> lastStepIndex = const Value.absent(),
+            Value<bool> completed = const Value.absent(),
+            Value<DateTime> startedAt = const Value.absent(),
+            Value<DateTime?> completedAt = const Value.absent(),
+            Value<bool> dismissed = const Value.absent(),
+          }) =>
+              TutorialProgressCompanion(
+            id: id,
+            category: category,
+            lastStepIndex: lastStepIndex,
+            completed: completed,
+            startedAt: startedAt,
+            completedAt: completedAt,
+            dismissed: dismissed,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String category,
+            Value<int> lastStepIndex = const Value.absent(),
+            Value<bool> completed = const Value.absent(),
+            required DateTime startedAt,
+            Value<DateTime?> completedAt = const Value.absent(),
+            Value<bool> dismissed = const Value.absent(),
+          }) =>
+              TutorialProgressCompanion.insert(
+            id: id,
+            category: category,
+            lastStepIndex: lastStepIndex,
+            completed: completed,
+            startedAt: startedAt,
+            completedAt: completedAt,
+            dismissed: dismissed,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$TutorialProgressTableProcessedTableManager = ProcessedTableManager<
+    _$NightshadeDatabase,
+    $TutorialProgressTable,
+    TutorialProgressEntry,
+    $$TutorialProgressTableFilterComposer,
+    $$TutorialProgressTableOrderingComposer,
+    $$TutorialProgressTableAnnotationComposer,
+    $$TutorialProgressTableCreateCompanionBuilder,
+    $$TutorialProgressTableUpdateCompanionBuilder,
+    (
+      TutorialProgressEntry,
+      BaseReferences<_$NightshadeDatabase, $TutorialProgressTable,
+          TutorialProgressEntry>
+    ),
+    TutorialProgressEntry,
+    PrefetchHooks Function()>;
 
 class $NightshadeDatabaseManager {
   final _$NightshadeDatabase _db;
@@ -13152,10 +14056,10 @@ class $NightshadeDatabaseManager {
       $$EquipmentProfilesTableTableManager(_db, _db.equipmentProfiles);
   $$TargetsTableTableManager get targets =>
       $$TargetsTableTableManager(_db, _db.targets);
-  $$ImagingSessionsTableTableManager get imagingSessions =>
-      $$ImagingSessionsTableTableManager(_db, _db.imagingSessions);
   $$SequencesTableTableManager get sequences =>
       $$SequencesTableTableManager(_db, _db.sequences);
+  $$ImagingSessionsTableTableManager get imagingSessions =>
+      $$ImagingSessionsTableTableManager(_db, _db.imagingSessions);
   $$SequenceNodesTableTableManager get sequenceNodes =>
       $$SequenceNodesTableTableManager(_db, _db.sequenceNodes);
   $$SequenceCheckpointsTableTableManager get sequenceCheckpoints =>
@@ -13170,4 +14074,6 @@ class $NightshadeDatabaseManager {
       $$WeatherSettingsTableTableManager(_db, _db.weatherSettings);
   $$FlatHistoryTableTableManager get flatHistory =>
       $$FlatHistoryTableTableManager(_db, _db.flatHistory);
+  $$TutorialProgressTableTableManager get tutorialProgress =>
+      $$TutorialProgressTableTableManager(_db, _db.tutorialProgress);
 }

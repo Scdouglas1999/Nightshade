@@ -13373,6 +13373,13 @@ mixin _$GuidingEvent {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -13389,6 +13396,13 @@ mixin _$GuidingEvent {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -13405,6 +13419,13 @@ mixin _$GuidingEvent {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -13422,6 +13443,14 @@ mixin _$GuidingEvent {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -13437,6 +13466,14 @@ mixin _$GuidingEvent {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -13452,6 +13489,14 @@ mixin _$GuidingEvent {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -13535,6 +13580,13 @@ class _$GuidingEvent_ConnectedImpl extends GuidingEvent_Connected {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return connected();
   }
@@ -13554,6 +13606,13 @@ class _$GuidingEvent_ConnectedImpl extends GuidingEvent_Connected {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return connected?.call();
   }
@@ -13573,6 +13632,13 @@ class _$GuidingEvent_ConnectedImpl extends GuidingEvent_Connected {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (connected != null) {
@@ -13596,6 +13662,14 @@ class _$GuidingEvent_ConnectedImpl extends GuidingEvent_Connected {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return connected(this);
   }
@@ -13614,6 +13688,14 @@ class _$GuidingEvent_ConnectedImpl extends GuidingEvent_Connected {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return connected?.call(this);
   }
@@ -13632,6 +13714,14 @@ class _$GuidingEvent_ConnectedImpl extends GuidingEvent_Connected {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (connected != null) {
@@ -13703,6 +13793,13 @@ class _$GuidingEvent_DisconnectedImpl extends GuidingEvent_Disconnected {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return disconnected();
   }
@@ -13722,6 +13819,13 @@ class _$GuidingEvent_DisconnectedImpl extends GuidingEvent_Disconnected {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return disconnected?.call();
   }
@@ -13741,6 +13845,13 @@ class _$GuidingEvent_DisconnectedImpl extends GuidingEvent_Disconnected {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (disconnected != null) {
@@ -13764,6 +13875,14 @@ class _$GuidingEvent_DisconnectedImpl extends GuidingEvent_Disconnected {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return disconnected(this);
   }
@@ -13782,6 +13901,14 @@ class _$GuidingEvent_DisconnectedImpl extends GuidingEvent_Disconnected {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return disconnected?.call(this);
   }
@@ -13800,6 +13927,14 @@ class _$GuidingEvent_DisconnectedImpl extends GuidingEvent_Disconnected {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (disconnected != null) {
@@ -13871,6 +14006,13 @@ class _$GuidingEvent_GuidingStartedImpl extends GuidingEvent_GuidingStarted {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return guidingStarted();
   }
@@ -13890,6 +14032,13 @@ class _$GuidingEvent_GuidingStartedImpl extends GuidingEvent_GuidingStarted {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return guidingStarted?.call();
   }
@@ -13909,6 +14058,13 @@ class _$GuidingEvent_GuidingStartedImpl extends GuidingEvent_GuidingStarted {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (guidingStarted != null) {
@@ -13932,6 +14088,14 @@ class _$GuidingEvent_GuidingStartedImpl extends GuidingEvent_GuidingStarted {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return guidingStarted(this);
   }
@@ -13950,6 +14114,14 @@ class _$GuidingEvent_GuidingStartedImpl extends GuidingEvent_GuidingStarted {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return guidingStarted?.call(this);
   }
@@ -13968,6 +14140,14 @@ class _$GuidingEvent_GuidingStartedImpl extends GuidingEvent_GuidingStarted {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (guidingStarted != null) {
@@ -14040,6 +14220,13 @@ class _$GuidingEvent_GuidingStoppedImpl extends GuidingEvent_GuidingStopped {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return guidingStopped();
   }
@@ -14059,6 +14246,13 @@ class _$GuidingEvent_GuidingStoppedImpl extends GuidingEvent_GuidingStopped {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return guidingStopped?.call();
   }
@@ -14078,6 +14272,13 @@ class _$GuidingEvent_GuidingStoppedImpl extends GuidingEvent_GuidingStopped {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (guidingStopped != null) {
@@ -14101,6 +14302,14 @@ class _$GuidingEvent_GuidingStoppedImpl extends GuidingEvent_GuidingStopped {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return guidingStopped(this);
   }
@@ -14119,6 +14328,14 @@ class _$GuidingEvent_GuidingStoppedImpl extends GuidingEvent_GuidingStopped {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return guidingStopped?.call(this);
   }
@@ -14137,6 +14354,14 @@ class _$GuidingEvent_GuidingStoppedImpl extends GuidingEvent_GuidingStopped {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (guidingStopped != null) {
@@ -14207,6 +14432,13 @@ class _$GuidingEvent_PausedImpl extends GuidingEvent_Paused {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return paused();
   }
@@ -14226,6 +14458,13 @@ class _$GuidingEvent_PausedImpl extends GuidingEvent_Paused {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return paused?.call();
   }
@@ -14245,6 +14484,13 @@ class _$GuidingEvent_PausedImpl extends GuidingEvent_Paused {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (paused != null) {
@@ -14268,6 +14514,14 @@ class _$GuidingEvent_PausedImpl extends GuidingEvent_Paused {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return paused(this);
   }
@@ -14286,6 +14540,14 @@ class _$GuidingEvent_PausedImpl extends GuidingEvent_Paused {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return paused?.call(this);
   }
@@ -14304,6 +14566,14 @@ class _$GuidingEvent_PausedImpl extends GuidingEvent_Paused {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (paused != null) {
@@ -14373,6 +14643,13 @@ class _$GuidingEvent_ResumedImpl extends GuidingEvent_Resumed {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return resumed();
   }
@@ -14392,6 +14669,13 @@ class _$GuidingEvent_ResumedImpl extends GuidingEvent_Resumed {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return resumed?.call();
   }
@@ -14411,6 +14695,13 @@ class _$GuidingEvent_ResumedImpl extends GuidingEvent_Resumed {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (resumed != null) {
@@ -14434,6 +14725,14 @@ class _$GuidingEvent_ResumedImpl extends GuidingEvent_Resumed {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return resumed(this);
   }
@@ -14452,6 +14751,14 @@ class _$GuidingEvent_ResumedImpl extends GuidingEvent_Resumed {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return resumed?.call(this);
   }
@@ -14470,6 +14777,14 @@ class _$GuidingEvent_ResumedImpl extends GuidingEvent_Resumed {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (resumed != null) {
@@ -14567,6 +14882,13 @@ class _$GuidingEvent_SettledImpl extends GuidingEvent_Settled {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return settled(rms);
   }
@@ -14586,6 +14908,13 @@ class _$GuidingEvent_SettledImpl extends GuidingEvent_Settled {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return settled?.call(rms);
   }
@@ -14605,6 +14934,13 @@ class _$GuidingEvent_SettledImpl extends GuidingEvent_Settled {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (settled != null) {
@@ -14628,6 +14964,14 @@ class _$GuidingEvent_SettledImpl extends GuidingEvent_Settled {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return settled(this);
   }
@@ -14646,6 +14990,14 @@ class _$GuidingEvent_SettledImpl extends GuidingEvent_Settled {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return settled?.call(this);
   }
@@ -14664,6 +15016,14 @@ class _$GuidingEvent_SettledImpl extends GuidingEvent_Settled {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (settled != null) {
@@ -14743,6 +15103,13 @@ class _$GuidingEvent_LostStarImpl extends GuidingEvent_LostStar {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return lostStar();
   }
@@ -14762,6 +15129,13 @@ class _$GuidingEvent_LostStarImpl extends GuidingEvent_LostStar {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return lostStar?.call();
   }
@@ -14781,6 +15155,13 @@ class _$GuidingEvent_LostStarImpl extends GuidingEvent_LostStar {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (lostStar != null) {
@@ -14804,6 +15185,14 @@ class _$GuidingEvent_LostStarImpl extends GuidingEvent_LostStar {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return lostStar(this);
   }
@@ -14822,6 +15211,14 @@ class _$GuidingEvent_LostStarImpl extends GuidingEvent_LostStar {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return lostStar?.call(this);
   }
@@ -14840,6 +15237,14 @@ class _$GuidingEvent_LostStarImpl extends GuidingEvent_LostStar {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (lostStar != null) {
@@ -14938,6 +15343,13 @@ class _$GuidingEvent_DitherStartedImpl extends GuidingEvent_DitherStarted {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return ditherStarted(pixels);
   }
@@ -14957,6 +15369,13 @@ class _$GuidingEvent_DitherStartedImpl extends GuidingEvent_DitherStarted {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return ditherStarted?.call(pixels);
   }
@@ -14976,6 +15395,13 @@ class _$GuidingEvent_DitherStartedImpl extends GuidingEvent_DitherStarted {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (ditherStarted != null) {
@@ -14999,6 +15425,14 @@ class _$GuidingEvent_DitherStartedImpl extends GuidingEvent_DitherStarted {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return ditherStarted(this);
   }
@@ -15017,6 +15451,14 @@ class _$GuidingEvent_DitherStartedImpl extends GuidingEvent_DitherStarted {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return ditherStarted?.call(this);
   }
@@ -15035,6 +15477,14 @@ class _$GuidingEvent_DitherStartedImpl extends GuidingEvent_DitherStarted {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (ditherStarted != null) {
@@ -15115,6 +15565,13 @@ class _$GuidingEvent_DitherCompletedImpl extends GuidingEvent_DitherCompleted {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return ditherCompleted();
   }
@@ -15134,6 +15591,13 @@ class _$GuidingEvent_DitherCompletedImpl extends GuidingEvent_DitherCompleted {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return ditherCompleted?.call();
   }
@@ -15153,6 +15617,13 @@ class _$GuidingEvent_DitherCompletedImpl extends GuidingEvent_DitherCompleted {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (ditherCompleted != null) {
@@ -15176,6 +15647,14 @@ class _$GuidingEvent_DitherCompletedImpl extends GuidingEvent_DitherCompleted {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return ditherCompleted(this);
   }
@@ -15194,6 +15673,14 @@ class _$GuidingEvent_DitherCompletedImpl extends GuidingEvent_DitherCompleted {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return ditherCompleted?.call(this);
   }
@@ -15212,6 +15699,14 @@ class _$GuidingEvent_DitherCompletedImpl extends GuidingEvent_DitherCompleted {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (ditherCompleted != null) {
@@ -15340,6 +15835,13 @@ class _$GuidingEvent_CorrectionImpl extends GuidingEvent_Correction {
     required TResult Function(
             double ra, double dec, double raRaw, double decRaw)
         correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
   }) {
     return correction(ra, dec, raRaw, decRaw);
   }
@@ -15359,6 +15861,13 @@ class _$GuidingEvent_CorrectionImpl extends GuidingEvent_Correction {
     TResult? Function()? ditherCompleted,
     TResult? Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
   }) {
     return correction?.call(ra, dec, raRaw, decRaw);
   }
@@ -15378,6 +15887,13 @@ class _$GuidingEvent_CorrectionImpl extends GuidingEvent_Correction {
     TResult Function()? ditherCompleted,
     TResult Function(double ra, double dec, double raRaw, double decRaw)?
         correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
     required TResult orElse(),
   }) {
     if (correction != null) {
@@ -15401,6 +15917,14 @@ class _$GuidingEvent_CorrectionImpl extends GuidingEvent_Correction {
     required TResult Function(GuidingEvent_DitherCompleted value)
         ditherCompleted,
     required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
   }) {
     return correction(this);
   }
@@ -15419,6 +15943,14 @@ class _$GuidingEvent_CorrectionImpl extends GuidingEvent_Correction {
     TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
   }) {
     return correction?.call(this);
   }
@@ -15437,6 +15969,14 @@ class _$GuidingEvent_CorrectionImpl extends GuidingEvent_Correction {
     TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
     TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
     TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
     required TResult orElse(),
   }) {
     if (correction != null) {
@@ -15463,6 +16003,1628 @@ abstract class GuidingEvent_Correction extends GuidingEvent {
   /// with the given fields replaced by the non-null parameter values.
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$GuidingEvent_CorrectionImplCopyWith<_$GuidingEvent_CorrectionImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$GuidingEvent_LoopingImplCopyWith<$Res> {
+  factory _$$GuidingEvent_LoopingImplCopyWith(_$GuidingEvent_LoopingImpl value,
+          $Res Function(_$GuidingEvent_LoopingImpl) then) =
+      __$$GuidingEvent_LoopingImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$GuidingEvent_LoopingImplCopyWithImpl<$Res>
+    extends _$GuidingEventCopyWithImpl<$Res, _$GuidingEvent_LoopingImpl>
+    implements _$$GuidingEvent_LoopingImplCopyWith<$Res> {
+  __$$GuidingEvent_LoopingImplCopyWithImpl(_$GuidingEvent_LoopingImpl _value,
+      $Res Function(_$GuidingEvent_LoopingImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$GuidingEvent_LoopingImpl extends GuidingEvent_Looping {
+  const _$GuidingEvent_LoopingImpl() : super._();
+
+  @override
+  String toString() {
+    return 'GuidingEvent.looping()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$GuidingEvent_LoopingImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function() disconnected,
+    required TResult Function() guidingStarted,
+    required TResult Function() guidingStopped,
+    required TResult Function() paused,
+    required TResult Function() resumed,
+    required TResult Function(double rms) settled,
+    required TResult Function() lostStar,
+    required TResult Function(double pixels) ditherStarted,
+    required TResult Function() ditherCompleted,
+    required TResult Function(
+            double ra, double dec, double raRaw, double decRaw)
+        correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
+  }) {
+    return looping();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function()? disconnected,
+    TResult? Function()? guidingStarted,
+    TResult? Function()? guidingStopped,
+    TResult? Function()? paused,
+    TResult? Function()? resumed,
+    TResult? Function(double rms)? settled,
+    TResult? Function()? lostStar,
+    TResult? Function(double pixels)? ditherStarted,
+    TResult? Function()? ditherCompleted,
+    TResult? Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
+  }) {
+    return looping?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function()? disconnected,
+    TResult Function()? guidingStarted,
+    TResult Function()? guidingStopped,
+    TResult Function()? paused,
+    TResult Function()? resumed,
+    TResult Function(double rms)? settled,
+    TResult Function()? lostStar,
+    TResult Function(double pixels)? ditherStarted,
+    TResult Function()? ditherCompleted,
+    TResult Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (looping != null) {
+      return looping();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(GuidingEvent_Connected value) connected,
+    required TResult Function(GuidingEvent_Disconnected value) disconnected,
+    required TResult Function(GuidingEvent_GuidingStarted value) guidingStarted,
+    required TResult Function(GuidingEvent_GuidingStopped value) guidingStopped,
+    required TResult Function(GuidingEvent_Paused value) paused,
+    required TResult Function(GuidingEvent_Resumed value) resumed,
+    required TResult Function(GuidingEvent_Settled value) settled,
+    required TResult Function(GuidingEvent_LostStar value) lostStar,
+    required TResult Function(GuidingEvent_DitherStarted value) ditherStarted,
+    required TResult Function(GuidingEvent_DitherCompleted value)
+        ditherCompleted,
+    required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
+  }) {
+    return looping(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(GuidingEvent_Connected value)? connected,
+    TResult? Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult? Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult? Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult? Function(GuidingEvent_Paused value)? paused,
+    TResult? Function(GuidingEvent_Resumed value)? resumed,
+    TResult? Function(GuidingEvent_Settled value)? settled,
+    TResult? Function(GuidingEvent_LostStar value)? lostStar,
+    TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
+  }) {
+    return looping?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(GuidingEvent_Connected value)? connected,
+    TResult Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult Function(GuidingEvent_Paused value)? paused,
+    TResult Function(GuidingEvent_Resumed value)? resumed,
+    TResult Function(GuidingEvent_Settled value)? settled,
+    TResult Function(GuidingEvent_LostStar value)? lostStar,
+    TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (looping != null) {
+      return looping(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class GuidingEvent_Looping extends GuidingEvent {
+  const factory GuidingEvent_Looping() = _$GuidingEvent_LoopingImpl;
+  const GuidingEvent_Looping._() : super._();
+}
+
+/// @nodoc
+abstract class _$$GuidingEvent_SettlingImplCopyWith<$Res> {
+  factory _$$GuidingEvent_SettlingImplCopyWith(
+          _$GuidingEvent_SettlingImpl value,
+          $Res Function(_$GuidingEvent_SettlingImpl) then) =
+      __$$GuidingEvent_SettlingImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$GuidingEvent_SettlingImplCopyWithImpl<$Res>
+    extends _$GuidingEventCopyWithImpl<$Res, _$GuidingEvent_SettlingImpl>
+    implements _$$GuidingEvent_SettlingImplCopyWith<$Res> {
+  __$$GuidingEvent_SettlingImplCopyWithImpl(_$GuidingEvent_SettlingImpl _value,
+      $Res Function(_$GuidingEvent_SettlingImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$GuidingEvent_SettlingImpl extends GuidingEvent_Settling {
+  const _$GuidingEvent_SettlingImpl() : super._();
+
+  @override
+  String toString() {
+    return 'GuidingEvent.settling()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$GuidingEvent_SettlingImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function() disconnected,
+    required TResult Function() guidingStarted,
+    required TResult Function() guidingStopped,
+    required TResult Function() paused,
+    required TResult Function() resumed,
+    required TResult Function(double rms) settled,
+    required TResult Function() lostStar,
+    required TResult Function(double pixels) ditherStarted,
+    required TResult Function() ditherCompleted,
+    required TResult Function(
+            double ra, double dec, double raRaw, double decRaw)
+        correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
+  }) {
+    return settling();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function()? disconnected,
+    TResult? Function()? guidingStarted,
+    TResult? Function()? guidingStopped,
+    TResult? Function()? paused,
+    TResult? Function()? resumed,
+    TResult? Function(double rms)? settled,
+    TResult? Function()? lostStar,
+    TResult? Function(double pixels)? ditherStarted,
+    TResult? Function()? ditherCompleted,
+    TResult? Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
+  }) {
+    return settling?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function()? disconnected,
+    TResult Function()? guidingStarted,
+    TResult Function()? guidingStopped,
+    TResult Function()? paused,
+    TResult Function()? resumed,
+    TResult Function(double rms)? settled,
+    TResult Function()? lostStar,
+    TResult Function(double pixels)? ditherStarted,
+    TResult Function()? ditherCompleted,
+    TResult Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (settling != null) {
+      return settling();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(GuidingEvent_Connected value) connected,
+    required TResult Function(GuidingEvent_Disconnected value) disconnected,
+    required TResult Function(GuidingEvent_GuidingStarted value) guidingStarted,
+    required TResult Function(GuidingEvent_GuidingStopped value) guidingStopped,
+    required TResult Function(GuidingEvent_Paused value) paused,
+    required TResult Function(GuidingEvent_Resumed value) resumed,
+    required TResult Function(GuidingEvent_Settled value) settled,
+    required TResult Function(GuidingEvent_LostStar value) lostStar,
+    required TResult Function(GuidingEvent_DitherStarted value) ditherStarted,
+    required TResult Function(GuidingEvent_DitherCompleted value)
+        ditherCompleted,
+    required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
+  }) {
+    return settling(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(GuidingEvent_Connected value)? connected,
+    TResult? Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult? Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult? Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult? Function(GuidingEvent_Paused value)? paused,
+    TResult? Function(GuidingEvent_Resumed value)? resumed,
+    TResult? Function(GuidingEvent_Settled value)? settled,
+    TResult? Function(GuidingEvent_LostStar value)? lostStar,
+    TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
+  }) {
+    return settling?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(GuidingEvent_Connected value)? connected,
+    TResult Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult Function(GuidingEvent_Paused value)? paused,
+    TResult Function(GuidingEvent_Resumed value)? resumed,
+    TResult Function(GuidingEvent_Settled value)? settled,
+    TResult Function(GuidingEvent_LostStar value)? lostStar,
+    TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (settling != null) {
+      return settling(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class GuidingEvent_Settling extends GuidingEvent {
+  const factory GuidingEvent_Settling() = _$GuidingEvent_SettlingImpl;
+  const GuidingEvent_Settling._() : super._();
+}
+
+/// @nodoc
+abstract class _$$GuidingEvent_CalibratingImplCopyWith<$Res> {
+  factory _$$GuidingEvent_CalibratingImplCopyWith(
+          _$GuidingEvent_CalibratingImpl value,
+          $Res Function(_$GuidingEvent_CalibratingImpl) then) =
+      __$$GuidingEvent_CalibratingImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$GuidingEvent_CalibratingImplCopyWithImpl<$Res>
+    extends _$GuidingEventCopyWithImpl<$Res, _$GuidingEvent_CalibratingImpl>
+    implements _$$GuidingEvent_CalibratingImplCopyWith<$Res> {
+  __$$GuidingEvent_CalibratingImplCopyWithImpl(
+      _$GuidingEvent_CalibratingImpl _value,
+      $Res Function(_$GuidingEvent_CalibratingImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$GuidingEvent_CalibratingImpl extends GuidingEvent_Calibrating {
+  const _$GuidingEvent_CalibratingImpl() : super._();
+
+  @override
+  String toString() {
+    return 'GuidingEvent.calibrating()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$GuidingEvent_CalibratingImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function() disconnected,
+    required TResult Function() guidingStarted,
+    required TResult Function() guidingStopped,
+    required TResult Function() paused,
+    required TResult Function() resumed,
+    required TResult Function(double rms) settled,
+    required TResult Function() lostStar,
+    required TResult Function(double pixels) ditherStarted,
+    required TResult Function() ditherCompleted,
+    required TResult Function(
+            double ra, double dec, double raRaw, double decRaw)
+        correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
+  }) {
+    return calibrating();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function()? disconnected,
+    TResult? Function()? guidingStarted,
+    TResult? Function()? guidingStopped,
+    TResult? Function()? paused,
+    TResult? Function()? resumed,
+    TResult? Function(double rms)? settled,
+    TResult? Function()? lostStar,
+    TResult? Function(double pixels)? ditherStarted,
+    TResult? Function()? ditherCompleted,
+    TResult? Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
+  }) {
+    return calibrating?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function()? disconnected,
+    TResult Function()? guidingStarted,
+    TResult Function()? guidingStopped,
+    TResult Function()? paused,
+    TResult Function()? resumed,
+    TResult Function(double rms)? settled,
+    TResult Function()? lostStar,
+    TResult Function(double pixels)? ditherStarted,
+    TResult Function()? ditherCompleted,
+    TResult Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (calibrating != null) {
+      return calibrating();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(GuidingEvent_Connected value) connected,
+    required TResult Function(GuidingEvent_Disconnected value) disconnected,
+    required TResult Function(GuidingEvent_GuidingStarted value) guidingStarted,
+    required TResult Function(GuidingEvent_GuidingStopped value) guidingStopped,
+    required TResult Function(GuidingEvent_Paused value) paused,
+    required TResult Function(GuidingEvent_Resumed value) resumed,
+    required TResult Function(GuidingEvent_Settled value) settled,
+    required TResult Function(GuidingEvent_LostStar value) lostStar,
+    required TResult Function(GuidingEvent_DitherStarted value) ditherStarted,
+    required TResult Function(GuidingEvent_DitherCompleted value)
+        ditherCompleted,
+    required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
+  }) {
+    return calibrating(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(GuidingEvent_Connected value)? connected,
+    TResult? Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult? Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult? Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult? Function(GuidingEvent_Paused value)? paused,
+    TResult? Function(GuidingEvent_Resumed value)? resumed,
+    TResult? Function(GuidingEvent_Settled value)? settled,
+    TResult? Function(GuidingEvent_LostStar value)? lostStar,
+    TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
+  }) {
+    return calibrating?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(GuidingEvent_Connected value)? connected,
+    TResult Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult Function(GuidingEvent_Paused value)? paused,
+    TResult Function(GuidingEvent_Resumed value)? resumed,
+    TResult Function(GuidingEvent_Settled value)? settled,
+    TResult Function(GuidingEvent_LostStar value)? lostStar,
+    TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (calibrating != null) {
+      return calibrating(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class GuidingEvent_Calibrating extends GuidingEvent {
+  const factory GuidingEvent_Calibrating() = _$GuidingEvent_CalibratingImpl;
+  const GuidingEvent_Calibrating._() : super._();
+}
+
+/// @nodoc
+abstract class _$$GuidingEvent_CalibrationCompleteImplCopyWith<$Res> {
+  factory _$$GuidingEvent_CalibrationCompleteImplCopyWith(
+          _$GuidingEvent_CalibrationCompleteImpl value,
+          $Res Function(_$GuidingEvent_CalibrationCompleteImpl) then) =
+      __$$GuidingEvent_CalibrationCompleteImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$GuidingEvent_CalibrationCompleteImplCopyWithImpl<$Res>
+    extends _$GuidingEventCopyWithImpl<$Res,
+        _$GuidingEvent_CalibrationCompleteImpl>
+    implements _$$GuidingEvent_CalibrationCompleteImplCopyWith<$Res> {
+  __$$GuidingEvent_CalibrationCompleteImplCopyWithImpl(
+      _$GuidingEvent_CalibrationCompleteImpl _value,
+      $Res Function(_$GuidingEvent_CalibrationCompleteImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$GuidingEvent_CalibrationCompleteImpl
+    extends GuidingEvent_CalibrationComplete {
+  const _$GuidingEvent_CalibrationCompleteImpl() : super._();
+
+  @override
+  String toString() {
+    return 'GuidingEvent.calibrationComplete()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$GuidingEvent_CalibrationCompleteImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function() disconnected,
+    required TResult Function() guidingStarted,
+    required TResult Function() guidingStopped,
+    required TResult Function() paused,
+    required TResult Function() resumed,
+    required TResult Function(double rms) settled,
+    required TResult Function() lostStar,
+    required TResult Function(double pixels) ditherStarted,
+    required TResult Function() ditherCompleted,
+    required TResult Function(
+            double ra, double dec, double raRaw, double decRaw)
+        correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
+  }) {
+    return calibrationComplete();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function()? disconnected,
+    TResult? Function()? guidingStarted,
+    TResult? Function()? guidingStopped,
+    TResult? Function()? paused,
+    TResult? Function()? resumed,
+    TResult? Function(double rms)? settled,
+    TResult? Function()? lostStar,
+    TResult? Function(double pixels)? ditherStarted,
+    TResult? Function()? ditherCompleted,
+    TResult? Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
+  }) {
+    return calibrationComplete?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function()? disconnected,
+    TResult Function()? guidingStarted,
+    TResult Function()? guidingStopped,
+    TResult Function()? paused,
+    TResult Function()? resumed,
+    TResult Function(double rms)? settled,
+    TResult Function()? lostStar,
+    TResult Function(double pixels)? ditherStarted,
+    TResult Function()? ditherCompleted,
+    TResult Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (calibrationComplete != null) {
+      return calibrationComplete();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(GuidingEvent_Connected value) connected,
+    required TResult Function(GuidingEvent_Disconnected value) disconnected,
+    required TResult Function(GuidingEvent_GuidingStarted value) guidingStarted,
+    required TResult Function(GuidingEvent_GuidingStopped value) guidingStopped,
+    required TResult Function(GuidingEvent_Paused value) paused,
+    required TResult Function(GuidingEvent_Resumed value) resumed,
+    required TResult Function(GuidingEvent_Settled value) settled,
+    required TResult Function(GuidingEvent_LostStar value) lostStar,
+    required TResult Function(GuidingEvent_DitherStarted value) ditherStarted,
+    required TResult Function(GuidingEvent_DitherCompleted value)
+        ditherCompleted,
+    required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
+  }) {
+    return calibrationComplete(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(GuidingEvent_Connected value)? connected,
+    TResult? Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult? Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult? Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult? Function(GuidingEvent_Paused value)? paused,
+    TResult? Function(GuidingEvent_Resumed value)? resumed,
+    TResult? Function(GuidingEvent_Settled value)? settled,
+    TResult? Function(GuidingEvent_LostStar value)? lostStar,
+    TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
+  }) {
+    return calibrationComplete?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(GuidingEvent_Connected value)? connected,
+    TResult Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult Function(GuidingEvent_Paused value)? paused,
+    TResult Function(GuidingEvent_Resumed value)? resumed,
+    TResult Function(GuidingEvent_Settled value)? settled,
+    TResult Function(GuidingEvent_LostStar value)? lostStar,
+    TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (calibrationComplete != null) {
+      return calibrationComplete(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class GuidingEvent_CalibrationComplete extends GuidingEvent {
+  const factory GuidingEvent_CalibrationComplete() =
+      _$GuidingEvent_CalibrationCompleteImpl;
+  const GuidingEvent_CalibrationComplete._() : super._();
+}
+
+/// @nodoc
+abstract class _$$GuidingEvent_StarSelectedImplCopyWith<$Res> {
+  factory _$$GuidingEvent_StarSelectedImplCopyWith(
+          _$GuidingEvent_StarSelectedImpl value,
+          $Res Function(_$GuidingEvent_StarSelectedImpl) then) =
+      __$$GuidingEvent_StarSelectedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({double x, double y});
+}
+
+/// @nodoc
+class __$$GuidingEvent_StarSelectedImplCopyWithImpl<$Res>
+    extends _$GuidingEventCopyWithImpl<$Res, _$GuidingEvent_StarSelectedImpl>
+    implements _$$GuidingEvent_StarSelectedImplCopyWith<$Res> {
+  __$$GuidingEvent_StarSelectedImplCopyWithImpl(
+      _$GuidingEvent_StarSelectedImpl _value,
+      $Res Function(_$GuidingEvent_StarSelectedImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? x = null,
+    Object? y = null,
+  }) {
+    return _then(_$GuidingEvent_StarSelectedImpl(
+      x: null == x
+          ? _value.x
+          : x // ignore: cast_nullable_to_non_nullable
+              as double,
+      y: null == y
+          ? _value.y
+          : y // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$GuidingEvent_StarSelectedImpl extends GuidingEvent_StarSelected {
+  const _$GuidingEvent_StarSelectedImpl({required this.x, required this.y})
+      : super._();
+
+  @override
+  final double x;
+  @override
+  final double y;
+
+  @override
+  String toString() {
+    return 'GuidingEvent.starSelected(x: $x, y: $y)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$GuidingEvent_StarSelectedImpl &&
+            (identical(other.x, x) || other.x == x) &&
+            (identical(other.y, y) || other.y == y));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, x, y);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$GuidingEvent_StarSelectedImplCopyWith<_$GuidingEvent_StarSelectedImpl>
+      get copyWith => __$$GuidingEvent_StarSelectedImplCopyWithImpl<
+          _$GuidingEvent_StarSelectedImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function() disconnected,
+    required TResult Function() guidingStarted,
+    required TResult Function() guidingStopped,
+    required TResult Function() paused,
+    required TResult Function() resumed,
+    required TResult Function(double rms) settled,
+    required TResult Function() lostStar,
+    required TResult Function(double pixels) ditherStarted,
+    required TResult Function() ditherCompleted,
+    required TResult Function(
+            double ra, double dec, double raRaw, double decRaw)
+        correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
+  }) {
+    return starSelected(x, y);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function()? disconnected,
+    TResult? Function()? guidingStarted,
+    TResult? Function()? guidingStopped,
+    TResult? Function()? paused,
+    TResult? Function()? resumed,
+    TResult? Function(double rms)? settled,
+    TResult? Function()? lostStar,
+    TResult? Function(double pixels)? ditherStarted,
+    TResult? Function()? ditherCompleted,
+    TResult? Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
+  }) {
+    return starSelected?.call(x, y);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function()? disconnected,
+    TResult Function()? guidingStarted,
+    TResult Function()? guidingStopped,
+    TResult Function()? paused,
+    TResult Function()? resumed,
+    TResult Function(double rms)? settled,
+    TResult Function()? lostStar,
+    TResult Function(double pixels)? ditherStarted,
+    TResult Function()? ditherCompleted,
+    TResult Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (starSelected != null) {
+      return starSelected(x, y);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(GuidingEvent_Connected value) connected,
+    required TResult Function(GuidingEvent_Disconnected value) disconnected,
+    required TResult Function(GuidingEvent_GuidingStarted value) guidingStarted,
+    required TResult Function(GuidingEvent_GuidingStopped value) guidingStopped,
+    required TResult Function(GuidingEvent_Paused value) paused,
+    required TResult Function(GuidingEvent_Resumed value) resumed,
+    required TResult Function(GuidingEvent_Settled value) settled,
+    required TResult Function(GuidingEvent_LostStar value) lostStar,
+    required TResult Function(GuidingEvent_DitherStarted value) ditherStarted,
+    required TResult Function(GuidingEvent_DitherCompleted value)
+        ditherCompleted,
+    required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
+  }) {
+    return starSelected(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(GuidingEvent_Connected value)? connected,
+    TResult? Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult? Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult? Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult? Function(GuidingEvent_Paused value)? paused,
+    TResult? Function(GuidingEvent_Resumed value)? resumed,
+    TResult? Function(GuidingEvent_Settled value)? settled,
+    TResult? Function(GuidingEvent_LostStar value)? lostStar,
+    TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
+  }) {
+    return starSelected?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(GuidingEvent_Connected value)? connected,
+    TResult Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult Function(GuidingEvent_Paused value)? paused,
+    TResult Function(GuidingEvent_Resumed value)? resumed,
+    TResult Function(GuidingEvent_Settled value)? settled,
+    TResult Function(GuidingEvent_LostStar value)? lostStar,
+    TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (starSelected != null) {
+      return starSelected(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class GuidingEvent_StarSelected extends GuidingEvent {
+  const factory GuidingEvent_StarSelected(
+      {required final double x,
+      required final double y}) = _$GuidingEvent_StarSelectedImpl;
+  const GuidingEvent_StarSelected._() : super._();
+
+  double get x;
+  double get y;
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$GuidingEvent_StarSelectedImplCopyWith<_$GuidingEvent_StarSelectedImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$GuidingEvent_AppStateImplCopyWith<$Res> {
+  factory _$$GuidingEvent_AppStateImplCopyWith(
+          _$GuidingEvent_AppStateImpl value,
+          $Res Function(_$GuidingEvent_AppStateImpl) then) =
+      __$$GuidingEvent_AppStateImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({String state});
+}
+
+/// @nodoc
+class __$$GuidingEvent_AppStateImplCopyWithImpl<$Res>
+    extends _$GuidingEventCopyWithImpl<$Res, _$GuidingEvent_AppStateImpl>
+    implements _$$GuidingEvent_AppStateImplCopyWith<$Res> {
+  __$$GuidingEvent_AppStateImplCopyWithImpl(_$GuidingEvent_AppStateImpl _value,
+      $Res Function(_$GuidingEvent_AppStateImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? state = null,
+  }) {
+    return _then(_$GuidingEvent_AppStateImpl(
+      state: null == state
+          ? _value.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$GuidingEvent_AppStateImpl extends GuidingEvent_AppState {
+  const _$GuidingEvent_AppStateImpl({required this.state}) : super._();
+
+  @override
+  final String state;
+
+  @override
+  String toString() {
+    return 'GuidingEvent.appState(state: $state)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$GuidingEvent_AppStateImpl &&
+            (identical(other.state, state) || other.state == state));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, state);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$GuidingEvent_AppStateImplCopyWith<_$GuidingEvent_AppStateImpl>
+      get copyWith => __$$GuidingEvent_AppStateImplCopyWithImpl<
+          _$GuidingEvent_AppStateImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function() disconnected,
+    required TResult Function() guidingStarted,
+    required TResult Function() guidingStopped,
+    required TResult Function() paused,
+    required TResult Function() resumed,
+    required TResult Function(double rms) settled,
+    required TResult Function() lostStar,
+    required TResult Function(double pixels) ditherStarted,
+    required TResult Function() ditherCompleted,
+    required TResult Function(
+            double ra, double dec, double raRaw, double decRaw)
+        correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
+  }) {
+    return appState(state);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function()? disconnected,
+    TResult? Function()? guidingStarted,
+    TResult? Function()? guidingStopped,
+    TResult? Function()? paused,
+    TResult? Function()? resumed,
+    TResult? Function(double rms)? settled,
+    TResult? Function()? lostStar,
+    TResult? Function(double pixels)? ditherStarted,
+    TResult? Function()? ditherCompleted,
+    TResult? Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
+  }) {
+    return appState?.call(state);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function()? disconnected,
+    TResult Function()? guidingStarted,
+    TResult Function()? guidingStopped,
+    TResult Function()? paused,
+    TResult Function()? resumed,
+    TResult Function(double rms)? settled,
+    TResult Function()? lostStar,
+    TResult Function(double pixels)? ditherStarted,
+    TResult Function()? ditherCompleted,
+    TResult Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (appState != null) {
+      return appState(state);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(GuidingEvent_Connected value) connected,
+    required TResult Function(GuidingEvent_Disconnected value) disconnected,
+    required TResult Function(GuidingEvent_GuidingStarted value) guidingStarted,
+    required TResult Function(GuidingEvent_GuidingStopped value) guidingStopped,
+    required TResult Function(GuidingEvent_Paused value) paused,
+    required TResult Function(GuidingEvent_Resumed value) resumed,
+    required TResult Function(GuidingEvent_Settled value) settled,
+    required TResult Function(GuidingEvent_LostStar value) lostStar,
+    required TResult Function(GuidingEvent_DitherStarted value) ditherStarted,
+    required TResult Function(GuidingEvent_DitherCompleted value)
+        ditherCompleted,
+    required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
+  }) {
+    return appState(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(GuidingEvent_Connected value)? connected,
+    TResult? Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult? Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult? Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult? Function(GuidingEvent_Paused value)? paused,
+    TResult? Function(GuidingEvent_Resumed value)? resumed,
+    TResult? Function(GuidingEvent_Settled value)? settled,
+    TResult? Function(GuidingEvent_LostStar value)? lostStar,
+    TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
+  }) {
+    return appState?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(GuidingEvent_Connected value)? connected,
+    TResult Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult Function(GuidingEvent_Paused value)? paused,
+    TResult Function(GuidingEvent_Resumed value)? resumed,
+    TResult Function(GuidingEvent_Settled value)? settled,
+    TResult Function(GuidingEvent_LostStar value)? lostStar,
+    TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (appState != null) {
+      return appState(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class GuidingEvent_AppState extends GuidingEvent {
+  const factory GuidingEvent_AppState({required final String state}) =
+      _$GuidingEvent_AppStateImpl;
+  const GuidingEvent_AppState._() : super._();
+
+  String get state;
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$GuidingEvent_AppStateImplCopyWith<_$GuidingEvent_AppStateImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$GuidingEvent_GuideStatsImplCopyWith<$Res> {
+  factory _$$GuidingEvent_GuideStatsImplCopyWith(
+          _$GuidingEvent_GuideStatsImpl value,
+          $Res Function(_$GuidingEvent_GuideStatsImpl) then) =
+      __$$GuidingEvent_GuideStatsImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({double snr, double starMass});
+}
+
+/// @nodoc
+class __$$GuidingEvent_GuideStatsImplCopyWithImpl<$Res>
+    extends _$GuidingEventCopyWithImpl<$Res, _$GuidingEvent_GuideStatsImpl>
+    implements _$$GuidingEvent_GuideStatsImplCopyWith<$Res> {
+  __$$GuidingEvent_GuideStatsImplCopyWithImpl(
+      _$GuidingEvent_GuideStatsImpl _value,
+      $Res Function(_$GuidingEvent_GuideStatsImpl) _then)
+      : super(_value, _then);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? snr = null,
+    Object? starMass = null,
+  }) {
+    return _then(_$GuidingEvent_GuideStatsImpl(
+      snr: null == snr
+          ? _value.snr
+          : snr // ignore: cast_nullable_to_non_nullable
+              as double,
+      starMass: null == starMass
+          ? _value.starMass
+          : starMass // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$GuidingEvent_GuideStatsImpl extends GuidingEvent_GuideStats {
+  const _$GuidingEvent_GuideStatsImpl(
+      {required this.snr, required this.starMass})
+      : super._();
+
+  @override
+  final double snr;
+  @override
+  final double starMass;
+
+  @override
+  String toString() {
+    return 'GuidingEvent.guideStats(snr: $snr, starMass: $starMass)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$GuidingEvent_GuideStatsImpl &&
+            (identical(other.snr, snr) || other.snr == snr) &&
+            (identical(other.starMass, starMass) ||
+                other.starMass == starMass));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, snr, starMass);
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$GuidingEvent_GuideStatsImplCopyWith<_$GuidingEvent_GuideStatsImpl>
+      get copyWith => __$$GuidingEvent_GuideStatsImplCopyWithImpl<
+          _$GuidingEvent_GuideStatsImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() connected,
+    required TResult Function() disconnected,
+    required TResult Function() guidingStarted,
+    required TResult Function() guidingStopped,
+    required TResult Function() paused,
+    required TResult Function() resumed,
+    required TResult Function(double rms) settled,
+    required TResult Function() lostStar,
+    required TResult Function(double pixels) ditherStarted,
+    required TResult Function() ditherCompleted,
+    required TResult Function(
+            double ra, double dec, double raRaw, double decRaw)
+        correction,
+    required TResult Function() looping,
+    required TResult Function() settling,
+    required TResult Function() calibrating,
+    required TResult Function() calibrationComplete,
+    required TResult Function(double x, double y) starSelected,
+    required TResult Function(String state) appState,
+    required TResult Function(double snr, double starMass) guideStats,
+  }) {
+    return guideStats(snr, starMass);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? connected,
+    TResult? Function()? disconnected,
+    TResult? Function()? guidingStarted,
+    TResult? Function()? guidingStopped,
+    TResult? Function()? paused,
+    TResult? Function()? resumed,
+    TResult? Function(double rms)? settled,
+    TResult? Function()? lostStar,
+    TResult? Function(double pixels)? ditherStarted,
+    TResult? Function()? ditherCompleted,
+    TResult? Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult? Function()? looping,
+    TResult? Function()? settling,
+    TResult? Function()? calibrating,
+    TResult? Function()? calibrationComplete,
+    TResult? Function(double x, double y)? starSelected,
+    TResult? Function(String state)? appState,
+    TResult? Function(double snr, double starMass)? guideStats,
+  }) {
+    return guideStats?.call(snr, starMass);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? connected,
+    TResult Function()? disconnected,
+    TResult Function()? guidingStarted,
+    TResult Function()? guidingStopped,
+    TResult Function()? paused,
+    TResult Function()? resumed,
+    TResult Function(double rms)? settled,
+    TResult Function()? lostStar,
+    TResult Function(double pixels)? ditherStarted,
+    TResult Function()? ditherCompleted,
+    TResult Function(double ra, double dec, double raRaw, double decRaw)?
+        correction,
+    TResult Function()? looping,
+    TResult Function()? settling,
+    TResult Function()? calibrating,
+    TResult Function()? calibrationComplete,
+    TResult Function(double x, double y)? starSelected,
+    TResult Function(String state)? appState,
+    TResult Function(double snr, double starMass)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (guideStats != null) {
+      return guideStats(snr, starMass);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(GuidingEvent_Connected value) connected,
+    required TResult Function(GuidingEvent_Disconnected value) disconnected,
+    required TResult Function(GuidingEvent_GuidingStarted value) guidingStarted,
+    required TResult Function(GuidingEvent_GuidingStopped value) guidingStopped,
+    required TResult Function(GuidingEvent_Paused value) paused,
+    required TResult Function(GuidingEvent_Resumed value) resumed,
+    required TResult Function(GuidingEvent_Settled value) settled,
+    required TResult Function(GuidingEvent_LostStar value) lostStar,
+    required TResult Function(GuidingEvent_DitherStarted value) ditherStarted,
+    required TResult Function(GuidingEvent_DitherCompleted value)
+        ditherCompleted,
+    required TResult Function(GuidingEvent_Correction value) correction,
+    required TResult Function(GuidingEvent_Looping value) looping,
+    required TResult Function(GuidingEvent_Settling value) settling,
+    required TResult Function(GuidingEvent_Calibrating value) calibrating,
+    required TResult Function(GuidingEvent_CalibrationComplete value)
+        calibrationComplete,
+    required TResult Function(GuidingEvent_StarSelected value) starSelected,
+    required TResult Function(GuidingEvent_AppState value) appState,
+    required TResult Function(GuidingEvent_GuideStats value) guideStats,
+  }) {
+    return guideStats(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(GuidingEvent_Connected value)? connected,
+    TResult? Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult? Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult? Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult? Function(GuidingEvent_Paused value)? paused,
+    TResult? Function(GuidingEvent_Resumed value)? resumed,
+    TResult? Function(GuidingEvent_Settled value)? settled,
+    TResult? Function(GuidingEvent_LostStar value)? lostStar,
+    TResult? Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult? Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult? Function(GuidingEvent_Correction value)? correction,
+    TResult? Function(GuidingEvent_Looping value)? looping,
+    TResult? Function(GuidingEvent_Settling value)? settling,
+    TResult? Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult? Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult? Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult? Function(GuidingEvent_AppState value)? appState,
+    TResult? Function(GuidingEvent_GuideStats value)? guideStats,
+  }) {
+    return guideStats?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(GuidingEvent_Connected value)? connected,
+    TResult Function(GuidingEvent_Disconnected value)? disconnected,
+    TResult Function(GuidingEvent_GuidingStarted value)? guidingStarted,
+    TResult Function(GuidingEvent_GuidingStopped value)? guidingStopped,
+    TResult Function(GuidingEvent_Paused value)? paused,
+    TResult Function(GuidingEvent_Resumed value)? resumed,
+    TResult Function(GuidingEvent_Settled value)? settled,
+    TResult Function(GuidingEvent_LostStar value)? lostStar,
+    TResult Function(GuidingEvent_DitherStarted value)? ditherStarted,
+    TResult Function(GuidingEvent_DitherCompleted value)? ditherCompleted,
+    TResult Function(GuidingEvent_Correction value)? correction,
+    TResult Function(GuidingEvent_Looping value)? looping,
+    TResult Function(GuidingEvent_Settling value)? settling,
+    TResult Function(GuidingEvent_Calibrating value)? calibrating,
+    TResult Function(GuidingEvent_CalibrationComplete value)?
+        calibrationComplete,
+    TResult Function(GuidingEvent_StarSelected value)? starSelected,
+    TResult Function(GuidingEvent_AppState value)? appState,
+    TResult Function(GuidingEvent_GuideStats value)? guideStats,
+    required TResult orElse(),
+  }) {
+    if (guideStats != null) {
+      return guideStats(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class GuidingEvent_GuideStats extends GuidingEvent {
+  const factory GuidingEvent_GuideStats(
+      {required final double snr,
+      required final double starMass}) = _$GuidingEvent_GuideStatsImpl;
+  const GuidingEvent_GuideStats._() : super._();
+
+  double get snr;
+  double get starMass;
+
+  /// Create a copy of GuidingEvent
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$GuidingEvent_GuideStatsImplCopyWith<_$GuidingEvent_GuideStatsImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
 

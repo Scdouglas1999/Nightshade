@@ -8978,6 +8978,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           raRaw: dco_decode_f_64(raw[3]),
           decRaw: dco_decode_f_64(raw[4]),
         );
+      case 11:
+        return const GuidingEvent_Looping();
+      case 12:
+        return const GuidingEvent_Settling();
+      case 13:
+        return const GuidingEvent_Calibrating();
+      case 14:
+        return const GuidingEvent_CalibrationComplete();
+      case 15:
+        return GuidingEvent_StarSelected(
+          x: dco_decode_f_64(raw[1]),
+          y: dco_decode_f_64(raw[2]),
+        );
+      case 16:
+        return GuidingEvent_AppState(
+          state: dco_decode_String(raw[1]),
+        );
+      case 17:
+        return GuidingEvent_GuideStats(
+          snr: dco_decode_f_64(raw[1]),
+          starMass: dco_decode_f_64(raw[2]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -11691,6 +11713,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_decRaw = sse_decode_f_64(deserializer);
         return GuidingEvent_Correction(
             ra: var_ra, dec: var_dec, raRaw: var_raRaw, decRaw: var_decRaw);
+      case 11:
+        return const GuidingEvent_Looping();
+      case 12:
+        return const GuidingEvent_Settling();
+      case 13:
+        return const GuidingEvent_Calibrating();
+      case 14:
+        return const GuidingEvent_CalibrationComplete();
+      case 15:
+        var var_x = sse_decode_f_64(deserializer);
+        var var_y = sse_decode_f_64(deserializer);
+        return GuidingEvent_StarSelected(x: var_x, y: var_y);
+      case 16:
+        var var_state = sse_decode_String(deserializer);
+        return GuidingEvent_AppState(state: var_state);
+      case 17:
+        var var_snr = sse_decode_f_64(deserializer);
+        var var_starMass = sse_decode_f_64(deserializer);
+        return GuidingEvent_GuideStats(snr: var_snr, starMass: var_starMass);
       default:
         throw UnimplementedError('');
     }
@@ -14574,6 +14615,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_f_64(dec, serializer);
         sse_encode_f_64(raRaw, serializer);
         sse_encode_f_64(decRaw, serializer);
+      case GuidingEvent_Looping():
+        sse_encode_i_32(11, serializer);
+      case GuidingEvent_Settling():
+        sse_encode_i_32(12, serializer);
+      case GuidingEvent_Calibrating():
+        sse_encode_i_32(13, serializer);
+      case GuidingEvent_CalibrationComplete():
+        sse_encode_i_32(14, serializer);
+      case GuidingEvent_StarSelected(x: final x, y: final y):
+        sse_encode_i_32(15, serializer);
+        sse_encode_f_64(x, serializer);
+        sse_encode_f_64(y, serializer);
+      case GuidingEvent_AppState(state: final state):
+        sse_encode_i_32(16, serializer);
+        sse_encode_String(state, serializer);
+      case GuidingEvent_GuideStats(snr: final snr, starMass: final starMass):
+        sse_encode_i_32(17, serializer);
+        sse_encode_f_64(snr, serializer);
+        sse_encode_f_64(starMass, serializer);
     }
   }
 

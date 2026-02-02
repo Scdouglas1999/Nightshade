@@ -2971,6 +2971,44 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       wireObj.kind.Correction.dec_raw = pre_dec_raw;
       return;
     }
+    if (apiObj is GuidingEvent_Looping) {
+      wireObj.tag = 11;
+      return;
+    }
+    if (apiObj is GuidingEvent_Settling) {
+      wireObj.tag = 12;
+      return;
+    }
+    if (apiObj is GuidingEvent_Calibrating) {
+      wireObj.tag = 13;
+      return;
+    }
+    if (apiObj is GuidingEvent_CalibrationComplete) {
+      wireObj.tag = 14;
+      return;
+    }
+    if (apiObj is GuidingEvent_StarSelected) {
+      var pre_x = cst_encode_f_64(apiObj.x);
+      var pre_y = cst_encode_f_64(apiObj.y);
+      wireObj.tag = 15;
+      wireObj.kind.StarSelected.x = pre_x;
+      wireObj.kind.StarSelected.y = pre_y;
+      return;
+    }
+    if (apiObj is GuidingEvent_AppState) {
+      var pre_state = cst_encode_String(apiObj.state);
+      wireObj.tag = 16;
+      wireObj.kind.AppState.state = pre_state;
+      return;
+    }
+    if (apiObj is GuidingEvent_GuideStats) {
+      var pre_snr = cst_encode_f_64(apiObj.snr);
+      var pre_star_mass = cst_encode_f_64(apiObj.starMass);
+      wireObj.tag = 17;
+      wireObj.kind.GuideStats.snr = pre_snr;
+      wireObj.kind.GuideStats.star_mass = pre_star_mass;
+      return;
+    }
   }
 
   @protected
@@ -12117,12 +12155,38 @@ final class wire_cst_GuidingEvent_Correction extends ffi.Struct {
   external double dec_raw;
 }
 
+final class wire_cst_GuidingEvent_StarSelected extends ffi.Struct {
+  @ffi.Double()
+  external double x;
+
+  @ffi.Double()
+  external double y;
+}
+
+final class wire_cst_GuidingEvent_AppState extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> state;
+}
+
+final class wire_cst_GuidingEvent_GuideStats extends ffi.Struct {
+  @ffi.Double()
+  external double snr;
+
+  @ffi.Double()
+  external double star_mass;
+}
+
 final class GuidingEventKind extends ffi.Union {
   external wire_cst_GuidingEvent_Settled Settled;
 
   external wire_cst_GuidingEvent_DitherStarted DitherStarted;
 
   external wire_cst_GuidingEvent_Correction Correction;
+
+  external wire_cst_GuidingEvent_StarSelected StarSelected;
+
+  external wire_cst_GuidingEvent_AppState AppState;
+
+  external wire_cst_GuidingEvent_GuideStats GuideStats;
 }
 
 final class wire_cst_guiding_event extends ffi.Struct {

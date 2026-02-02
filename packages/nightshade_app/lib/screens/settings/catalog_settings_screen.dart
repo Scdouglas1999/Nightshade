@@ -9,7 +9,9 @@ import '../../utils/snackbar_helper.dart';
 
 /// Screen for managing astronomical catalog downloads and settings
 class CatalogSettingsScreen extends ConsumerStatefulWidget {
-  const CatalogSettingsScreen({super.key});
+  final bool isMobile;
+
+  const CatalogSettingsScreen({super.key, this.isMobile = false});
 
   @override
   ConsumerState<CatalogSettingsScreen> createState() => _CatalogSettingsScreenState();
@@ -207,6 +209,17 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final padding = widget.isMobile ? 16.0 : 24.0;
+
+    // On mobile, skip Scaffold since parent provides structure
+    if (widget.isMobile) {
+      return _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: EdgeInsets.all(padding),
+              child: _buildContent(context, colors),
+            );
+    }
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -217,69 +230,75 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Text(
-                    'Astronomical Catalogs',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Download star and deep sky object catalogs to enable full planetarium functionality.',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Download progress
-                  if (_isDownloading) ...[
-                    _buildDownloadProgress(colors),
-                    const SizedBox(height: 32),
-                  ],
-
-                  // Star catalog card
-                  _buildCatalogCard(
-                    colors: colors,
-                    title: 'HYG Star Database',
-                    description: 'Combined Hipparcos, Yale, and Gliese star catalogs with ~120,000 stars',
-                    sourceUrl: 'github.com/astronexus/HYG-Database',
-                    status: _starStatus,
-                    type: 'stars',
-                    icon: Icons.star,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // DSO catalog card
-                  _buildCatalogCard(
-                    colors: colors,
-                    title: 'OpenNGC',
-                    description: 'Open source NGC/IC deep sky catalog with ~13,000 objects',
-                    sourceUrl: 'github.com/mattiaverga/OpenNGC',
-                    status: _dsoStatus,
-                    type: 'dso',
-                    icon: Icons.blur_circular,
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Annotation catalog section
-                  _buildAnnotationCatalogSection(colors),
-                  const SizedBox(height: 32),
-
-                  // Download section
-                  _buildDownloadSection(colors),
-                  const SizedBox(height: 32),
-
-                  // Actions
-                  _buildActionsSection(colors),
-                ],
-              ),
+              padding: EdgeInsets.all(padding),
+              child: _buildContent(context, colors),
             ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, NightshadeColors colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header - hide on mobile since parent shows it
+        if (!widget.isMobile) ...[
+          Text(
+            'Astronomical Catalogs',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Download star and deep sky object catalogs to enable full planetarium functionality.',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 32),
+        ],
+
+        // Download progress
+        if (_isDownloading) ...[
+          _buildDownloadProgress(colors),
+          const SizedBox(height: 32),
+        ],
+
+        // Star catalog card
+        _buildCatalogCard(
+          colors: colors,
+          title: 'HYG Star Database',
+          description: 'Combined Hipparcos, Yale, and Gliese star catalogs with ~120,000 stars',
+          sourceUrl: 'github.com/astronexus/HYG-Database',
+          status: _starStatus,
+          type: 'stars',
+          icon: Icons.star,
+        ),
+        const SizedBox(height: 16),
+
+        // DSO catalog card
+        _buildCatalogCard(
+          colors: colors,
+          title: 'OpenNGC',
+          description: 'Open source NGC/IC deep sky catalog with ~13,000 objects',
+          sourceUrl: 'github.com/mattiaverga/OpenNGC',
+          status: _dsoStatus,
+          type: 'dso',
+          icon: Icons.blur_circular,
+        ),
+        const SizedBox(height: 32),
+
+        // Annotation catalog section
+        _buildAnnotationCatalogSection(colors),
+        const SizedBox(height: 32),
+
+        // Download section
+        _buildDownloadSection(colors),
+        const SizedBox(height: 32),
+
+        // Actions
+        _buildActionsSection(colors),
+      ],
     );
   }
 
@@ -440,28 +459,51 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
             const SizedBox(height: 12),
             Divider(color: colors.border),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildStatusChip(
-                  colors: colors,
-                  label: 'Objects',
-                  value: status.objectCount?.toString() ?? 'Unknown',
-                ),
-                const SizedBox(width: 16),
-                _buildStatusChip(
-                  colors: colors,
-                  label: 'Package',
-                  value: status.installedPackage?.displayName ?? 'Custom',
-                ),
-                const SizedBox(width: 16),
-                if (status.installedDate != null)
-                  _buildStatusChip(
-                    colors: colors,
-                    label: 'Installed',
-                    value: _formatDate(status.installedDate!),
+            widget.isMobile
+                ? Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _buildStatusChip(
+                        colors: colors,
+                        label: 'Objects',
+                        value: status.objectCount?.toString() ?? 'Unknown',
+                      ),
+                      _buildStatusChip(
+                        colors: colors,
+                        label: 'Package',
+                        value: status.installedPackage?.displayName ?? 'Custom',
+                      ),
+                      if (status.installedDate != null)
+                        _buildStatusChip(
+                          colors: colors,
+                          label: 'Installed',
+                          value: _formatDate(status.installedDate!),
+                        ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      _buildStatusChip(
+                        colors: colors,
+                        label: 'Objects',
+                        value: status.objectCount?.toString() ?? 'Unknown',
+                      ),
+                      const SizedBox(width: 16),
+                      _buildStatusChip(
+                        colors: colors,
+                        label: 'Package',
+                        value: status.installedPackage?.displayName ?? 'Custom',
+                      ),
+                      const SizedBox(width: 16),
+                      if (status.installedDate != null)
+                        _buildStatusChip(
+                          colors: colors,
+                          label: 'Installed',
+                          value: _formatDate(status.installedDate!),
+                        ),
+                    ],
                   ),
-              ],
-            ),
           ],
         ],
       ),
@@ -651,25 +693,51 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            OutlinedButton.icon(
-              onPressed: _isDownloading ? null : _loadCatalogStatus,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Refresh Status'),
-            ),
-            const SizedBox(width: 12),
-            if (hasInstalledCatalogs)
-              OutlinedButton.icon(
-                onPressed: _isDownloading ? null : _deleteCatalogs,
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                label: const Text('Delete Catalogs'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                ),
+        widget.isMobile
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _isDownloading ? null : _loadCatalogStatus,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Refresh Status'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                  if (hasInstalledCatalogs) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _isDownloading ? null : _deleteCatalogs,
+                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                      label: const Text('Delete Catalogs'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ],
+                ],
+              )
+            : Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _isDownloading ? null : _loadCatalogStatus,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh Status'),
+                  ),
+                  const SizedBox(width: 12),
+                  if (hasInstalledCatalogs)
+                    OutlinedButton.icon(
+                      onPressed: _isDownloading ? null : _deleteCatalogs,
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      label: const Text('Delete Catalogs'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
       ],
     );
   }
@@ -764,28 +832,51 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
             const SizedBox(height: 12),
             Divider(color: colors.border),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildStatusChip(
-                  colors: colors,
-                  label: 'Objects',
-                  value: _annotationStatus!.objectCount?.toString() ?? 'Unknown',
-                ),
-                const SizedBox(width: 16),
-                _buildStatusChip(
-                  colors: colors,
-                  label: 'Package',
-                  value: _annotationStatus!.installedPackage?.displayName ?? 'Custom',
-                ),
-                const SizedBox(width: 16),
-                if (_annotationStatus!.installedDate != null)
-                  _buildStatusChip(
-                    colors: colors,
-                    label: 'Installed',
-                    value: _formatDate(_annotationStatus!.installedDate!),
+            widget.isMobile
+                ? Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _buildStatusChip(
+                        colors: colors,
+                        label: 'Objects',
+                        value: _annotationStatus!.objectCount?.toString() ?? 'Unknown',
+                      ),
+                      _buildStatusChip(
+                        colors: colors,
+                        label: 'Package',
+                        value: _annotationStatus!.installedPackage?.displayName ?? 'Custom',
+                      ),
+                      if (_annotationStatus!.installedDate != null)
+                        _buildStatusChip(
+                          colors: colors,
+                          label: 'Installed',
+                          value: _formatDate(_annotationStatus!.installedDate!),
+                        ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      _buildStatusChip(
+                        colors: colors,
+                        label: 'Objects',
+                        value: _annotationStatus!.objectCount?.toString() ?? 'Unknown',
+                      ),
+                      const SizedBox(width: 16),
+                      _buildStatusChip(
+                        colors: colors,
+                        label: 'Package',
+                        value: _annotationStatus!.installedPackage?.displayName ?? 'Custom',
+                      ),
+                      const SizedBox(width: 16),
+                      if (_annotationStatus!.installedDate != null)
+                        _buildStatusChip(
+                          colors: colors,
+                          label: 'Installed',
+                          value: _formatDate(_annotationStatus!.installedDate!),
+                        ),
+                    ],
                   ),
-              ],
-            ),
           ],
           const SizedBox(height: 20),
           if (!isInstalled) ...[

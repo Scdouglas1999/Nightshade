@@ -25,250 +25,504 @@ class GuidingTab extends ConsumerWidget {
     final isConnected = ref.watch(phd2ConnectedProvider);
     final phd2State = ref.watch(phd2StateProvider);
     final statsAsync = ref.watch(guideStatsProvider);
-    
+    final isMobile = Responsive.isMobile(context);
+
     // Initialize controller on build
     ref.watch(phd2ControllerProvider);
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 12 : 24),
+      child: isMobile
+          ? _buildMobileLayout(context, ref, colors, isConnected, phd2State, statsAsync)
+          : _buildDesktopLayout(context, ref, colors, isConnected, phd2State, statsAsync),
+    );
+  }
+
+  /// Mobile layout: Vertical scrolling layout
+  Widget _buildMobileLayout(
+    BuildContext context,
+    WidgetRef ref,
+    NightshadeColors colors,
+    bool isConnected,
+    Phd2State phd2State,
+    Phd2GuideStats statsAsync,
+  ) {
+    return SingleChildScrollView(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header with connection status
+          // Compact header with connection status
+          _buildConnectionHeader(context, ref, colors, isConnected, phd2State, isMobile: true),
+          const SizedBox(height: 12),
+
+          // Guide star view and stats in a row on mobile
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isConnected ? colors.success : colors.error,
+              // Guide star view (smaller on mobile)
+              Expanded(
+                child: NightshadeCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Guide Star',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        AspectRatio(
+                          aspectRatio: 1,
+                          child: Consumer(
+                            builder: (context, ref, _) {
+                              final starImage = ref.watch(starImageProvider);
+                              return starImage.when(
+                                data: (image) => GuideStarView(
+                                  pixels: image.pixels,
+                                  width: image.width,
+                                  height: image.height,
+                                  starX: image.starX,
+                                  starY: image.starY,
+                                  snr: ref.watch(guideStatsProvider).snr,
+                                  placeholderMessage: 'No star',
+                                ),
+                                loading: () => const GuideStarView(
+                                  placeholderMessage: 'Waiting...',
+                                ),
+                                error: (_, __) => const GuideStarView(
+                                  placeholderMessage: 'No star',
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    isConnected 
-                      ? 'Connected to PHD2 (${phd2State.name})' 
-                      : 'Disconnected from PHD2',
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+                ),
               ),
-              Row(
-                children: [
-                  if (!isConnected)
-                    NightshadeButton(
-                      label: 'Connect',
-                      icon: LucideIcons.plug,
-                      size: ButtonSize.small,
-                      onPressed: () => connectPhd2(ref, context: context),
-                    )
-                  else
-                    NightshadeButton(
-                      label: 'Disconnect',
-                      icon: LucideIcons.plugZap,
-                      variant: ButtonVariant.outline,
-                      size: ButtonSize.small,
-                      onPressed: () => disconnectPhd2(ref),
+              const SizedBox(width: 12),
+              // Guiding stats (compact)
+              Expanded(
+                child: NightshadeCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Stats',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _buildStatRow('SNR:', statsAsync.snr.toStringAsFixed(1), colors),
+                        const SizedBox(height: 4),
+                        _buildStatRow('RA RMS:', '${statsAsync.rmsRa.toStringAsFixed(2)}"', colors),
+                        const SizedBox(height: 4),
+                        _buildStatRow('Dec RMS:', '${statsAsync.rmsDec.toStringAsFixed(2)}"', colors),
+                        const SizedBox(height: 4),
+                        Divider(color: colors.border, height: 8),
+                        _buildStatRow('Total:', '${statsAsync.rmsTotal.toStringAsFixed(2)}"', colors, isHighlight: true),
+                      ],
                     ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: Icon(LucideIcons.settings, color: colors.textSecondary),
-                    onPressed: () => _showSettingsDialog(context, ref),
                   ),
-                ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          
-          // Main Content
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left column: Guide Star & Stats
-                SizedBox(
-                  width: 250,
-                  child: Column(
+          const SizedBox(height: 12),
+
+          // Guiding graph (fixed height on mobile)
+          NightshadeCard(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Guide star view
-                      NightshadeCard(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Guide Star View',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              AspectRatio(
-                                aspectRatio: 1,
-                                child: Consumer(
-                                  builder: (context, ref, _) {
-                                    final starImage = ref.watch(starImageProvider);
-                                    return starImage.when(
-                                      data: (image) => GuideStarView(
-                                        pixels: image.pixels,
-                                        width: image.width,
-                                        height: image.height,
-                                        starX: image.starX,
-                                        starY: image.starY,
-                                        snr: ref.watch(guideStatsProvider).snr,
-                                        placeholderMessage: 'No star selected',
-                                      ),
-                                      loading: () => const GuideStarView(
-                                        placeholderMessage: 'Waiting for image...',
-                                      ),
-                                      error: (_, __) => const GuideStarView(
-                                        placeholderMessage: 'No star selected',
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              _buildStatRow('Star SNR:', statsAsync.snr.toStringAsFixed(1), colors),
-                              const SizedBox(height: 4),
-                              _buildStatRow('Star Mass:', statsAsync.starMass.toStringAsFixed(0), colors),
-                            ],
-                          ),
+                      Text(
+                        'Guiding Graph',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      
-                      // Guiding Stats
-                      NightshadeCard(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Guiding Stats',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              _buildStatRow('RA RMS:', '${statsAsync.rmsRa.toStringAsFixed(2)}"', colors),
-                              const SizedBox(height: 8),
-                              _buildStatRow('Dec RMS:', '${statsAsync.rmsDec.toStringAsFixed(2)}"', colors),
-                              const SizedBox(height: 8),
-                              Divider(color: colors.border),
-                              const SizedBox(height: 8),
-                              _buildStatRow('Total RMS:', '${statsAsync.rmsTotal.toStringAsFixed(2)}"', colors, isHighlight: true),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(width: 16),
-                
-                // Right column: Graph & Controls
-                Expanded(
-                  child: Column(
-                    children: [
-                      // Graph
-                      Expanded(
-                        child: NightshadeCard(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      'Guiding Graph',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: colors.textPrimary,
-                                      ),
-                                    ),
-                                    Row(
-                                      children: [
-                                        NightshadeButton(
-                                          label: ref.watch(showGridProvider) ? 'Hide Grid' : 'Show Grid',
-                                          icon: LucideIcons.grid,
-                                          size: ButtonSize.small,
-                                          variant: ButtonVariant.ghost,
-                                          onPressed: () {
-                                            ref.read(showGridProvider.notifier).state =
-                                                !ref.read(showGridProvider);
-                                          },
-                                        ),
-                                        const SizedBox(width: 8),
-                                        NightshadeButton(
-                                          label: 'Clear',
-                                          size: ButtonSize.small,
-                                          variant: ButtonVariant.ghost,
-                                          onPressed: () {
-                                            ref.read(guideGraphProvider.notifier).clear();
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                Expanded(
-                                  child: _GuidingGraph(
-                                    data: ref.watch(guideGraphProvider),
-                                    colors: colors,
-                                    showGrid: ref.watch(showGridProvider),
-                                  ),
-                                ),
-                              ],
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              ref.read(showGridProvider.notifier).state =
+                                  !ref.read(showGridProvider);
+                            },
+                            child: Icon(
+                              LucideIcons.grid,
+                              size: 16,
+                              color: ref.watch(showGridProvider) ? colors.primary : colors.textMuted,
                             ),
                           ),
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 16),
-
-                      // Controls - using shared GuideControlsPanel widget
-                      SizedBox(
-                        height: 280,
-                        child: ui.GuideControlsPanel(
-                          state: _mapPhd2State(phd2State, isConnected),
-                          isConnected: isConnected,
-                          onStartGuiding: () => ref.read(phd2ControllerProvider).startGuiding(),
-                          onStopGuiding: () => ref.read(phd2ControllerProvider).stopGuiding(),
-                          onLoop: () => ref.read(phd2ControllerProvider).loop(),
-                          onFindStar: () => ref.read(lockPositionProvider.notifier).findStar(),
-                          onDeselectStar: () => ref.read(lockPositionProvider.notifier).deselectStar(),
-                          ditherAmount: ref.watch(ditherAmountProvider),
-                          onDitherAmountChanged: (amount) => ref.read(ditherAmountProvider.notifier).state = amount,
-                          onDither: () => ref.read(phd2ControllerProvider).dither(amount: ref.read(ditherAmountProvider)),
-                        ),
+                          const SizedBox(width: 12),
+                          GestureDetector(
+                            onTap: () => ref.read(guideGraphProvider.notifier).clear(),
+                            child: Icon(LucideIcons.trash2, size: 16, color: colors.textMuted),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 150,
+                    child: _GuidingGraph(
+                      data: ref.watch(guideGraphProvider),
+                      colors: colors,
+                      showGrid: ref.watch(showGridProvider),
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ),
+          const SizedBox(height: 12),
+
+          // Controls panel (scrollable)
+          ui.GuideControlsPanel(
+            state: _mapPhd2State(phd2State, isConnected),
+            isConnected: isConnected,
+            onStartGuiding: () => ref.read(phd2ControllerProvider).startGuiding(),
+            onStopGuiding: () => ref.read(phd2ControllerProvider).stopGuiding(),
+            onLoop: () => ref.read(phd2ControllerProvider).loop(),
+            onFindStar: () => ref.read(lockPositionProvider.notifier).findStar(),
+            onDeselectStar: () => ref.read(lockPositionProvider.notifier).deselectStar(),
+            ditherAmount: ref.watch(ditherAmountProvider),
+            onDitherAmountChanged: (amount) => ref.read(ditherAmountProvider.notifier).state = amount,
+            onDither: () => ref.read(phd2ControllerProvider).dither(amount: ref.read(ditherAmountProvider)),
           ),
         ],
       ),
+    );
+  }
+
+  /// Desktop layout: Side-by-side with fixed left column
+  Widget _buildDesktopLayout(
+    BuildContext context,
+    WidgetRef ref,
+    NightshadeColors colors,
+    bool isConnected,
+    Phd2State phd2State,
+    Phd2GuideStats statsAsync,
+  ) {
+    return Column(
+      children: [
+        // Header with connection status
+        _buildConnectionHeader(context, ref, colors, isConnected, phd2State, isMobile: false),
+        const SizedBox(height: 16),
+
+        // Main Content
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Left column: Guide Star & Stats
+              SizedBox(
+                width: 250,
+                child: Column(
+                  children: [
+                    // Guide star view
+                    NightshadeCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Guide Star View',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            AspectRatio(
+                              aspectRatio: 1,
+                              child: Consumer(
+                                builder: (context, ref, _) {
+                                  final starImage = ref.watch(starImageProvider);
+                                  return starImage.when(
+                                    data: (image) => GuideStarView(
+                                      pixels: image.pixels,
+                                      width: image.width,
+                                      height: image.height,
+                                      starX: image.starX,
+                                      starY: image.starY,
+                                      snr: ref.watch(guideStatsProvider).snr,
+                                      placeholderMessage: 'No star selected',
+                                    ),
+                                    loading: () => const GuideStarView(
+                                      placeholderMessage: 'Waiting for image...',
+                                    ),
+                                    error: (_, __) => const GuideStarView(
+                                      placeholderMessage: 'No star selected',
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildStatRow('Star SNR:', statsAsync.snr.toStringAsFixed(1), colors),
+                            const SizedBox(height: 4),
+                            _buildStatRow('Star Mass:', statsAsync.starMass.toStringAsFixed(0), colors),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Guiding Stats
+                    NightshadeCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Guiding Stats',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildStatRow('RA RMS:', '${statsAsync.rmsRa.toStringAsFixed(2)}"', colors),
+                            const SizedBox(height: 8),
+                            _buildStatRow('Dec RMS:', '${statsAsync.rmsDec.toStringAsFixed(2)}"', colors),
+                            const SizedBox(height: 8),
+                            Divider(color: colors.border),
+                            const SizedBox(height: 8),
+                            _buildStatRow('Total RMS:', '${statsAsync.rmsTotal.toStringAsFixed(2)}"', colors, isHighlight: true),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 16),
+
+              // Right column: Graph & Controls
+              Expanded(
+                child: Column(
+                  children: [
+                    // Graph
+                    Expanded(
+                      child: NightshadeCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Guiding Graph',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: colors.textPrimary,
+                                    ),
+                                  ),
+                                  Row(
+                                    children: [
+                                      NightshadeButton(
+                                        label: ref.watch(showGridProvider) ? 'Hide Grid' : 'Show Grid',
+                                        icon: LucideIcons.grid,
+                                        size: ButtonSize.small,
+                                        variant: ButtonVariant.ghost,
+                                        onPressed: () {
+                                          ref.read(showGridProvider.notifier).state =
+                                              !ref.read(showGridProvider);
+                                        },
+                                      ),
+                                      const SizedBox(width: 8),
+                                      NightshadeButton(
+                                        label: 'Clear',
+                                        size: ButtonSize.small,
+                                        variant: ButtonVariant.ghost,
+                                        onPressed: () {
+                                          ref.read(guideGraphProvider.notifier).clear();
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              Expanded(
+                                child: _GuidingGraph(
+                                  data: ref.watch(guideGraphProvider),
+                                  colors: colors,
+                                  showGrid: ref.watch(showGridProvider),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Controls - using shared GuideControlsPanel widget
+                    SizedBox(
+                      height: 280,
+                      child: ui.GuideControlsPanel(
+                        state: _mapPhd2State(phd2State, isConnected),
+                        isConnected: isConnected,
+                        onStartGuiding: () => ref.read(phd2ControllerProvider).startGuiding(),
+                        onStopGuiding: () => ref.read(phd2ControllerProvider).stopGuiding(),
+                        onLoop: () => ref.read(phd2ControllerProvider).loop(),
+                        onFindStar: () => ref.read(lockPositionProvider.notifier).findStar(),
+                        onDeselectStar: () => ref.read(lockPositionProvider.notifier).deselectStar(),
+                        ditherAmount: ref.watch(ditherAmountProvider),
+                        onDitherAmountChanged: (amount) => ref.read(ditherAmountProvider.notifier).state = amount,
+                        onDither: () => ref.read(phd2ControllerProvider).dither(amount: ref.read(ditherAmountProvider)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds the connection header (shared between mobile and desktop)
+  Widget _buildConnectionHeader(
+    BuildContext context,
+    WidgetRef ref,
+    NightshadeColors colors,
+    bool isConnected,
+    Phd2State phd2State, {
+    required bool isMobile,
+  }) {
+    if (isMobile) {
+      // Compact header for mobile
+      return Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isConnected ? colors.success : colors.error,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              isConnected ? 'PHD2 (${phd2State.name})' : 'Disconnected',
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (!isConnected)
+            NightshadeButton(
+              label: 'Connect',
+              icon: LucideIcons.plug,
+              size: ButtonSize.small,
+              onPressed: () => connectPhd2(ref, context: context),
+            )
+          else
+            NightshadeButton(
+              label: 'Disconnect',
+              size: ButtonSize.small,
+              variant: ButtonVariant.outline,
+              onPressed: () => disconnectPhd2(ref),
+            ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: Icon(LucideIcons.settings, size: 18, color: colors.textSecondary),
+            onPressed: () => _showSettingsDialog(context, ref),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        ],
+      );
+    }
+
+    // Standard desktop header
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isConnected ? colors.success : colors.error,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              isConnected
+                  ? 'Connected to PHD2 (${phd2State.name})'
+                  : 'Disconnected from PHD2',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            if (!isConnected)
+              NightshadeButton(
+                label: 'Connect',
+                icon: LucideIcons.plug,
+                size: ButtonSize.small,
+                onPressed: () => connectPhd2(ref, context: context),
+              )
+            else
+              NightshadeButton(
+                label: 'Disconnect',
+                icon: LucideIcons.plugZap,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: () => disconnectPhd2(ref),
+              ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: Icon(LucideIcons.settings, color: colors.textSecondary),
+              onPressed: () => _showSettingsDialog(context, ref),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -276,20 +530,29 @@ class GuidingTab extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12, 
-            color: colors.textSecondary,
-            fontWeight: isHighlight ? FontWeight.w600 : FontWeight.normal,
+        Flexible(
+          flex: 0,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.textSecondary,
+              fontWeight: isHighlight ? FontWeight.w600 : FontWeight.normal,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: isHighlight ? colors.primary : colors.textPrimary,
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: isHighlight ? colors.primary : colors.textPrimary,
+            ),
+            textAlign: TextAlign.end,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

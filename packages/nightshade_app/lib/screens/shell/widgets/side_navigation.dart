@@ -294,7 +294,7 @@ class _NavButtonState extends State<_NavButton>
     final colors = Theme.of(context).extension<NightshadeColors>()!;
 
     final horizontalPadding = widget.isExpanded ? 14.0 : 4.0;
-    final iconPadding = widget.isExpanded ? 8.0 : 2.5;
+    final iconPadding = widget.isExpanded ? 8.0 : 1.5;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),

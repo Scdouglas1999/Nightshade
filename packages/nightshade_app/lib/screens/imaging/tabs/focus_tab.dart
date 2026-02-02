@@ -244,74 +244,133 @@ class _FocusTabState extends ConsumerState<FocusTab> {
         : 50000;
     final temperature = focuserState.temperature ?? 0.0;
     final isMoving = focuserState.isMoving;
+    final isMobile = Responsive.isMobile(context);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 12 : 24),
       child: Column(
         children: [
           // Focuser control bar
           NightshadeCard(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(isMobile ? 12 : 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Focuser Control',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: isMobile ? 13 : 14,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Text(
-                        'Position: ',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
+                  SizedBox(height: isMobile ? 12 : 16),
+                  // Position and temperature - wrap on mobile
+                  isMobile
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Position: ',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
+                                AnimatedValue(
+                                  value: '$position',
+                                  style: ValueAnimationStyle.flash,
+                                  textStyle: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.textPrimary,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (isMoving)
+                                  Text(
+                                    'MOVING',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: colors.warning,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Text(
+                                  'Temperature: ',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
+                                AnimatedValue(
+                                  value: '${temperature.toStringAsFixed(1)}°C',
+                                  style: ValueAnimationStyle.directional,
+                                  textStyle: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      : Row(
+                          children: [
+                            Text(
+                              'Position: ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                            AnimatedValue(
+                              value: '$position',
+                              style: ValueAnimationStyle.flash,
+                              textStyle: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            Text(
+                              'Temperature: ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                            AnimatedValue(
+                              value: '${temperature.toStringAsFixed(1)}°C',
+                              style: ValueAnimationStyle.directional,
+                              textStyle: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (isMoving)
+                              Text(
+                                'MOVING',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: colors.warning,
+                                ),
+                              ),
+                          ],
                         ),
-                      ),
-                      AnimatedValue(
-                        value: '$position',
-                        style: ValueAnimationStyle.flash,
-                        textStyle: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 24),
-                      Text(
-                        'Temperature: ',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                      AnimatedValue(
-                        value: '${temperature.toStringAsFixed(1)}°C',
-                        style: ValueAnimationStyle.directional,
-                        textStyle: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      const Spacer(),
-                      if (isMoving)
-                        Text(
-                          'MOVING',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: colors.warning,
-                          ),
-                        ),
-                    ],
-                  ),
                   const SizedBox(height: 12),
                   // Movement buttons - using shared FocuserControls widget
                   const FocuserControls(
@@ -334,27 +393,28 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
+                  // Step size chips - wrap on very narrow screens
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'Step Size:',
                         style: TextStyle(fontSize: 12, color: colors.textSecondary),
                       ),
-                      const SizedBox(width: 12),
                       _StepChip(
                         label: '10',
                         isSelected: focusSettings.stepSize == 10,
                         onTap: () => ref.read(focusSettingsProvider.notifier).state =
                             focusSettings.copyWith(stepSize: 10),
                       ),
-                      const SizedBox(width: 8),
                       _StepChip(
                         label: '100',
                         isSelected: focusSettings.stepSize == 100,
                         onTap: () => ref.read(focusSettingsProvider.notifier).state =
                             focusSettings.copyWith(stepSize: 100),
                       ),
-                      const SizedBox(width: 8),
                       _StepChip(
                         label: '1000',
                         isSelected: focusSettings.stepSize == 1000,
@@ -368,341 +428,631 @@ class _FocusTabState extends ConsumerState<FocusTab> {
             ),
           ),
 
-          const SizedBox(height: 24),
+          SizedBox(height: isMobile ? 16 : 24),
 
-          // Autofocus and graph row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Autofocus settings
-              Expanded(
-                child: NightshadeCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Autofocus',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textPrimary,
-                          ),
+          // Autofocus and graph - responsive layout
+          isMobile
+              ? _buildMobileAutofocusSection(colors, focusSettings, isConnected)
+              : _buildDesktopAutofocusSection(colors, focusSettings, isConnected),
+
+          SizedBox(height: isMobile ? 16 : 24),
+
+          // Filter offsets
+          _buildFilterOffsetsSection(colors),
+        ],
+      ),
+    );
+  }
+
+  /// Builds autofocus section for mobile (stacked vertically)
+  Widget _buildMobileAutofocusSection(
+    NightshadeColors colors,
+    FocusSettings focusSettings,
+    bool isConnected,
+  ) {
+    return Column(
+      children: [
+        // Autofocus settings card
+        NightshadeCard(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Autofocus',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _MobileSettingRow(
+                  label: 'Method',
+                  child: NightshadeDropdown(
+                    value: focusSettings.method,
+                    items: const ['V-Curve', 'Hyperbolic', 'Parabolic'],
+                    onChanged: (value) {
+                      if (value != null) {
+                        ref.read(focusSettingsProvider.notifier).state =
+                            focusSettings.copyWith(method: value);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MobileSettingRow(
+                        label: 'Exposure',
+                        child: NightshadeTextField(
+                          initialValue: focusSettings.exposureTime.toString(),
+                          suffix: 's',
+                          onChanged: (value) {
+                            final v = double.tryParse(value);
+                            if (v != null) {
+                              ref.read(focusSettingsProvider.notifier).state =
+                                  focusSettings.copyWith(exposureTime: v);
+                            }
+                          },
                         ),
-                        const SizedBox(height: 16),
-                        _SettingRow(
-                          label: 'Method',
-                          child: NightshadeDropdown(
-                            value: focusSettings.method,
-                            items: const ['V-Curve', 'Hyperbolic', 'Parabolic'],
-                            onChanged: (value) {
-                              if (value != null) {
-                                ref.read(focusSettingsProvider.notifier).state =
-                                    focusSettings.copyWith(method: value);
-                              }
-                            },
-                          ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MobileSettingRow(
+                        label: 'Step Size',
+                        child: NightshadeTextField(
+                          initialValue: focusSettings.afStepSize.toString(),
+                          onChanged: (value) {
+                            final v = int.tryParse(value);
+                            if (v != null) {
+                              ref.read(focusSettingsProvider.notifier).state =
+                                  focusSettings.copyWith(afStepSize: v);
+                            }
+                          },
                         ),
-                        const SizedBox(height: 12),
-                        _SettingRow(
-                          label: 'Exposure Time',
-                          child: NightshadeTextField(
-                            initialValue: focusSettings.exposureTime.toString(),
-                            suffix: 's',
-                            onChanged: (value) {
-                              final v = double.tryParse(value);
-                              if (v != null) {
-                                ref.read(focusSettingsProvider.notifier).state =
-                                    focusSettings.copyWith(exposureTime: v);
-                              }
-                            },
-                          ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MobileSettingRow(
+                        label: 'Steps Out',
+                        child: NightshadeTextField(
+                          initialValue: focusSettings.stepsOut.toString(),
+                          onChanged: (value) {
+                            final v = int.tryParse(value);
+                            if (v != null) {
+                              ref.read(focusSettingsProvider.notifier).state =
+                                  focusSettings.copyWith(stepsOut: v);
+                            }
+                          },
                         ),
-                        const SizedBox(height: 12),
-                        _SettingRow(
-                          label: 'Step Size',
-                          child: NightshadeTextField(
-                            initialValue: focusSettings.afStepSize.toString(),
-                            suffix: 'steps',
-                            onChanged: (value) {
-                              final v = int.tryParse(value);
-                              if (v != null) {
-                                ref.read(focusSettingsProvider.notifier).state =
-                                    focusSettings.copyWith(afStepSize: v);
-                              }
-                            },
-                          ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MobileSettingRow(
+                        label: 'Exp/Point',
+                        child: NightshadeTextField(
+                          initialValue: focusSettings.exposuresPerPoint.toString(),
+                          onChanged: (value) {
+                            final v = int.tryParse(value);
+                            if (v != null) {
+                              ref.read(focusSettingsProvider.notifier).state =
+                                  focusSettings.copyWith(exposuresPerPoint: v);
+                            }
+                          },
                         ),
-                        const SizedBox(height: 12),
-                        _SettingRow(
-                          label: 'Steps Out',
-                          child: NightshadeTextField(
-                            initialValue: focusSettings.stepsOut.toString(),
-                            onChanged: (value) {
-                              final v = int.tryParse(value);
-                              if (v != null) {
-                                ref.read(focusSettingsProvider.notifier).state =
-                                    focusSettings.copyWith(stepsOut: v);
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _SettingRow(
-                          label: 'Exposures/Point',
-                          child: NightshadeTextField(
-                            initialValue: focusSettings.exposuresPerPoint.toString(),
-                            onChanged: (value) {
-                              final v = int.tryParse(value);
-                              if (v != null) {
-                                ref.read(focusSettingsProvider.notifier).state =
-                                    focusSettings.copyWith(exposuresPerPoint: v);
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            NightshadeCheckbox(value: true, onChanged: (v) {}),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Use filter offsets',
-                              style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            NightshadeCheckbox(value: true, onChanged: (v) {}),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Auto-select star',
-                              style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        if (_afStatus != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Text(
-                              _afStatus!,
-                              style: TextStyle(
-                                color: _afStatus!.contains('Failed') ? colors.error : colors.success,
-                                fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_afStatus != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      _afStatus!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _afStatus!.contains('Failed') ? colors.error : colors.success,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                SizedBox(
+                  width: double.infinity,
+                  child: NightshadeButton(
+                    label: _isRunningAf ? 'Running...' : 'Run Autofocus',
+                    icon: _isRunningAf ? LucideIcons.loader : LucideIcons.play,
+                    onPressed: (isConnected && !_isRunningAf) ? _runAutofocus : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Last autofocus run card
+        NightshadeCard(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Builder(
+              builder: (context) {
+                final afResult = ref.watch(autofocusResultProvider);
+                final hasResult = afResult != null;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Last Autofocus Run',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: colors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: hasResult && afResult.focusData.isNotEmpty
+                          ? _buildFocusCurve(afResult, colors)
+                          : Center(
+                              child: Text(
+                                hasResult ? 'No curve data' : 'No autofocus run yet',
+                                style: TextStyle(fontSize: 10, color: colors.textMuted),
                               ),
                             ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _InfoRow(
+                                label: 'Best Position',
+                                value: hasResult ? afResult.bestPosition.toString() : '---',
+                              ),
+                              _InfoRow(
+                                label: 'Best HFR',
+                                value: hasResult ? afResult.bestHfr.toStringAsFixed(2) : '---',
+                              ),
+                            ],
                           ),
-                        SizedBox(
-                          width: double.infinity,
-                          child: NightshadeButton(
-                            label: _isRunningAf ? 'Running...' : 'Run Autofocus',
-                            icon: _isRunningAf ? LucideIcons.loader : LucideIcons.play,
-                            size: ButtonSize.large,
-                            onPressed: (isConnected && !_isRunningAf) ? _runAutofocus : null,
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _InfoRow(
+                                label: 'Method',
+                                value: hasResult ? afResult.method : '---',
+                              ),
+                              _InfoRow(
+                                label: 'Data Points',
+                                value: hasResult ? afResult.focusData.length.toString() : '---',
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 8),
+                    NightshadeButton(
+                      label: 'View Details',
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
+                      onPressed: hasResult ? () => _showAutofocusDetails(context, afResult) : null,
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds autofocus section for desktop (side-by-side)
+  Widget _buildDesktopAutofocusSection(
+    NightshadeColors colors,
+    FocusSettings focusSettings,
+    bool isConnected,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Autofocus settings
+        Expanded(
+          child: NightshadeCard(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Autofocus',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
                   ),
-                ),
-              ),
-
-              const SizedBox(width: 24),
-
-              // Last autofocus run
-              Expanded(
-                child: NightshadeCard(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Builder(
-                      builder: (context) {
-                        final afResult = ref.watch(autofocusResultProvider);
-                        final hasResult = afResult != null;
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Last Autofocus Run',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: colors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Container(
-                              height: 150,
-                              decoration: BoxDecoration(
-                                color: colors.surfaceAlt,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: hasResult && afResult.focusData.isNotEmpty
-                                  ? _buildFocusCurve(afResult, colors)
-                                  : Center(
-                                      child: Text(
-                                        hasResult ? 'No curve data' : 'No autofocus run yet',
-                                        style: TextStyle(fontSize: 10, color: colors.textMuted),
-                                      ),
-                                    ),
-                            ),
-                            const SizedBox(height: 16),
-                            _InfoRow(
-                              label: 'Best Position',
-                              value: hasResult ? afResult.bestPosition.toString() : '---',
-                            ),
-                            _InfoRow(
-                              label: 'Best HFR',
-                              value: hasResult ? afResult.bestHfr.toStringAsFixed(2) : '---',
-                            ),
-                            _InfoRow(
-                              label: 'Temp at Focus',
-                              value: hasResult && afResult.temperature != null
-                                  ? '${afResult.temperature!.toStringAsFixed(1)}°C'
-                                  : '---',
-                            ),
-                            _InfoRow(
-                              label: 'Method',
-                              value: hasResult ? afResult.method : '---',
-                            ),
-                            _InfoRow(
-                              label: 'Data Points',
-                              value: hasResult ? afResult.focusData.length.toString() : '---',
-                            ),
-                            const SizedBox(height: 12),
-                            NightshadeButton(
-                              label: 'View Details',
-                              variant: ButtonVariant.outline,
-                              size: ButtonSize.small,
-                              onPressed: hasResult ? () => _showAutofocusDetails(context, afResult) : null,
-                            ),
-                          ],
-                        );
+                  const SizedBox(height: 16),
+                  _SettingRow(
+                    label: 'Method',
+                    child: NightshadeDropdown(
+                      value: focusSettings.method,
+                      items: const ['V-Curve', 'Hyperbolic', 'Parabolic'],
+                      onChanged: (value) {
+                        if (value != null) {
+                          ref.read(focusSettingsProvider.notifier).state =
+                              focusSettings.copyWith(method: value);
+                        }
                       },
                     ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  _SettingRow(
+                    label: 'Exposure Time',
+                    child: NightshadeTextField(
+                      initialValue: focusSettings.exposureTime.toString(),
+                      suffix: 's',
+                      onChanged: (value) {
+                        final v = double.tryParse(value);
+                        if (v != null) {
+                          ref.read(focusSettingsProvider.notifier).state =
+                              focusSettings.copyWith(exposureTime: v);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingRow(
+                    label: 'Step Size',
+                    child: NightshadeTextField(
+                      initialValue: focusSettings.afStepSize.toString(),
+                      suffix: 'steps',
+                      onChanged: (value) {
+                        final v = int.tryParse(value);
+                        if (v != null) {
+                          ref.read(focusSettingsProvider.notifier).state =
+                              focusSettings.copyWith(afStepSize: v);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingRow(
+                    label: 'Steps Out',
+                    child: NightshadeTextField(
+                      initialValue: focusSettings.stepsOut.toString(),
+                      onChanged: (value) {
+                        final v = int.tryParse(value);
+                        if (v != null) {
+                          ref.read(focusSettingsProvider.notifier).state =
+                              focusSettings.copyWith(stepsOut: v);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingRow(
+                    label: 'Exposures/Point',
+                    child: NightshadeTextField(
+                      initialValue: focusSettings.exposuresPerPoint.toString(),
+                      onChanged: (value) {
+                        final v = int.tryParse(value);
+                        if (v != null) {
+                          ref.read(focusSettingsProvider.notifier).state =
+                              focusSettings.copyWith(exposuresPerPoint: v);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      NightshadeCheckbox(value: true, onChanged: (v) {}),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Use filter offsets',
+                        style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      NightshadeCheckbox(value: true, onChanged: (v) {}),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Auto-select star',
+                        style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (_afStatus != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        _afStatus!,
+                        style: TextStyle(
+                          color: _afStatus!.contains('Failed') ? colors.error : colors.success,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: NightshadeButton(
+                      label: _isRunningAf ? 'Running...' : 'Run Autofocus',
+                      icon: _isRunningAf ? LucideIcons.loader : LucideIcons.play,
+                      size: ButtonSize.large,
+                      onPressed: (isConnected && !_isRunningAf) ? _runAutofocus : null,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
+        ),
 
-          const SizedBox(height: 24),
+        const SizedBox(width: 24),
 
-          // Filter offsets
-          NightshadeCard(
+        // Last autofocus run
+        Expanded(
+          child: NightshadeCard(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Builder(
                 builder: (context) {
-                  final filterOffsetState = ref.watch(filterOffsetProvider);
-                  final availableFilters = ref.watch(availableFiltersProvider);
-                  final filterWheelState = ref.watch(filterWheelStateProvider);
-                  final isFilterWheelConnected = filterWheelState.connectionState == DeviceConnectionState.connected;
+                  final afResult = ref.watch(autofocusResultProvider);
+                  final hasResult = afResult != null;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Filter Offsets',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: colors.textPrimary,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              if (filterOffsetState.referenceFilter != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: Text(
-                                    'Reference: ${filterOffsetState.referenceFilter}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: colors.textMuted,
-                                    ),
-                                  ),
-                                ),
-                              NightshadeButton(
-                                label: 'Clear All',
-                                size: ButtonSize.small,
-                                variant: ButtonVariant.outline,
-                                onPressed: isFilterWheelConnected
-                                    ? () async {
-                                        await ref.read(filterOffsetProvider.notifier).clearAllOffsets();
-                                      }
-                                    : null,
-                              ),
-                              const SizedBox(width: 8),
-                              NightshadeButton(
-                                label: 'Measure Offsets',
-                                size: ButtonSize.small,
-                                variant: ButtonVariant.outline,
-                                onPressed: isFilterWheelConnected ? () => _showMeasureOffsetsDialog(context) : null,
-                              ),
-                            ],
-                          ),
-                        ],
+                      Text(
+                        'Last Autofocus Run',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
                       ),
                       const SizedBox(height: 16),
-                      if (!isFilterWheelConnected)
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text(
-                              'Connect a filter wheel to manage filter offsets',
-                              style: TextStyle(color: colors.textMuted, fontSize: 12),
-                            ),
-                          ),
-                        )
-                      else if (availableFilters.isEmpty)
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text(
-                              'No filters detected',
-                              style: TextStyle(color: colors.textMuted, fontSize: 12),
-                            ),
-                          ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: availableFilters.map((filterName) {
-                            final offset = filterOffsetState.offsets[filterName] ?? 0;
-                            final isReference = filterName == filterOffsetState.referenceFilter;
-
-                            return _FilterOffsetControl(
-                              name: filterName,
-                              offset: offset,
-                              isReference: isReference,
-                              onIncrease: () async {
-                                await ref.read(filterOffsetProvider.notifier).adjustFilterOffset(filterName, 10);
-                              },
-                              onDecrease: () async {
-                                await ref.read(filterOffsetProvider.notifier).adjustFilterOffset(filterName, -10);
-                              },
-                              onSetReference: () async {
-                                await ref.read(filterOffsetProvider.notifier).setReferenceFilter(filterName);
-                              },
-                            );
-                          }).toList(),
+                      Container(
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: colors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(4),
                         ),
+                        child: hasResult && afResult.focusData.isNotEmpty
+                            ? _buildFocusCurve(afResult, colors)
+                            : Center(
+                                child: Text(
+                                  hasResult ? 'No curve data' : 'No autofocus run yet',
+                                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                                ),
+                              ),
+                      ),
+                      const SizedBox(height: 16),
+                      _InfoRow(
+                        label: 'Best Position',
+                        value: hasResult ? afResult.bestPosition.toString() : '---',
+                      ),
+                      _InfoRow(
+                        label: 'Best HFR',
+                        value: hasResult ? afResult.bestHfr.toStringAsFixed(2) : '---',
+                      ),
+                      _InfoRow(
+                        label: 'Temp at Focus',
+                        value: hasResult && afResult.temperature != null
+                            ? '${afResult.temperature!.toStringAsFixed(1)}°C'
+                            : '---',
+                      ),
+                      _InfoRow(
+                        label: 'Method',
+                        value: hasResult ? afResult.method : '---',
+                      ),
+                      _InfoRow(
+                        label: 'Data Points',
+                        value: hasResult ? afResult.focusData.length.toString() : '---',
+                      ),
+                      const SizedBox(height: 12),
+                      NightshadeButton(
+                        label: 'View Details',
+                        variant: ButtonVariant.outline,
+                        size: ButtonSize.small,
+                        onPressed: hasResult ? () => _showAutofocusDetails(context, afResult) : null,
+                      ),
                     ],
                   );
                 },
               ),
             ),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  /// Builds the filter offsets section (shared between mobile and desktop)
+  Widget _buildFilterOffsetsSection(NightshadeColors colors) {
+    final isMobile = Responsive.isMobile(context);
+    final filterOffsetState = ref.watch(filterOffsetProvider);
+    final availableFilters = ref.watch(availableFiltersProvider);
+    final filterWheelState = ref.watch(filterWheelStateProvider);
+    final isFilterWheelConnected = filterWheelState.connectionState == DeviceConnectionState.connected;
+
+    return NightshadeCard(
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header - responsive layout
+            isMobile
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Filter Offsets',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      if (filterOffsetState.referenceFilter != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Reference: ${filterOffsetState.referenceFilter}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: NightshadeButton(
+                              label: 'Clear All',
+                              size: ButtonSize.small,
+                              variant: ButtonVariant.outline,
+                              onPressed: isFilterWheelConnected
+                                  ? () async {
+                                      await ref.read(filterOffsetProvider.notifier).clearAllOffsets();
+                                    }
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: NightshadeButton(
+                              label: 'Measure',
+                              size: ButtonSize.small,
+                              variant: ButtonVariant.outline,
+                              onPressed: isFilterWheelConnected ? () => _showMeasureOffsetsDialog(context) : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Filter Offsets',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          if (filterOffsetState.referenceFilter != null)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Text(
+                                'Reference: ${filterOffsetState.referenceFilter}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colors.textMuted,
+                                ),
+                              ),
+                            ),
+                          NightshadeButton(
+                            label: 'Clear All',
+                            size: ButtonSize.small,
+                            variant: ButtonVariant.outline,
+                            onPressed: isFilterWheelConnected
+                                ? () async {
+                                    await ref.read(filterOffsetProvider.notifier).clearAllOffsets();
+                                  }
+                                : null,
+                          ),
+                          const SizedBox(width: 8),
+                          NightshadeButton(
+                            label: 'Measure Offsets',
+                            size: ButtonSize.small,
+                            variant: ButtonVariant.outline,
+                            onPressed: isFilterWheelConnected ? () => _showMeasureOffsetsDialog(context) : null,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+            const SizedBox(height: 16),
+            if (!isFilterWheelConnected)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Connect a filter wheel to manage filter offsets',
+                    style: TextStyle(color: colors.textMuted, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              )
+            else if (availableFilters.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'No filters detected',
+                    style: TextStyle(color: colors.textMuted, fontSize: 12),
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: isMobile ? 8 : 12,
+                runSpacing: isMobile ? 8 : 12,
+                children: availableFilters.map((filterName) {
+                  final offset = filterOffsetState.offsets[filterName] ?? 0;
+                  final isReference = filterName == filterOffsetState.referenceFilter;
+
+                  return _FilterOffsetControl(
+                    name: filterName,
+                    offset: offset,
+                    isReference: isReference,
+                    onIncrease: () async {
+                      await ref.read(filterOffsetProvider.notifier).adjustFilterOffset(filterName, 10);
+                    },
+                    onDecrease: () async {
+                      await ref.read(filterOffsetProvider.notifier).adjustFilterOffset(filterName, -10);
+                    },
+                    onSetReference: () async {
+                      await ref.read(filterOffsetProvider.notifier).setReferenceFilter(filterName);
+                    },
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -739,6 +1089,32 @@ class _StepChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Compact setting row for mobile layouts (label above, widget below)
+class _MobileSettingRow extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _MobileSettingRow({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: colors.textSecondary),
+        ),
+        const SizedBox(height: 4),
+        child,
+      ],
     );
   }
 }
@@ -920,6 +1296,7 @@ class _SmallButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Use minimum 36x36 touch target for better accessibility
     return Material(
       color: onPressed != null ? colors.surface : colors.surfaceAlt,
       borderRadius: BorderRadius.circular(4),
@@ -927,11 +1304,11 @@ class _SmallButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(4),
         child: SizedBox(
-          width: 28,
-          height: 28,
+          width: 36,
+          height: 36,
           child: Icon(
             icon,
-            size: 14,
+            size: 16,
             color: onPressed != null ? colors.textSecondary : colors.textMuted,
           ),
         ),

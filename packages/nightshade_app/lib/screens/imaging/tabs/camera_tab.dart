@@ -11,9 +11,12 @@ class CameraTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return const SingleChildScrollView(
-      padding: EdgeInsets.all(24),
-      child: ResponsiveCardGrid(
+    final isMobile = Responsive.isMobile(context);
+
+    return SingleChildScrollView(
+      // Responsive padding - smaller on mobile
+      padding: EdgeInsets.all(isMobile ? 12.0 : 24.0),
+      child: const ResponsiveCardGrid(
         children: [
           _CoolingCard(),
           _SensorInfoCard(),

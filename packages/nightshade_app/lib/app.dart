@@ -7,7 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_updater/nightshade_updater.dart';
 import 'package:nightshade_app/router/app_router.dart';
 import 'package:nightshade_app/services/location_sync_service.dart';
-import 'package:nightshade_app/widgets/session_recovery_checker.dart';
+import 'package:nightshade_app/widgets/quick_start_checker.dart';
 import 'package:nightshade_app/widgets/auto_discovery_launcher.dart';
 
 class NightshadeApp extends ConsumerWidget {
@@ -126,7 +126,7 @@ class NightshadeApp extends ConsumerWidget {
     final uiScaleSetting = settings?.uiScale;
 
     return AutoDiscoveryLauncher(
-      child: SessionRecoveryChecker(
+      child: QuickStartChecker(
         child: MaterialApp.router(
           title: 'Nightshade',
           theme: _getThemeForSetting(themeSetting, accentColor),
@@ -138,44 +138,31 @@ class NightshadeApp extends ConsumerWidget {
             final uiScaleFactor = _calculateUiScaleFactor(context, uiScaleSetting);
             final combinedTextScale = textScaleFactor * uiScaleFactor;
 
-            // Apply UI scale transformation for high-DPI displays
-            // This scales all widgets, not just text
-            Widget scaledChild = child ?? const SizedBox.shrink();
+            // Apply text scaling for UI accessibility
+            // Note: We only scale text, not the entire UI widget tree.
+            // Flutter handles DPI scaling natively on most platforms.
+            // The previous Transform.scale approach caused rendering artifacts.
+            final appChild = child ?? const SizedBox.shrink();
+            Widget scaledChild = appChild;
 
-            if (uiScaleFactor != 1.0) {
-              final mediaQuery = MediaQuery.of(context);
-              scaledChild = MediaQuery(
-                data: mediaQuery.copyWith(
-                  // Adjust the logical size to account for our manual scaling
-                  // This makes layout calculations work correctly
-                  size: mediaQuery.size / uiScaleFactor,
-                  textScaler: TextScaler.linear(combinedTextScale),
-                ),
-                child: Transform.scale(
-                  scale: uiScaleFactor,
-                  alignment: Alignment.topLeft,
-                  child: SizedBox(
-                    width: mediaQuery.size.width / uiScaleFactor,
-                    height: mediaQuery.size.height / uiScaleFactor,
-                    child: scaledChild,
-                  ),
-                ),
-              );
-            } else if (textScaleFactor != 1.0) {
-              // Even if no UI scaling, apply text scale factor
+            if (uiScaleFactor != 1.0 || textScaleFactor != 1.0) {
+              // Apply combined text scaling from both UI scale and font size settings
               scaledChild = MediaQuery(
                 data: MediaQuery.of(context).copyWith(
-                  textScaler: TextScaler.linear(textScaleFactor),
+                  textScaler: TextScaler.linear(combinedTextScale),
                 ),
-                child: scaledChild,
+                child: appChild,
               );
             }
+            // Wrap with ScaledConfigProvider to make responsive scaling
+            // configuration available to all descendant widgets
+            Widget result = ScaledConfigProvider(child: scaledChild);
 
             // Only add UpdateManager on desktop (not mobile - uses app stores)
             if (isDesktop) {
-              return UpdateManagerWidget(child: scaledChild);
+              return UpdateManagerWidget(child: result);
             }
-            return scaledChild;
+            return result;
           },
         ),
       ),

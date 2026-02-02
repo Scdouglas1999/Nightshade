@@ -56,6 +56,11 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
       if (event.category == EventCategory.guiding) {
         if (event.eventType == 'GuideStep') {
           _handleGuideStep(event.data);
+        } else if (event.eventType == 'GuideStats') {
+          // Update SNR and star mass from separate stats event
+          final snr = (event.data['SNR'] ?? 0).toDouble();
+          final starMass = (event.data['StarMass'] ?? 0).toDouble();
+          updateStarData(snr, starMass);
         } else if (event.eventType == 'GuidingStopped') {
           reset();
         }
@@ -111,6 +116,18 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
       snr: 0,
       starMass: 0,
       frameCount: 0,
+    );
+  }
+
+  /// Update just the star data (SNR and star mass) from a separate event
+  void updateStarData(double snr, double starMass) {
+    state = Phd2GuideStats(
+      rmsRa: state.rmsRa,
+      rmsDec: state.rmsDec,
+      rmsTotal: state.rmsTotal,
+      snr: snr,
+      starMass: starMass,
+      frameCount: state.frameCount,
     );
   }
 
@@ -216,6 +233,9 @@ class Phd2Controller {
         case 'GuideStep':
           _handleGuideStep(event.data);
           break;
+        case 'GuideStats':
+          _handleGuideStats(event.data);
+          break;
         case 'GuidingStarted':
           ref.read(phd2StateProvider.notifier).state = Phd2State.guiding;
           guiderNotifier.setGuiding(true);
@@ -246,6 +266,14 @@ class Phd2Controller {
         case 'LoopingExposures':
           ref.read(phd2StateProvider.notifier).state = Phd2State.looping;
           break;
+        case 'Calibrating':
+          ref.read(phd2StateProvider.notifier).state = Phd2State.calibrating;
+          break;
+        case 'CalibrationComplete':
+          debugPrint('PHD2: Calibration complete');
+          ref.read(calibrationStateProvider.notifier)._fetchCalibrationData();
+          break;
+        // Note: StarSelected is handled by LockPositionNotifier's own event listener
       }
       
       // If we are receiving events, assume we are connected
@@ -291,6 +319,15 @@ class Phd2Controller {
       stats.rmsDec,
       stats.rmsTotal,
     );
+  }
+
+  void _handleGuideStats(Map<String, dynamic> json) {
+    // Update SNR and star mass from GuideStats event
+    final snr = (json['SNR'] ?? 0).toDouble();
+    final starMass = (json['StarMass'] ?? 0).toDouble();
+
+    // Update the guide stats provider with SNR and star mass
+    ref.read(guideStatsProvider.notifier).updateStarData(snr, starMass);
   }
 
   void _handleStarLost() {

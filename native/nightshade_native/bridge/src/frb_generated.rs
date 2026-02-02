@@ -8519,6 +8519,35 @@ impl SseDecode for crate::event::GuidingEvent {
                     dec_raw: var_decRaw,
                 };
             }
+            11 => {
+                return crate::event::GuidingEvent::Looping;
+            }
+            12 => {
+                return crate::event::GuidingEvent::Settling;
+            }
+            13 => {
+                return crate::event::GuidingEvent::Calibrating;
+            }
+            14 => {
+                return crate::event::GuidingEvent::CalibrationComplete;
+            }
+            15 => {
+                let mut var_x = <f64>::sse_decode(deserializer);
+                let mut var_y = <f64>::sse_decode(deserializer);
+                return crate::event::GuidingEvent::StarSelected { x: var_x, y: var_y };
+            }
+            16 => {
+                let mut var_state = <String>::sse_decode(deserializer);
+                return crate::event::GuidingEvent::AppState { state: var_state };
+            }
+            17 => {
+                let mut var_snr = <f64>::sse_decode(deserializer);
+                let mut var_starMass = <f64>::sse_decode(deserializer);
+                return crate::event::GuidingEvent::GuideStats {
+                    snr: var_snr,
+                    star_mass: var_starMass,
+                };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -11684,6 +11713,25 @@ impl flutter_rust_bridge::IntoDart for crate::event::GuidingEvent {
                 dec_raw.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::event::GuidingEvent::Looping => [11.into_dart()].into_dart(),
+            crate::event::GuidingEvent::Settling => [12.into_dart()].into_dart(),
+            crate::event::GuidingEvent::Calibrating => [13.into_dart()].into_dart(),
+            crate::event::GuidingEvent::CalibrationComplete => [14.into_dart()].into_dart(),
+            crate::event::GuidingEvent::StarSelected { x, y } => [
+                15.into_dart(),
+                x.into_into_dart().into_dart(),
+                y.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::event::GuidingEvent::AppState { state } => {
+                [16.into_dart(), state.into_into_dart().into_dart()].into_dart()
+            }
+            crate::event::GuidingEvent::GuideStats { snr, star_mass } => [
+                17.into_dart(),
+                snr.into_into_dart().into_dart(),
+                star_mass.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -14149,6 +14197,32 @@ impl SseEncode for crate::event::GuidingEvent {
                 <f64>::sse_encode(dec, serializer);
                 <f64>::sse_encode(ra_raw, serializer);
                 <f64>::sse_encode(dec_raw, serializer);
+            }
+            crate::event::GuidingEvent::Looping => {
+                <i32>::sse_encode(11, serializer);
+            }
+            crate::event::GuidingEvent::Settling => {
+                <i32>::sse_encode(12, serializer);
+            }
+            crate::event::GuidingEvent::Calibrating => {
+                <i32>::sse_encode(13, serializer);
+            }
+            crate::event::GuidingEvent::CalibrationComplete => {
+                <i32>::sse_encode(14, serializer);
+            }
+            crate::event::GuidingEvent::StarSelected { x, y } => {
+                <i32>::sse_encode(15, serializer);
+                <f64>::sse_encode(x, serializer);
+                <f64>::sse_encode(y, serializer);
+            }
+            crate::event::GuidingEvent::AppState { state } => {
+                <i32>::sse_encode(16, serializer);
+                <String>::sse_encode(state, serializer);
+            }
+            crate::event::GuidingEvent::GuideStats { snr, star_mass } => {
+                <i32>::sse_encode(17, serializer);
+                <f64>::sse_encode(snr, serializer);
+                <f64>::sse_encode(star_mass, serializer);
             }
             _ => {
                 unimplemented!("");
@@ -16747,6 +16821,30 @@ mod io {
                         dec: ans.dec.cst_decode(),
                         ra_raw: ans.ra_raw.cst_decode(),
                         dec_raw: ans.dec_raw.cst_decode(),
+                    }
+                }
+                11 => crate::event::GuidingEvent::Looping,
+                12 => crate::event::GuidingEvent::Settling,
+                13 => crate::event::GuidingEvent::Calibrating,
+                14 => crate::event::GuidingEvent::CalibrationComplete,
+                15 => {
+                    let ans = unsafe { self.kind.StarSelected };
+                    crate::event::GuidingEvent::StarSelected {
+                        x: ans.x.cst_decode(),
+                        y: ans.y.cst_decode(),
+                    }
+                }
+                16 => {
+                    let ans = unsafe { self.kind.AppState };
+                    crate::event::GuidingEvent::AppState {
+                        state: ans.state.cst_decode(),
+                    }
+                }
+                17 => {
+                    let ans = unsafe { self.kind.GuideStats };
+                    crate::event::GuidingEvent::GuideStats {
+                        snr: ans.snr.cst_decode(),
+                        star_mass: ans.star_mass.cst_decode(),
                     }
                 }
                 _ => unreachable!(),
@@ -22926,6 +23024,9 @@ mod io {
         Settled: wire_cst_GuidingEvent_Settled,
         DitherStarted: wire_cst_GuidingEvent_DitherStarted,
         Correction: wire_cst_GuidingEvent_Correction,
+        StarSelected: wire_cst_GuidingEvent_StarSelected,
+        AppState: wire_cst_GuidingEvent_AppState,
+        GuideStats: wire_cst_GuidingEvent_GuideStats,
         nil__: (),
     }
     #[repr(C)]
@@ -22945,6 +23046,23 @@ mod io {
         dec: f64,
         ra_raw: f64,
         dec_raw: f64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_GuidingEvent_StarSelected {
+        x: f64,
+        y: f64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_GuidingEvent_AppState {
+        state: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_GuidingEvent_GuideStats {
+        snr: f64,
+        star_mass: f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

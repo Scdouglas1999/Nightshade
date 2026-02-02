@@ -7,15 +7,93 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 class NodePropertiesPanel extends ConsumerWidget {
   final NightshadeColors colors;
+  final ScrollController? scrollController;
+  final bool isMobileSheet;
+  final VoidCallback? onClose;
 
-  const NodePropertiesPanel({super.key, required this.colors});
+  const NodePropertiesPanel({
+    super.key,
+    required this.colors,
+    this.scrollController,
+    this.isMobileSheet = false,
+    this.onClose,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedNode = ref.watch(selectedNodeProvider);
 
+    if (isMobileSheet) {
+      return _buildMobileSheetContent(context, ref, selectedNode);
+    }
+    return _buildDesktopSidebarContent(context, ref, selectedNode);
+  }
+
+  Widget _buildMobileSheetContent(BuildContext context, WidgetRef ref, SequenceNode? selectedNode) {
+    return Column(
+      children: [
+        // Handle bar
+        Center(
+          child: Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: colors.border,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        ),
+
+        // Header with close button
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                LucideIcons.settings2,
+                size: 18,
+                color: colors.primary,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Properties',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              if (onClose != null)
+                IconButton(
+                  onPressed: onClose,
+                  icon: Icon(LucideIcons.x, color: colors.textMuted),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+        ),
+
+        Divider(color: colors.border, height: 1),
+
+        // Content
+        Expanded(
+          child: selectedNode == null
+              ? _EmptySelection(colors: colors, isMobile: true)
+              : _NodeEditor(
+                  colors: colors,
+                  node: selectedNode,
+                  scrollController: scrollController,
+                  isMobile: true,
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopSidebarContent(BuildContext context, WidgetRef ref, SequenceNode? selectedNode) {
     return Container(
-      // width: 320, // Removed for ResizablePanel
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(left: BorderSide(color: colors.border)),
@@ -104,8 +182,9 @@ class _QuickTimeButton extends StatelessWidget {
 
 class _EmptySelection extends StatelessWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _EmptySelection({required this.colors});
+  const _EmptySelection({required this.colors, this.isMobile = false});
 
   @override
   Widget build(BuildContext context) {
@@ -115,14 +194,14 @@ class _EmptySelection extends StatelessWidget {
         children: [
           Icon(
             LucideIcons.mousePointer,
-            size: 32,
+            size: isMobile ? 40 : 32,
             color: colors.textMuted,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isMobile ? 16 : 12),
           Text(
             'Select a node',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: isMobile ? 16 : 13,
               color: colors.textSecondary,
             ),
           ),
@@ -130,7 +209,7 @@ class _EmptySelection extends StatelessWidget {
           Text(
             'to view its properties',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: isMobile ? 14 : 11,
               color: colors.textMuted,
             ),
           ),
@@ -143,16 +222,21 @@ class _EmptySelection extends StatelessWidget {
 class _NodeEditor extends ConsumerWidget {
   final NightshadeColors colors;
   final SequenceNode node;
+  final ScrollController? scrollController;
+  final bool isMobile;
 
   const _NodeEditor({
     required this.colors,
     required this.node,
+    this.scrollController,
+    this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      controller: scrollController,
+      padding: EdgeInsets.all(isMobile ? 20 : 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

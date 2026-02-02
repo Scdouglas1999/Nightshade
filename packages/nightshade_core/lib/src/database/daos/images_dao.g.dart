@@ -7,6 +7,7 @@ mixin _$ImagesDaoMixin on DatabaseAccessor<NightshadeDatabase> {
   $EquipmentProfilesTable get equipmentProfiles =>
       attachedDatabase.equipmentProfiles;
   $TargetsTable get targets => attachedDatabase.targets;
+  $SequencesTable get sequences => attachedDatabase.sequences;
   $ImagingSessionsTable get imagingSessions => attachedDatabase.imagingSessions;
   $CapturedImagesTable get capturedImages => attachedDatabase.capturedImages;
   $ImageMetadataTable get imageMetadata => attachedDatabase.imageMetadata;

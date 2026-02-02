@@ -246,9 +246,10 @@ class TemplatesTab extends ConsumerWidget {
     final templatesAsync = ref.watch(sequenceTemplatesProvider);
     final searchQuery = ref.watch(templateSearchProvider);
     final category = ref.watch(templateCategoryProvider);
+    final isMobile = Responsive.isMobile(context);
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 12 : 24),
       child: Column(
         children: [
           // Header
@@ -280,12 +281,16 @@ class TemplatesTab extends ConsumerWidget {
                   return _EmptyState(colors: colors, hasSearch: searchQuery.isNotEmpty);
                 }
 
+                // Adapt grid for different screen sizes
+                final gridSpacing = isMobile ? 12.0 : 20.0;
+                final maxExtent = isMobile ? 320.0 : 400.0;
+
                 return GridView.builder(
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 400,
-                    childAspectRatio: 1.3,
-                    crossAxisSpacing: 20,
-                    mainAxisSpacing: 20,
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: maxExtent,
+                    childAspectRatio: isMobile ? 1.2 : 1.3,
+                    crossAxisSpacing: gridSpacing,
+                    mainAxisSpacing: gridSpacing,
                   ),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
@@ -345,36 +350,45 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final isMobile = Responsive.isMobile(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 600;
+
+    if (isMobile || isNarrow) {
+      return _buildMobileHeader();
+    }
+    return _buildDesktopHeader();
+  }
+
+  Widget _buildMobileHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Title
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        // Title row with save button
+        Row(
           children: [
-            Text(
-              'Sequence Templates',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: widget.colors.textPrimary,
+            Expanded(
+              child: Text(
+                'Templates',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: widget.colors.textPrimary,
+                ),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Start with a template or save your sequences for reuse',
-              style: TextStyle(
-                fontSize: 13,
-                color: widget.colors.textMuted,
-              ),
+            // Save current as template button
+            NightshadeButton(
+              label: 'Save',
+              icon: LucideIcons.save,
+              size: ButtonSize.small,
+              onPressed: () => _showSaveTemplateDialog(context),
             ),
           ],
         ),
-
-        const Spacer(),
-
-        // Search
+        const SizedBox(height: 12),
+        // Search field - full width on mobile
         Container(
-          width: 250,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: widget.colors.surfaceAlt,
@@ -392,13 +406,13 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                     ref.read(templateSearchProvider.notifier).state = value;
                   },
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 14,
                     color: widget.colors.textPrimary,
                   ),
                   decoration: InputDecoration(
                     hintText: 'Search templates...',
                     hintStyle: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14,
                       color: widget.colors.textMuted,
                     ),
                     border: InputBorder.none,
@@ -415,6 +429,91 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                   child: Icon(LucideIcons.x, size: 16, color: widget.colors.textMuted),
                 ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopHeader() {
+    return Row(
+      children: [
+        // Title
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Sequence Templates',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: widget.colors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Start with a template or save your sequences for reuse',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.colors.textMuted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(width: 16),
+
+        // Search - flexible width based on available space
+        Flexible(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 150, maxWidth: 250),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: widget.colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: widget.colors.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.search, size: 16, color: widget.colors.textMuted),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (value) {
+                        ref.read(templateSearchProvider.notifier).state = value;
+                      },
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: widget.colors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Search...',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: widget.colors.textMuted,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  if (_searchController.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        _searchController.clear();
+                        ref.read(templateSearchProvider.notifier).state = '';
+                      },
+                      child: Icon(LucideIcons.x, size: 16, color: widget.colors.textMuted),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
 
@@ -1185,7 +1284,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
 
     try {
       final repository = ref.read(sequenceRepositoryProvider);
-      
+
       // Create a new sequence with the template name and description
       final templateSequence = Sequence(
         name: _nameController.text.trim(),
@@ -1219,13 +1318,22 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = Responsive.isMobile(context);
+
     return Dialog(
       backgroundColor: widget.colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        width: 450,
-        padding: const EdgeInsets.all(24),
-        child: Column(
+      child: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: 450,
+          preferredHeight: 500,
+          minWidth: 300,
+          minHeight: 400,
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(isMobile ? 16 : 24),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1389,6 +1497,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
               ],
             ),
           ],
+        ),
         ),
       ),
     );

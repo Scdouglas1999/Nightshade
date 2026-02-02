@@ -3,11 +3,12 @@ import 'package:drift/drift.dart';
 import '../database.dart';
 import '../tables/imaging_sessions.dart';
 import '../tables/equipment_profiles.dart';
+import '../tables/sequences.dart';
 import '../tables/targets.dart';
 
 part 'sessions_dao.g.dart';
 
-@DriftAccessor(tables: [ImagingSessions, EquipmentProfiles, Targets])
+@DriftAccessor(tables: [ImagingSessions, EquipmentProfiles, Sequences, Targets])
 class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$SessionsDaoMixin {
   SessionsDao(NightshadeDatabase db) : super(db);
@@ -71,6 +72,7 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     String? name,
     int? profileId,
     int? targetId,
+    int? sequenceId,
   }) {
     return into(imagingSessions).insert(
       ImagingSessionsCompanion.insert(
@@ -78,6 +80,7 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
         name: Value(name),
         profileId: Value(profileId),
         targetId: Value(targetId),
+        sequenceId: Value(sequenceId),
         status: const Value('active'),
       ),
     );
@@ -230,6 +233,34 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
   Future<bool> hasIncompleteSessions() async {
     final activeSessions = await getActiveSessions();
     return activeSessions.isNotEmpty;
+  }
+
+  // ============================================================================
+  // Quick Start Methods
+  // ============================================================================
+
+  /// Get the most recent session for Quick Start (within last 7 days)
+  Future<ImagingSession?> getMostRecentSession() async {
+    final cutoff = DateTime.now().subtract(const Duration(days: 7));
+    return (select(imagingSessions)
+          ..where((s) => s.startTime.isBiggerOrEqualValue(cutoff))
+          ..orderBy([(s) => OrderingTerm.desc(s.startTime)])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  /// Update equipment snapshot for a session
+  Future<void> updateEquipmentSnapshot(int id, String snapshotJson) {
+    return (update(imagingSessions)..where((s) => s.id.equals(id))).write(
+      ImagingSessionsCompanion(equipmentSnapshot: Value(snapshotJson)),
+    );
+  }
+
+  /// Update sequence ID for a session
+  Future<void> updateSequenceId(int id, int sequenceId) {
+    return (update(imagingSessions)..where((s) => s.id.equals(id))).write(
+      ImagingSessionsCompanion(sequenceId: Value(sequenceId)),
+    );
   }
 }
 

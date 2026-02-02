@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../utils/snackbar_helper.dart';
+import '../../widgets/tutorial_keys/settings_keys.dart';
 import 'catalog_settings_screen.dart';
 import 'equipment_profiles_screen.dart';
 import 'plugins_screen.dart';
@@ -25,6 +26,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   int _selectedCategory = 0;
+  // On mobile, null means show the category list; non-null shows the detail
+  int? _mobileSelectedCategory;
 
   static const _categories = [
     ('Connection', LucideIcons.wifi),
@@ -41,13 +44,80 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ('Notifications', LucideIcons.bell),
     ('File Paths', LucideIcons.folder),
     ('Plugins', LucideIcons.puzzle),
+    ('Help & Tutorials', LucideIcons.helpCircle),
     ('About', LucideIcons.info),
   ];
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final isMobile = Responsive.isMobile(context);
 
+    if (isMobile) {
+      return _buildMobileLayout(colors);
+    }
+    return _buildDesktopLayout(colors);
+  }
+
+  Widget _buildMobileLayout(NightshadeColors colors) {
+    // If no category selected, show the category list
+    if (_mobileSelectedCategory == null) {
+      return _MobileCategoryList(
+        categories: _categories,
+        onCategoryTap: (index) {
+          setState(() => _mobileSelectedCategory = index);
+        },
+        colors: colors,
+      );
+    }
+
+    // Show the detail page with a back button
+    final categoryIndex = _mobileSelectedCategory!;
+    final (categoryName, _) = _categories[categoryIndex];
+
+    return Column(
+      children: [
+        // Mobile header with back button
+        Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(bottom: BorderSide(color: colors.border)),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(LucideIcons.arrowLeft, color: colors.textPrimary),
+                    onPressed: () {
+                      setState(() => _mobileSelectedCategory = null);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    categoryName,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Content
+        Expanded(
+          child: _buildContent(colors, categoryIndex: categoryIndex, isMobile: true),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout(NightshadeColors colors) {
     return Row(
       children: [
         // Categories sidebar
@@ -57,7 +127,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           maxWidth: 400,
           side: ResizeSide.right,
           child: Container(
-            // width: 240, // Removed for ResizablePanel
             decoration: BoxDecoration(
               color: colors.surface,
               border: Border(right: BorderSide(color: colors.border)),
@@ -78,6 +147,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 Expanded(
                   child: ListView.builder(
+                    key: SettingsTutorialKeys.categories,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     itemCount: _categories.length,
                     itemBuilder: (context, index) {
@@ -99,47 +169,167 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
         // Settings content
         Expanded(
-          child: _buildContent(colors),
+          child: _buildContent(colors, categoryIndex: _selectedCategory, isMobile: false),
         ),
       ],
     );
   }
 
-  Widget _buildContent(NightshadeColors colors) {
-    switch (_selectedCategory) {
+  Widget _buildContent(NightshadeColors colors, {required int categoryIndex, required bool isMobile}) {
+    switch (categoryIndex) {
       case 0:
-        return _ConnectionSettings(colors: colors);
+        return _ConnectionSettings(colors: colors, isMobile: isMobile);
       case 1:
-        return _GeneralSettings(colors: colors);
+        return _GeneralSettings(colors: colors, isMobile: isMobile);
       case 2:
-        return _AppearanceSettings(colors: colors);
+        return _AppearanceSettings(colors: colors, isMobile: isMobile);
       case 3:
-        return _LocationSettings(colors: colors);
+        return _LocationSettings(colors: colors, isMobile: isMobile);
       case 4:
-        return const EquipmentProfilesScreen();
+        return EquipmentProfilesScreen(isMobile: isMobile);
       case 5:
-        return const CatalogSettingsScreen();
+        return CatalogSettingsScreen(isMobile: isMobile);
       case 6:
-        return _ImagingSettings(colors: colors);
+        return _ImagingSettings(colors: colors, isMobile: isMobile);
       case 7:
-        return _AnnotationSettings(colors: colors);
+        return _AnnotationSettings(colors: colors, isMobile: isMobile);
       case 8:
-        return _SequencerSettings(colors: colors);
+        return _SequencerSettings(colors: colors, isMobile: isMobile);
       case 9:
-        return _PlateSolvingSettings(colors: colors);
+        return _PlateSolvingSettings(colors: colors, isMobile: isMobile);
       case 10:
-        return _Phd2GuidingSettings(colors: colors);
+        return _Phd2GuidingSettings(colors: colors, isMobile: isMobile);
       case 11:
-        return _NotificationSettings(colors: colors);
+        return _NotificationSettings(colors: colors, isMobile: isMobile);
       case 12:
-        return _FilePathSettings(colors: colors);
+        return _FilePathSettings(colors: colors, isMobile: isMobile);
       case 13:
-        return const PluginsScreen();
+        return PluginsScreen(isMobile: isMobile);
       case 14:
-        return _AboutSettings(colors: colors);
+        return _HelpTutorialsSettings(colors: colors, isMobile: isMobile);
+      case 15:
+        return _AboutSettings(colors: colors, isMobile: isMobile);
       default:
         return const SizedBox();
     }
+  }
+}
+
+/// Mobile-optimized category list shown as full-screen list
+class _MobileCategoryList extends StatelessWidget {
+  final List<(String, IconData)> categories;
+  final void Function(int index) onCategoryTap;
+  final NightshadeColors colors;
+
+  const _MobileCategoryList({
+    required this.categories,
+    required this.onCategoryTap,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(bottom: BorderSide(color: colors.border)),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Settings',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Category list
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final (label, icon) = categories[index];
+              return _MobileCategoryItem(
+                icon: icon,
+                label: label,
+                onTap: () => onCategoryTap(index),
+                colors: colors,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Mobile category list item
+class _MobileCategoryItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final NightshadeColors colors;
+
+  const _MobileCategoryItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 20, color: colors.textSecondary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: colors.textPrimary,
+                ),
+              ),
+            ),
+            Icon(
+              LucideIcons.chevronRight,
+              size: 20,
+              color: colors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -221,38 +411,50 @@ class _SettingsPage extends StatelessWidget {
   final String description;
   final List<Widget> children;
   final NightshadeColors colors;
+  final bool isMobile;
+  /// If true, don't show title/description (used when mobile header already shows title)
+  final bool hideHeader;
 
   const _SettingsPage({
+    super.key,
     required this.title,
     required this.description,
     required this.children,
     required this.colors,
+    this.isMobile = false,
+    this.hideHeader = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final padding = isMobile
+        ? const EdgeInsets.all(16)
+        : const EdgeInsets.all(32);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
+      padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: colors.textPrimary,
+          if (!hideHeader) ...[
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: isMobile ? 20 : 24,
+                fontWeight: FontWeight.w700,
+                color: colors.textPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            description,
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textSecondary,
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: isMobile ? 12 : 13,
+                color: colors.textSecondary,
+              ),
             ),
-          ),
-          const SizedBox(height: 32),
+            SizedBox(height: isMobile ? 20 : 32),
+          ],
           ...children,
         ],
       ),
@@ -264,11 +466,13 @@ class _SettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> children;
   final NightshadeColors colors;
+  final bool isMobile;
 
   const _SettingsSection({
     required this.title,
     required this.children,
     required this.colors,
+    this.isMobile = false,
   });
 
   @override
@@ -279,23 +483,23 @@ class _SettingsSection extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: isMobile ? 13 : 14,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: isMobile ? 12 : 16),
         Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
             border: Border.all(color: colors.border),
           ),
           child: Column(
             children: children,
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: isMobile ? 20 : 28),
       ],
     );
   }
@@ -309,6 +513,9 @@ class _SettingRow extends StatelessWidget {
   final Widget trailing;
   final bool isLast;
   final NightshadeColors colors;
+  final bool isMobile;
+  /// If true, stack the trailing widget below the title on mobile
+  final bool stackOnMobile;
 
   const _SettingRow({
     required this.icon,
@@ -318,12 +525,20 @@ class _SettingRow extends StatelessWidget {
     required this.trailing,
     this.isLast = false,
     required this.colors,
+    this.isMobile = false,
+    this.stackOnMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final shouldStack = isMobile && stackOnMobile;
+    final horizontalPadding = isMobile ? 12.0 : 16.0;
+    final verticalPadding = isMobile ? 12.0 : 14.0;
+    final iconSize = isMobile ? 32.0 : 36.0;
+    final iconInnerSize = isMobile ? 14.0 : 16.0;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
       decoration: BoxDecoration(
         border: isLast
             ? null
@@ -331,46 +546,104 @@ class _SettingRow extends StatelessWidget {
                 bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
               ),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 16, color: iconColor ?? colors.textSecondary),
+      child: shouldStack
+          ? _buildStackedLayout(iconSize, iconInnerSize)
+          : _buildRowLayout(iconSize, iconInnerSize),
+    );
+  }
+
+  Widget _buildRowLayout(double iconSize, double iconInnerSize) {
+    return Row(
+      children: [
+        Container(
+          width: iconSize,
+          height: iconSize,
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: Icon(icon, size: iconInnerSize, color: iconColor ?? colors.textSecondary),
+        ),
+        SizedBox(width: isMobile ? 10 : 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: isMobile ? 12 : 13,
+                  fontWeight: FontWeight.w500,
+                  color: colors.textPrimary,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
                 Text(
-                  title,
+                  subtitle!,
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: colors.textPrimary,
+                    fontSize: isMobile ? 10 : 11,
+                    color: colors.textMuted,
                   ),
                 ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
+              ],
+            ],
+          ),
+        ),
+        trailing,
+      ],
+    );
+  }
+
+  Widget _buildStackedLayout(double iconSize, double iconInnerSize) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: iconSize,
+              height: iconSize,
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: iconInnerSize, color: iconColor ?? colors.textSecondary),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    subtitle!,
+                    title,
                     style: TextStyle(
-                      fontSize: 11,
-                      color: colors.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: colors.textPrimary,
                     ),
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          trailing,
-        ],
-      ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Padding(
+          padding: EdgeInsets.only(left: iconSize + 10),
+          child: trailing,
+        ),
+      ],
     );
   }
 }
@@ -381,8 +654,9 @@ class _SettingRow extends StatelessWidget {
 
 class _ConnectionSettings extends ConsumerWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _ConnectionSettings({required this.colors});
+  const _ConnectionSettings({required this.colors, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -407,13 +681,17 @@ class _ConnectionSettings extends ConsumerWidget {
     }
 
     return _SettingsPage(
+      key: SettingsTutorialKeys.connection,
       title: 'Connection',
       description: 'Server connection settings',
       colors: colors,
+      isMobile: isMobile,
+      hideHeader: isMobile,
       children: [
         _SettingsSection(
           title: 'Server Status',
           colors: colors,
+          isMobile: isMobile,
           children: [
             _SettingRow(
               icon: LucideIcons.server,
@@ -429,13 +707,14 @@ class _ConnectionSettings extends ConsumerWidget {
                 child: Text(
                   connectionStatus,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: isMobile ? 10 : 11,
                     color: statusColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
               colors: colors,
+              isMobile: isMobile,
             ),
             if (isConnected)
               _SettingRow(
@@ -445,12 +724,13 @@ class _ConnectionSettings extends ConsumerWidget {
                 trailing: SelectableText(
                   serverAddress,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: isMobile ? 11 : 12,
                     color: colors.textPrimary,
                     fontFamily: 'monospace',
                   ),
                 ),
                 colors: colors,
+                isMobile: isMobile,
               ),
             _SettingRow(
               icon: isConnected ? LucideIcons.logOut : LucideIcons.logIn,
@@ -463,13 +743,17 @@ class _ConnectionSettings extends ConsumerWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isConnected ? colors.error : colors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 12 : 16,
+                    vertical: isMobile ? 6 : 8,
+                  ),
+                  textStyle: TextStyle(fontSize: isMobile ? 11 : 12, fontWeight: FontWeight.w600),
                 ),
                 child: Text(isConnected ? 'Disconnect' : 'Connect'),
               ),
               isLast: true,
               colors: colors,
+              isMobile: isMobile,
             ),
           ],
         ),
@@ -477,13 +761,14 @@ class _ConnectionSettings extends ConsumerWidget {
           _SettingsSection(
             title: 'Remote Features',
             colors: colors,
+            isMobile: isMobile,
             children: [
               _SettingRow(
                 icon: LucideIcons.refreshCw,
                 title: 'Sync Location',
                 subtitle: 'Download location from remote server',
                 trailing: IconButton(
-                  icon: Icon(LucideIcons.downloadCloud, color: colors.primary, size: 18),
+                  icon: Icon(LucideIcons.downloadCloud, color: colors.primary, size: isMobile ? 20 : 18),
                   onPressed: () async {
                     try {
                       final location = await backend.getLocation();
@@ -506,6 +791,7 @@ class _ConnectionSettings extends ConsumerWidget {
                 ),
                 isLast: true,
                 colors: colors,
+                isMobile: isMobile,
               ),
             ],
           ),
@@ -608,13 +894,14 @@ class _ConnectionSettings extends ConsumerWidget {
 
 class _GeneralSettings extends ConsumerWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _GeneralSettings({required this.colors});
+  const _GeneralSettings({required this.colors, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+
     return settingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
@@ -622,10 +909,13 @@ class _GeneralSettings extends ConsumerWidget {
         title: 'General',
         description: 'Basic application settings',
         colors: colors,
+        isMobile: isMobile,
+        hideHeader: isMobile,
         children: [
           _SettingsSection(
             title: 'Startup',
             colors: colors,
+            isMobile: isMobile,
             children: [
               _SettingRow(
                 icon: LucideIcons.power,
@@ -639,6 +929,7 @@ class _GeneralSettings extends ConsumerWidget {
                   colors: colors,
                 ),
                 colors: colors,
+                isMobile: isMobile,
               ),
               _SettingRow(
                 icon: LucideIcons.plug,
@@ -653,12 +944,14 @@ class _GeneralSettings extends ConsumerWidget {
                 ),
                 isLast: true,
                 colors: colors,
+                isMobile: isMobile,
               ),
             ],
           ),
           _SettingsSection(
             title: 'Behavior',
             colors: colors,
+            isMobile: isMobile,
             children: [
               _SettingRow(
                 icon: LucideIcons.save,
@@ -672,6 +965,7 @@ class _GeneralSettings extends ConsumerWidget {
                   colors: colors,
                 ),
                 colors: colors,
+                isMobile: isMobile,
               ),
               _SettingRow(
                 icon: LucideIcons.alertTriangle,
@@ -686,6 +980,7 @@ class _GeneralSettings extends ConsumerWidget {
                 ),
                 isLast: true,
                 colors: colors,
+                isMobile: isMobile,
               ),
             ],
           ),
@@ -701,24 +996,29 @@ class _GeneralSettings extends ConsumerWidget {
 
 class _AppearanceSettings extends ConsumerWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _AppearanceSettings({required this.colors});
+  const _AppearanceSettings({required this.colors, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+
     return settingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
       data: (settings) => _SettingsPage(
+        key: SettingsTutorialKeys.appearance,
         title: 'Appearance',
         description: 'Customize how Nightshade looks',
         colors: colors,
+        isMobile: isMobile,
+        hideHeader: isMobile,
         children: [
           _SettingsSection(
             title: 'Theme',
             colors: colors,
+            isMobile: isMobile,
             children: [
               _SettingRow(
                 icon: LucideIcons.moon,
@@ -732,6 +1032,7 @@ class _AppearanceSettings extends ConsumerWidget {
                   colors: colors,
                 ),
                 colors: colors,
+                isMobile: isMobile,
               ),
               _SettingRow(
                 icon: LucideIcons.palette,
@@ -743,15 +1044,19 @@ class _AppearanceSettings extends ConsumerWidget {
                     ref.read(appSettingsProvider.notifier).setAccentColor(color);
                   },
                   colors: colors,
+                  isMobile: isMobile,
                 ),
                 isLast: true,
                 colors: colors,
+                isMobile: isMobile,
+                stackOnMobile: isMobile,
               ),
             ],
           ),
           _SettingsSection(
             title: 'Display',
             colors: colors,
+            isMobile: isMobile,
             children: [
               _SettingRow(
                 icon: LucideIcons.type,
@@ -766,8 +1071,10 @@ class _AppearanceSettings extends ConsumerWidget {
                     }
                   },
                   colors: colors,
+                  isMobile: isMobile,
                 ),
                 colors: colors,
+                isMobile: isMobile,
               ),
               _SettingRow(
                 icon: LucideIcons.panelLeft,
@@ -781,6 +1088,7 @@ class _AppearanceSettings extends ConsumerWidget {
                 ),
                 isLast: true,
                 colors: colors,
+                isMobile: isMobile,
               ),
             ],
           ),
@@ -796,8 +1104,9 @@ class _AppearanceSettings extends ConsumerWidget {
 
 class _LocationSettings extends ConsumerStatefulWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _LocationSettings({required this.colors});
+  const _LocationSettings({required this.colors, this.isMobile = false});
 
   @override
   ConsumerState<_LocationSettings> createState() => _LocationSettingsState();
@@ -829,21 +1138,25 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+
     return settingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
       data: (settings) {
         _initControllers(settings);
-        
+
         return _SettingsPage(
+          key: SettingsTutorialKeys.location,
           title: 'Location',
           description: 'Observatory location for calculations',
           colors: widget.colors,
+          isMobile: widget.isMobile,
+          hideHeader: widget.isMobile,
           children: [
             _SettingsSection(
               title: 'Coordinates',
               colors: widget.colors,
+              isMobile: widget.isMobile,
               children: [
                 _SettingRow(
                   icon: LucideIcons.mapPin,
@@ -851,17 +1164,18 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                   subtitle: 'Positive for North, negative for South',
                   trailing: _NumberInput(
                     controller: _latController,
-                    suffix: '°',
+                    suffix: '\u00B0',
                     min: -90,
                     max: 90,
                     decimals: 6,
                     onChanged: (value) async {
-                      // Update settings - locationSyncProvider will automatically sync to planetarium
                       await ref.read(appSettingsProvider.notifier).setLatitude(value);
                     },
                     colors: widget.colors,
+                    isMobile: widget.isMobile,
                   ),
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
                 ),
                 _SettingRow(
                   icon: LucideIcons.mapPin,
@@ -869,17 +1183,18 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                   subtitle: 'Positive for East, negative for West',
                   trailing: _NumberInput(
                     controller: _lonController,
-                    suffix: '°',
+                    suffix: '\u00B0',
                     min: -180,
                     max: 180,
                     decimals: 6,
                     onChanged: (value) async {
-                      // Update settings - locationSyncProvider will automatically sync to planetarium
                       await ref.read(appSettingsProvider.notifier).setLongitude(value);
                     },
                     colors: widget.colors,
+                    isMobile: widget.isMobile,
                   ),
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
                 ),
                 _SettingRow(
                   icon: LucideIcons.mountain,
@@ -892,13 +1207,14 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                     max: 10000,
                     decimals: 0,
                     onChanged: (value) async {
-                      // Update settings - locationSyncProvider will automatically sync to planetarium
                       await ref.read(appSettingsProvider.notifier).setElevation(value);
                     },
                     colors: widget.colors,
+                    isMobile: widget.isMobile,
                   ),
                   isLast: false,
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
                 ),
                 _SettingRow(
                   icon: LucideIcons.refreshCw,
@@ -910,7 +1226,7 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                       try {
                         final backend = ref.read(backendProvider);
                         final location = await backend.getLocation();
-                        
+
                         if (location != null) {
                           await ref.read(appSettingsProvider.notifier).updateLocation(
                             latitude: location.latitude,
@@ -918,7 +1234,7 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                             elevation: location.elevation,
                           );
                         }
-                        
+
                         if (context.mounted) {
                           context.showSuccessSnackBar('Location synced from server');
                         }
@@ -931,6 +1247,7 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                   ),
                   isLast: false,
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
                 ),
                 _SettingRow(
                   icon: LucideIcons.locate,
@@ -946,7 +1263,7 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                           await ref.read(appSettingsProvider.notifier).updateLocation(
                             latitude: lat,
                             longitude: lon,
-                            elevation: 0, 
+                            elevation: 0,
                           );
                           if (context.mounted) {
                             context.showSuccessSnackBar('Location updated: $name');
@@ -965,12 +1282,14 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                   ),
                   isLast: true,
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
                 ),
               ],
             ),
             _SettingsSection(
               title: 'Time',
               colors: widget.colors,
+              isMobile: widget.isMobile,
               children: [
                 _SettingRow(
                   icon: LucideIcons.clock,
@@ -984,9 +1303,11 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                       }
                     },
                     colors: widget.colors,
-                    width: 200,
+                    width: widget.isMobile ? 160 : 200,
+                    isMobile: widget.isMobile,
                   ),
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
                 ),
                 _SettingRow(
                   icon: LucideIcons.globe,
@@ -1001,6 +1322,7 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                   ),
                   isLast: true,
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
                 ),
               ],
             ),
@@ -1040,8 +1362,9 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
 
 class _ImagingSettings extends ConsumerStatefulWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _ImagingSettings({required this.colors});
+  const _ImagingSettings({required this.colors, this.isMobile = false});
 
   @override
   ConsumerState<_ImagingSettings> createState() => _ImagingSettingsState();
@@ -1067,21 +1390,24 @@ class _ImagingSettingsState extends ConsumerState<_ImagingSettings> {
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+
     return settingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
       data: (settings) {
         _initControllers(settings);
-        
+
         return _SettingsPage(
           title: 'Imaging',
           description: 'Default capture settings',
           colors: widget.colors,
+          isMobile: widget.isMobile,
+          hideHeader: widget.isMobile,
           children: [
             _SettingsSection(
               title: 'File Format',
               colors: widget.colors,
+              isMobile: widget.isMobile,
               children: [
                 _SettingRow(
                   icon: LucideIcons.file,
@@ -1096,8 +1422,10 @@ class _ImagingSettingsState extends ConsumerState<_ImagingSettings> {
                       }
                     },
                     colors: widget.colors,
+                    isMobile: widget.isMobile,
                   ),
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
                 ),
                 _SettingRow(
                   icon: LucideIcons.binary,
@@ -1112,8 +1440,10 @@ class _ImagingSettingsState extends ConsumerState<_ImagingSettings> {
                       }
                     },
                     colors: widget.colors,
+                    isMobile: widget.isMobile,
                   ),
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
                 ),
                 _SettingRow(
                   icon: LucideIcons.fileText,
@@ -1121,14 +1451,17 @@ class _ImagingSettingsState extends ConsumerState<_ImagingSettings> {
                   subtitle: r'Variables: $TARGET, $FILTER, $DATE, $SEQ, $EXPOSURE',
                   trailing: _TextInput(
                     controller: _patternController,
-                    width: 220,
+                    width: widget.isMobile ? 160 : 220,
                     onChanged: (value) {
                       ref.read(appSettingsProvider.notifier).setFileNamingPattern(value);
                     },
                     colors: widget.colors,
+                    isMobile: widget.isMobile,
                   ),
                   isLast: true,
                   colors: widget.colors,
+                  isMobile: widget.isMobile,
+                  stackOnMobile: widget.isMobile,
                 ),
               ],
             ),
@@ -1145,8 +1478,9 @@ class _ImagingSettingsState extends ConsumerState<_ImagingSettings> {
 
 class _AnnotationSettings extends ConsumerWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _AnnotationSettings({required this.colors});
+  const _AnnotationSettings({required this.colors, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1162,44 +1496,50 @@ class _AnnotationSettings extends ConsumerWidget {
       title: 'Annotations',
       description: 'Configure object annotations on captured images',
       colors: colors,
+      isMobile: isMobile,
+      hideHeader: isMobile,
       children: [
         // Display Settings
         _SettingsSection(
           title: 'Display',
           colors: colors,
+          isMobile: isMobile,
           children: [
             _SettingRow(
               icon: LucideIcons.eye,
               title: 'Enable annotations',
               subtitle: 'Show object annotations on images',
-              trailing: Switch(
+              trailing: _SettingsSwitch(
                 value: settings.enabled,
                 onChanged: (value) => settingsNotifier.setEnabled(value),
-                activeThumbColor: colors.primary,
+                colors: colors,
               ),
               colors: colors,
+              isMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.tag,
               title: 'Show labels',
               subtitle: 'Display object names next to markers',
-              trailing: Switch(
+              trailing: _SettingsSwitch(
                 value: settings.showLabels,
                 onChanged: (value) => settingsNotifier.setShowLabels(value),
-                activeThumbColor: colors.primary,
+                colors: colors,
               ),
               colors: colors,
+              isMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.hash,
               title: 'Show magnitudes',
               subtitle: 'Display magnitude values with labels',
-              trailing: Switch(
+              trailing: _SettingsSwitch(
                 value: settings.showMagnitudes,
                 onChanged: (value) => settingsNotifier.setShowMagnitudes(value),
-                activeThumbColor: colors.primary,
+                colors: colors,
               ),
               colors: colors,
+              isMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.listTree,
@@ -1213,18 +1553,22 @@ class _AnnotationSettings extends ConsumerWidget {
                 label: settings.maxObjectsToDisplay.toString(),
                 onChanged: (value) => settingsNotifier.setMaxObjectsToDisplay(value.toInt()),
                 colors: colors,
+                isMobile: isMobile,
               ),
               isLast: true,
               colors: colors,
+              isMobile: isMobile,
+              stackOnMobile: isMobile,
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: isMobile ? 16 : 20),
 
         // Magnitude Filtering
         _SettingsSection(
           title: 'Magnitude Filter',
           colors: colors,
+          isMobile: isMobile,
           children: [
             _SettingRow(
               icon: LucideIcons.sunDim,
@@ -1238,8 +1582,11 @@ class _AnnotationSettings extends ConsumerWidget {
                 label: settings.minMagnitude.toStringAsFixed(1),
                 onChanged: (value) => settingsNotifier.setMinMagnitude(value),
                 colors: colors,
+                isMobile: isMobile,
               ),
               colors: colors,
+              isMobile: isMobile,
+              stackOnMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.sunMedium,
@@ -1253,18 +1600,22 @@ class _AnnotationSettings extends ConsumerWidget {
                 label: settings.magnitudeCutoff.toStringAsFixed(1),
                 onChanged: (value) => settingsNotifier.setMagnitudeCutoff(value),
                 colors: colors,
+                isMobile: isMobile,
               ),
               isLast: true,
               colors: colors,
+              isMobile: isMobile,
+              stackOnMobile: isMobile,
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: isMobile ? 16 : 20),
 
         // Object Types
         _SettingsSection(
           title: 'Object Types',
           colors: colors,
+          isMobile: isMobile,
           children: [
             _ObjectTypeToggle(
               title: 'Galaxies',
@@ -1273,6 +1624,7 @@ class _AnnotationSettings extends ConsumerWidget {
               isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.galaxies),
               onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.galaxies),
               colors: colors,
+              isMobile: isMobile,
             ),
             _ObjectTypeToggle(
               title: 'Nebulae',
@@ -1281,6 +1633,7 @@ class _AnnotationSettings extends ConsumerWidget {
               isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.nebulae),
               onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.nebulae),
               colors: colors,
+              isMobile: isMobile,
             ),
             _ObjectTypeToggle(
               title: 'Star Clusters',
@@ -1289,6 +1642,7 @@ class _AnnotationSettings extends ConsumerWidget {
               isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.starClusters),
               onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.starClusters),
               colors: colors,
+              isMobile: isMobile,
             ),
             _ObjectTypeToggle(
               title: 'Planetary Nebulae',
@@ -1297,6 +1651,7 @@ class _AnnotationSettings extends ConsumerWidget {
               isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.planetaryNebulae),
               onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.planetaryNebulae),
               colors: colors,
+              isMobile: isMobile,
             ),
             _ObjectTypeToggle(
               title: 'Stars',
@@ -1305,6 +1660,7 @@ class _AnnotationSettings extends ConsumerWidget {
               isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.stars),
               onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.stars),
               colors: colors,
+              isMobile: isMobile,
             ),
             _ObjectTypeToggle(
               title: 'Other Objects',
@@ -1314,26 +1670,29 @@ class _AnnotationSettings extends ConsumerWidget {
               onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.other),
               isLast: true,
               colors: colors,
+              isMobile: isMobile,
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: isMobile ? 16 : 20),
 
         // Fade Effects
         _SettingsSection(
           title: 'Fade Effects',
           colors: colors,
+          isMobile: isMobile,
           children: [
             _SettingRow(
               icon: LucideIcons.mousePointer,
               title: 'Fade when not hovering',
               subtitle: 'Dim annotations when mouse leaves image',
-              trailing: Switch(
+              trailing: _SettingsSwitch(
                 value: settings.fadeWhenNotHovering,
                 onChanged: (value) => settingsNotifier.setFadeWhenNotHovering(value),
-                activeThumbColor: colors.primary,
+                colors: colors,
               ),
               colors: colors,
+              isMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.sun,
@@ -1347,8 +1706,11 @@ class _AnnotationSettings extends ConsumerWidget {
                 label: '${(settings.hoverOpacity * 100).toInt()}%',
                 onChanged: (value) => settingsNotifier.setHoverOpacity(value),
                 colors: colors,
+                isMobile: isMobile,
               ),
               colors: colors,
+              isMobile: isMobile,
+              stackOnMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.moon,
@@ -1362,8 +1724,11 @@ class _AnnotationSettings extends ConsumerWidget {
                 label: '${(settings.idleOpacity * 100).toInt()}%',
                 onChanged: (value) => settingsNotifier.setIdleOpacity(value),
                 colors: colors,
+                isMobile: isMobile,
               ),
               colors: colors,
+              isMobile: isMobile,
+              stackOnMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.timer,
@@ -1377,29 +1742,34 @@ class _AnnotationSettings extends ConsumerWidget {
                 label: '${settings.fadeAnimationMs}ms',
                 onChanged: (value) => settingsNotifier.setFadeAnimationMs(value.toInt()),
                 colors: colors,
+                isMobile: isMobile,
               ),
               isLast: true,
               colors: colors,
+              isMobile: isMobile,
+              stackOnMobile: isMobile,
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: isMobile ? 16 : 20),
 
         // Click to Identify
         _SettingsSection(
           title: 'Click to Identify',
           colors: colors,
+          isMobile: isMobile,
           children: [
             _SettingRow(
               icon: LucideIcons.mousePointerClick,
               title: 'Enable click to identify',
               subtitle: 'Click on image to identify objects',
-              trailing: Switch(
+              trailing: _SettingsSwitch(
                 value: settings.clickToIdentify,
                 onChanged: (value) => settingsNotifier.setClickToIdentify(value),
-                activeThumbColor: colors.primary,
+                colors: colors,
               ),
               colors: colors,
+              isMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.crosshair,
@@ -1413,18 +1783,22 @@ class _AnnotationSettings extends ConsumerWidget {
                 label: '${settings.clickSearchRadiusArcsec.toInt()}"',
                 onChanged: (value) => settingsNotifier.setClickSearchRadius(value),
                 colors: colors,
+                isMobile: isMobile,
               ),
               isLast: true,
               colors: colors,
+              isMobile: isMobile,
+              stackOnMobile: isMobile,
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: isMobile ? 16 : 20),
 
         // Marker Styles
         _SettingsSection(
           title: 'Marker Styles',
           colors: colors,
+          isMobile: isMobile,
           children: [
             _SettingRow(
               icon: LucideIcons.pencil,
@@ -1438,8 +1812,11 @@ class _AnnotationSettings extends ConsumerWidget {
                 label: markerStyle.strokeWidth.toStringAsFixed(1),
                 onChanged: (value) => markerNotifier.setStrokeWidth(value),
                 colors: colors,
+                isMobile: isMobile,
               ),
               colors: colors,
+              isMobile: isMobile,
+              stackOnMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.type,
@@ -1453,41 +1830,47 @@ class _AnnotationSettings extends ConsumerWidget {
                 label: '${markerStyle.labelFontSize.toInt()}px',
                 onChanged: (value) => markerNotifier.setLabelFontSize(value),
                 colors: colors,
+                isMobile: isMobile,
               ),
               colors: colors,
+              isMobile: isMobile,
+              stackOnMobile: isMobile,
             ),
             _SettingRow(
               icon: LucideIcons.scaling,
               title: 'Scale by object size',
               subtitle: 'Larger objects get larger markers',
-              trailing: Switch(
+              trailing: _SettingsSwitch(
                 value: markerStyle.scaleBySize,
                 onChanged: (value) => markerNotifier.setScaleBySize(value),
-                activeThumbColor: colors.primary,
+                colors: colors,
               ),
               isLast: true,
               colors: colors,
+              isMobile: isMobile,
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: isMobile ? 16 : 20),
 
         // Automation
         _SettingsSection(
           title: 'Automation',
           colors: colors,
+          isMobile: isMobile,
           children: [
             _SettingRow(
               icon: LucideIcons.zap,
               title: 'Auto-annotate images',
               subtitle: 'Automatically annotate plate-solved images',
-              trailing: Switch(
+              trailing: _SettingsSwitch(
                 value: settings.autoAnnotate,
                 onChanged: (value) => settingsNotifier.setAutoAnnotate(value),
-                activeThumbColor: colors.primary,
+                colors: colors,
               ),
               isLast: true,
               colors: colors,
+              isMobile: isMobile,
             ),
           ],
         ),
@@ -1521,6 +1904,7 @@ class _ObjectTypeToggle extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   final bool isLast;
   final NightshadeColors colors;
+  final bool isMobile;
 
   const _ObjectTypeToggle({
     required this.title,
@@ -1530,6 +1914,7 @@ class _ObjectTypeToggle extends StatelessWidget {
     required this.onChanged,
     this.isLast = false,
     required this.colors,
+    this.isMobile = false,
   });
 
   @override
@@ -1539,13 +1924,14 @@ class _ObjectTypeToggle extends StatelessWidget {
       iconColor: color,
       title: title,
       subtitle: isEnabled ? 'Visible' : 'Hidden',
-      trailing: Switch(
+      trailing: _SettingsSwitch(
         value: isEnabled,
         onChanged: onChanged,
-        activeThumbColor: color,
+        colors: colors,
       ),
       isLast: isLast,
       colors: colors,
+      isMobile: isMobile,
     );
   }
 }
@@ -1559,6 +1945,7 @@ class _CompactSlider extends StatelessWidget {
   final String label;
   final ValueChanged<double> onChanged;
   final NightshadeColors colors;
+  final bool isMobile;
 
   const _CompactSlider({
     required this.value,
@@ -1568,15 +1955,19 @@ class _CompactSlider extends StatelessWidget {
     required this.label,
     required this.onChanged,
     required this.colors,
+    this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final sliderWidth = isMobile ? 100.0 : 120.0;
+    final labelWidth = isMobile ? 45.0 : 50.0;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          width: 120,
+          width: sliderWidth,
           child: SliderTheme(
             data: SliderThemeData(
               activeTrackColor: colors.primary,
@@ -1597,11 +1988,11 @@ class _CompactSlider extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         SizedBox(
-          width: 50,
+          width: labelWidth,
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: isMobile ? 11 : 12,
               color: colors.textSecondary,
               fontWeight: FontWeight.w500,
             ),
@@ -1619,8 +2010,9 @@ class _CompactSlider extends StatelessWidget {
 
 class _SequencerSettings extends ConsumerStatefulWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _SequencerSettings({required this.colors});
+  const _SequencerSettings({required this.colors, this.isMobile = false});
 
   @override
   ConsumerState<_SequencerSettings> createState() => _SequencerSettingsState();
@@ -2128,8 +2520,9 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
 
 class _PlateSolvingSettings extends ConsumerStatefulWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _PlateSolvingSettings({required this.colors});
+  const _PlateSolvingSettings({required this.colors, this.isMobile = false});
 
   @override
   ConsumerState<_PlateSolvingSettings> createState() => _PlateSolvingSettingsState();
@@ -2194,6 +2587,7 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
         _initControllers(settings);
         
         return _SettingsPage(
+          key: SettingsTutorialKeys.plateSolving,
           title: 'Plate Solving',
           description: 'Configure plate solving backends',
           colors: widget.colors,
@@ -2310,8 +2704,9 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
 
 class _Phd2GuidingSettings extends ConsumerStatefulWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _Phd2GuidingSettings({required this.colors});
+  const _Phd2GuidingSettings({required this.colors, this.isMobile = false});
 
   @override
   ConsumerState<_Phd2GuidingSettings> createState() => _Phd2GuidingSettingsState();
@@ -2449,8 +2844,9 @@ class _Phd2GuidingSettingsState extends ConsumerState<_Phd2GuidingSettings> {
 
 class _NotificationSettings extends ConsumerStatefulWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _NotificationSettings({required this.colors});
+  const _NotificationSettings({required this.colors, this.isMobile = false});
 
   @override
   ConsumerState<_NotificationSettings> createState() => _NotificationSettingsState();
@@ -2539,6 +2935,7 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
         _initControllers(settings);
         
         return _SettingsPage(
+          key: SettingsTutorialKeys.notifications,
           title: 'Notifications',
           description: 'Configure alerts and notifications',
           colors: widget.colors,
@@ -2751,8 +3148,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
 
 class _FilePathSettings extends ConsumerWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _FilePathSettings({required this.colors});
+  const _FilePathSettings({required this.colors, this.isMobile = false});
 
   Future<void> _selectPath(WidgetRef ref, String settingKey) async {
     final result = await getDirectoryPath(
@@ -2786,6 +3184,7 @@ class _FilePathSettings extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
       data: (settings) => _SettingsPage(
+        key: SettingsTutorialKeys.filePaths,
         title: 'File Paths',
         description: 'Configure storage locations',
         colors: colors,
@@ -2848,13 +3247,414 @@ class _FilePathSettings extends ConsumerWidget {
 }
 
 // ============================================================================
+// Help & Tutorials Settings
+// ============================================================================
+
+class _HelpTutorialsSettings extends ConsumerWidget {
+  final NightshadeColors colors;
+  final bool isMobile;
+
+  const _HelpTutorialsSettings({required this.colors, this.isMobile = false});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tutorialState = ref.watch(tutorialProvider);
+    final notifier = ref.read(tutorialProvider.notifier);
+
+    return _SettingsPage(
+      key: SettingsTutorialKeys.help,
+      title: 'Help & Tutorials',
+      description: 'Guided tours and learning resources',
+      colors: colors,
+      children: [
+        _SettingsSection(
+          title: 'Tutorial Tours',
+          colors: colors,
+          children: [
+            _TutorialRow(
+              icon: LucideIcons.sparkles,
+              title: 'Quick Start Tour',
+              category: TutorialCategory.firstLight,
+              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.firstLight),
+              totalSteps: notifier.getTotalStepsCount(TutorialCategory.firstLight),
+              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.firstLight),
+              hasProgress: notifier.hasCategoryProgress(TutorialCategory.firstLight),
+              onStart: () => notifier.startTutorial(TutorialCategory.firstLight),
+              onResume: () => notifier.resumeTutorial(TutorialCategory.firstLight),
+              onRestart: () => notifier.restartTutorial(TutorialCategory.firstLight),
+              colors: colors,
+            ),
+            _TutorialRow(
+              icon: LucideIcons.boxes,
+              title: 'Equipment Setup',
+              category: TutorialCategory.equipmentSetup,
+              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.equipmentSetup),
+              totalSteps: notifier.getTotalStepsCount(TutorialCategory.equipmentSetup),
+              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.equipmentSetup),
+              hasProgress: notifier.hasCategoryProgress(TutorialCategory.equipmentSetup),
+              onStart: () => notifier.startTutorial(TutorialCategory.equipmentSetup),
+              onResume: () => notifier.resumeTutorial(TutorialCategory.equipmentSetup),
+              onRestart: () => notifier.restartTutorial(TutorialCategory.equipmentSetup),
+              colors: colors,
+            ),
+            _TutorialRow(
+              icon: LucideIcons.compass,
+              title: 'Target Planning',
+              category: TutorialCategory.targetPlanning,
+              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.targetPlanning),
+              totalSteps: notifier.getTotalStepsCount(TutorialCategory.targetPlanning),
+              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.targetPlanning),
+              hasProgress: notifier.hasCategoryProgress(TutorialCategory.targetPlanning),
+              onStart: () => notifier.startTutorial(TutorialCategory.targetPlanning),
+              onResume: () => notifier.resumeTutorial(TutorialCategory.targetPlanning),
+              onRestart: () => notifier.restartTutorial(TutorialCategory.targetPlanning),
+              colors: colors,
+            ),
+            _TutorialRow(
+              icon: LucideIcons.listOrdered,
+              title: 'Automated Imaging',
+              category: TutorialCategory.automatedImaging,
+              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.automatedImaging),
+              totalSteps: notifier.getTotalStepsCount(TutorialCategory.automatedImaging),
+              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.automatedImaging),
+              hasProgress: notifier.hasCategoryProgress(TutorialCategory.automatedImaging),
+              onStart: () => notifier.startTutorial(TutorialCategory.automatedImaging),
+              onResume: () => notifier.resumeTutorial(TutorialCategory.automatedImaging),
+              onRestart: () => notifier.restartTutorial(TutorialCategory.automatedImaging),
+              colors: colors,
+            ),
+            _TutorialRow(
+              icon: LucideIcons.sun,
+              title: 'Calibration Frames',
+              category: TutorialCategory.calibrationFrames,
+              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.calibrationFrames),
+              totalSteps: notifier.getTotalStepsCount(TutorialCategory.calibrationFrames),
+              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.calibrationFrames),
+              hasProgress: notifier.hasCategoryProgress(TutorialCategory.calibrationFrames),
+              onStart: () => notifier.startTutorial(TutorialCategory.calibrationFrames),
+              onResume: () => notifier.resumeTutorial(TutorialCategory.calibrationFrames),
+              onRestart: () => notifier.restartTutorial(TutorialCategory.calibrationFrames),
+              colors: colors,
+            ),
+            _TutorialRow(
+              icon: LucideIcons.barChart3,
+              title: 'Advanced Features',
+              category: TutorialCategory.advancedFeatures,
+              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.advancedFeatures),
+              totalSteps: notifier.getTotalStepsCount(TutorialCategory.advancedFeatures),
+              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.advancedFeatures),
+              hasProgress: notifier.hasCategoryProgress(TutorialCategory.advancedFeatures),
+              onStart: () => notifier.startTutorial(TutorialCategory.advancedFeatures),
+              onResume: () => notifier.resumeTutorial(TutorialCategory.advancedFeatures),
+              onRestart: () => notifier.restartTutorial(TutorialCategory.advancedFeatures),
+              isLast: true,
+              colors: colors,
+            ),
+          ],
+        ),
+        _SettingsSection(
+          title: 'Reset Progress',
+          colors: colors,
+          children: [
+            _SettingRow(
+              icon: LucideIcons.refreshCw,
+              iconColor: colors.error,
+              title: 'Reset All Progress',
+              subtitle: 'Clear all tutorial progress and start fresh',
+              trailing: ElevatedButton(
+                onPressed: () => _showResetConfirmation(context, ref),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.error.withValues(alpha: 0.1),
+                  foregroundColor: colors.error,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: colors.error.withValues(alpha: 0.3)),
+                  ),
+                ),
+                child: const Text(
+                  'Reset',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+              isLast: true,
+              colors: colors,
+            ),
+          ],
+        ),
+        _SettingsSection(
+          title: 'Settings',
+          colors: colors,
+          children: [
+            _SettingRow(
+              icon: LucideIcons.toggleRight,
+              title: 'Enable tutorials',
+              subtitle: 'Show tutorial prompts and guided tours',
+              trailing: _SettingsSwitch(
+                value: tutorialState.tutorialsEnabled,
+                onChanged: (value) {
+                  notifier.setTutorialsEnabled(value);
+                },
+                colors: colors,
+              ),
+              isLast: true,
+              colors: colors,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _showResetConfirmation(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: colors.border),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: colors.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(LucideIcons.alertTriangle, color: colors.error, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Reset Tutorial Progress?',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'This will clear all tutorial progress and you will see the welcome tour again. This action cannot be undone.',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: 13,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colors.textMuted),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(tutorialProvider.notifier).resetProgress();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Reset'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TutorialRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final TutorialCategory category;
+  final int completedSteps;
+  final int totalSteps;
+  final bool isCompleted;
+  final bool hasProgress;
+  final VoidCallback onStart;
+  final VoidCallback onResume;
+  final VoidCallback onRestart;
+  final bool isLast;
+  final NightshadeColors colors;
+
+  const _TutorialRow({
+    required this.icon,
+    required this.title,
+    required this.category,
+    required this.completedSteps,
+    required this.totalSteps,
+    required this.isCompleted,
+    required this.hasProgress,
+    required this.onStart,
+    required this.onResume,
+    required this.onRestart,
+    this.isLast = false,
+    required this.colors,
+  });
+
+  String get _statusText {
+    if (isCompleted) {
+      return 'Completed';
+    } else if (hasProgress) {
+      return '$completedSteps/$totalSteps steps';
+    } else {
+      return 'Not started';
+    }
+  }
+
+  String get _buttonText {
+    if (isCompleted) {
+      return 'Restart';
+    } else if (hasProgress) {
+      return 'Resume';
+    } else {
+      return 'Start';
+    }
+  }
+
+  VoidCallback get _buttonAction {
+    if (isCompleted) {
+      return onRestart;
+    } else if (hasProgress) {
+      return onResume;
+    } else {
+      return onStart;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '$title tutorial, $_statusText',
+      button: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          border: isLast
+              ? null
+              : Border(
+                  bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
+                ),
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isCompleted
+                    ? colors.success.withValues(alpha: 0.1)
+                    : colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: 16,
+                color: isCompleted ? colors.success : colors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 14),
+
+            // Title and status
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (isCompleted)
+                        Icon(
+                          LucideIcons.checkCircle2,
+                          size: 12,
+                          color: colors.success,
+                        )
+                      else if (hasProgress)
+                        Icon(
+                          LucideIcons.clock,
+                          size: 12,
+                          color: colors.warning,
+                        )
+                      else
+                        Icon(
+                          LucideIcons.circle,
+                          size: 12,
+                          color: colors.textMuted,
+                        ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _statusText,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isCompleted
+                              ? colors.success
+                              : hasProgress
+                                  ? colors.warning
+                                  : colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Action button
+            ElevatedButton(
+              onPressed: _buttonAction,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isCompleted
+                    ? colors.surfaceAlt
+                    : colors.primary.withValues(alpha: hasProgress ? 0.8 : 1.0),
+                foregroundColor: isCompleted ? colors.textSecondary : Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: isCompleted
+                      ? BorderSide(color: colors.border)
+                      : BorderSide.none,
+                ),
+              ),
+              child: Text(
+                _buttonText,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
 // About Settings
 // ============================================================================
 
 class _AboutSettings extends StatelessWidget {
   final NightshadeColors colors;
+  final bool isMobile;
 
-  const _AboutSettings({required this.colors});
+  const _AboutSettings({required this.colors, this.isMobile = false});
 
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
@@ -2865,36 +3665,41 @@ class _AboutSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final logoSize = isMobile ? 64.0 : 80.0;
+    final logoIconSize = isMobile ? 32.0 : 40.0;
+
     return _SettingsPage(
       title: 'About',
       description: 'Application information',
       colors: colors,
+      isMobile: isMobile,
+      hideHeader: isMobile,
       children: [
         Center(
           child: Column(
             children: [
               Container(
-                width: 80,
-                height: 80,
+                width: logoSize,
+                height: logoSize,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [colors.primary, colors.accent],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
                 ),
-                child: const Icon(
+                child: Icon(
                   LucideIcons.sparkles,
-                  size: 40,
+                  size: logoIconSize,
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: isMobile ? 16 : 20),
               Text(
                 'Nightshade',
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: isMobile ? 20 : 24,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -2903,44 +3708,73 @@ class _AboutSettings extends StatelessWidget {
               Text(
                 'Version 2.2.0',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: isMobile ? 13 : 14,
                   color: colors.textSecondary,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: isMobile ? 16 : 20),
               Text(
                 'Advanced astrophotography suite',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: isMobile ? 12 : 13,
                   color: colors.textMuted,
                 ),
               ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _LinkButton(
-                    icon: LucideIcons.github,
-                    label: 'GitHub',
-                    onTap: () => _launchUrl('https://github.com/nightshade-astro'),
-                    colors: colors,
-                  ),
-                  const SizedBox(width: 12),
-                  _LinkButton(
-                    icon: LucideIcons.bookOpen,
-                    label: 'Documentation',
-                    onTap: () => _launchUrl('https://nightshade.astro/docs'),
-                    colors: colors,
-                  ),
-                  const SizedBox(width: 12),
-                  _LinkButton(
-                    icon: LucideIcons.messageCircle,
-                    label: 'Discord',
-                    onTap: () => _launchUrl('https://discord.gg/nightshade'),
-                    colors: colors,
-                  ),
-                ],
-              ),
+              SizedBox(height: isMobile ? 24 : 32),
+              isMobile
+                  ? Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _LinkButton(
+                          icon: LucideIcons.github,
+                          label: 'GitHub',
+                          onTap: () => _launchUrl('https://github.com/nightshade-astro'),
+                          colors: colors,
+                          compact: true,
+                        ),
+                        _LinkButton(
+                          icon: LucideIcons.bookOpen,
+                          label: 'Docs',
+                          onTap: () => _launchUrl('https://nightshade.astro/docs'),
+                          colors: colors,
+                          compact: true,
+                        ),
+                        _LinkButton(
+                          icon: LucideIcons.messageCircle,
+                          label: 'Discord',
+                          onTap: () => _launchUrl('https://discord.gg/nightshade'),
+                          colors: colors,
+                          compact: true,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _LinkButton(
+                          icon: LucideIcons.github,
+                          label: 'GitHub',
+                          onTap: () => _launchUrl('https://github.com/nightshade-astro'),
+                          colors: colors,
+                        ),
+                        const SizedBox(width: 12),
+                        _LinkButton(
+                          icon: LucideIcons.bookOpen,
+                          label: 'Documentation',
+                          onTap: () => _launchUrl('https://nightshade.astro/docs'),
+                          colors: colors,
+                        ),
+                        const SizedBox(width: 12),
+                        _LinkButton(
+                          icon: LucideIcons.messageCircle,
+                          label: 'Discord',
+                          onTap: () => _launchUrl('https://discord.gg/nightshade'),
+                          colors: colors,
+                        ),
+                      ],
+                    ),
               const SizedBox(height: 48),
               Container(
                 padding: const EdgeInsets.all(20),
@@ -3069,20 +3903,26 @@ class _SettingsDropdown extends StatelessWidget {
   final List<String> items;
   final ValueChanged<String?> onChanged;
   final NightshadeColors colors;
-  final double width;
+  final double? width;
+  final bool isMobile;
+  /// If true, use flexible width (useful for stacked mobile layouts)
+  final bool flexible;
 
   const _SettingsDropdown({
     required this.value,
     required this.items,
     required this.onChanged,
     required this.colors,
-    this.width = 140,
+    this.width,
+    this.isMobile = false,
+    this.flexible = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
+    final effectiveWidth = width ?? (isMobile ? 120.0 : 140.0);
+
+    Widget dropdown = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
@@ -3101,7 +3941,7 @@ class _SettingsDropdown extends StatelessWidget {
           ),
           dropdownColor: colors.surface,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: isMobile ? 11 : 12,
             color: colors.textPrimary,
           ),
           items: items.map((item) {
@@ -3117,24 +3957,38 @@ class _SettingsDropdown extends StatelessWidget {
         ),
       ),
     );
+
+    if (flexible) {
+      return dropdown;
+    }
+
+    return SizedBox(
+      width: effectiveWidth,
+      child: dropdown,
+    );
   }
 }
 
 class _TextInput extends StatefulWidget {
   final TextEditingController controller;
   final String? hint;
-  final double width;
+  final double? width;
   final bool obscure;
   final ValueChanged<String> onChanged;
   final NightshadeColors colors;
+  final bool isMobile;
+  /// If true, use flexible width (useful for stacked mobile layouts)
+  final bool flexible;
 
   const _TextInput({
     required this.controller,
     this.hint,
-    this.width = 160,
+    this.width,
     this.obscure = false,
     required this.onChanged,
     required this.colors,
+    this.isMobile = false,
+    this.flexible = false,
   });
 
   @override
@@ -3146,9 +4000,10 @@ class _TextInputState extends State<_TextInput> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: widget.width,
-      height: 32,
+    final effectiveWidth = widget.width ?? (widget.isMobile ? 140.0 : 160.0);
+
+    Widget input = Container(
+      height: widget.isMobile ? 36 : 32,
       decoration: BoxDecoration(
         color: widget.colors.surfaceAlt,
         borderRadius: BorderRadius.circular(6),
@@ -3161,17 +4016,20 @@ class _TextInputState extends State<_TextInput> {
               controller: widget.controller,
               obscureText: widget.obscure && _obscured,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: widget.isMobile ? 13 : 12,
                 color: widget.colors.textPrimary,
               ),
               decoration: InputDecoration(
                 hintText: widget.hint,
                 hintStyle: TextStyle(
-                  fontSize: 12,
+                  fontSize: widget.isMobile ? 13 : 12,
                   color: widget.colors.textMuted,
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: widget.isMobile ? 10 : 8,
+                ),
                 isDense: true,
               ),
               onChanged: widget.onChanged,
@@ -3192,6 +4050,15 @@ class _TextInputState extends State<_TextInput> {
         ],
       ),
     );
+
+    if (widget.flexible) {
+      return input;
+    }
+
+    return SizedBox(
+      width: effectiveWidth,
+      child: input,
+    );
   }
 }
 
@@ -3203,6 +4070,8 @@ class _NumberInput extends StatelessWidget {
   final int decimals;
   final ValueChanged<double> onChanged;
   final NightshadeColors colors;
+  final double? width;
+  final bool isMobile;
 
   const _NumberInput({
     required this.controller,
@@ -3212,13 +4081,17 @@ class _NumberInput extends StatelessWidget {
     required this.decimals,
     required this.onChanged,
     required this.colors,
+    this.width,
+    this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveWidth = width ?? (isMobile ? 100.0 : 120.0);
+
     return Container(
-      width: 120,
-      height: 32,
+      width: effectiveWidth,
+      height: isMobile ? 36 : 32,
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(6),
@@ -3234,17 +4107,20 @@ class _NumberInput extends StatelessWidget {
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
               ],
               style: TextStyle(
-                fontSize: 12,
+                fontSize: isMobile ? 13 : 12,
                 color: colors.textPrimary,
               ),
               textAlign: TextAlign.right,
               decoration: InputDecoration(
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: isMobile ? 10 : 8,
+                ),
                 isDense: true,
                 suffixText: suffix,
                 suffixStyle: TextStyle(
-                  fontSize: 11,
+                  fontSize: isMobile ? 11 : 11,
                   color: colors.textMuted,
                 ),
               ),
@@ -3267,11 +4143,13 @@ class _ColorPicker extends StatelessWidget {
   final String selectedColor;
   final ValueChanged<String> onColorSelected;
   final NightshadeColors colors;
+  final bool isMobile;
 
   const _ColorPicker({
     required this.selectedColor,
     required this.onColorSelected,
     required this.colors,
+    this.isMobile = false,
   });
 
   static const _accentColors = [
@@ -3286,39 +4164,58 @@ class _ColorPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final circleSize = isMobile ? 28.0 : 24.0;
+    final spacing = isMobile ? 8.0 : 6.0;
+
+    // Use Wrap for mobile to allow colors to wrap to next line if needed
+    if (isMobile) {
+      return Wrap(
+        spacing: spacing,
+        runSpacing: spacing,
+        children: _accentColors.map((colorData) {
+          final (hex, _) = colorData;
+          return _buildColorCircle(hex, circleSize);
+        }).toList(),
+      );
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: _accentColors.map((colorData) {
         final (hex, _) = colorData;
-        final color = Color(int.parse(hex.substring(1), radix: 16) + 0xFF000000);
-        final isSelected = selectedColor.toLowerCase() == hex.toLowerCase();
-        
         return Padding(
-          padding: const EdgeInsets.only(left: 6),
-          child: GestureDetector(
-            onTap: () => onColorSelected(hex),
-            child: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-                border: isSelected
-                    ? Border.all(color: Colors.white, width: 2)
-                    : null,
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: color.withValues(alpha: 0.5),
-                          blurRadius: 8,
-                        ),
-                      ]
-                    : null,
-              ),
-            ),
-          ),
+          padding: EdgeInsets.only(left: spacing),
+          child: _buildColorCircle(hex, circleSize),
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildColorCircle(String hex, double size) {
+    final color = Color(int.parse(hex.substring(1), radix: 16) + 0xFF000000);
+    final isSelected = selectedColor.toLowerCase() == hex.toLowerCase();
+
+    return GestureDetector(
+      onTap: () => onColorSelected(hex),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: isSelected
+              ? Border.all(color: Colors.white, width: 2)
+              : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.5),
+                    blurRadius: 8,
+                  ),
+                ]
+              : null,
+        ),
+      ),
     );
   }
 }
@@ -3327,40 +4224,56 @@ class _PathInput extends StatelessWidget {
   final String path;
   final VoidCallback onBrowse;
   final NightshadeColors colors;
+  final bool isMobile;
+  /// If true, use flexible width (useful for stacked mobile layouts)
+  final bool flexible;
 
   const _PathInput({
     required this.path,
     required this.onBrowse,
     required this.colors,
+    this.isMobile = false,
+    this.flexible = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 180,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: colors.border),
-          ),
-          child: Text(
-            path.isEmpty ? 'Not set' : path,
-            style: TextStyle(
-              fontSize: 11,
-              color: path.isEmpty ? colors.textMuted : colors.textPrimary,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
+    Widget pathContainer = Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: isMobile ? 8 : 6,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border),
+      ),
+      child: Text(
+        path.isEmpty ? 'Not set' : path,
+        style: TextStyle(
+          fontSize: isMobile ? 12 : 11,
+          color: path.isEmpty ? colors.textMuted : colors.textPrimary,
         ),
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+
+    if (!flexible) {
+      pathContainer = SizedBox(
+        width: isMobile ? 140.0 : 180.0,
+        child: pathContainer,
+      );
+    }
+
+    return Row(
+      mainAxisSize: flexible ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        if (flexible) Expanded(child: pathContainer) else pathContainer,
         const SizedBox(width: 8),
         GestureDetector(
           onTap: onBrowse,
           child: Container(
-            padding: const EdgeInsets.all(6),
+            padding: EdgeInsets.all(isMobile ? 8 : 6),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
               borderRadius: BorderRadius.circular(6),
@@ -3368,7 +4281,7 @@ class _PathInput extends StatelessWidget {
             ),
             child: Icon(
               LucideIcons.folderOpen,
-              size: 14,
+              size: isMobile ? 16 : 14,
               color: colors.textSecondary,
             ),
           ),
@@ -3383,12 +4296,14 @@ class _LinkButton extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
   final NightshadeColors colors;
+  final bool compact;
 
   const _LinkButton({
     required this.icon,
     required this.label,
     required this.onTap,
     required this.colors,
+    this.compact = false,
   });
 
   @override
@@ -3400,6 +4315,11 @@ class _LinkButtonState extends State<_LinkButton> {
 
   @override
   Widget build(BuildContext context) {
+    final horizontalPad = widget.compact ? 12.0 : 16.0;
+    final verticalPad = widget.compact ? 8.0 : 10.0;
+    final iconSize = widget.compact ? 14.0 : 16.0;
+    final fontSize = widget.compact ? 11.0 : 12.0;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -3407,7 +4327,7 @@ class _LinkButtonState extends State<_LinkButton> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPad, vertical: verticalPad),
           decoration: BoxDecoration(
             color: _isHovered
                 ? widget.colors.surfaceAlt
@@ -3416,17 +4336,18 @@ class _LinkButtonState extends State<_LinkButton> {
             border: Border.all(color: widget.colors.border),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 widget.icon,
-                size: 16,
+                size: iconSize,
                 color: widget.colors.textSecondary,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: widget.compact ? 6 : 8),
               Text(
                 widget.label,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: fontSize,
                   color: widget.colors.textSecondary,
                 ),
               ),

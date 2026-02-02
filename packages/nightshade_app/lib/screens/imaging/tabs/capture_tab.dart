@@ -29,6 +29,7 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final isMobile = Responsive.isMobile(context);
 
     // Watch the current image
     final currentImage = ref.watch(currentImageProvider);
@@ -40,6 +41,19 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
     // Derive capture state from exposureProgress (single source of truth)
     final isCapturing = exposureProgress.percent > 0 || exposureProgress.isDownloading;
 
+    // Mobile layout: Stack vertically
+    if (isMobile) {
+      return _buildMobileLayout(
+        context: context,
+        colors: colors,
+        currentImage: currentImage,
+        exposureProgress: exposureProgress,
+        lastStats: lastStats,
+        isConnected: isConnected,
+      );
+    }
+
+    // Desktop layout: Side-by-side
     return Row(
       children: [
         // Main image view (70%)
@@ -183,6 +197,21 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                                     ),
                                   ),
                                 ],
+                                // Divider and plate solve button
+                                const SizedBox(height: 8),
+                                Container(
+                                  height: 1,
+                                  width: 24,
+                                  color: colors.border,
+                                ),
+                                const SizedBox(height: 8),
+                                _IconButton(
+                                  icon: LucideIcons.sparkles,
+                                  tooltip: 'Plate Solve Image',
+                                  onPressed: currentImage?.filePath != null
+                                      ? () => _handlePlateSolve(currentImage!)
+                                      : null,
+                                ),
                               ],
                             ),
                           ),
@@ -306,7 +335,10 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                                 final settings = annotationSettings.valueOrNull ?? const AnnotationSettings();
                                 final showStars = settings.visibleTypes.contains(AnnotationObjectFilter.stars);
 
-                                return Row(
+                                // Use Wrap to prevent overflow on narrow screens
+                                return Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
                                   children: [
                                     GestureDetector(
                                       onTap: () {
@@ -315,12 +347,10 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                                       },
                                       child: _ToggleChip(label: 'Stars', isActive: showStars),
                                     ),
-                                    const SizedBox(width: 8),
                                     GestureDetector(
                                       onTap: () => setState(() => _showGrid = !_showGrid),
                                       child: _ToggleChip(label: 'Grid', isActive: _showGrid),
                                     ),
-                                    const SizedBox(width: 8),
                                     GestureDetector(
                                       onTap: () => setState(() => _showCrosshair = !_showCrosshair),
                                       child: _ToggleChip(label: 'Crosshair', isActive: _showCrosshair),
@@ -340,70 +370,175 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
           ),
         ),
 
-        // Right sidebar - Capture controls (30%)
-        Container(
-          width: 320,
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border(
-              left: BorderSide(color: colors.border, width: 1),
+        // Right sidebar - Capture controls
+        SizedBox(
+          width: Responsive.value(context, mobile: 280.0, tablet: 300.0, desktop: 320.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border(
+                left: BorderSide(color: colors.border, width: 1),
+              ),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: _buildSidebarContent(colors, currentImage),
             ),
           ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+      ],
+    );
+  }
+
+  /// Mobile layout: Stacked vertically with scrollable content
+  Widget _buildMobileLayout({
+    required BuildContext context,
+    required NightshadeColors colors,
+    required CapturedImageData? currentImage,
+    required ExposureProgress exposureProgress,
+    required ImageStats? lastStats,
+    required bool isConnected,
+  }) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Image display area (fixed height on mobile)
+          Container(
+            height: 250,
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.border),
+            ),
+            child: Stack(
               children: [
-                CaptureSettingsPanel(
-                  showHeader: true,
-                  showConnectionBadge: true,
+                // Image display
+                if (currentImage != null)
+                  _ImageDisplay(
+                    key: _imageDisplayKey,
+                    imageData: currentImage,
+                    colors: colors,
+                    onZoomChanged: (scale, mode) {
+                      setState(() {
+                        _currentZoomLevel = scale;
+                        _currentZoomMode = mode;
+                      });
+                    },
+                  )
+                else
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          LucideIcons.image,
+                          size: 48,
+                          color: colors.textMuted,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          isConnected ? 'No image captured' : 'Connect a camera first',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Crosshair overlay
+                if (_showCrosshair)
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _CrosshairPainter(color: colors.primary.withValues(alpha: 0.3)),
+                    ),
+                  ),
+
+                // Exposure progress overlay
+                if (exposureProgress.percent > 0 || exposureProgress.isDownloading)
+                  _ExposureProgressOverlay(
+                    progress: exposureProgress,
+                    colors: colors,
+                  ),
+
+                // Zoom controls (mobile-friendly position)
+                if (currentImage != null)
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _IconButton(
+                          icon: LucideIcons.zoomOut,
+                          tooltip: 'Zoom Out',
+                          onPressed: () => _imageDisplayKey.currentState?.zoomOut(),
+                        ),
+                        const SizedBox(width: 4),
+                        _IconButton(
+                          icon: LucideIcons.zoomIn,
+                          tooltip: 'Zoom In',
+                          onPressed: () => _imageDisplayKey.currentState?.zoomIn(),
+                        ),
+                        const SizedBox(width: 4),
+                        _IconButton(
+                          icon: LucideIcons.maximize2,
+                          tooltip: 'Fit to Screen',
+                          isActive: _currentZoomMode == ZoomMode.fit,
+                          onPressed: () => _imageDisplayKey.currentState?.fitToScreen(),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Stats row (horizontal on mobile)
+          Row(
+            children: [
+              Expanded(
+                child: _CompactStatCard(
+                  label: 'HFR',
+                  value: lastStats?.hfr?.toStringAsFixed(2) ?? '---',
+                  colors: colors,
                 ),
-
-                const SizedBox(height: 24),
-
-                // Options
-                Row(
-                  children: [
-                    NightshadeCheckbox(
-                      value: _autoStretch,
-                      onChanged: (value) => setState(() => _autoStretch = value ?? true),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Auto-stretch',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _CompactStatCard(
+                  label: 'Stars',
+                  value: lastStats?.starCount?.toString() ?? '---',
+                  colors: colors,
                 ),
-
-                const SizedBox(height: 8),
-
-                Row(
-                  children: [
-                    NightshadeCheckbox(
-                      value: _showCrosshair,
-                      onChanged: (value) => setState(() => _showCrosshair = value ?? true),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Show crosshair',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ],
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _CompactStatCard(
+                  label: 'Median',
+                  value: lastStats?.median?.toStringAsFixed(0) ?? '---',
+                  colors: colors,
                 ),
+              ),
+            ],
+          ),
 
-                const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
-                // Session info
-                if (currentImage != null) ...[
+          // Histogram (full width on mobile)
+          NightshadeCard(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    'Last Capture',
+                    'Histogram',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -412,35 +547,175 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                   ),
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    height: 50,
                     decoration: BoxDecoration(
                       color: colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _InfoRow(label: 'Size', value: '${currentImage.width} × ${currentImage.height}'),
-                        const SizedBox(height: 4),
-                        _InfoRow(label: 'Exposure', value: '${currentImage.settings.exposureTime}s'),
-                        const SizedBox(height: 4),
-                        _InfoRow(label: 'Frame', value: currentImage.settings.frameType.displayName),
-                        const SizedBox(height: 4),
-                        _InfoRow(label: 'Time', value: _formatTime(currentImage.capturedAt)),
-                      ],
+                    child: HistogramDisplay(
+                      histogram: currentImage?.histogram,
+                      height: 50,
+                      barColor: colors.primary,
+                      logarithmic: true,
+                      showGrid: false,
+                      showClipping: true,
+                      allowLogToggle: true,
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Capture settings (full width on mobile)
+          _buildSidebarContent(colors, currentImage),
+        ],
+      ),
+    );
+  }
+
+  /// Shared sidebar content for both mobile and desktop
+  Widget _buildSidebarContent(NightshadeColors colors, CapturedImageData? currentImage) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CaptureSettingsPanel(
+          showHeader: true,
+          showConnectionBadge: true,
+        ),
+
+        const SizedBox(height: 24),
+
+        // Options
+        Row(
+          children: [
+            NightshadeCheckbox(
+              value: _autoStretch,
+              onChanged: (value) => setState(() => _autoStretch = value ?? true),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Auto-stretch',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 8),
+
+        Row(
+          children: [
+            NightshadeCheckbox(
+              value: _showCrosshair,
+              onChanged: (value) => setState(() => _showCrosshair = value ?? true),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Show crosshair',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 24),
+
+        // Session info
+        if (currentImage != null) ...[
+          Text(
+            'Last Capture',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _InfoRow(label: 'Size', value: '${currentImage.width} × ${currentImage.height}'),
+                const SizedBox(height: 4),
+                _InfoRow(label: 'Exposure', value: '${currentImage.settings.exposureTime}s'),
+                const SizedBox(height: 4),
+                _InfoRow(label: 'Frame', value: currentImage.settings.frameType.displayName),
+                const SizedBox(height: 4),
+                _InfoRow(label: 'Time', value: _formatTime(currentImage.capturedAt)),
               ],
             ),
           ),
-        ),
+        ],
       ],
     );
   }
 
   String _formatTime(DateTime time) {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _handlePlateSolve(CapturedImageData image) async {
+    if (image.filePath == null) {
+      context.showErrorSnackBar('No image file to plate solve');
+      return;
+    }
+
+    // Show solving indicator via snackbar
+    context.showInfoSnackBar('Plate solving...');
+
+    try {
+      final plateSolveService = ref.read(plateSolveServiceProvider);
+      final appSettings = ref.read(appSettingsProvider).valueOrNull;
+      final mountState = ref.read(mountStateProvider);
+
+      // Find ASTAP executable
+      final executablePath = await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
+
+      final config = PlateSolverConfig(
+        type: PlateSolverType.astap,
+        executablePath: executablePath ?? '',
+        timeoutSeconds: 60,
+        searchRadius: 30.0,
+        // Use mount position as hint if available
+        hintRa: mountState.connectionState == DeviceConnectionState.connected ? mountState.ra : null,
+        hintDec: mountState.connectionState == DeviceConnectionState.connected ? mountState.dec : null,
+      );
+
+      final result = await plateSolveService.solve(image.filePath!, config);
+
+      if (!mounted) return;
+
+      if (result.success) {
+        final raText = result.ra?.toStringAsFixed(4) ?? '?';
+        final decText = result.dec?.toStringAsFixed(4) ?? '?';
+        final rotText = result.rotation?.toStringAsFixed(1) ?? '?';
+        context.showSuccessSnackBar(
+          'Solved: RA ${raText}h, Dec ${decText}°, Rotation ${rotText}°',
+        );
+      } else {
+        context.showErrorSnackBar('Plate solve failed: ${result.errorMessage ?? "Unknown error"}');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Plate solve error: $e');
+      }
+    }
   }
 }
 
@@ -791,13 +1066,13 @@ class _CrosshairPainter extends CustomPainter {
 
 class _IconButton extends StatelessWidget {
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final String? tooltip;
   final bool isActive;
 
   const _IconButton({
     required this.icon,
-    required this.onPressed,
+    this.onPressed,
     this.tooltip,
     this.isActive = false,
   });
@@ -806,6 +1081,7 @@ class _IconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
 
+    // Use 44x44 minimum touch target for accessibility compliance
     final button = Material(
       color: isActive ? colors.primary.withValues(alpha: 0.1) : colors.surface,
       borderRadius: BorderRadius.circular(6),
@@ -813,8 +1089,8 @@ class _IconButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(6),
         child: Container(
-          width: 32,
-          height: 32,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             border: Border.all(
               color: isActive ? colors.primary : colors.border,
@@ -824,7 +1100,7 @@ class _IconButton extends StatelessWidget {
           ),
           child: Icon(
             icon,
-            size: 14,
+            size: 18,
             color: isActive ? colors.primary : colors.textSecondary,
           ),
         ),
@@ -934,6 +1210,53 @@ class _InfoRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Compact stat card for mobile layout
+class _CompactStatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+
+  const _CompactStatCard({
+    required this.label,
+    required this.value,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
