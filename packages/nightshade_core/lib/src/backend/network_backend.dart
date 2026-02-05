@@ -396,6 +396,34 @@ class NetworkBackend implements NightshadeBackend {
     });
   }
 
+  Future<Map<String, dynamic>> _put(String endpoint, [Map<String, dynamic>? body]) async {
+    return _retryableRequest(() async {
+      final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
+
+      final request = await _httpClient.putUrl(uri);
+      request.headers.contentType = ContentType.json;
+
+      // Add authentication headers
+      final headers = _addAuthHeaders({});
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
+
+      if (body != null) {
+        request.write(jsonEncode(body));
+      }
+
+      final response = await request.close();
+      final responseBody = await response.transform(utf8.decoder).join();
+
+      if (response.statusCode != 200) {
+        throw _parseErrorResponse(response.statusCode, responseBody, 'PUT', endpoint);
+      }
+
+      return jsonDecode(responseBody) as Map<String, dynamic>;
+    });
+  }
+
   // =========================================================================
   // Device Discovery & Connection
   // =========================================================================
@@ -1823,6 +1851,991 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<void> clearDeviceImage(String deviceId) async {
     await _delete('imaging/device-image/${Uri.encodeComponent(deviceId)}');
+  }
+
+  // =========================================================================
+  // Target Management
+  // =========================================================================
+
+  /// Get all targets from the headless server
+  /// Returns JSON maps that can be used to construct CelestialTarget objects
+  Future<List<Map<String, dynamic>>> getAllTargets() async {
+    final response = await _get('targets');
+    final targetsList = response['targets'] as List? ?? [];
+    return targetsList.cast<Map<String, dynamic>>();
+  }
+
+  /// Get a specific target by ID
+  Future<Map<String, dynamic>?> getTargetById(int id) async {
+    try {
+      final response = await _get('targets/$id');
+      return response['target'] as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint('Failed to get target $id: $e');
+      return null;
+    }
+  }
+
+  /// Search targets by query string
+  Future<List<Map<String, dynamic>>> searchTargets(String query) async {
+    final response = await _get('targets/search', {'query': query});
+    final targetsList = response['targets'] as List? ?? [];
+    return targetsList.cast<Map<String, dynamic>>();
+  }
+
+  /// Create a new target
+  Future<int> createTarget(Map<String, dynamic> target) async {
+    final response = await _post('targets', target);
+    return response['id'] as int;
+  }
+
+  /// Update an existing target
+  Future<void> updateTarget(int id, Map<String, dynamic> target) async {
+    await _put('targets/$id', target);
+  }
+
+  /// Delete a target
+  Future<void> deleteTarget(int id) async {
+    await _delete('targets/$id');
+  }
+
+  /// Toggle favorite status for a target
+  Future<void> toggleTargetFavorite(int id) async {
+    await _post('targets/$id/favorite');
+  }
+
+  /// Update target progress
+  Future<void> updateTargetProgress(int id, {int? capturedSubs, double? totalIntegrationSecs}) async {
+    await _put('targets/$id/progress', {
+      if (capturedSubs != null) 'capturedSubs': capturedSubs,
+      if (totalIntegrationSecs != null) 'totalIntegrationSecs': totalIntegrationSecs,
+    });
+  }
+
+  /// Get favorite targets
+  Future<List<Map<String, dynamic>>> getFavoriteTargets() async {
+    final response = await _get('targets/favorites');
+    final targetsList = response['targets'] as List? ?? [];
+    return targetsList.cast<Map<String, dynamic>>();
+  }
+
+  /// Get targets by object type
+  Future<List<Map<String, dynamic>>> getTargetsByType(String objectType) async {
+    final response = await _get('targets/by-type', {'type': objectType});
+    final targetsList = response['targets'] as List? ?? [];
+    return targetsList.cast<Map<String, dynamic>>();
+  }
+
+  /// Get targets by priority
+  Future<List<Map<String, dynamic>>> getTargetsByPriority(int priority) async {
+    final response = await _get('targets/by-priority', {'priority': priority.toString()});
+    final targetsList = response['targets'] as List? ?? [];
+    return targetsList.cast<Map<String, dynamic>>();
+  }
+
+  // =========================================================================
+  // Sequence Management (CRUD - separate from sequencer execution)
+  // =========================================================================
+
+  /// Get all sequences
+  Future<List<Map<String, dynamic>>> getSequenceList() async {
+    final response = await _get('sequence-management/list');
+    final sequencesList = response['sequences'] as List? ?? [];
+    return sequencesList.cast<Map<String, dynamic>>();
+  }
+
+  /// Get all sequence templates
+  Future<List<Map<String, dynamic>>> getSequenceTemplates() async {
+    final response = await _get('sequence-management/templates');
+    final sequencesList = response['sequences'] as List? ?? [];
+    return sequencesList.cast<Map<String, dynamic>>();
+  }
+
+  /// Get a specific sequence by ID
+  Future<Map<String, dynamic>?> getSequenceDetails(int id) async {
+    try {
+      final response = await _get('sequence-management/$id');
+      return response['sequence'] as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint('Failed to get sequence $id: $e');
+      return null;
+    }
+  }
+
+  /// Get nodes for a sequence
+  Future<List<Map<String, dynamic>>> getSequenceNodes(int sequenceId) async {
+    final response = await _get('sequence-management/$sequenceId/nodes');
+    final nodesList = response['nodes'] as List? ?? [];
+    return nodesList.cast<Map<String, dynamic>>();
+  }
+
+  /// Create a new sequence
+  Future<int> createSequence(Map<String, dynamic> sequence) async {
+    final response = await _post('sequence-management', sequence);
+    return response['id'] as int;
+  }
+
+  /// Update an existing sequence
+  Future<void> updateSequence(int id, Map<String, dynamic> sequence) async {
+    await _put('sequence-management/$id', sequence);
+  }
+
+  /// Delete a sequence
+  Future<void> deleteSequence(int id) async {
+    await _delete('sequence-management/$id');
+  }
+
+  /// Duplicate a sequence
+  Future<int> duplicateSequence(int sourceId, String newName) async {
+    final response = await _post('sequence-management/$sourceId/duplicate', {'newName': newName});
+    return response['id'] as int;
+  }
+
+  /// Create a new sequence node
+  Future<void> createSequenceNode(int sequenceId, Map<String, dynamic> node) async {
+    await _post('sequence-management/$sequenceId/nodes', node);
+  }
+
+  /// Update a sequence node
+  Future<void> updateSequenceNode(String nodeId, Map<String, dynamic> node) async {
+    await _put('sequence-management/nodes/$nodeId', node);
+  }
+
+  /// Delete a sequence node
+  Future<void> deleteSequenceNode(String nodeId) async {
+    await _delete('sequence-management/nodes/$nodeId');
+  }
+
+  /// Reorder sequence nodes
+  Future<void> reorderSequenceNodes(int sequenceId, List<String> nodeIds) async {
+    await _post('sequence-management/$sequenceId/reorder', {'nodeIds': nodeIds});
+  }
+
+  // =========================================================================
+  // Flat Wizard
+  // =========================================================================
+
+  /// Calibrate a single filter for flat frames
+  Future<Map<String, dynamic>> flatWizardCalibrateFilter({
+    required String deviceId,
+    required String filter,
+    required int targetAdu,
+    required int tolerance,
+    double minExposure = 0.001,
+    double maxExposure = 30.0,
+    int? gain,
+    int binning = 1,
+  }) async {
+    final response = await _post('flat-wizard/calibrate', {
+      'deviceId': deviceId,
+      'filter': filter,
+      'targetAdu': targetAdu,
+      'tolerance': tolerance,
+      'minExposure': minExposure,
+      'maxExposure': maxExposure,
+      if (gain != null) 'gain': gain,
+      'binning': binning,
+    });
+    return response;
+  }
+
+  /// Calibrate multiple filters for flat frames
+  Future<Map<String, dynamic>> flatWizardCalibrateMultiple({
+    required String deviceId,
+    required List<String> filters,
+    required int targetAdu,
+    required int tolerance,
+    double minExposure = 0.001,
+    double maxExposure = 30.0,
+    int? gain,
+    int binning = 1,
+  }) async {
+    final response = await _post('flat-wizard/calibrate-multi', {
+      'deviceId': deviceId,
+      'filters': filters,
+      'targetAdu': targetAdu,
+      'tolerance': tolerance,
+      'minExposure': minExposure,
+      'maxExposure': maxExposure,
+      if (gain != null) 'gain': gain,
+      'binning': binning,
+    });
+    return response;
+  }
+
+  /// Generate a flat frame sequence from calibration results
+  Future<Map<String, dynamic>> flatWizardGenerateSequence({
+    required List<Map<String, dynamic>> calibrations,
+    required int framesPerFilter,
+    String sequenceName = 'Flat Frames',
+    bool dither = false,
+  }) async {
+    final response = await _post('flat-wizard/generate-sequence', {
+      'calibrations': calibrations,
+      'framesPerFilter': framesPerFilter,
+      'sequenceName': sequenceName,
+      'dither': dither,
+    });
+    return response;
+  }
+
+  // =========================================================================
+  // Mosaic Planning
+  // =========================================================================
+
+  /// Generate mosaic panels
+  Future<Map<String, dynamic>> mosaicGeneratePanels(Map<String, dynamic> config) async {
+    final response = await _post('mosaic/generate-panels', config);
+    return response;
+  }
+
+  /// Generate a mosaic sequence
+  Future<Map<String, dynamic>> mosaicGenerateSequence({
+    required Map<String, dynamic> config,
+    required Map<String, dynamic> exposureSettings,
+    required Map<String, dynamic> options,
+  }) async {
+    final response = await _post('mosaic/generate-sequence', {
+      'config': config,
+      'exposureSettings': exposureSettings,
+      'options': options,
+    });
+    return response;
+  }
+
+  /// Calculate mosaic area
+  Future<Map<String, dynamic>> mosaicCalculateArea(Map<String, dynamic> config) async {
+    final response = await _post('mosaic/calculate-area', config);
+    return response;
+  }
+
+  /// Validate mosaic configuration
+  Future<Map<String, dynamic>> mosaicValidate(Map<String, dynamic> config) async {
+    final response = await _post('mosaic/validate', config);
+    return response;
+  }
+
+  // =========================================================================
+  // Sessions & Analytics
+  // =========================================================================
+
+  /// Get all imaging sessions
+  Future<List<Map<String, dynamic>>> getAllSessions() async {
+    final response = await _get('sessions');
+    final sessionsList = response['sessions'] as List? ?? [];
+    return sessionsList.cast<Map<String, dynamic>>();
+  }
+
+  /// Get active session
+  Future<Map<String, dynamic>?> getActiveSession() async {
+    try {
+      final response = await _get('sessions/active');
+      return response['session'] as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint('Failed to get active session: $e');
+      return null;
+    }
+  }
+
+  /// Get session by ID
+  Future<Map<String, dynamic>?> getSessionById(int id) async {
+    try {
+      final response = await _get('sessions/$id');
+      return response['session'] as Map<String, dynamic>?;
+    } catch (e) {
+      debugPrint('Failed to get session $id: $e');
+      return null;
+    }
+  }
+
+  /// Create a new session
+  Future<int> createSession(Map<String, dynamic> session) async {
+    final response = await _post('sessions', session);
+    return response['id'] as int;
+  }
+
+  /// Get session statistics
+  Future<Map<String, dynamic>> getSessionStats(int sessionId) async {
+    final response = await _get('sessions/$sessionId/stats');
+    return response['stats'] as Map<String, dynamic>? ?? {};
+  }
+
+  /// Get analytics summary
+  Future<Map<String, dynamic>> getAnalyticsSummary({DateTime? startDate, DateTime? endDate}) async {
+    final params = <String, dynamic>{};
+    if (startDate != null) params['startDate'] = startDate.millisecondsSinceEpoch.toString();
+    if (endDate != null) params['endDate'] = endDate.millisecondsSinceEpoch.toString();
+    final response = await _get('analytics/summary', params.isEmpty ? null : params);
+    return response;
+  }
+
+  /// Get total integration time
+  Future<Map<String, dynamic>> getTotalIntegrationTime({DateTime? startDate, DateTime? endDate}) async {
+    final params = <String, dynamic>{};
+    if (startDate != null) params['startDate'] = startDate.millisecondsSinceEpoch.toString();
+    if (endDate != null) params['endDate'] = endDate.millisecondsSinceEpoch.toString();
+    final response = await _get('analytics/integration-time', params.isEmpty ? null : params);
+    return response;
+  }
+
+  // =========================================================================
+  // Weather & Radar
+  // =========================================================================
+
+  /// Get weather radar data
+  Future<Map<String, dynamic>> getWeatherRadar(double lat, double lon, {bool forceRefresh = false}) async {
+    final response = await _get('weather/radar', {
+      'lat': lat.toString(),
+      'lon': lon.toString(),
+      if (forceRefresh) 'refresh': 'true',
+    });
+    return response;
+  }
+
+  /// Get weather alerts
+  Future<List<Map<String, dynamic>>> getWeatherAlerts() async {
+    final response = await _get('weather/alerts');
+    final alertsList = response['alerts'] as List? ?? [];
+    return alertsList.cast<Map<String, dynamic>>();
+  }
+
+  /// Check safe imaging conditions
+  Future<Map<String, dynamic>> checkSafeImaging() async {
+    final response = await _get('weather/safe-imaging');
+    return response;
+  }
+
+  /// Get weather settings
+  Future<Map<String, dynamic>> getWeatherSettings() async {
+    final response = await _get('weather/settings');
+    return response['settings'] as Map<String, dynamic>? ?? {};
+  }
+
+  /// Update weather settings
+  Future<void> updateWeatherSettings(Map<String, dynamic> settings) async {
+    await _post('weather/settings', settings);
+  }
+
+  /// Clear weather cache
+  Future<void> clearWeatherCache() async {
+    await _post('weather/clear-cache');
+  }
+
+  // =========================================================================
+  // Target Suggestions
+  // =========================================================================
+
+  /// Get target suggestions for tonight
+  Future<Map<String, dynamic>> getSuggestionsForTonight({
+    double? minAltitude,
+    double? minScore,
+    int? maxResults,
+    String? sortMode,
+    bool? prioritizeIncomplete,
+    List<String>? objectTypes,
+  }) async {
+    final params = <String, dynamic>{};
+    if (minAltitude != null) params['minAltitude'] = minAltitude.toString();
+    if (minScore != null) params['minScore'] = minScore.toString();
+    if (maxResults != null) params['maxResults'] = maxResults.toString();
+    if (sortMode != null) params['sortMode'] = sortMode;
+    if (prioritizeIncomplete != null) params['prioritizeIncomplete'] = prioritizeIncomplete.toString();
+    if (objectTypes != null && objectTypes.isNotEmpty) params['objectTypes'] = objectTypes.join(',');
+    final response = await _get('suggestions/tonight', params.isEmpty ? null : params);
+    return response;
+  }
+
+  /// Get target score
+  Future<Map<String, dynamic>> getTargetScore(int targetId) async {
+    final response = await _get('suggestions/score/$targetId');
+    return response;
+  }
+
+  // =========================================================================
+  // Transient Alerts
+  // =========================================================================
+
+  /// Get active transient alerts
+  Future<Map<String, dynamic>> getActiveTransients() async {
+    final response = await _get('transients');
+    return response;
+  }
+
+  /// Get transient settings
+  Future<Map<String, dynamic>> getTransientSettings() async {
+    final response = await _get('transients/settings');
+    return response['settings'] as Map<String, dynamic>? ?? {};
+  }
+
+  /// Update transient settings
+  Future<void> updateTransientSettings(Map<String, dynamic> settings) async {
+    await _post('transients/settings', settings);
+  }
+
+  /// Queue a transient for observation
+  Future<void> queueTransient(String transientId) async {
+    await _post('transients/$transientId/queue');
+  }
+
+  /// Dismiss a transient
+  Future<void> dismissTransient(String transientId) async {
+    await _post('transients/$transientId/dismiss');
+  }
+
+  /// Refresh transient alerts
+  Future<void> refreshTransientAlerts() async {
+    await _post('transients/refresh');
+  }
+
+  /// Get queued transients
+  Future<Map<String, dynamic>> getQueuedTransients() async {
+    final response = await _get('transients/queued');
+    return response;
+  }
+
+  // =========================================================================
+  // Backup & Restore
+  // =========================================================================
+
+  /// List available backups
+  Future<List<Map<String, dynamic>>> listBackups() async {
+    final response = await _get('backup/list');
+    final backupsList = response['backups'] as List? ?? [];
+    return backupsList.cast<Map<String, dynamic>>();
+  }
+
+  /// Create a new backup
+  Future<Map<String, dynamic>> createBackup({String? customPath, bool autoSave = false}) async {
+    final response = await _post('backup/create', {
+      if (customPath != null) 'customPath': customPath,
+      'autoSave': autoSave,
+    });
+    return response;
+  }
+
+  /// Restore from a backup
+  Future<Map<String, dynamic>> restoreBackup(String filePath, {bool replaceExisting = false}) async {
+    final response = await _post('backup/restore', {
+      'filePath': filePath,
+      'replaceExisting': replaceExisting,
+    });
+    return response;
+  }
+
+  /// Delete a backup
+  Future<void> deleteBackup(String backupId) async {
+    await _delete('backup/$backupId');
+  }
+
+  /// Get backup metadata
+  Future<Map<String, dynamic>> getBackupMetadata(String backupId) async {
+    final response = await _get('backup/$backupId/metadata');
+    return response;
+  }
+
+  /// Download backup file bytes
+  Future<Uint8List> downloadBackup(String backupId) async {
+    return _retryableRequest(() async {
+      final uri = Uri.parse('http://$serverHost:$serverPort/api/backup/$backupId/download');
+
+      final request = await _httpClient.getUrl(uri);
+
+      // Add authentication headers
+      final headers = _addAuthHeaders({});
+      headers.forEach((key, value) {
+        request.headers.set(key, value);
+      });
+
+      final response = await request.close();
+
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}: Failed to download backup');
+      }
+
+      final bytes = await consolidateHttpClientResponseBytes(response);
+      return Uint8List.fromList(bytes);
+    });
+  }
+
+  // =========================================================================
+  // Framing & Centering
+  // =========================================================================
+
+  /// Slew to target coordinates
+  Future<void> slewToTarget(double ra, double dec) async {
+    await _post('framing/slew-to-target', {
+      'ra': ra,
+      'dec': dec,
+    });
+  }
+
+  /// Center on target with plate solving
+  Future<Map<String, dynamic>> centerOnTarget({
+    required double ra,
+    required double dec,
+    int? maxIterations,
+    double? toleranceArcsec,
+    double? exposureTime,
+    int? binning,
+    int? gain,
+    bool? syncMount,
+  }) async {
+    final response = await _post('framing/center-on-target', {
+      'ra': ra,
+      'dec': dec,
+      if (maxIterations != null) 'maxIterations': maxIterations,
+      if (toleranceArcsec != null) 'toleranceArcsec': toleranceArcsec,
+      if (exposureTime != null) 'exposureTime': exposureTime,
+      if (binning != null) 'binning': binning,
+      if (gain != null) 'gain': gain,
+      if (syncMount != null) 'syncMount': syncMount,
+    });
+    return response;
+  }
+
+  /// Sync mount to coordinates
+  Future<void> syncMountToCoordinates(double ra, double dec) async {
+    await _post('framing/sync', {
+      'ra': ra,
+      'dec': dec,
+    });
+  }
+
+  /// Get current mount position
+  Future<Map<String, dynamic>> getCurrentPosition() async {
+    final response = await _get('framing/current-position');
+    return response;
+  }
+
+  /// Rotate to angle
+  Future<void> rotateTo(double angle) async {
+    await _post('framing/rotate-to', {'angle': angle});
+  }
+
+  /// Abort current slew
+  Future<void> abortSlew() async {
+    await _post('framing/abort-slew');
+  }
+
+  /// Park the mount
+  Future<void> parkMountFraming() async {
+    await _post('framing/park');
+  }
+
+  /// Unpark the mount
+  Future<void> unparkMountFraming() async {
+    await _post('framing/unpark');
+  }
+
+  // ===========================================================================
+  // Dome Control
+  // ===========================================================================
+
+  /// Open dome shutter
+  Future<void> domeOpen() async {
+    await _post('dome/open');
+  }
+
+  /// Close dome shutter
+  Future<void> domeClose() async {
+    await _post('dome/close');
+  }
+
+  /// Slew dome to azimuth
+  Future<void> domeSlew(double azimuth) async {
+    await _post('dome/slew', {'azimuth': azimuth});
+  }
+
+  /// Enable/disable dome-mount sync
+  Future<void> domeSync(bool enable) async {
+    await _post('dome/sync', {'enable': enable});
+  }
+
+  /// Park dome
+  Future<void> domePark() async {
+    await _post('dome/park');
+  }
+
+  /// Move dome to home position
+  Future<void> domeHome() async {
+    await _post('dome/home');
+  }
+
+  /// Halt dome movement
+  Future<void> domeHalt() async {
+    await _post('dome/halt');
+  }
+
+  /// Get dome status
+  Future<Map<String, dynamic>> getDomeStatus() async {
+    return await _get('dome/status');
+  }
+
+  /// Get dome capabilities
+  Future<Map<String, dynamic>> getDomeCapabilities() async {
+    return await _get('dome/capabilities');
+  }
+
+  // ===========================================================================
+  // Safety Monitor
+  // ===========================================================================
+
+  /// Get safety status
+  Future<Map<String, dynamic>> getSafetyStatus({String? deviceId}) async {
+    final query = deviceId != null ? '?deviceId=$deviceId' : '';
+    return await _get('safety/status$query');
+  }
+
+  /// Get safety settings
+  Future<Map<String, dynamic>> getSafetySettings() async {
+    return await _get('safety/settings');
+  }
+
+  /// Update safety settings
+  Future<void> updateSafetySettings(Map<String, dynamic> settings) async {
+    await _post('safety/settings', settings);
+  }
+
+  /// Acknowledge unsafe condition
+  Future<void> acknowledgeSafetyCondition({
+    required String reason,
+    int? durationMinutes,
+  }) async {
+    await _post('safety/acknowledge', {
+      'reason': reason,
+      if (durationMinutes != null) 'durationMinutes': durationMinutes,
+    });
+  }
+
+  // ===========================================================================
+  // Switch Control
+  // ===========================================================================
+
+  /// Get all switch states
+  Future<Map<String, dynamic>> getSwitchStatus() async {
+    return await _get('switch/status');
+  }
+
+  /// Set a switch value
+  Future<void> setSwitch({
+    required int switchId,
+    required dynamic value,
+  }) async {
+    await _post('switch/set', {
+      'switchId': switchId,
+      'value': value,
+    });
+  }
+
+  // ===========================================================================
+  // Cover Calibrator
+  // ===========================================================================
+
+  /// Get cover calibrator status
+  Future<Map<String, dynamic>> getCoverStatus() async {
+    return await _get('cover/status');
+  }
+
+  /// Open cover
+  Future<void> coverOpen() async {
+    await _post('cover/open');
+  }
+
+  /// Close cover
+  Future<void> coverClose() async {
+    await _post('cover/close');
+  }
+
+  /// Set calibrator brightness
+  Future<void> setCoverBrightness(int brightness) async {
+    await _post('cover/brightness', {'brightness': brightness});
+  }
+
+  /// Turn calibrator on
+  Future<void> calibratorOn({int? brightness}) async {
+    await _post('cover/calibrator-on', {
+      if (brightness != null) 'brightness': brightness,
+    });
+  }
+
+  /// Turn calibrator off
+  Future<void> calibratorOff() async {
+    await _post('cover/calibrator-off');
+  }
+
+  // ===========================================================================
+  // Scheduler (Astronomical Calculations)
+  // ===========================================================================
+
+  /// Calculate altitude of object at given time
+  Future<Map<String, dynamic>> getAltitude({
+    required double ra,
+    required double dec,
+    DateTime? time,
+  }) async {
+    var query = 'ra=$ra&dec=$dec';
+    if (time != null) {
+      query += '&time=${time.toIso8601String()}';
+    }
+    return await _get('scheduler/altitude?$query');
+  }
+
+  /// Get transit time for object
+  Future<Map<String, dynamic>> getTransitTime({
+    required double ra,
+    required double dec,
+  }) async {
+    return await _get('scheduler/transit-time?ra=$ra&dec=$dec');
+  }
+
+  /// Get rise and set times for object
+  Future<Map<String, dynamic>> getRiseSetTimes({
+    required double ra,
+    required double dec,
+    double? minAltitude,
+  }) async {
+    var query = 'ra=$ra&dec=$dec';
+    if (minAltitude != null) {
+      query += '&minAltitude=$minAltitude';
+    }
+    return await _get('scheduler/rise-set?$query');
+  }
+
+  /// Get hours object is above altitude
+  Future<Map<String, dynamic>> getHoursAboveHorizon({
+    required double ra,
+    required double dec,
+    double minAltitude = 30.0,
+  }) async {
+    return await _get('scheduler/hours-above-horizon?ra=$ra&dec=$dec&minAltitude=$minAltitude');
+  }
+
+  /// Optimize target order for imaging
+  Future<Map<String, dynamic>> optimizeTargets({
+    required List<int> targetIds,
+    String strategy = 'transit',
+    double minAltitude = 30.0,
+  }) async {
+    return await _post('scheduler/optimize-targets', {
+      'targetIds': targetIds,
+      'strategy': strategy,
+      'minAltitude': minAltitude,
+    });
+  }
+
+  /// Get twilight times for tonight
+  Future<Map<String, dynamic>> getTwilightTimes({DateTime? date}) async {
+    final query = date != null ? '?date=${date.toIso8601String()}' : '';
+    return await _get('scheduler/twilight-times$query');
+  }
+
+  /// Get moon information
+  Future<Map<String, dynamic>> getMoonInfo({DateTime? date}) async {
+    final query = date != null ? '?date=${date.toIso8601String()}' : '';
+    return await _get('scheduler/moon-info$query');
+  }
+
+  // ===========================================================================
+  // Focus Model
+  // ===========================================================================
+
+  /// Get all focus data points
+  Future<Map<String, dynamic>> getFocusModelData() async {
+    return await _get('focus-model/data');
+  }
+
+  /// Add a focus data point
+  Future<void> addFocusDataPoint({
+    required double temperature,
+    required int position,
+    double? hfr,
+    String? filter,
+  }) async {
+    await _post('focus-model/add-point', {
+      'temperature': temperature,
+      'position': position,
+      if (hfr != null) 'hfr': hfr,
+      if (filter != null) 'filter': filter,
+    });
+  }
+
+  /// Clear all focus data points
+  Future<void> clearFocusModelData() async {
+    await _delete('focus-model/clear');
+  }
+
+  /// Get current focus model
+  Future<Map<String, dynamic>> getFocusModel() async {
+    return await _get('focus-model/model');
+  }
+
+  /// Predict focus position for temperature
+  Future<Map<String, dynamic>> predictFocusPosition({
+    required double temperature,
+    String? filter,
+  }) async {
+    var query = 'temperature=$temperature';
+    if (filter != null) {
+      query += '&filter=$filter';
+    }
+    return await _get('focus-model/predict?$query');
+  }
+
+  /// Get per-filter focus offsets
+  Future<Map<String, dynamic>> getFilterFocusOffsets() async {
+    return await _get('focus-model/filter-offsets');
+  }
+
+  /// Set per-filter focus offsets
+  Future<void> setFilterFocusOffsets({
+    required String referenceFilter,
+    required Map<String, int> offsets,
+  }) async {
+    await _post('focus-model/filter-offsets', {
+      'referenceFilter': referenceFilter,
+      'offsets': offsets,
+    });
+  }
+
+  /// Check if refocus needed based on temperature drift
+  Future<Map<String, dynamic>> shouldRefocus({
+    required double currentTemp,
+    required double lastFocusTemp,
+    int? maxDriftSteps,
+  }) async {
+    var query = 'currentTemp=$currentTemp&lastFocusTemp=$lastFocusTemp';
+    if (maxDriftSteps != null) {
+      query += '&maxDriftSteps=$maxDriftSteps';
+    }
+    return await _get('focus-model/should-refocus?$query');
+  }
+
+  /// Export focus data as JSON
+  Future<Map<String, dynamic>> exportFocusModel() async {
+    return await _get('focus-model/export');
+  }
+
+  /// Import focus data from JSON
+  Future<void> importFocusModel(Map<String, dynamic> data) async {
+    await _post('focus-model/import', data);
+  }
+
+  // ===========================================================================
+  // PHD2 Additional Endpoints
+  // ===========================================================================
+
+  /// Get PHD2 star image
+  Future<Map<String, dynamic>> getPhd2StarImage({int size = 50}) async {
+    return await _get('phd2/star-image?size=$size');
+  }
+
+  /// Get PHD2 algorithm parameter names
+  Future<List<String>> getPhd2AlgoParamNames(String axis) async {
+    final response = await _get('phd2/algo-params?axis=$axis');
+    return (response['parameters'] as List).cast<String>();
+  }
+
+  /// Get PHD2 algorithm parameter value
+  Future<double> getPhd2AlgoParam({
+    required String axis,
+    required String name,
+  }) async {
+    final response = await _get('phd2/algo-param?axis=$axis&name=$name');
+    return (response['value'] as num).toDouble();
+  }
+
+  /// Set PHD2 algorithm parameter
+  Future<void> setPhd2AlgoParam({
+    required String axis,
+    required String name,
+    required double value,
+  }) async {
+    await _post('phd2/algo-param', {
+      'axis': axis,
+      'name': name,
+      'value': value,
+    });
+  }
+
+  // ===========================================================================
+  // Planetarium Support
+  // ===========================================================================
+
+  /// Get current mount position for planetarium FOV overlay
+  Future<Map<String, dynamic>> getPlanetariumMountPosition() async {
+    return await _get('planetarium/mount-position');
+  }
+
+  /// Get FOV configuration for planetarium
+  Future<Map<String, dynamic>> getPlanetariumFovConfig() async {
+    return await _get('planetarium/fov-config');
+  }
+
+  /// Slew to coordinates from planetarium
+  Future<void> planetariumSlewTo({
+    required double ra,
+    required double dec,
+  }) async {
+    await _post('planetarium/slew-to', {'ra': ra, 'dec': dec});
+  }
+
+  /// Center on coordinates from planetarium with plate solving
+  Future<Map<String, dynamic>> planetariumCenterOn({
+    required double ra,
+    required double dec,
+    int? maxIterations,
+    double? toleranceArcsec,
+  }) async {
+    return await _post('planetarium/center-on', {
+      'ra': ra,
+      'dec': dec,
+      if (maxIterations != null) 'maxIterations': maxIterations,
+      if (toleranceArcsec != null) 'toleranceArcsec': toleranceArcsec,
+    });
+  }
+
+  /// Sync mount to coordinates from planetarium
+  Future<void> planetariumSyncTo({
+    required double ra,
+    required double dec,
+  }) async {
+    await _post('planetarium/sync-to', {'ra': ra, 'dec': dec});
+  }
+
+  /// Search catalog for objects
+  Future<Map<String, dynamic>> planetariumCatalogSearch(String query) async {
+    return await _get('planetarium/catalog/search?query=${Uri.encodeComponent(query)}');
+  }
+
+  /// Get objects in a region
+  Future<Map<String, dynamic>> planetariumCatalogRegion({
+    required double ra,
+    required double dec,
+    required double radius,
+    double? minMagnitude,
+    double? maxMagnitude,
+    int? limit,
+  }) async {
+    var queryParams = 'ra=$ra&dec=$dec&radius=$radius';
+    if (minMagnitude != null) queryParams += '&minMagnitude=$minMagnitude';
+    if (maxMagnitude != null) queryParams += '&maxMagnitude=$maxMagnitude';
+    if (limit != null) queryParams += '&limit=$limit';
+    return await _get('planetarium/catalog/region?$queryParams');
+  }
+
+  /// Get detailed object info
+  Future<Map<String, dynamic>> planetariumGetObject(String objectId) async {
+    return await _get('planetarium/catalog/object/$objectId');
+  }
+
+  /// Get WebSocket subscription info for real-time updates
+  Future<Map<String, dynamic>> getPlanetariumSubscribeInfo() async {
+    return await _get('planetarium/subscribe-info');
+  }
+
+  /// Get observer location for planetarium calculations
+  Future<Map<String, dynamic>> getPlanetariumLocation() async {
+    return await _get('planetarium/location');
   }
 }
 

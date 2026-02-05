@@ -43,6 +43,30 @@ class HeadlessApiServer {
   late final ImagingHandlers _imagingHandlers;
   late final SessionHandlers _sessionHandlers;
 
+  // New feature parity handlers
+  late final TargetHandlers _targetHandlers;
+  late final SequenceManagementHandlers _sequenceManagementHandlers;
+  late final FlatWizardHandlers _flatWizardHandlers;
+  late final MosaicHandlers _mosaicHandlers;
+  late final AnalyticsHandlers _analyticsHandlers;
+  late final WeatherHandlers _weatherHandlers;
+  late final SuggestionHandlers _suggestionHandlers;
+  late final TransientHandlers _transientHandlers;
+  late final BackupHandlers _backupHandlers;
+  late final FramingHandlers _framingHandlers;
+
+  // Auxiliary device handlers
+  late final DomeHandlers _domeHandlers;
+  late final SafetyMonitorHandlers _safetyMonitorHandlers;
+  late final AuxiliaryHandlers _auxiliaryHandlers;
+
+  // Planetarium support for remote clients
+  late final PlanetariumHandlers _planetariumHandlers;
+
+  // Intelligent scheduler and focus model
+  late final SchedulerHandlers _schedulerHandlers;
+  late final FocusModelHandlers _focusModelHandlers;
+
   HeadlessApiServer({
     required this.port,
     required this.container,
@@ -68,6 +92,30 @@ class HeadlessApiServer {
     _profileHandlers = ProfileHandlers(container);
     _imagingHandlers = ImagingHandlers(container);
     _sessionHandlers = SessionHandlers(container);
+
+    // Initialize new feature parity handlers
+    _targetHandlers = TargetHandlers(container);
+    _sequenceManagementHandlers = SequenceManagementHandlers(container);
+    _flatWizardHandlers = FlatWizardHandlers(container);
+    _mosaicHandlers = MosaicHandlers(container);
+    _analyticsHandlers = AnalyticsHandlers(container);
+    _weatherHandlers = WeatherHandlers(container);
+    _suggestionHandlers = SuggestionHandlers(container);
+    _transientHandlers = TransientHandlers(container);
+    _backupHandlers = BackupHandlers(container);
+    _framingHandlers = FramingHandlers(container);
+
+    // Initialize auxiliary device handlers
+    _domeHandlers = DomeHandlers(container);
+    _safetyMonitorHandlers = SafetyMonitorHandlers(container);
+    _auxiliaryHandlers = AuxiliaryHandlers(container);
+
+    // Initialize planetarium handlers
+    _planetariumHandlers = PlanetariumHandlers(container);
+
+    // Initialize intelligent scheduler and focus model handlers
+    _schedulerHandlers = SchedulerHandlers(container);
+    _focusModelHandlers = FocusModelHandlers(container);
   }
 
   Future<void> start() async {
@@ -137,6 +185,10 @@ class HeadlessApiServer {
     router.get('/api/phd2/lock-position', _guidingHandlers.handlePhd2GetLockPosition);
     router.post('/api/phd2/loop', _guidingHandlers.handlePhd2Loop);
     router.post('/api/phd2/deselect-star', _guidingHandlers.handlePhd2DeselectStar);
+    router.get('/api/phd2/star-image', _guidingHandlers.handlePhd2GetStarImage);
+    router.get('/api/phd2/algo-params', _guidingHandlers.handlePhd2GetAlgoParamNames);
+    router.get('/api/phd2/algo-param', _guidingHandlers.handlePhd2GetAlgoParam);
+    router.post('/api/phd2/algo-param', _guidingHandlers.handlePhd2SetAlgoParam);
 
     // Plate Solving
     router.post('/api/plate-solve', _imagingHandlers.handlePlateSolve);
@@ -215,6 +267,198 @@ class HeadlessApiServer {
     router.get('/api/sessions/<sessionId>/images', _sessionHandlers.handleGetSessionImages);
     router.get('/api/images/<imageId>/thumbnail', _sessionHandlers.handleGetImageThumbnail);
     router.get('/api/images/<imageId>/download', _sessionHandlers.handleDownloadImage);
+
+    // ===========================================================================
+    // Target Management
+    // ===========================================================================
+    router.get('/api/targets', _targetHandlers.handleGetAllTargets);
+    router.get('/api/targets/favorites', _targetHandlers.handleGetFavoriteTargets);
+    router.get('/api/targets/search', _targetHandlers.handleSearchTargets);
+    router.get('/api/targets/by-type', _targetHandlers.handleGetTargetsByType);
+    router.get('/api/targets/by-priority', _targetHandlers.handleGetTargetsByPriority);
+    router.get('/api/targets/<id>', _targetHandlers.handleGetTargetById);
+    router.post('/api/targets', _targetHandlers.handleCreateTarget);
+    router.put('/api/targets/<id>', _targetHandlers.handleUpdateTarget);
+    router.delete('/api/targets/<id>', _targetHandlers.handleDeleteTarget);
+    router.post('/api/targets/<id>/favorite', _targetHandlers.handleToggleFavorite);
+    router.put('/api/targets/<id>/progress', _targetHandlers.handleUpdateProgress);
+
+    // ===========================================================================
+    // Sequence Management (CRUD - separate from sequencer execution)
+    // ===========================================================================
+    router.get('/api/sequence-management/list', _sequenceManagementHandlers.handleGetAllSequences);
+    router.get('/api/sequence-management/templates', _sequenceManagementHandlers.handleGetAllTemplates);
+    router.get('/api/sequence-management/<id>', _sequenceManagementHandlers.handleGetSequenceById);
+    router.get('/api/sequence-management/<id>/nodes', _sequenceManagementHandlers.handleGetNodesForSequence);
+    router.get('/api/sequence-management/<id>/children', _sequenceManagementHandlers.handleGetChildNodes);
+    router.post('/api/sequence-management', _sequenceManagementHandlers.handleCreateSequence);
+    router.put('/api/sequence-management/<id>', _sequenceManagementHandlers.handleUpdateSequence);
+    router.delete('/api/sequence-management/<id>', _sequenceManagementHandlers.handleDeleteSequence);
+    router.post('/api/sequence-management/<id>/duplicate', _sequenceManagementHandlers.handleDuplicateSequence);
+    router.post('/api/sequence-management/<id>/nodes', _sequenceManagementHandlers.handleCreateNode);
+    router.put('/api/sequence-management/nodes/<nodeId>', _sequenceManagementHandlers.handleUpdateNode);
+    router.delete('/api/sequence-management/nodes/<nodeId>', _sequenceManagementHandlers.handleDeleteNode);
+    router.post('/api/sequence-management/<id>/reorder', _sequenceManagementHandlers.handleReorderNodes);
+    router.post('/api/sequence-management/nodes/<nodeId>/enabled', _sequenceManagementHandlers.handleSetNodeEnabled);
+
+    // ===========================================================================
+    // Flat Wizard
+    // ===========================================================================
+    router.post('/api/flat-wizard/calibrate', _flatWizardHandlers.handleCalibrateFilter);
+    router.post('/api/flat-wizard/calibrate-multi', _flatWizardHandlers.handleCalibrateMultipleFilters);
+    router.post('/api/flat-wizard/generate-sequence', _flatWizardHandlers.handleGenerateSequence);
+    router.post('/api/flat-wizard/quick-calibrate', _flatWizardHandlers.handleQuickCalibrate);
+
+    // ===========================================================================
+    // Mosaic Planning
+    // ===========================================================================
+    router.post('/api/mosaic/generate-panels', _mosaicHandlers.handleGeneratePanels);
+    router.post('/api/mosaic/generate-sequence', _mosaicHandlers.handleGenerateSequence);
+    router.post('/api/mosaic/calculate-area', _mosaicHandlers.handleCalculateArea);
+    router.post('/api/mosaic/validate', _mosaicHandlers.handleValidateMosaic);
+    router.post('/api/mosaic/estimate-time', _mosaicHandlers.handleEstimateTime);
+
+    // ===========================================================================
+    // Sessions & Analytics
+    // ===========================================================================
+    router.get('/api/sessions', _analyticsHandlers.handleGetAllSessions);
+    router.get('/api/sessions/active', _analyticsHandlers.handleGetActiveSession);
+    router.get('/api/sessions/recent', _analyticsHandlers.handleGetRecentSessions);
+    router.get('/api/sessions/<id>', _analyticsHandlers.handleGetSessionById);
+    router.get('/api/sessions/<id>/stats', _analyticsHandlers.handleGetSessionStats);
+    router.get('/api/sessions/target/<targetId>', _analyticsHandlers.handleGetSessionsForTarget);
+    router.post('/api/sessions', _analyticsHandlers.handleCreateSession);
+    router.put('/api/sessions/<id>', _analyticsHandlers.handleUpdateSession);
+    router.post('/api/sessions/<id>/end', _analyticsHandlers.handleEndSession);
+    router.delete('/api/sessions/<id>', _analyticsHandlers.handleDeleteSession);
+    router.get('/api/analytics/summary', _analyticsHandlers.handleGetAnalyticsSummary);
+    router.get('/api/analytics/integration-time', _analyticsHandlers.handleGetTotalIntegrationTime);
+    router.get('/api/analytics/target-statistics', _analyticsHandlers.handleGetTargetStatistics);
+
+    // ===========================================================================
+    // Weather & Radar
+    // ===========================================================================
+    router.get('/api/weather/radar', _weatherHandlers.handleGetRadarData);
+    router.get('/api/weather/forecast', _weatherHandlers.handleGetForecast);
+    router.get('/api/weather/alerts', _weatherHandlers.handleGetAlerts);
+    router.get('/api/weather/cloud-cover', _weatherHandlers.handleGetCloudCover);
+    router.get('/api/weather/settings', _weatherHandlers.handleGetSettings);
+    router.post('/api/weather/settings', _weatherHandlers.handleUpdateSettings);
+    router.get('/api/weather/safe-imaging', _weatherHandlers.handleCheckSafeImaging);
+    router.post('/api/weather/clear-cache', _weatherHandlers.handleClearCache);
+
+    // ===========================================================================
+    // Target Suggestions
+    // ===========================================================================
+    router.get('/api/suggestions/tonight', _suggestionHandlers.handleGetSuggestionsForTonight);
+    router.get('/api/suggestions/config', _suggestionHandlers.handleGetConfig);
+    router.get('/api/suggestions/score/<targetId>', _suggestionHandlers.handleGetTargetScore);
+
+    // ===========================================================================
+    // Transient Alerts
+    // ===========================================================================
+    router.get('/api/transients', _transientHandlers.handleGetActiveTransients);
+    router.get('/api/transients/settings', _transientHandlers.handleGetSettings);
+    router.post('/api/transients/settings', _transientHandlers.handleUpdateSettings);
+    router.get('/api/transients/queued', _transientHandlers.handleGetQueued);
+    router.post('/api/transients/<id>/queue', _transientHandlers.handleQueueTransient);
+    router.post('/api/transients/<id>/dismiss', _transientHandlers.handleDismissTransient);
+    router.post('/api/transients/refresh', _transientHandlers.handleRefreshAlerts);
+
+    // ===========================================================================
+    // Backup & Restore
+    // ===========================================================================
+    router.get('/api/backup/list', _backupHandlers.handleListBackups);
+    router.post('/api/backup/create', _backupHandlers.handleCreateBackup);
+    router.post('/api/backup/restore', _backupHandlers.handleRestoreBackup);
+    router.post('/api/backup/auto-save', _backupHandlers.handleAutoSaveBackup);
+    router.get('/api/backup/<id>/metadata', _backupHandlers.handleGetBackupMetadata);
+    router.get('/api/backup/<id>/download', _backupHandlers.handleDownloadBackup);
+    router.delete('/api/backup/<id>', _backupHandlers.handleDeleteBackup);
+
+    // ===========================================================================
+    // Framing & Centering
+    // ===========================================================================
+    router.post('/api/framing/slew-to-target', _framingHandlers.handleSlewToTarget);
+    router.post('/api/framing/center-on-target', _framingHandlers.handleCenterOnTarget);
+    router.post('/api/framing/sync', _framingHandlers.handleSyncMount);
+    router.get('/api/framing/current-position', _framingHandlers.handleGetCurrentPosition);
+    router.post('/api/framing/rotate-to', _framingHandlers.handleRotateTo);
+    router.post('/api/framing/abort-slew', _framingHandlers.handleAbortSlew);
+    router.post('/api/framing/park', _framingHandlers.handleParkMount);
+    router.post('/api/framing/unpark', _framingHandlers.handleUnparkMount);
+
+    // ===========================================================================
+    // Planetarium (remote client support)
+    // ===========================================================================
+    router.get('/api/planetarium/mount-position', _planetariumHandlers.handleGetMountPosition);
+    router.get('/api/planetarium/fov-config', _planetariumHandlers.handleGetFovConfig);
+    router.post('/api/planetarium/slew-to', _planetariumHandlers.handleSlewTo);
+    router.post('/api/planetarium/center-on', _planetariumHandlers.handleCenterOn);
+    router.post('/api/planetarium/sync-to', _planetariumHandlers.handleSyncTo);
+    router.get('/api/planetarium/catalog/search', _planetariumHandlers.handleCatalogSearch);
+    router.get('/api/planetarium/catalog/region', _planetariumHandlers.handleCatalogRegion);
+    router.get('/api/planetarium/catalog/object/<objectId>', _planetariumHandlers.handleGetCatalogObject);
+    router.get('/api/planetarium/subscribe-info', _planetariumHandlers.handleGetSubscribeInfo);
+    router.get('/api/planetarium/location', _planetariumHandlers.handleGetLocation);
+
+    // ===========================================================================
+    // Dome Control
+    // ===========================================================================
+    router.post('/api/dome/open', _domeHandlers.handleDomeOpen);
+    router.post('/api/dome/close', _domeHandlers.handleDomeClose);
+    router.post('/api/dome/slew', _domeHandlers.handleDomeSlew);
+    router.post('/api/dome/sync', _domeHandlers.handleDomeSync);
+    router.post('/api/dome/park', _domeHandlers.handleDomePark);
+    router.post('/api/dome/home', _domeHandlers.handleDomeHome);
+    router.post('/api/dome/halt', _domeHandlers.handleDomeHalt);
+    router.get('/api/dome/status', _domeHandlers.handleDomeStatus);
+    router.get('/api/dome/capabilities', _domeHandlers.handleDomeCapabilities);
+
+    // ===========================================================================
+    // Safety Monitor
+    // ===========================================================================
+    router.get('/api/safety/status', _safetyMonitorHandlers.handleSafetyStatus);
+    router.get('/api/safety/settings', _safetyMonitorHandlers.handleGetSafetySettings);
+    router.post('/api/safety/settings', _safetyMonitorHandlers.handleUpdateSafetySettings);
+    router.post('/api/safety/acknowledge', _safetyMonitorHandlers.handleAcknowledgeUnsafe);
+
+    // ===========================================================================
+    // Auxiliary Devices (Switch & Cover Calibrator)
+    // ===========================================================================
+    router.get('/api/switch/status', _auxiliaryHandlers.handleSwitchStatus);
+    router.post('/api/switch/set', _auxiliaryHandlers.handleSwitchSet);
+    router.get('/api/cover/status', _auxiliaryHandlers.handleCoverStatus);
+    router.post('/api/cover/open', _auxiliaryHandlers.handleCoverOpen);
+    router.post('/api/cover/close', _auxiliaryHandlers.handleCoverClose);
+    router.post('/api/cover/brightness', _auxiliaryHandlers.handleCoverBrightness);
+    router.post('/api/cover/calibrator-on', _auxiliaryHandlers.handleCalibratorOn);
+    router.post('/api/cover/calibrator-off', _auxiliaryHandlers.handleCalibratorOff);
+
+    // ===========================================================================
+    // Intelligent Scheduler
+    // ===========================================================================
+    router.get('/api/scheduler/altitude', _schedulerHandlers.handleCalculateAltitude);
+    router.get('/api/scheduler/transit-time', _schedulerHandlers.handleCalculateTransitTime);
+    router.get('/api/scheduler/rise-set', _schedulerHandlers.handleCalculateRiseSet);
+    router.get('/api/scheduler/hours-above-horizon', _schedulerHandlers.handleCalculateHoursAbove);
+    router.post('/api/scheduler/optimize-targets', _schedulerHandlers.handleOptimizeTargets);
+    router.get('/api/scheduler/twilight-times', _schedulerHandlers.handleGetTwilightTimes);
+    router.get('/api/scheduler/moon-info', _schedulerHandlers.handleGetMoonInfo);
+
+    // ===========================================================================
+    // Focus Model
+    // ===========================================================================
+    router.get('/api/focus-model/data', _focusModelHandlers.handleGetFocusData);
+    router.post('/api/focus-model/add-point', _focusModelHandlers.handleAddFocusPoint);
+    router.delete('/api/focus-model/clear', _focusModelHandlers.handleClearFocusData);
+    router.get('/api/focus-model/model', _focusModelHandlers.handleGetFocusModel);
+    router.get('/api/focus-model/predict', _focusModelHandlers.handlePredictFocus);
+    router.get('/api/focus-model/filter-offsets', _focusModelHandlers.handleGetFilterOffsets);
+    router.post('/api/focus-model/filter-offsets', _focusModelHandlers.handleSetFilterOffsets);
+    router.get('/api/focus-model/should-refocus', _focusModelHandlers.handleShouldRefocus);
+    router.get('/api/focus-model/export', _focusModelHandlers.handleExportFocusData);
+    router.post('/api/focus-model/import', _focusModelHandlers.handleImportFocusData);
 
     // WebSocket - support both paths for NetworkBackend compatibility
     router.get('/api/ws', webSocketHandler(_handleWebSocket));
@@ -313,35 +557,57 @@ class HeadlessApiServer {
 
   List<String> _getAvailableEndpoints() {
     return [
+      // Core
       'GET /api/info',
       'GET /api/status',
       'GET /api/devices',
       'GET /api/devices/connected',
       'POST /api/devices/connect',
       'POST /api/devices/disconnect',
+      // Camera
       'POST /api/camera/expose',
       'POST /api/camera/abort',
       'GET /api/camera/last-image',
       'POST /api/camera/cooling',
+      // Mount
       'POST /api/mount/slew',
       'POST /api/mount/sync',
       'POST /api/mount/park',
       'POST /api/mount/unpark',
+      // Focuser
       'POST /api/focuser/move-to',
       'POST /api/focuser/halt',
       'POST /api/focuser/autofocus/start',
       'POST /api/focuser/autofocus/cancel',
+      // Filter Wheel
       'POST /api/filter-wheel/position',
       'POST /api/filter-wheel/set-by-name',
+      // Rotator
       'POST /api/rotator/move-to',
       'POST /api/rotator/halt',
+      // PHD2
       'POST /api/phd2/connect',
       'POST /api/phd2/disconnect',
       'POST /api/phd2/start-guiding',
       'POST /api/phd2/stop-guiding',
       'POST /api/phd2/dither',
       'GET /api/phd2/status',
+      'POST /api/phd2/pause',
+      'POST /api/phd2/clear-calibration',
+      'POST /api/phd2/flip-calibration',
+      'POST /api/phd2/get-calibration-data',
+      'POST /api/phd2/find-star',
+      'POST /api/phd2/set-lock-position',
+      'GET /api/phd2/lock-position',
+      'POST /api/phd2/loop',
+      'POST /api/phd2/deselect-star',
+      'GET /api/phd2/star-image',
+      'GET /api/phd2/algo-params',
+      'GET /api/phd2/algo-param',
+      'POST /api/phd2/algo-param',
+      // Plate Solving
       'POST /api/plate-solve',
+      // Sequencer
       'GET /api/sequencer/status',
       'POST /api/sequencer/start',
       'POST /api/sequencer/stop',
@@ -350,31 +616,183 @@ class HeadlessApiServer {
       'POST /api/sequencer/skip',
       'POST /api/sequencer/reset',
       'POST /api/sequencer/load',
+      // Equipment Status
       'GET /api/equipment/camera/status',
       'GET /api/equipment/mount/status',
       'GET /api/equipment/focuser/status',
       'GET /api/equipment/filter-wheel/status',
       'GET /api/equipment/rotator/status',
+      // Equipment Capabilities
       'GET /api/equipment/camera/capabilities',
       'GET /api/equipment/mount/capabilities',
       'GET /api/equipment/focuser/capabilities',
       'GET /api/equipment/filter-wheel/capabilities',
       'GET /api/equipment/rotator/capabilities',
+      // Profiles
       'GET /api/profiles',
       'POST /api/profiles',
       'GET /api/profiles/active',
+      // Settings
       'GET /api/settings',
       'POST /api/settings',
       'GET /api/settings/location',
       'POST /api/settings/location',
+      // Imaging
       'POST /api/imaging/stats',
       'POST /api/imaging/stretch',
       'POST /api/imaging/save-fits',
       'POST /api/imaging/save-fits-from-capture',
+      // Polar Alignment
       'POST /api/polar-alignment/start',
       'POST /api/polar-alignment/stop',
+      // Session Images
       'GET /api/sessions/<sessionId>/images',
       'GET /api/images/<imageId>/thumbnail',
+      // Targets
+      'GET /api/targets',
+      'GET /api/targets/favorites',
+      'GET /api/targets/search',
+      'GET /api/targets/by-type',
+      'GET /api/targets/by-priority',
+      'GET /api/targets/<id>',
+      'POST /api/targets',
+      'PUT /api/targets/<id>',
+      'DELETE /api/targets/<id>',
+      'POST /api/targets/<id>/favorite',
+      'PUT /api/targets/<id>/progress',
+      // Sequence Management
+      'GET /api/sequence-management/list',
+      'GET /api/sequence-management/templates',
+      'GET /api/sequence-management/<id>',
+      'GET /api/sequence-management/<id>/nodes',
+      'GET /api/sequence-management/<id>/children',
+      'POST /api/sequence-management',
+      'PUT /api/sequence-management/<id>',
+      'DELETE /api/sequence-management/<id>',
+      'POST /api/sequence-management/<id>/duplicate',
+      'POST /api/sequence-management/<id>/nodes',
+      'PUT /api/sequence-management/nodes/<nodeId>',
+      'DELETE /api/sequence-management/nodes/<nodeId>',
+      'POST /api/sequence-management/<id>/reorder',
+      // Flat Wizard
+      'POST /api/flat-wizard/calibrate',
+      'POST /api/flat-wizard/calibrate-multi',
+      'POST /api/flat-wizard/generate-sequence',
+      'POST /api/flat-wizard/quick-calibrate',
+      // Mosaic
+      'POST /api/mosaic/generate-panels',
+      'POST /api/mosaic/generate-sequence',
+      'POST /api/mosaic/calculate-area',
+      'POST /api/mosaic/validate',
+      'POST /api/mosaic/estimate-time',
+      // Sessions & Analytics
+      'GET /api/sessions',
+      'GET /api/sessions/active',
+      'GET /api/sessions/recent',
+      'GET /api/sessions/<id>',
+      'GET /api/sessions/<id>/stats',
+      'GET /api/sessions/target/<targetId>',
+      'POST /api/sessions',
+      'PUT /api/sessions/<id>',
+      'POST /api/sessions/<id>/end',
+      'DELETE /api/sessions/<id>',
+      'GET /api/analytics/summary',
+      'GET /api/analytics/integration-time',
+      'GET /api/analytics/target-statistics',
+      // Weather
+      'GET /api/weather/radar',
+      'GET /api/weather/forecast',
+      'GET /api/weather/alerts',
+      'GET /api/weather/cloud-cover',
+      'GET /api/weather/settings',
+      'POST /api/weather/settings',
+      'GET /api/weather/safe-imaging',
+      'POST /api/weather/clear-cache',
+      // Suggestions
+      'GET /api/suggestions/tonight',
+      'GET /api/suggestions/config',
+      'GET /api/suggestions/score/<targetId>',
+      // Transients
+      'GET /api/transients',
+      'GET /api/transients/settings',
+      'POST /api/transients/settings',
+      'GET /api/transients/queued',
+      'POST /api/transients/<id>/queue',
+      'POST /api/transients/<id>/dismiss',
+      'POST /api/transients/refresh',
+      // Backup
+      'GET /api/backup/list',
+      'POST /api/backup/create',
+      'POST /api/backup/restore',
+      'POST /api/backup/auto-save',
+      'GET /api/backup/<id>/metadata',
+      'GET /api/backup/<id>/download',
+      'DELETE /api/backup/<id>',
+      // Framing
+      'POST /api/framing/slew-to-target',
+      'POST /api/framing/center-on-target',
+      'POST /api/framing/sync',
+      'GET /api/framing/current-position',
+      'POST /api/framing/rotate-to',
+      'POST /api/framing/abort-slew',
+      'POST /api/framing/park',
+      'POST /api/framing/unpark',
+      // Planetarium (remote client support)
+      'GET /api/planetarium/mount-position',
+      'GET /api/planetarium/fov-config',
+      'POST /api/planetarium/slew-to',
+      'POST /api/planetarium/center-on',
+      'POST /api/planetarium/sync-to',
+      'GET /api/planetarium/catalog/search',
+      'GET /api/planetarium/catalog/region',
+      'GET /api/planetarium/catalog/object/<objectId>',
+      'GET /api/planetarium/subscribe-info',
+      'GET /api/planetarium/location',
+      // Dome
+      'POST /api/dome/open',
+      'POST /api/dome/close',
+      'POST /api/dome/slew',
+      'POST /api/dome/sync',
+      'POST /api/dome/park',
+      'POST /api/dome/home',
+      'POST /api/dome/halt',
+      'GET /api/dome/status',
+      'GET /api/dome/capabilities',
+      // Safety Monitor
+      'GET /api/safety/status',
+      'GET /api/safety/settings',
+      'POST /api/safety/settings',
+      'POST /api/safety/acknowledge',
+      // Switch
+      'GET /api/switch/status',
+      'POST /api/switch/set',
+      // Cover Calibrator
+      'GET /api/cover/status',
+      'POST /api/cover/open',
+      'POST /api/cover/close',
+      'POST /api/cover/brightness',
+      'POST /api/cover/calibrator-on',
+      'POST /api/cover/calibrator-off',
+      // Intelligent Scheduler
+      'GET /api/scheduler/altitude',
+      'GET /api/scheduler/transit-time',
+      'GET /api/scheduler/rise-set',
+      'GET /api/scheduler/hours-above-horizon',
+      'POST /api/scheduler/optimize-targets',
+      'GET /api/scheduler/twilight-times',
+      'GET /api/scheduler/moon-info',
+      // Focus Model
+      'GET /api/focus-model/data',
+      'POST /api/focus-model/add-point',
+      'DELETE /api/focus-model/clear',
+      'GET /api/focus-model/model',
+      'GET /api/focus-model/predict',
+      'GET /api/focus-model/filter-offsets',
+      'POST /api/focus-model/filter-offsets',
+      'GET /api/focus-model/should-refocus',
+      'GET /api/focus-model/export',
+      'POST /api/focus-model/import',
+      // WebSocket
       'WS /api/ws',
       'WS /events',
     ];
