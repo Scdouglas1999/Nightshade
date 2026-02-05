@@ -107,10 +107,15 @@ class _AltitudePlotPainter extends CustomPainter {
       size.height - plotPadding.top - plotPadding.bottom,
     );
 
-    // Time range: 6 PM to 6 AM (12 hours centered on midnight)
-    final today = DateTime(now.year, now.month, now.day);
-    final startTime = today.add(const Duration(hours: 18)); // 6 PM
-    final endTime = today.add(const Duration(hours: 30)); // 6 AM next day
+    // Time range: 24 hours centered on the upcoming midnight
+    // Find the upcoming midnight: if before noon, use today's midnight (already passed)
+    // if after noon, use tomorrow's midnight
+    final todayMidnight = DateTime(now.year, now.month, now.day);
+    final upcomingMidnight = now.hour < 12
+        ? todayMidnight // midnight that just passed (for morning viewing)
+        : todayMidnight.add(const Duration(days: 1)); // upcoming midnight
+    final startTime = upcomingMidnight.subtract(const Duration(hours: 12)); // noon
+    final endTime = upcomingMidnight.add(const Duration(hours: 12)); // noon next day
 
     // Calculate twilight times
     final twilight = AstronomyCalculations.calculateTwilightTimes(
@@ -203,8 +208,8 @@ class _AltitudePlotPainter extends CustomPainter {
       );
     }
 
-    // Vertical grid lines every 2 hours
-    for (var hours = 0; hours <= 12; hours += 2) {
+    // Vertical grid lines every 4 hours
+    for (var hours = 0; hours <= 24; hours += 4) {
       final time = startTime.add(Duration(hours: hours));
       final x = _timeToX(time, startTime, endTime, plotRect);
       canvas.drawLine(
@@ -236,7 +241,7 @@ class _AltitudePlotPainter extends CustomPainter {
     var first = true;
 
     // Sample altitude every 10 minutes
-    final samples = 72; // 12 hours * 6 samples per hour
+    final samples = 144; // 24 hours * 6 samples per hour
     final interval = const Duration(minutes: 10);
 
     for (var i = 0; i <= samples; i++) {
@@ -379,10 +384,19 @@ class _AltitudePlotPainter extends CustomPainter {
       );
     }
 
-    // X-axis labels (time)
-    for (var hours = 0; hours <= 12; hours += 4) {
-      final time = startTime.add(Duration(hours: hours));
-      final label = hours == 0 ? '6PM' : hours == 6 ? '12AM' : '6AM';
+    // X-axis labels (time) - show key times across 24 hours centered on midnight
+    // startTime is noon, so: 0h=12PM, 6h=6PM, 12h=12AM, 18h=6AM, 24h=12PM
+    final timeLabels = {
+      0: '12PM',
+      6: '6PM',
+      12: '12AM',
+      18: '6AM',
+      24: '12PM',
+    };
+
+    for (final entry in timeLabels.entries) {
+      final time = startTime.add(Duration(hours: entry.key));
+      final label = entry.value;
 
       textPainter.text = TextSpan(
         text: label,

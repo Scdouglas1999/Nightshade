@@ -78,6 +78,12 @@ class SuggestionsScreen extends ConsumerWidget {
         Widget content;
         if (crossAxisCount == 1) {
           // Single column ListView for mobile
+          // Calculate card height based on available screen height
+          // We want roughly 1.5 cards visible at a time for easy scrolling
+          // while keeping altitude plots legible
+          final availableHeight = constraints.maxHeight;
+          final cardHeight = (availableHeight * 0.6).clamp(280.0, 420.0);
+
           content = ListView.builder(
             padding: isMobile
                 ? NightshadeTokens.screenPaddingCompact
@@ -86,14 +92,17 @@ class SuggestionsScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
-                child: SuggestionCard(
-                  suggestion: suggestions[index],
-                  onViewInFraming: () {
-                    _navigateToFraming(context, ref, suggestions[index]);
-                  },
-                  onAddToSequence: () {
-                    _showAddToSequenceDialog(context, ref, suggestions[index]);
-                  },
+                child: SizedBox(
+                  height: cardHeight,
+                  child: SuggestionCard(
+                    suggestion: suggestions[index],
+                    onViewInFraming: () {
+                      _navigateToFraming(context, ref, suggestions[index]);
+                    },
+                    onAddToSequence: () {
+                      _showAddToSequenceDialog(context, ref, suggestions[index]);
+                    },
+                  ),
                 ),
               );
             },
@@ -149,6 +158,10 @@ class SuggestionsScreen extends ConsumerWidget {
         final isMobile = width < NightshadeTokens.breakpointTablet;
         final crossAxisCount = isMobile ? 1 : 2;
 
+        // Match mobile card height calculation
+        final availableHeight = constraints.maxHeight;
+        final cardHeight = (availableHeight * 0.6).clamp(280.0, 420.0);
+
         // Show shimmer loading placeholders
         return ShimmerLoading(
           child: crossAxisCount == 1
@@ -156,11 +169,14 @@ class SuggestionsScreen extends ConsumerWidget {
                   padding: isMobile
                       ? NightshadeTokens.screenPaddingCompact
                       : NightshadeTokens.screenPadding,
-                  itemCount: 6,
+                  itemCount: 3,
                   itemBuilder: (context, index) {
                     return Padding(
                       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
-                      child: _SuggestionCardSkeleton(colors: colors),
+                      child: SizedBox(
+                        height: cardHeight,
+                        child: _SuggestionCardSkeleton(colors: colors),
+                      ),
                     );
                   },
                 )
@@ -446,7 +462,6 @@ class _SuggestionCardSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 140,
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: NightshadeTokens.borderRadiusLg,
@@ -460,21 +475,38 @@ class _SuggestionCardSkeleton extends StatelessWidget {
             children: [
               SkeletonBox(width: 150, height: 18),
               Spacer(),
-              SkeletonBox(width: 60, height: 24, borderRadius: NightshadeTokens.radiusFull),
+              SkeletonBox(width: 44, height: 44, borderRadius: NightshadeTokens.radiusFull),
             ],
           ),
           SizedBox(height: NightshadeTokens.spaceMd),
           SkeletonText(width: 200, height: 14),
           SizedBox(height: NightshadeTokens.spaceSm),
-          SkeletonText(width: double.infinity, height: 12, lines: 2),
-          Spacer(),
+          // Altitude plot placeholder - expands to fill available space
+          Expanded(
+            child: SkeletonBox(
+              width: double.infinity,
+              height: double.infinity,
+              borderRadius: NightshadeTokens.radiusSm,
+            ),
+          ),
+          SizedBox(height: NightshadeTokens.spaceSm),
           Row(
             children: [
-              SkeletonBox(width: 80, height: 20),
+              SkeletonBox(width: 60, height: 28),
               SizedBox(width: NightshadeTokens.spaceMd),
-              SkeletonBox(width: 80, height: 20),
+              SkeletonBox(width: 60, height: 28),
               SizedBox(width: NightshadeTokens.spaceMd),
-              SkeletonBox(width: 80, height: 20),
+              SkeletonBox(width: 60, height: 28),
+              SizedBox(width: NightshadeTokens.spaceMd),
+              SkeletonBox(width: 60, height: 28),
+            ],
+          ),
+          SizedBox(height: NightshadeTokens.spaceMd),
+          Row(
+            children: [
+              Expanded(child: SkeletonBox(width: double.infinity, height: 36)),
+              SizedBox(width: NightshadeTokens.spaceSm),
+              Expanded(child: SkeletonBox(width: double.infinity, height: 36)),
             ],
           ),
         ],

@@ -171,8 +171,6 @@ class _AppShellState extends ConsumerState<AppShell> {
           return 8;
         case '/weather':
           return 9;
-        case '/suggestions':
-          return 10;
         default:
           return 0;
       }
@@ -194,7 +192,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       '/analytics',
       '/flat-wizard',
       '/weather',
-      '/suggestions',
     ];
     if (index < routes.length) {
       try {

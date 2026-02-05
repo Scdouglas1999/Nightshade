@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -227,29 +229,38 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
 
         // Categories list
         Expanded(
-          child: ListView.builder(
-            controller: widget.scrollController,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: orderedCategories.length + 1, // +1 for create button
-            itemBuilder: (context, index) {
-              if (index == orderedCategories.length) {
-                return _buildCreateFromSelectionButton(isMobile: true);
-              }
-              final category = orderedCategories[index];
-              return _SnippetCategorySection(
-                category: category,
-                snippets: filteredByCategory[category]!,
-                colors: widget.colors,
-                categoryColor: _getCategoryColor(category),
-                categoryName: _getCategoryDisplayName(category),
-                categoryIcon: _getCategoryIcon(category),
-                getIcon: _getIcon,
-                isMobile: true,
-                onSnippetDragStart: widget.onSnippetDragStart,
-                onSnippetTap: widget.onSnippetTap,
-                onDeleteSnippet: _handleDeleteSnippet,
-              );
-            },
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.trackpad,
+              },
+            ),
+            child: ListView.builder(
+              controller: widget.scrollController,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: orderedCategories.length + 1, // +1 for create button
+              itemBuilder: (context, index) {
+                if (index == orderedCategories.length) {
+                  return _buildCreateFromSelectionButton(isMobile: true);
+                }
+                final category = orderedCategories[index];
+                return _SnippetCategorySection(
+                  category: category,
+                  snippets: filteredByCategory[category]!,
+                  colors: widget.colors,
+                  categoryColor: _getCategoryColor(category),
+                  categoryName: _getCategoryDisplayName(category),
+                  categoryIcon: _getCategoryIcon(category),
+                  getIcon: _getIcon,
+                  isMobile: true,
+                  onSnippetDragStart: widget.onSnippetDragStart,
+                  onSnippetTap: widget.onSnippetTap,
+                  onDeleteSnippet: _handleDeleteSnippet,
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -326,25 +337,34 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
 
           // Categories
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: orderedCategories.length,
-              itemBuilder: (context, index) {
-                final category = orderedCategories[index];
-                return _SnippetCategorySection(
-                  category: category,
-                  snippets: filteredByCategory[category]!,
-                  colors: widget.colors,
-                  categoryColor: _getCategoryColor(category),
-                  categoryName: _getCategoryDisplayName(category),
-                  categoryIcon: _getCategoryIcon(category),
-                  getIcon: _getIcon,
-                  isMobile: false,
-                  onSnippetDragStart: widget.onSnippetDragStart,
-                  onSnippetTap: widget.onSnippetTap,
-                  onDeleteSnippet: _handleDeleteSnippet,
-                );
-              },
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: {
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.trackpad,
+                },
+              ),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: orderedCategories.length,
+                itemBuilder: (context, index) {
+                  final category = orderedCategories[index];
+                  return _SnippetCategorySection(
+                    category: category,
+                    snippets: filteredByCategory[category]!,
+                    colors: widget.colors,
+                    categoryColor: _getCategoryColor(category),
+                    categoryName: _getCategoryDisplayName(category),
+                    categoryIcon: _getCategoryIcon(category),
+                    getIcon: _getIcon,
+                    isMobile: false,
+                    onSnippetDragStart: widget.onSnippetDragStart,
+                    onSnippetTap: widget.onSnippetTap,
+                    onDeleteSnippet: _handleDeleteSnippet,
+                  );
+                },
+              ),
             ),
           ),
 

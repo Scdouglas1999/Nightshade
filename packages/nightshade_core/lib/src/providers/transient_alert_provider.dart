@@ -4,12 +4,14 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../database/database.dart';
 import '../database/daos/settings_dao.dart';
 import '../models/alerts/transient_alert.dart';
 import '../models/target/target_models.dart';
 import '../services/logging_service.dart';
 import '../services/transient_alert_service.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'ui_notification_provider.dart';
 
@@ -219,11 +221,16 @@ const Duration _alertPollingInterval = Duration(minutes: 15);
 ///
 /// Fetches alerts immediately on subscription, then polls every 15 minutes.
 /// Alerts are filtered based on current settings.
+///
+/// In remote mode (NetworkBackend), fetches from the headless server API.
+/// In local mode, fetches directly from AAVSO/TNS APIs.
 final activeTransientAlertsProvider =
     StreamProvider.autoDispose<List<TransientAlert>>((ref) {
+  final backend = ref.watch(backendProvider);
   final service = ref.watch(transientAlertServiceProvider);
   final settings = ref.watch(transientAlertSettingsProvider);
   final logger = ref.watch(loggingServiceProvider);
+  final networkBackend = backend is NetworkBackend ? backend : null;
 
   // Create a controller for the stream
   final controller = StreamController<List<TransientAlert>>();
@@ -231,14 +238,29 @@ final activeTransientAlertsProvider =
   // Initial fetch
   Future<void> fetchAlerts() async {
     try {
-      final alerts = await service.getAllAlerts(settings);
+      List<TransientAlert> alerts;
+
+      if (networkBackend != null) {
+        // Fetch from headless server API
+        final response = await networkBackend.getActiveTransients();
+        final alertsJson = response['alerts'] as List<dynamic>? ?? [];
+        alerts = alertsJson.map((json) => _parseTransientAlertFromJson(json as Map<String, dynamic>)).toList();
+        logger.debug(
+          'Fetched ${alerts.length} transient alerts from remote server',
+          source: 'activeTransientAlertsProvider',
+        );
+      } else {
+        // Fetch directly from AAVSO/TNS APIs
+        alerts = await service.getAllAlerts(settings);
+        logger.debug(
+          'Fetched ${alerts.length} transient alerts from local service',
+          source: 'activeTransientAlertsProvider',
+        );
+      }
+
       if (!controller.isClosed) {
         controller.add(alerts);
       }
-      logger.debug(
-        'Fetched ${alerts.length} transient alerts',
-        source: 'activeTransientAlertsProvider',
-      );
     } catch (e) {
       logger.error(
         'Error fetching transient alerts: $e',
@@ -266,6 +288,32 @@ final activeTransientAlertsProvider =
 
   return controller.stream;
 });
+
+/// Parse a TransientAlert from JSON response
+TransientAlert _parseTransientAlertFromJson(Map<String, dynamic> json) {
+  return TransientAlert(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    type: TransientType.values.firstWhere(
+      (t) => t.name == json['type'],
+      orElse: () => TransientType.other,
+    ),
+    raHours: (json['raHours'] as num).toDouble(),
+    decDegrees: (json['decDegrees'] as num).toDouble(),
+    magnitude: json['magnitude'] != null ? (json['magnitude'] as num).toDouble() : null,
+    peakMagnitude: json['peakMagnitude'] != null ? (json['peakMagnitude'] as num).toDouble() : null,
+    discoveryTime: DateTime.fromMillisecondsSinceEpoch(json['discoveryTime'] as int),
+    lastUpdated: DateTime.fromMillisecondsSinceEpoch(json['lastUpdated'] as int),
+    source: TransientSource.values.firstWhere(
+      (s) => s.name == json['source'],
+      orElse: () => TransientSource.aavso,
+    ),
+    sourceUrl: json['sourceUrl'] as String?,
+    priority: json['priority'] as int? ?? 5,
+    classification: json['classification'] as String?,
+    notes: json['notes'] as String?,
+  );
+}
 
 // =============================================================================
 // Transient Alert States Provider

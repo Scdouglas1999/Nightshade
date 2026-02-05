@@ -6,6 +6,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide TargetSearchState, targetSearchProvider;
@@ -18,7 +19,12 @@ import 'package:nightshade_app/widgets/slew_dropdown_button.dart';
 import 'framing_altaz.dart';
 import '../../widgets/tutorial_keys/framing_keys.dart';
 import '../../widgets/contextual_tour_prompt.dart';
+import '../suggestions/widgets/suggestion_card.dart';
+import '../suggestions/widgets/suggestion_filters.dart';
 
+/// The main framing screen that contains two tabs:
+/// 1. Framing - For composing and framing astrophotography targets
+/// 2. Suggestions - For viewing tonight's target suggestions
 class FramingScreen extends ConsumerStatefulWidget {
   const FramingScreen({super.key});
 
@@ -26,7 +32,8 @@ class FramingScreen extends ConsumerStatefulWidget {
   ConsumerState<FramingScreen> createState() => _FramingScreenState();
 }
 
-class _FramingScreenState extends ConsumerState<FramingScreen> {
+class _FramingScreenState extends ConsumerState<FramingScreen>
+    with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _raController = TextEditingController();
@@ -34,9 +41,22 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
   Timer? _altAzTimer;
   (double, double)? _currentAltAz;
 
+  late TabController _tabController;
+
+  /// Currently selected tab index (0 = Framing, 1 = Suggestions)
+  int _currentTabIndex = 0;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) {
+        setState(() {
+          _currentTabIndex = _tabController.index;
+        });
+      }
+    });
     // Update alt/az every 10 seconds
     _altAzTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _updateAltAz();
@@ -65,6 +85,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _raController.dispose();
@@ -117,6 +138,98 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
     final searchState = ref.watch(targetSearchProvider);
     final equipmentResult = ref.watch(framingFOVProvider);
 
+    return Column(
+      children: [
+        // Tab bar header
+        _buildTabBar(colors),
+
+        // Tab content
+        Expanded(
+          child: IndexedStack(
+            index: _currentTabIndex,
+            children: [
+              // Tab 0: Framing
+              _buildFramingContent(colors, framingState, searchState, equipmentResult),
+              // Tab 1: Suggestions
+              _SuggestionsTab(
+                onTargetSelected: (suggestion) => _navigateToFramingWithTarget(suggestion),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds the tab bar header
+  Widget _buildTabBar(NightshadeColors colors) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: Row(
+        children: [
+          // Framing tab
+          _TabButton(
+            icon: LucideIcons.frame,
+            label: 'Framing',
+            isSelected: _currentTabIndex == 0,
+            colors: colors,
+            onTap: () {
+              _tabController.animateTo(0);
+              setState(() => _currentTabIndex = 0);
+            },
+          ),
+          // Suggestions tab
+          _TabButton(
+            icon: LucideIcons.lightbulb,
+            label: 'Suggestions',
+            isSelected: _currentTabIndex == 1,
+            colors: colors,
+            onTap: () {
+              _tabController.animateTo(1);
+              setState(() => _currentTabIndex = 1);
+            },
+          ),
+          const Spacer(),
+          // Quick actions based on current tab
+          if (_currentTabIndex == 1)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(LucideIcons.refreshCw, size: 18),
+                    onPressed: () {
+                      ref.read(refreshSuggestionsProvider.notifier).state++;
+                    },
+                    tooltip: 'Refresh suggestions',
+                    color: colors.textSecondary,
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(LucideIcons.slidersHorizontal, size: 18),
+                    onPressed: () => _showSuggestionFilterSheet(context, colors),
+                    tooltip: 'Filter options',
+                    color: colors.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds the main framing content (original framing UI)
+  Widget _buildFramingContent(
+    NightshadeColors colors,
+    FramingState framingState,
+    TargetSearchState searchState,
+    AsyncValue<FramingEquipmentResult> equipmentResult,
+  ) {
     return ContextualTourPrompt(
       screenId: 'framing',
       tourCategory: TutorialCategory.framingTour,
@@ -149,7 +262,6 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
             maxWidth: 500,
             side: ResizeSide.left,
             child: Container(
-              // width: 320, // Removed for ResizablePanel
               decoration: BoxDecoration(
                 color: colors.surface,
                 border: Border(left: BorderSide(color: colors.border)),
@@ -188,6 +300,43 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
         ],
       ),
     );
+  }
+
+  /// Shows the suggestion filter sheet
+  void _showSuggestionFilterSheet(BuildContext context, NightshadeColors colors) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(NightshadeTokens.radiusLg),
+        ),
+      ),
+      builder: (context) {
+        return const SuggestionFilters(showAsSheet: true);
+      },
+    );
+  }
+
+  /// Navigates to the framing tab with a selected target from suggestions
+  void _navigateToFramingWithTarget(TargetSuggestion suggestion) {
+    // Set the target in the framing provider
+    ref.read(framingProvider.notifier).setTargetCoordinates(
+      suggestion.raHours,
+      suggestion.decDegrees,
+      name: suggestion.targetName,
+    );
+
+    // Switch to framing tab
+    _tabController.animateTo(0);
+    setState(() => _currentTabIndex = 0);
+
+    // Update the search field and controllers
+    _searchController.text = suggestion.targetName;
+    _raController.text = CoordinateUtils.formatRA(suggestion.raHours);
+    _decController.text = CoordinateUtils.formatDec(suggestion.decDegrees);
+    _updateAltAz();
   }
 
   Widget _buildTargetSearch(NightshadeColors colors, TargetSearchState searchState) {
@@ -3838,6 +3987,473 @@ class _ExportMosaicButtonState extends ConsumerState<_ExportMosaicButton> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// TAB BAR BUTTON
+// =============================================================================
+
+/// A styled tab button for the framing screen tabs
+class _TabButton extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final NightshadeColors colors;
+  final VoidCallback onTap;
+
+  const _TabButton({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  State<_TabButton> createState() => _TabButtonState();
+}
+
+class _TabButtonState extends State<_TabButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: widget.isSelected
+                    ? widget.colors.primary
+                    : Colors.transparent,
+                width: 2,
+              ),
+            ),
+            color: _isHovered && !widget.isSelected
+                ? widget.colors.surfaceHover
+                : Colors.transparent,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.icon,
+                size: 16,
+                color: widget.isSelected
+                    ? widget.colors.primary
+                    : widget.colors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: widget.isSelected
+                      ? widget.colors.primary
+                      : widget.colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// SUGGESTIONS TAB
+// =============================================================================
+
+/// The suggestions tab content, integrated into the framing screen
+class _SuggestionsTab extends ConsumerWidget {
+  final void Function(TargetSuggestion suggestion) onTargetSelected;
+
+  const _SuggestionsTab({
+    required this.onTargetSelected,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+
+    return suggestionsAsync.when(
+      data: (suggestions) => _buildDataState(context, ref, colors, suggestions),
+      loading: () => _buildLoadingState(colors),
+      error: (error, stackTrace) => _buildErrorState(context, ref, colors, error),
+    );
+  }
+
+  Widget _buildDataState(
+    BuildContext context,
+    WidgetRef ref,
+    NightshadeColors colors,
+    List<TargetSuggestion> suggestions,
+  ) {
+    if (suggestions.isEmpty) {
+      return _buildEmptyState(context, ref, colors);
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+
+        // Determine column count based on width
+        // Mobile (< 600): single column
+        // Tablet (600-900): 2 columns
+        // Desktop (> 900): 2-3 columns
+        final int crossAxisCount;
+        if (width < NightshadeTokens.breakpointTablet) {
+          crossAxisCount = 1;
+        } else if (width < 1200) {
+          crossAxisCount = 2;
+        } else {
+          crossAxisCount = 3;
+        }
+
+        final isMobile = width < NightshadeTokens.breakpointTablet;
+
+        // On mobile, use RefreshIndicator for pull-to-refresh
+        Widget content;
+        if (crossAxisCount == 1) {
+          // Single column ListView for mobile
+          content = ListView.builder(
+            padding: isMobile
+                ? NightshadeTokens.screenPaddingCompact
+                : NightshadeTokens.screenPadding,
+            itemCount: suggestions.length,
+            itemBuilder: (context, index) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+                child: SuggestionCard(
+                  suggestion: suggestions[index],
+                  onViewInFraming: () => onTargetSelected(suggestions[index]),
+                  onAddToSequence: () {
+                    _addToSequence(context, ref, suggestions[index]);
+                  },
+                ),
+              );
+            },
+          );
+        } else {
+          // Grid layout for tablet/desktop
+          content = GridView.builder(
+            padding: NightshadeTokens.screenPadding,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: NightshadeTokens.spaceLg,
+              mainAxisSpacing: NightshadeTokens.spaceLg,
+              childAspectRatio: 1.6, // Cards are wider than tall
+            ),
+            itemCount: suggestions.length,
+            itemBuilder: (context, index) {
+              return SuggestionCard(
+                suggestion: suggestions[index],
+                onViewInFraming: () => onTargetSelected(suggestions[index]),
+                onAddToSequence: () {
+                  _addToSequence(context, ref, suggestions[index]);
+                },
+              );
+            },
+          );
+        }
+
+        // Wrap mobile layout with RefreshIndicator
+        if (isMobile) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              ref.read(refreshSuggestionsProvider.notifier).state++;
+              await ref.read(tonightSuggestionsProvider.future);
+            },
+            color: colors.primary,
+            backgroundColor: colors.surface,
+            child: content,
+          );
+        }
+
+        return content;
+      },
+    );
+  }
+
+  Widget _buildLoadingState(NightshadeColors colors) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final isMobile = width < NightshadeTokens.breakpointTablet;
+        final crossAxisCount = isMobile ? 1 : 2;
+
+        // Show shimmer loading placeholders
+        return ShimmerLoading(
+          child: crossAxisCount == 1
+              ? ListView.builder(
+                  padding: isMobile
+                      ? NightshadeTokens.screenPaddingCompact
+                      : NightshadeTokens.screenPadding,
+                  itemCount: 6,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+                      child: _SuggestionCardSkeleton(colors: colors),
+                    );
+                  },
+                )
+              : GridView.builder(
+                  padding: NightshadeTokens.screenPadding,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: NightshadeTokens.spaceLg,
+                    mainAxisSpacing: NightshadeTokens.spaceLg,
+                    childAspectRatio: 1.6,
+                  ),
+                  itemCount: 6,
+                  itemBuilder: (context, index) {
+                    return _SuggestionCardSkeleton(colors: colors);
+                  },
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, WidgetRef ref, NightshadeColors colors) {
+    // Check if location is configured
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final settings = settingsAsync.valueOrNull;
+    final hasLocation = settings != null &&
+        !(settings.latitude == 0.0 && settings.longitude == 0.0);
+
+    return Center(
+      child: Padding(
+        padding: NightshadeTokens.screenPadding,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              hasLocation ? LucideIcons.moonStar : LucideIcons.mapPin,
+              size: NightshadeTokens.icon2xl,
+              color: colors.textMuted,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            Text(
+              hasLocation
+                  ? 'No targets visible tonight'
+                  : 'Location not configured',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              hasLocation
+                  ? 'All targets in your database are below the minimum altitude or have low scores for tonight\'s conditions.'
+                  : 'Set your observer location in Settings to see target suggestions for your area.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceXl),
+            if (!hasLocation)
+              NightshadeButton(
+                label: 'Open Settings',
+                icon: LucideIcons.settings,
+                onPressed: () {
+                  // Use GoRouter to navigate
+                  GoRouter.of(context).go('/settings');
+                },
+              )
+            else
+              NightshadeButton(
+                label: 'Adjust Filters',
+                icon: LucideIcons.slidersHorizontal,
+                variant: ButtonVariant.outline,
+                onPressed: () => _showFilterSheet(context, ref, colors),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(
+    BuildContext context,
+    WidgetRef ref,
+    NightshadeColors colors,
+    Object error,
+  ) {
+    return Center(
+      child: Padding(
+        padding: NightshadeTokens.screenPadding,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              LucideIcons.alertCircle,
+              size: NightshadeTokens.icon2xl,
+              color: colors.error,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            Text(
+              'Failed to load suggestions',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceXl),
+            NightshadeButton(
+              label: 'Retry',
+              icon: LucideIcons.refreshCw,
+              onPressed: () {
+                ref.read(refreshSuggestionsProvider.notifier).state++;
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFilterSheet(BuildContext context, WidgetRef ref, NightshadeColors colors) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(NightshadeTokens.radiusLg),
+        ),
+      ),
+      builder: (context) {
+        return const SuggestionFilters(showAsSheet: true);
+      },
+    );
+  }
+
+  void _addToSequence(
+    BuildContext context,
+    WidgetRef ref,
+    TargetSuggestion suggestion,
+  ) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(
+            'Add to Sequence',
+            style: TextStyle(color: colors.textPrimary),
+          ),
+          content: Text(
+            'Add "${suggestion.targetName}" to the current sequence?',
+            style: TextStyle(color: colors.textSecondary),
+          ),
+          actions: [
+            NightshadeButton(
+              onPressed: () => Navigator.of(context).pop(),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+            ),
+            NightshadeButton(
+              label: 'Add',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: () {
+                // Create a TargetHeaderNode for the suggestion
+                final targetNode = TargetHeaderNode(
+                  targetName: suggestion.targetName,
+                  raHours: suggestion.raHours,
+                  decDegrees: suggestion.decDegrees,
+                );
+
+                // Add target to sequence via provider
+                ref.read(currentSequenceProvider.notifier).addTargetHeader(targetNode);
+
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Added ${suggestion.targetName} to sequence'),
+                    backgroundColor: colors.success,
+                  ),
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Skeleton placeholder for suggestion cards during loading
+class _SuggestionCardSkeleton extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _SuggestionCardSkeleton({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 140,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: NightshadeTokens.borderRadiusLg,
+        border: Border.all(color: colors.border),
+      ),
+      padding: NightshadeTokens.cardPadding,
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SkeletonBox(width: 150, height: 18),
+              Spacer(),
+              SkeletonBox(width: 60, height: 24, borderRadius: NightshadeTokens.radiusFull),
+            ],
+          ),
+          SizedBox(height: NightshadeTokens.spaceMd),
+          SkeletonText(width: 200, height: 14),
+          SizedBox(height: NightshadeTokens.spaceSm),
+          SkeletonText(width: double.infinity, height: 12, lines: 2),
+          Spacer(),
+          Row(
+            children: [
+              SkeletonBox(width: 80, height: 20),
+              SizedBox(width: NightshadeTokens.spaceMd),
+              SkeletonBox(width: 80, height: 20),
+              SizedBox(width: NightshadeTokens.spaceMd),
+              SkeletonBox(width: 80, height: 20),
+            ],
+          ),
+        ],
       ),
     );
   }
