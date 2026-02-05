@@ -577,18 +577,32 @@ fn variant_to_f64(var: &VARIANT) -> Option<f64> {
             Some((*var.Anonymous.Anonymous).Anonymous.dblVal)
         } else if vt == VT_I4 {
             Some((*var.Anonymous.Anonymous).Anonymous.lVal as f64)
+        } else if vt == VT_I2 {
+            Some((*var.Anonymous.Anonymous).Anonymous.iVal as f64)
+        } else if vt == VT_UI2 {
+            Some((*var.Anonymous.Anonymous).Anonymous.uiVal as f64)
         } else {
+            tracing::warn!("variant_to_f64: unexpected VARIANT type {}", vt.0);
             None
         }
     }
 }
 
-/// Extract i32 from VARIANT
+/// Extract i32 from VARIANT, handling all common COM integer types.
+/// ASCOM drivers may return VT_I2 (Short), VT_I4 (Int), VT_UI2, or VT_R8.
 fn variant_to_i32(var: &VARIANT) -> Option<i32> {
     unsafe {
-        if (*var.Anonymous.Anonymous).vt == VT_I4 {
+        let vt = (*var.Anonymous.Anonymous).vt;
+        if vt == VT_I4 {
             Some((*var.Anonymous.Anonymous).Anonymous.lVal)
+        } else if vt == VT_I2 {
+            Some((*var.Anonymous.Anonymous).Anonymous.iVal as i32)
+        } else if vt == VT_UI2 {
+            Some((*var.Anonymous.Anonymous).Anonymous.uiVal as i32)
+        } else if vt == VT_R8 {
+            Some((*var.Anonymous.Anonymous).Anonymous.dblVal as i32)
         } else {
+            tracing::warn!("variant_to_i32: unexpected VARIANT type {}", vt.0);
             None
         }
     }
@@ -1132,10 +1146,12 @@ impl AscomDeviceConnection {
                 None,
             ).map_err(|e| format!("Failed to get property {}: {}", name, e))?;
             
-            variant_to_i32(&result).ok_or_else(|| format!("Property {} is not an int", name))
+            let vt = (*result.Anonymous.Anonymous).vt;
+            tracing::debug!("ASCOM get_int_property('{}') VARIANT type: {} (VT_I2=2, VT_I4=3, VT_R8=5)", name, vt.0);
+            variant_to_i32(&result).ok_or_else(|| format!("Property {} is not an int (VARIANT type={})", name, vt.0))
         }
     }
-    
+
     pub fn set_int_property(&self, name: &str, value: i32) -> Result<(), String> {
         unsafe {
             let dispid = self.get_dispid(name)?;
@@ -2569,10 +2585,13 @@ impl AscomFilterWheel {
     }
 
     pub fn position(&self) -> Result<i32, String> {
-        self.device.get_int_property("Position")
+        let pos = self.device.get_int_property("Position");
+        tracing::info!("ASCOM FilterWheel.Position returned: {:?}", pos);
+        pos
     }
 
     pub fn set_position(&mut self, position: i32) -> Result<(), String> {
+        tracing::info!("ASCOM FilterWheel.SetPosition({})", position);
         self.device.set_int_property("Position", position)
     }
 
