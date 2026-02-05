@@ -13,7 +13,7 @@ import '../../widgets/tutorial_keys/equipment_keys.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 
 // ============================================================================
-// Provider for currently selected profile in the equipment screen
+// Providers for equipment screen state
 // ============================================================================
 
 /// Provider for currently selected profile in the equipment screen
@@ -22,6 +22,18 @@ final selectedEquipmentProfileIdProvider = StateProvider<int?>((ref) {
   final activeProfile = ref.watch(activeProfileProvider).valueOrNull;
   return activeProfile?.id;
 });
+
+/// Whether the profile sidebar is collapsed (icon-only mode)
+final equipmentSidebarCollapsedProvider = StateProvider<bool>((ref) => false);
+
+// ============================================================================
+// Constants for sidebar dimensions
+// ============================================================================
+
+const double _sidebarExpandedWidth = 240.0;
+const double _sidebarMinWidth = 200.0;
+const double _sidebarMaxWidth = 350.0;
+const double _sidebarCollapsedWidth = 48.0;
 
 // ============================================================================
 // Equipment Screen
@@ -55,6 +67,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         ? profiles.where((p) => p.id == selectedProfileId).firstOrNull
         : null;
 
+    final sidebarCollapsed = ref.watch(equipmentSidebarCollapsedProvider);
+
     return ContextualTourPrompt(
       screenId: 'equipment',
       tourCategory: TutorialCategory.equipmentTour,
@@ -64,24 +78,30 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       alignment: Alignment.bottomRight,
       child: Row(
         children: [
-          // Profile Sidebar (240px fixed)
-          ProfileSidebar(
-            selectedProfileId: selectedProfileId,
-            onProfileSelected: (id) {
-              ref.read(selectedEquipmentProfileIdProvider.notifier).state = id;
+          // Profile Sidebar (collapsible, resizable)
+          _CollapsibleSidebar(
+            isCollapsed: sidebarCollapsed,
+            onToggle: () {
+              ref.read(equipmentSidebarCollapsedProvider.notifier).state = !sidebarCollapsed;
             },
-            onCreateProfile: () => _showProfileEditor(context, null),
-            onEditProfile: (profile) => _showProfileEditor(context, profile),
-            onConnectAll: _connectAllDevices,
-            onDisconnectAll: _disconnectAllDevices,
-            onSetDefault: _setDefaultProfile,
-            onDuplicateProfile: _duplicateProfile,
-            onDeleteProfile: _deleteProfile,
-            onReorderProfiles: _reorderProfiles,
+            child: ProfileSidebar(
+              selectedProfileId: selectedProfileId,
+              onProfileSelected: (id) {
+                ref.read(selectedEquipmentProfileIdProvider.notifier).state = id;
+              },
+              onCreateProfile: () => _showProfileEditor(context, null),
+              onEditProfile: (profile) => _showProfileEditor(context, profile),
+              onConnectAll: _connectAllDevices,
+              onDisconnectAll: _disconnectAllDevices,
+              onSetDefault: _setDefaultProfile,
+              onDuplicateProfile: _duplicateProfile,
+              onDeleteProfile: _deleteProfile,
+              onReorderProfiles: _reorderProfiles,
+              onCollapse: () {
+                ref.read(equipmentSidebarCollapsedProvider.notifier).state = true;
+              },
+            ),
           ),
-
-          // Vertical divider
-          VerticalDivider(width: 1, thickness: 1, color: colors.border),
 
           // Main content area
           Expanded(
@@ -641,6 +661,131 @@ class _DeviceDashboard extends ConsumerWidget {
         runSpacing: 16,
         children: connectedCards,
       ),
+    );
+  }
+}
+
+// ============================================================================
+// Collapsible Sidebar Widget
+// ============================================================================
+
+class _CollapsibleSidebar extends StatefulWidget {
+  final bool isCollapsed;
+  final VoidCallback onToggle;
+  final Widget child;
+
+  const _CollapsibleSidebar({
+    required this.isCollapsed,
+    required this.onToggle,
+    required this.child,
+  });
+
+  @override
+  State<_CollapsibleSidebar> createState() => _CollapsibleSidebarState();
+}
+
+class _CollapsibleSidebarState extends State<_CollapsibleSidebar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _widthAnimation;
+  double _currentExpandedWidth = _sidebarExpandedWidth;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _updateAnimation();
+    if (!widget.isCollapsed) {
+      _animationController.value = 1.0;
+    }
+  }
+
+  void _updateAnimation() {
+    _widthAnimation = Tween<double>(
+      begin: _sidebarCollapsedWidth,
+      end: _currentExpandedWidth,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void didUpdateWidget(_CollapsibleSidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isCollapsed != widget.isCollapsed) {
+      if (widget.isCollapsed) {
+        _animationController.reverse();
+      } else {
+        _updateAnimation();
+        _animationController.forward();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+    return AnimatedBuilder(
+      animation: _widthAnimation,
+      builder: (context, child) {
+        final width = _widthAnimation.value;
+        final isEffectivelyCollapsed = width < _sidebarCollapsedWidth + 20;
+
+        if (isEffectivelyCollapsed) {
+          // Collapsed state - show icon button strip
+          return Container(
+            width: _sidebarCollapsedWidth,
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border(
+                right: BorderSide(color: colors.border),
+              ),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                Tooltip(
+                  message: 'Show Profiles',
+                  child: IconButton(
+                    icon: Icon(
+                      LucideIcons.layers,
+                      size: 20,
+                      color: colors.textSecondary,
+                    ),
+                    onPressed: widget.onToggle,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Expanded state - show resizable panel with content
+        return SizedBox(
+          width: width,
+          child: ResizablePanel(
+            initialWidth: width,
+            minWidth: _sidebarMinWidth,
+            maxWidth: _sidebarMaxWidth,
+            side: ResizeSide.right,
+            onWidthChanged: (newWidth) {
+              _currentExpandedWidth = newWidth;
+            },
+            child: widget.child,
+          ),
+        );
+      },
     );
   }
 }

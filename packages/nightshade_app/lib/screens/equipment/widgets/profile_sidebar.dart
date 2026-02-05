@@ -26,6 +26,7 @@ class ProfileSidebar extends ConsumerWidget {
   final ValueChanged<int> onDuplicateProfile;
   final ValueChanged<int> onDeleteProfile;
   final void Function(int oldIndex, int newIndex) onReorderProfiles;
+  final VoidCallback? onCollapse;
 
   const ProfileSidebar({
     super.key,
@@ -39,6 +40,7 @@ class ProfileSidebar extends ConsumerWidget {
     required this.onDuplicateProfile,
     required this.onDeleteProfile,
     required this.onReorderProfiles,
+    this.onCollapse,
   });
 
   @override
@@ -73,7 +75,6 @@ class ProfileSidebar extends ConsumerWidget {
         : (false, false);
 
     return Container(
-      width: 240,
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
@@ -120,14 +121,13 @@ class ProfileSidebar extends ConsumerWidget {
 
   Widget _buildHeader(BuildContext context, NightshadeColors colors) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: colors.border),
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             'PROFILES',
@@ -138,6 +138,7 @@ class ProfileSidebar extends ConsumerWidget {
               color: colors.textMuted,
             ),
           ),
+          const Spacer(),
           SizedBox(
             width: 28,
             height: 28,
@@ -155,6 +156,24 @@ class ProfileSidebar extends ConsumerWidget {
               tooltip: 'Create new profile',
             ),
           ),
+          if (onCollapse != null) ...[
+            const SizedBox(width: 4),
+            Tooltip(
+              message: 'Collapse panel',
+              child: InkWell(
+                onTap: onCollapse,
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(
+                    LucideIcons.panelLeftClose,
+                    size: 16,
+                    color: colors.textMuted,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
