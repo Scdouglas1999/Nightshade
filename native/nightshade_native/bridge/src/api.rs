@@ -7882,6 +7882,41 @@ pub async fn api_get_switch_capabilities(
 }
 
 // =============================================================================
+// DEVICE QUIRKS
+// =============================================================================
+
+/// Information about a known device quirk, suitable for UI display.
+pub struct QuirkInfo {
+    /// Quirk category (e.g. "Temperature", "Timing", "Discovery")
+    pub category: String,
+    /// Human-readable description of the quirk
+    pub description: String,
+}
+
+/// Get known quirks for a connected device.
+///
+/// Returns a list of known device characteristics and workarounds that are
+/// automatically applied. This information can be displayed in the equipment
+/// screen to inform users about device-specific behaviors.
+///
+/// # Arguments
+/// * `device_id` - The device identifier (e.g., "native:zwo:ASI294MC Pro")
+///
+/// # Returns
+/// * `Vec<QuirkInfo>` - List of quirks with categories and descriptions
+#[flutter_rust_bridge::frb(sync)]
+pub fn api_get_device_quirks(device_id: String) -> Vec<QuirkInfo> {
+    let quirks = nightshade_native::quirks::get_quirks_for_device(&device_id);
+    quirks
+        .into_iter()
+        .map(|q| QuirkInfo {
+            category: q.category().to_string(),
+            description: q.description(),
+        })
+        .collect()
+}
+
+// =============================================================================
 // QHY DISCOVERY CONTROL
 // =============================================================================
 

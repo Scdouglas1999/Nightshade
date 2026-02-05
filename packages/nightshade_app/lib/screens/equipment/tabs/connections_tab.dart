@@ -8,6 +8,7 @@ import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../mixins/device_connection_mixin.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../dialogs/fujifilm_disclaimer_dialog.dart';
 import '../dialogs/indi_server_dialog.dart';
 import '../widgets/backend_selector_chips.dart';
 
@@ -1118,6 +1119,12 @@ class _CameraDeviceCardState extends ConsumerState<_CameraDeviceCard> with Devic
     if (_selectedDevice == null) return;
     final deviceId = _selectedDevice!.activeDeviceId;
     final deviceName = _selectedDevice!.displayName;
+
+    // Fujifilm warranty disclaimer check
+    if (isFujifilmDevice(deviceId, deviceName)) {
+      final accepted = await showFujifilmDisclaimerIfNeeded(context);
+      if (!accepted) return;
+    }
 
     await connectDevice(
       deviceId: deviceId,

@@ -383,18 +383,19 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
     }
     tracing::info!("FLI filter wheel discovery complete.");
 
-    // Discover Touptek/OGMA cameras
+    // Discover Touptek/OGMA cameras (across all white-label brands)
     tracing::info!("Discovering Touptek/OGMA cameras...");
     if let Ok(touptek_devices) = crate::vendor::touptek::discover_devices().await {
         tracing::info!("Found {} Touptek cameras", touptek_devices.len());
         devices.extend(touptek_devices.into_iter().map(|info| {
+            let brand_lower = info.brand.to_lowercase();
             let display_name = NativeDeviceInfo::generate_display_name(
                 &info.name,
                 info.serial_number.as_deref(),
                 Some(info.discovery_index),
             );
             NativeDeviceInfo {
-                id: format!("native:touptek:{}", info.discovery_index),
+                id: format!("native:touptek:{}:{}", brand_lower, info.discovery_index),
                 name: info.name,
                 vendor: NativeVendor::Touptek,
                 device_type: DeviceType::Camera,

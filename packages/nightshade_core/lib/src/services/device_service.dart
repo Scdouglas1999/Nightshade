@@ -80,6 +80,9 @@ class DeviceService {
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
   static const Duration _filterWheelVerifyPollInterval = Duration(milliseconds: 250);
 
+  static const Duration _focuserMoveTimeout = Duration(seconds: 300);
+  static const Duration _focuserMovePollInterval = Duration(milliseconds: 500);
+
   DeviceService(this._ref, this._backend) {
     _initEventListening();
   }
@@ -1820,9 +1823,10 @@ class DeviceService {
 
     try {
       await _backend.focuserMoveTo(deviceId, position);
-      // Query actual position from device after move completes
-      final status = await _backend.getFocuserStatus(deviceId);
-      focuserNotifier.updatePosition(status.position);
+      await _verifyFocuserPosition(
+        deviceId: deviceId,
+        targetPosition: position,
+      );
     } finally {
       focuserNotifier.setMoving(false);
       operationsNotifier.completeOperation(OperationType.focuserMove);
@@ -1848,11 +1852,16 @@ class DeviceService {
     );
 
     try {
+      // Get current position to compute target
+      final currentStatus = await _backend.getFocuserStatus(deviceId);
+      final targetPosition = currentStatus.position + delta;
+
       // Use backend's native relative move which queries actual device position
       await _backend.focuserMoveRelative(deviceId, delta);
-      // Query actual position from device after move completes
-      final status = await _backend.getFocuserStatus(deviceId);
-      focuserNotifier.updatePosition(status.position);
+      await _verifyFocuserPosition(
+        deviceId: deviceId,
+        targetPosition: targetPosition,
+      );
     } finally {
       focuserNotifier.setMoving(false);
       operationsNotifier.completeOperation(OperationType.focuserMove);
@@ -1875,6 +1884,47 @@ class DeviceService {
       focuserNotifier.updatePosition(status.position);
     } finally {
       focuserNotifier.setMoving(false);
+    }
+  }
+
+  /// Verify focuser reached target position with polling and timeout.
+  ///
+  /// Polls the focuser position every 500ms until it reaches the target
+  /// (within 1 step tolerance). Times out after 300 seconds.
+  Future<void> _verifyFocuserPosition({
+    required String deviceId,
+    required int targetPosition,
+  }) async {
+    final deadline = DateTime.now().add(_focuserMoveTimeout);
+    final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+
+    while (true) {
+      final status = await _backend.getFocuserStatus(deviceId);
+      focuserNotifier.updatePosition(status.position);
+
+      // Check if we've reached the target (within 1 step tolerance)
+      if ((status.position - targetPosition).abs() <= 1) {
+        focuserNotifier.setMoving(false);
+        return;
+      }
+
+      // Check if focuser stopped moving but hasn't reached target (stall)
+      if (!status.moving && (status.position - targetPosition).abs() > 1) {
+        throw Exception(
+          'Focuser stalled at position ${status.position}, '
+          'target was $targetPosition.',
+        );
+      }
+
+      if (DateTime.now().isAfter(deadline)) {
+        throw Exception(
+          'Focuser did not reach position $targetPosition within '
+          '${_focuserMoveTimeout.inSeconds}s '
+          '(last reported position: ${status.position}).',
+        );
+      }
+
+      await Future.delayed(_focuserMovePollInterval);
     }
   }
 

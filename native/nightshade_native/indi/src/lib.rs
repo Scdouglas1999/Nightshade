@@ -15,21 +15,19 @@
 //! | Dome             | Full          | Slew, park, shutter control              |
 //! | Safety Monitor   | Full          | Safety state monitoring                  |
 //! | Cover Calibrator | Partial       | No halt support, basic open/close only   |
-//! | Weather          | NOT SUPPORTED | Use ASCOM Alpaca for weather devices     |
-//! | Switch           | NOT SUPPORTED | Use ASCOM Alpaca for switch devices      |
+//! | Weather          | Full          | All standard INDI weather properties     |
+//! | Switch           | Full          | Custom switch property enumeration       |
 //!
 //! ## Unsupported Features
 //!
 //! The following INDI features are not currently implemented:
-//! - Weather devices (use Alpaca instead)
-//! - Switch devices (use Alpaca instead)
 //! - Cover calibrator halt command
 //! - BLOB streaming for video
 //!
 //! ## Alternatives
 //!
-//! For unsupported device types, use ASCOM Alpaca which provides cross-platform
-//! support via HTTP. Configure an Alpaca server on your INDI host.
+//! For unsupported features (cover calibrator halt, BLOB streaming), use ASCOM
+//! Alpaca which provides cross-platform support via HTTP.
 //!
 //! ## Features
 //!
@@ -54,6 +52,8 @@ mod rotator;
 mod dome;
 mod safetymonitor;
 mod covercalibrator;
+mod weather;
+mod switch_device;
 pub mod discovery;
 pub mod autofocus;
 
@@ -68,6 +68,8 @@ pub use rotator::IndiRotator;
 pub use dome::{IndiDome, IndiShutterStatus};
 pub use safetymonitor::IndiSafetyMonitor;
 pub use covercalibrator::{IndiCoverCalibrator, IndiCoverState, IndiCalibratorState};
+pub use weather::{IndiWeather, IndiWeatherStatus};
+pub use switch_device::{IndiSwitchDevice, IndiSwitchInfo};
 pub use discovery::{discover_localhost, discover_server, discover_common_hosts, discover_local_network, discover_mdns, IndiServer, IndiDeviceInfo, IndiDeviceType};
 pub use autofocus::{IndiAutofocus, IndiAutofocusConfig, IndiAutofocusResult, AutofocusMethod};
 
@@ -114,16 +116,6 @@ impl std::error::Error for UnsupportedFeatureError {}
 /// ```
 pub fn check_feature_support(device_type: &str, feature: &str) -> Result<(), UnsupportedFeatureError> {
     match (device_type.to_lowercase().as_str(), feature.to_lowercase().as_str()) {
-        ("weather", _) => Err(UnsupportedFeatureError {
-            device_type: device_type.to_string(),
-            feature: feature.to_string(),
-            alternative: Some("Use ASCOM Alpaca for weather devices".to_string()),
-        }),
-        ("switch", _) => Err(UnsupportedFeatureError {
-            device_type: device_type.to_string(),
-            feature: feature.to_string(),
-            alternative: Some("Use ASCOM Alpaca for switch devices".to_string()),
-        }),
         ("covercalibrator", "halt") => Err(UnsupportedFeatureError {
             device_type: device_type.to_string(),
             feature: feature.to_string(),

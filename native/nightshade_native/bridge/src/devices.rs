@@ -968,9 +968,12 @@ impl DeviceManager {
                     Box::new(FliCamera::new(id_str.to_string()))
                 },
                 "touptek" => {
-                    let idx = id_str.parse::<usize>().map_err(|_| "Invalid Touptek camera ID")?;
-                    // For Touptek, we need to get the camera_id from discovery
-                    Box::new(TouptekCamera::new(idx))
+                    // ID format: native:touptek:{brand}:{index}
+                    // parts[2] = brand, parts[3] = index
+                    let brand = id_str; // parts[2] is the brand
+                    let idx_str = parts.get(3).ok_or("Invalid Touptek camera ID: missing index")?;
+                    let idx = idx_str.parse::<usize>().map_err(|_| "Invalid Touptek camera index")?;
+                    Box::new(TouptekCamera::new(idx, brand))
                 },
                 "moravian" => {
                     let camera_id = id_str.parse::<u32>().map_err(|_| "Invalid Moravian camera ID")?;
@@ -1107,8 +1110,11 @@ impl DeviceManager {
                 Box::new(FliCamera::new(id_str.to_string()))
             },
             "touptek" => {
-                let idx = id_str.parse::<usize>().map_err(|_| "Invalid Touptek camera ID")?;
-                Box::new(TouptekCamera::new(idx))
+                // ID format: native:touptek:{brand}:{index}
+                let brand = id_str; // parts[2] is the brand
+                let idx_str = parts.get(3).ok_or("Invalid Touptek device ID: missing index")?;
+                let idx = idx_str.parse::<usize>().map_err(|_| "Invalid Touptek device index")?;
+                Box::new(TouptekCamera::new(idx, brand))
             },
             "moravian" => {
                 let camera_id = id_str.parse::<u32>().map_err(|_| "Invalid Moravian camera ID")?;
@@ -5624,12 +5630,12 @@ impl DeviceManager {
                         temperature: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_TEMPERATURE").await,
                         humidity: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_HUMIDITY").await,
                         pressure: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_PRESSURE").await,
-                        cloud_cover: None,
+                        cloud_cover: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_CLOUD_COVER").await,
                         dew_point: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_DEWPOINT").await,
                         wind_speed: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_WIND_SPEED").await,
                         wind_direction: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_WIND_DIRECTION").await,
                         sky_quality: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_SKY_QUALITY").await,
-                        sky_temperature: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_SKY_TEMP").await,
+                        sky_temperature: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_SKY_TEMPERATURE").await,
                         rain_rate: locked.get_number(&device_name, "WEATHER_PARAMETERS", "WEATHER_RAIN_RATE").await,
                     });
                 }
@@ -6461,6 +6467,38 @@ impl DeviceManager {
     }
 
     // =========================================================================
+    // INDI Switch Helpers
+    // =========================================================================
+
+    /// Get all INDI switch elements as a flat ordered list for indexed access.
+    /// Each entry is (property_name, element_name, label, state, writable).
+    async fn indi_get_all_switches(&self, device_id: &str) -> Result<Vec<nightshade_indi::IndiSwitchInfo>, String> {
+        let parts: Vec<&str> = device_id.split(':').collect();
+        if parts.len() < 4 {
+            return Err("Invalid INDI device ID".to_string());
+        }
+        let server_key = format!("{}:{}", parts[1], parts[2]);
+        let device_name = parts[3..].join(":");
+
+        let clients = self.indi_clients.read().await;
+        if let Some(client) = clients.get(&server_key) {
+            let switch_dev = nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
+            return Ok(switch_dev.get_all_switches().await);
+        }
+        Err("INDI switch device not connected".to_string())
+    }
+
+    /// Get the Nth INDI switch element (0-indexed).
+    async fn indi_get_switch_at(&self, device_id: &str, index: i32) -> Result<nightshade_indi::IndiSwitchInfo, String> {
+        let switches = self.indi_get_all_switches(device_id).await?;
+        let idx = index as usize;
+        if idx >= switches.len() {
+            return Err(format!("Switch index {} out of range (device has {} switches)", index, switches.len()));
+        }
+        Ok(switches.into_iter().nth(idx).unwrap())
+    }
+
+    // =========================================================================
     // Switch Control
     // =========================================================================
 
@@ -6489,7 +6527,11 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                // INDI switches use named properties -- enumerate and count them
+                let switches = self.indi_get_all_switches(device_id).await?;
+                Ok(switches.len() as i32)
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
@@ -6520,7 +6562,10 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                let sw = self.indi_get_switch_at(device_id, switch_id).await?;
+                Ok(sw.state)
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
@@ -6551,7 +6596,22 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                let sw = self.indi_get_switch_at(device_id, switch_id).await?;
+                if !sw.writable {
+                    return Err(format!("INDI switch '{}' / '{}' is read-only", sw.property_name, sw.element_name));
+                }
+                let parts: Vec<&str> = device_id.split(':').collect();
+                let server_key = format!("{}:{}", parts[1], parts[2]);
+                let device_name = parts[3..].join(":");
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let switch_dev = nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
+                    return switch_dev.set_switch_state(&sw.property_name, &sw.element_name, state).await
+                        .map_err(|e| e.to_string());
+                }
+                Err("INDI switch device not connected".to_string())
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
@@ -6582,7 +6642,10 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                let sw = self.indi_get_switch_at(device_id, switch_id).await?;
+                Ok(sw.element_name.clone())
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
@@ -6613,7 +6676,11 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                let sw = self.indi_get_switch_at(device_id, switch_id).await?;
+                // For INDI, description is "property_name / label"
+                Ok(format!("{} / {}", sw.property_name, sw.label))
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
@@ -6644,7 +6711,23 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                let sw = self.indi_get_switch_at(device_id, switch_id).await?;
+                // INDI switches can have associated number values (e.g., PWM duty cycle)
+                let parts: Vec<&str> = device_id.split(':').collect();
+                let server_key = format!("{}:{}", parts[1], parts[2]);
+                let device_name = parts[3..].join(":");
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let switch_dev = nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
+                    if let Some(val) = switch_dev.get_switch_value(&sw.property_name, &sw.element_name).await {
+                        return Ok(val);
+                    }
+                    // If no numeric value, return 1.0 for on, 0.0 for off
+                    return Ok(if sw.state { 1.0 } else { 0.0 });
+                }
+                Err("INDI switch device not connected".to_string())
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
@@ -6675,7 +6758,22 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                let sw = self.indi_get_switch_at(device_id, switch_id).await?;
+                if !sw.writable {
+                    return Err(format!("INDI switch '{}' / '{}' is read-only", sw.property_name, sw.element_name));
+                }
+                let parts: Vec<&str> = device_id.split(':').collect();
+                let server_key = format!("{}:{}", parts[1], parts[2]);
+                let device_name = parts[3..].join(":");
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let switch_dev = nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
+                    return switch_dev.set_switch_value(&sw.property_name, &sw.element_name, value).await
+                        .map_err(|e| e.to_string());
+                }
+                Err("INDI switch device not connected".to_string())
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
@@ -6706,7 +6804,10 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                // INDI boolean switches have min 0.0
+                Ok(0.0)
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
@@ -6737,7 +6838,10 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                // INDI boolean switches have max 1.0
+                Ok(1.0)
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
@@ -6768,7 +6872,10 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca switch {} not found", device_id))
             }
-            DriverType::Indi => Err("INDI switch not supported".to_string()),
+            DriverType::Indi => {
+                let sw = self.indi_get_switch_at(device_id, switch_id).await?;
+                Ok(sw.writable)
+            }
             DriverType::Native => Err("Native switch support not implemented".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
