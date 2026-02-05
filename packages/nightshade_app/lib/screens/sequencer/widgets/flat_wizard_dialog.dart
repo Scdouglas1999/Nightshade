@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../equipment/dialogs/profile_editor_dialog.dart';
+
 enum FlatPanelLocation { dawnSky, duskSky, flatPanel }
+
+/// Default filter list used when no profile is configured
+const _kFallbackFilters = ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'];
 
 class FlatWizardDialog extends ConsumerStatefulWidget {
   const FlatWizardDialog({super.key});
@@ -19,23 +26,9 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
   final double _tolerancePercent = 5.0;
   FlatPanelLocation _panelLocation = FlatPanelLocation.duskSky;
   String? _selectedFilter;
-  
+
   bool _isCalculating = false;
   double? _calculatedExposure;
-  List<String> _availableFilters = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFilters();
-  }
-
-  void _loadFilters() {
-    // Load filters from filter wheel or use defaults
-    setState(() {
-      _availableFilters = ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'];
-    });
-  }
 
   Future<void> _calculateExposure() async {
     setState(() => _isCalculating = true);
@@ -328,6 +321,11 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
   }
 
   Widget _buildFilterSelector(NightshadeColors colors) {
+    // Get filters from active profile, falling back to generic list
+    final profileFilters = ref.watch(profileFiltersProvider);
+    final availableFilters =
+        profileFilters.isNotEmpty ? profileFilters : _kFallbackFilters;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -336,14 +334,37 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
         DropdownButtonFormField<String>(
           initialValue: _selectedFilter,
           decoration: InputDecoration(
-            border: OutlineInputBorder(borderSide: BorderSide(color: colors.border)),
+            border:
+                OutlineInputBorder(borderSide: BorderSide(color: colors.border)),
             hintText: 'All filters',
           ),
           items: [
             const DropdownMenuItem(value: null, child: Text('All filters')),
-            ..._availableFilters.map((f) => DropdownMenuItem(value: f, child: Text(f))),
+            ...availableFilters
+                .map((f) => DropdownMenuItem(value: f, child: Text(f))),
           ],
           onChanged: (v) => setState(() => _selectedFilter = v),
+        ),
+        const SizedBox(height: 4),
+        InkWell(
+          onTap: () => ProfileEditorDialog.show(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.settings, size: 12, color: colors.textMuted),
+                const SizedBox(width: 4),
+                Text(
+                  'Edit filters...',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );

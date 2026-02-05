@@ -3368,17 +3368,43 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
       updates['sequencer_exposure_dither_every'] = ditherEvery.toString();
       state = state.copyWith(exposureDitherEvery: ditherEvery);
     }
-    
+
     if (updates.isNotEmpty) {
       await settingsDao.setSettings(updates);
     }
   }
 }
 
+/// Helper to convert int binning value to BinningMode enum
+BinningMode _binningModeFromInt(int binning) {
+  switch (binning) {
+    case 1:
+      return BinningMode.one;
+    case 2:
+      return BinningMode.two;
+    case 3:
+      return BinningMode.three;
+    case 4:
+      return BinningMode.four;
+    default:
+      return BinningMode.one;
+  }
+}
+
 /// Available node types for the palette
 final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
   final defaults = ref.watch(sequencerDefaultsProvider);
-  
+  final profile = ref.watch(activeEquipmentProfileProvider);
+
+  // Use profile defaults as fallback when sequencer defaults are not set
+  final effectiveGain = defaults.exposureGain ?? profile?.defaultGain;
+  final effectiveOffset = defaults.exposureOffset ?? profile?.defaultOffset;
+  final effectiveBinning = defaults.exposureBinning != BinningMode.one
+      ? defaults.exposureBinning
+      : _binningModeFromInt(profile?.defaultBinX ?? 1);
+  final effectiveFilter =
+      defaults.exposureFilter ?? profile?.filterNames.firstOrNull;
+
   return [
     NodePaletteCategory(
       name: 'Target',
@@ -3407,10 +3433,10 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           createNode: () => ExposureNode(
             durationSecs: defaults.exposureDuration,
             count: defaults.exposureCount,
-            filter: defaults.exposureFilter,
-            gain: defaults.exposureGain,
-            offset: defaults.exposureOffset,
-            binning: defaults.exposureBinning,
+            filter: effectiveFilter,
+            gain: effectiveGain,
+            offset: effectiveOffset,
+            binning: effectiveBinning,
             ditherEvery: defaults.exposureDitherEvery,
           ),
         ),
@@ -3419,7 +3445,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           icon: 'circle',
           description: 'Change the filter wheel position',
           createNode: () => FilterChangeNode(
-            filterName: defaults.exposureFilter ?? 'L',
+            filterName: effectiveFilter ?? 'L',
           ),
         ),
         NodePaletteItem(

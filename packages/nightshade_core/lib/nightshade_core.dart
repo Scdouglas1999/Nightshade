@@ -44,6 +44,7 @@ export 'src/models/flat_wizard/flat_wizard_state.dart';
 export 'src/models/polar_alignment_config.dart';
 export 'src/models/alerts/transient_alert.dart';
 export 'src/models/planning/target_suggestion.dart';
+export 'src/models/optical_config.dart';
 
 // Providers
 export 'src/providers/database_provider.dart';

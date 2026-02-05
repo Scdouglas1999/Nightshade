@@ -5,6 +5,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
+import '../../equipment/dialogs/profile_editor_dialog.dart';
+
 class NodePropertiesPanel extends ConsumerWidget {
   final NightshadeColors colors;
   final ScrollController? scrollController;
@@ -954,14 +956,75 @@ class _DangerButtonState extends State<_DangerButton> {
 }
 
 // Type-specific property editors
-class _ExposureProperties extends ConsumerWidget {
+class _ExposureProperties extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final ExposureNode node;
 
   const _ExposureProperties({required this.colors, required this.node});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ExposureProperties> createState() =>
+      _ExposurePropertiesState();
+}
+
+class _ExposurePropertiesState extends ConsumerState<_ExposureProperties> {
+  // Track whether values are using profile defaults (not explicitly set)
+  bool _gainIsProfileDefault = false;
+  bool _offsetIsProfileDefault = false;
+  bool _binningIsProfileDefault = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkProfileDefaults();
+  }
+
+  @override
+  void didUpdateWidget(_ExposureProperties oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.node.id != widget.node.id) {
+      _checkProfileDefaults();
+    }
+  }
+
+  void _checkProfileDefaults() {
+    final profile = ref.read(activeEquipmentProfileProvider);
+    final node = widget.node;
+
+    // Check if gain matches profile default (or is null/0 and profile has a default)
+    _gainIsProfileDefault = node.gain == null ||
+        (profile?.defaultGain != null && node.gain == profile!.defaultGain);
+
+    // Check if offset matches profile default
+    _offsetIsProfileDefault = node.offset == null ||
+        (profile?.defaultOffset != null &&
+            node.offset == profile!.defaultOffset);
+
+    // Check if binning matches profile default
+    final profileBinning = profile?.defaultBinX ?? 1;
+    final nodeBinningValue = _binningModeToInt(node.binning);
+    _binningIsProfileDefault = nodeBinningValue == profileBinning;
+  }
+
+  int _binningModeToInt(BinningMode mode) {
+    switch (mode) {
+      case BinningMode.one:
+        return 1;
+      case BinningMode.two:
+        return 2;
+      case BinningMode.three:
+        return 3;
+      case BinningMode.four:
+        return 4;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final node = widget.node;
+    final profile = ref.watch(activeEquipmentProfileProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1038,17 +1101,21 @@ class _ExposureProperties extends ConsumerWidget {
           ),
         ),
 
-        _buildFilterDropdown(ref),
+        _buildFilterDropdown(context),
 
+        // Binning with profile default indicator
         _PropertyField(
           colors: colors,
-          label: 'Binning',
+          label: _binningIsProfileDefault
+              ? 'Binning (profile default)'
+              : 'Binning',
           child: _Dropdown<BinningMode>(
             colors: colors,
             value: node.binning,
             items: BinningMode.values,
             labelBuilder: (b) => b.label,
             onChanged: (value) {
+              setState(() => _binningIsProfileDefault = false);
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(binning: value),
                   );
@@ -1062,19 +1129,26 @@ class _ExposureProperties extends ConsumerWidget {
           ),
         ),
 
+        // Gain and Offset with profile default indicators
         Row(
           children: [
             Expanded(
               child: _PropertyField(
                 colors: colors,
-                label: 'Gain',
-                child: _NumberInput(
+                label: _gainIsProfileDefault
+                    ? 'Gain (profile default)'
+                    : 'Gain',
+                child: _NumberInputWithHint(
                   colors: colors,
-                  value: (node.gain ?? 0).toDouble(),
+                  value: (node.gain ?? profile?.defaultGain ?? 0).toDouble(),
                   min: 0,
                   max: 1000,
+                  hintText: _gainIsProfileDefault && profile?.defaultGain != null
+                      ? '(profile: ${profile!.defaultGain})'
+                      : null,
                   onChanged: (value) {
                     final gain = value.toInt();
+                    setState(() => _gainIsProfileDefault = false);
                     ref.read(currentSequenceProvider.notifier).updateNode(
                           node.copyWith(gain: gain),
                         );
@@ -1092,14 +1166,21 @@ class _ExposureProperties extends ConsumerWidget {
             Expanded(
               child: _PropertyField(
                 colors: colors,
-                label: 'Offset',
-                child: _NumberInput(
+                label: _offsetIsProfileDefault
+                    ? 'Offset (profile default)'
+                    : 'Offset',
+                child: _NumberInputWithHint(
                   colors: colors,
-                  value: (node.offset ?? 0).toDouble(),
+                  value: (node.offset ?? profile?.defaultOffset ?? 0).toDouble(),
                   min: 0,
                   max: 1000,
+                  hintText:
+                      _offsetIsProfileDefault && profile?.defaultOffset != null
+                          ? '(profile: ${profile!.defaultOffset})'
+                          : null,
                   onChanged: (value) {
                     final offset = value.toInt();
+                    setState(() => _offsetIsProfileDefault = false);
                     ref.read(currentSequenceProvider.notifier).updateNode(
                           node.copyWith(offset: offset),
                         );
@@ -1166,7 +1247,10 @@ class _ExposureProperties extends ConsumerWidget {
     );
   }
 
-  Widget _buildFilterDropdown(WidgetRef ref) {
+  Widget _buildFilterDropdown(BuildContext context) {
+    final colors = widget.colors;
+    final node = widget.node;
+
     // Get filter names from active profile
     final profile = ref.watch(activeEquipmentProfileProvider);
     final filterNames = profile?.filterNames ?? <String>[];
@@ -1186,74 +1270,102 @@ class _ExposureProperties extends ConsumerWidget {
       orElse: () => filterOptions.first,
     );
 
-    return _PropertyField(
-      colors: colors,
-      label: 'Filter',
-      child: filterNames.isEmpty
-          ? _TextInput(
-              colors: colors,
-              value: node.filter ?? '',
-              hint: 'No filters in profile',
-              onChanged: (value) {
-                final filter = value.isEmpty ? null : value;
-                ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(filter: filter),
-                    );
-                ref
-                    .read(sequencerDefaultsProvider.notifier)
-                    .updateExposureDefaults(
-                      filter: filter,
-                    );
-              },
-            )
-          : Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.border),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<({int index, String name})>(
-                  value: currentFilter,
-                  isExpanded: true,
-                  icon: Icon(
-                    LucideIcons.chevronDown,
-                    size: 16,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PropertyField(
+          colors: colors,
+          label: 'Filter',
+          child: filterNames.isEmpty
+              ? _TextInput(
+                  colors: colors,
+                  value: node.filter ?? '',
+                  hint: 'No filters in profile',
+                  onChanged: (value) {
+                    final filter = value.isEmpty ? null : value;
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                          node.copyWith(filter: filter),
+                        );
+                    ref
+                        .read(sequencerDefaultsProvider.notifier)
+                        .updateExposureDefaults(
+                          filter: filter,
+                        );
+                  },
+                )
+              : Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<({int index, String name})>(
+                      value: currentFilter,
+                      isExpanded: true,
+                      icon: Icon(
+                        LucideIcons.chevronDown,
+                        size: 16,
+                        color: colors.textMuted,
+                      ),
+                      dropdownColor: colors.surface,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.textPrimary,
+                      ),
+                      items: filterOptions.map((filter) {
+                        return DropdownMenuItem(
+                          value: filter,
+                          child: Text(filter.index < 0 ? '(None)' : filter.name),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        if (newValue != null) {
+                          final filter =
+                              newValue.index < 0 ? null : newValue.name;
+                          final filterIndex =
+                              newValue.index < 0 ? null : newValue.index;
+                          ref.read(currentSequenceProvider.notifier).updateNode(
+                                node.copyWith(
+                                  filter: filter,
+                                  filterIndex: filterIndex,
+                                ),
+                              );
+                          ref
+                              .read(sequencerDefaultsProvider.notifier)
+                              .updateExposureDefaults(
+                                filter: filter,
+                              );
+                        }
+                      },
+                    ),
+                  ),
+                ),
+        ),
+        const SizedBox(height: 4),
+        InkWell(
+          onTap: () => ProfileEditorDialog.show(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.settings, size: 12, color: colors.textMuted),
+                const SizedBox(width: 4),
+                Text(
+                  'Edit filters...',
+                  style: TextStyle(
+                    fontSize: 11,
                     color: colors.textMuted,
                   ),
-                  dropdownColor: colors.surface,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colors.textPrimary,
-                  ),
-                  items: filterOptions.map((filter) {
-                    return DropdownMenuItem(
-                      value: filter,
-                      child: Text(filter.index < 0 ? '(None)' : filter.name),
-                    );
-                  }).toList(),
-                  onChanged: (newValue) {
-                    if (newValue != null) {
-                      final filter = newValue.index < 0 ? null : newValue.name;
-                      final filterIndex =
-                          newValue.index < 0 ? null : newValue.index;
-                      ref.read(currentSequenceProvider.notifier).updateNode(
-                            node.copyWith(
-                              filter: filter,
-                              filterIndex: filterIndex,
-                            ),
-                          );
-                      ref
-                          .read(sequencerDefaultsProvider.notifier)
-                          .updateExposureDefaults(
-                            filter: filter,
-                          );
-                    }
-                  },
                 ),
-              ),
+              ],
             ),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
     );
   }
 
@@ -1261,6 +1373,118 @@ class _ExposureProperties extends ConsumerWidget {
     if (secs < 60) return '${secs.toStringAsFixed(1)}s';
     if (secs < 3600) return '${(secs / 60).toStringAsFixed(1)}m';
     return '${(secs / 3600).toStringAsFixed(1)}h';
+  }
+}
+
+/// Number input for integer values (gain/offset)
+/// Simplified version of _NumberInput for integer inputs only.
+class _NumberInputWithHint extends StatefulWidget {
+  final NightshadeColors colors;
+  final double value;
+  final ValueChanged<double> onChanged;
+  final double? min;
+  final double? max;
+  final String? hintText;
+
+  const _NumberInputWithHint({
+    required this.colors,
+    required this.value,
+    required this.onChanged,
+    this.min,
+    this.max,
+    this.hintText,
+  });
+
+  @override
+  State<_NumberInputWithHint> createState() => _NumberInputWithHintState();
+}
+
+class _NumberInputWithHintState extends State<_NumberInputWithHint> {
+  late TextEditingController _controller;
+  late FocusNode _focusNode;
+  bool _hasFocus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.value.toInt().toString(),
+    );
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    final hadFocus = _hasFocus;
+    _hasFocus = _focusNode.hasFocus;
+
+    // When losing focus, update to the canonical value format
+    if (hadFocus && !_hasFocus) {
+      final newText = widget.value.toInt().toString();
+      if (_controller.text != newText) {
+        _controller.text = newText;
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(_NumberInputWithHint oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only update text if the field doesn't have focus (user isn't typing)
+    if (!_hasFocus && oldWidget.value != widget.value) {
+      final newText = widget.value.toInt().toString();
+      if (newText != _controller.text) {
+        _controller.text = newText;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: widget.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: widget.colors.border),
+      ),
+      child: TextField(
+        controller: _controller,
+        focusNode: _focusNode,
+        keyboardType: TextInputType.number,
+        onChanged: (value) {
+          final parsed = double.tryParse(value);
+          if (parsed != null) {
+            var clamped = parsed;
+            if (widget.min != null) {
+              clamped = clamped.clamp(widget.min!, double.infinity);
+            }
+            if (widget.max != null) {
+              clamped = clamped.clamp(double.negativeInfinity, widget.max!);
+            }
+            widget.onChanged(clamped);
+          }
+        },
+        style: TextStyle(
+          fontSize: 13,
+          color: widget.colors.textPrimary,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+        decoration: const InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 10),
+        ),
+      ),
+    );
   }
 }
 
@@ -1931,6 +2155,27 @@ class _FilterChangeProperties extends ConsumerWidget {
                     ),
                   ),
                 ),
+        ),
+        const SizedBox(height: 4),
+        InkWell(
+          onTap: () => ProfileEditorDialog.show(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.settings, size: 12, color: colors.textMuted),
+                const SizedBox(width: 4),
+                Text(
+                  'Edit filters...',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );

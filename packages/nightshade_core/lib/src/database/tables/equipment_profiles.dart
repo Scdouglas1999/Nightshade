@@ -41,6 +41,25 @@ class EquipmentProfiles extends Table {
   // Meridian flip settings overrides (JSON, nullable - uses global defaults if null)
   TextColumn get meridianFlipOverrides => text().nullable()();
 
+  // User-friendly device names (can be auto-generated or custom)
+  TextColumn get cameraName => text().nullable()();
+  TextColumn get mountName => text().nullable()();
+  TextColumn get focuserName => text().nullable()();
+  TextColumn get filterWheelName => text().nullable()();
+  TextColumn get guiderName => text().nullable()();
+  TextColumn get rotatorName => text().nullable()();
+
+  // Telescope/OTA information (separate from profile-level optical settings)
+  TextColumn get telescopeName => text().nullable()();
+  RealColumn get telescopeFocalLength => real().nullable()();
+  RealColumn get telescopeAperture => real().nullable()();
+
+  // Profile customization
+  TextColumn get profileIcon => text().nullable()();
+  IntColumn get profileColor => integer().nullable()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
+
   // Timestamps
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
