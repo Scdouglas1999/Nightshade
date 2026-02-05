@@ -864,6 +864,221 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             focus_offsets: vec![], // ASCOM FocusOffsets not always available
             ..Default::default()
         }))
+    } else if prog_id_lower.contains("rotator") {
+        // Query rotator capabilities via ASCOM COM
+        use nightshade_ascom::{AscomRotator, init_com};
+
+        let _ = init_com();
+
+        let mut rotator = AscomRotator::new(&prog_id)
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        rotator.connect()
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        let caps = RotatorCapabilities {
+            can_reverse: rotator.interface_version().unwrap_or(0) >= 3, // IRotatorV3 supports CanReverse
+            reverse: false, // Must query if can_reverse is true
+            step_size: None, // ASCOM rotators don't expose step size directly
+            is_moving: rotator.is_moving().unwrap_or(false),
+            mechanical_position: rotator.mechanical_position().ok(),
+            position: rotator.position().ok(),
+            can_move_absolute: true, // All ASCOM rotators support MoveAbsolute
+            can_halt: true, // All ASCOM rotators support Halt
+            can_sync: rotator.interface_version().unwrap_or(0) >= 3, // IRotatorV3 supports Sync
+        };
+
+        let _ = rotator.disconnect();
+        Ok(DeviceCapabilities::Rotator(caps))
+    } else if prog_id_lower.contains("dome") {
+        // Query dome capabilities via ASCOM COM
+        use nightshade_ascom::{AscomDome, init_com};
+
+        let _ = init_com();
+
+        let mut dome = AscomDome::new(&prog_id)
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        dome.connect()
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        // Map ASCOM ShutterStatus integer to our ShutterStatus enum
+        let shutter_status = dome.shutter_status().ok().map(|s| {
+            match s {
+                0 => ShutterStatus::Open,
+                1 => ShutterStatus::Closed,
+                2 => ShutterStatus::Opening,
+                3 => ShutterStatus::Closing,
+                _ => ShutterStatus::Unknown,
+            }
+        });
+
+        let caps = DomeCapabilities {
+            can_set_azimuth: dome.slew_to_azimuth(0.0).is_ok().then_some(true).unwrap_or(
+                // Try reading azimuth as a proxy for slew support
+                dome.azimuth().is_ok()
+            ),
+            can_park: dome.at_park().is_ok(),
+            can_find_home: false, // ASCOM Dome doesn't expose CanFindHome directly; conservative
+            can_set_shutter: shutter_status.is_some(),
+            can_sync_azimuth: false, // ASCOM Dome SyncToAzimuth availability is driver-specific
+            azimuth: dome.azimuth().ok(),
+            slewing: dome.slewing().unwrap_or(false),
+            at_home: false,
+            at_park: dome.at_park().unwrap_or(false),
+            shutter_status,
+            can_slave: false, // Conservative default
+            slaved: false,
+            can_abort: true, // All ASCOM domes support AbortSlew
+        };
+
+        let _ = dome.disconnect();
+        Ok(DeviceCapabilities::Dome(caps))
+    } else if prog_id_lower.contains("safetymonitor") {
+        // Query safety monitor capabilities via ASCOM COM
+        use nightshade_ascom::{AscomSafetyMonitor, init_com};
+
+        let _ = init_com();
+
+        let mut safety = AscomSafetyMonitor::new(&prog_id)
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        safety.connect()
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        let caps = SafetyMonitorCapabilities {
+            is_safe: safety.is_safe().unwrap_or(false),
+            safety_description: safety.driver_info().ok(),
+        };
+
+        let _ = safety.disconnect();
+        Ok(DeviceCapabilities::SafetyMonitor(caps))
+    } else if prog_id_lower.contains("observingconditions") || prog_id_lower.contains("weather") {
+        // Query observing conditions capabilities via ASCOM COM
+        use nightshade_ascom::{AscomObservingConditions, init_com};
+
+        let _ = init_com();
+
+        let mut weather = AscomObservingConditions::new(&prog_id)
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        weather.connect()
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        // Probe each sensor -- ASCOM throws PropertyNotImplementedException for unavailable sensors
+        let caps = WeatherCapabilities {
+            has_cloud_cover: weather.cloud_cover().is_ok(),
+            has_dew_point: weather.dew_point().is_ok(),
+            has_humidity: weather.humidity().is_ok(),
+            has_pressure: weather.pressure().is_ok(),
+            has_rain_rate: weather.rain_rate().is_ok(),
+            has_sky_brightness: weather.sky_brightness().is_ok(),
+            has_sky_quality: weather.sky_quality().is_ok(),
+            has_sky_temperature: weather.sky_temperature().is_ok(),
+            has_seeing: weather.star_fwhm().is_ok(),
+            has_temperature: weather.temperature().is_ok(),
+            has_wind_direction: weather.wind_direction().is_ok(),
+            has_wind_gust: weather.wind_gust().is_ok(),
+            has_wind_speed: weather.wind_speed().is_ok(),
+            average_period: None, // ASCOM ObservingConditions doesn't expose AveragePeriod as a standard property
+        };
+
+        let _ = weather.disconnect();
+        Ok(DeviceCapabilities::Weather(caps))
+    } else if prog_id_lower.contains("switch") {
+        // Query switch capabilities via ASCOM COM
+        use nightshade_ascom::{AscomSwitch, init_com};
+
+        let _ = init_com();
+
+        let mut switch = AscomSwitch::new(&prog_id)
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        switch.connect()
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        let max_switch = switch.max_switch().unwrap_or(0);
+        let mut switches = Vec::new();
+
+        for i in 0..max_switch {
+            let name = switch.get_switch_name(i).unwrap_or_else(|_| format!("Switch {}", i));
+            let description = switch.get_switch_description(i).unwrap_or_default();
+            let min_value = switch.min_switch_value(i).unwrap_or(0.0);
+            let max_value = switch.max_switch_value(i).unwrap_or(1.0);
+            let step = 1.0; // ASCOM ISwitchV2 doesn't expose SwitchStep
+            let can_write = switch.can_write(i).unwrap_or(false);
+            let value = switch.get_switch_value(i).unwrap_or(0.0);
+            let is_boolean = (min_value == 0.0 && max_value == 1.0) || (min_value == max_value);
+
+            switches.push(SwitchInfo {
+                index: i,
+                name,
+                description,
+                is_boolean,
+                min_value,
+                max_value,
+                step,
+                can_write,
+                value,
+            });
+        }
+
+        let caps = SwitchCapabilities {
+            switch_count: max_switch,
+            switches,
+        };
+
+        let _ = switch.disconnect();
+        Ok(DeviceCapabilities::Switch(caps))
+    } else if prog_id_lower.contains("covercalibrator") || prog_id_lower.contains("flatpanel") {
+        // Query cover calibrator capabilities via ASCOM COM
+        use nightshade_ascom::{AscomCoverCalibrator, init_com};
+
+        let _ = init_com();
+
+        let mut cc = AscomCoverCalibrator::new(&prog_id)
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        cc.connect()
+            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+        // ASCOM CoverState: 0=NotPresent, 1=Closed, 2=Moving, 3=Open, 4=Unknown, 5=Error
+        let cover_state = cc.cover_state().ok().map(|s| {
+            match s {
+                0 => CoverState::NotPresent,
+                1 => CoverState::Closed,
+                2 => CoverState::Moving,
+                3 => CoverState::Open,
+                4 => CoverState::Unknown,
+                5 => CoverState::Error,
+                _ => CoverState::Unknown,
+            }
+        });
+
+        // ASCOM CalibratorState: 0=NotPresent, 1=Off, 2=NotReady, 3=Ready, 4=Unknown, 5=Error
+        let calibrator_state = cc.calibrator_state().ok().map(|s| {
+            match s {
+                0 => CalibratorState::NotPresent,
+                1 => CalibratorState::Off,
+                2 => CalibratorState::NotReady,
+                3 => CalibratorState::Ready,
+                4 => CalibratorState::Unknown,
+                5 => CalibratorState::Error,
+                _ => CalibratorState::Unknown,
+            }
+        });
+
+        let caps = CoverCalibratorCapabilities {
+            max_brightness: cc.max_brightness().unwrap_or(0),
+            cover_present: cover_state.map_or(false, |s| s != CoverState::NotPresent),
+            calibrator_present: calibrator_state.map_or(false, |s| s != CalibratorState::NotPresent),
+            cover_state,
+            calibrator_state,
+            brightness: cc.brightness().ok(),
+        };
+
+        let _ = cc.disconnect();
+        Ok(DeviceCapabilities::CoverCalibrator(caps))
     } else {
         Err(NightshadeError::not_supported(device_id, "Unknown ASCOM device type"))
     }

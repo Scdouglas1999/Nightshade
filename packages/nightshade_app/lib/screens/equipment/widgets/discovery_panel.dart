@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../mixins/device_connection_mixin.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../dialogs/fujifilm_disclaimer_dialog.dart';
 
 /// Action for assigning a device to a profile
 class AssignAction {
@@ -430,6 +431,13 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   Future<void> _connectDevice(UnifiedDevice device) async {
     final deviceService = ref.read(deviceServiceProvider);
     final deviceId = device.activeDeviceId;
+
+    // Fujifilm warranty disclaimer check
+    if (device.type == DeviceType.camera &&
+        isFujifilmDevice(deviceId, device.displayName)) {
+      final accepted = await showFujifilmDisclaimerIfNeeded(context);
+      if (!accepted) return;
+    }
 
     try {
       switch (device.type) {

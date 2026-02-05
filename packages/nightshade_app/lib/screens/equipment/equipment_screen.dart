@@ -254,6 +254,31 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
   Future<void> _connectAllDevices(EquipmentProfileModel profile) async {
     final deviceService = ref.read(deviceServiceProvider);
+    final discoveryNotifier = ref.read(unifiedDiscoveryProvider.notifier);
+
+    // Count how many devices we need to connect
+    final deviceIds = [
+      profile.cameraId,
+      profile.mountId,
+      profile.focuserId,
+      profile.filterWheelId,
+      profile.guiderId,
+      profile.rotatorId,
+    ].where((id) => id != null && id.isNotEmpty).toList();
+
+    if (deviceIds.isEmpty) {
+      if (mounted) {
+        context.showWarningSnackBar('No devices configured in this profile');
+      }
+      return;
+    }
+
+    // Trigger discovery first to populate the device cache
+    // This ensures devices are findable by the connect methods
+    if (mounted) {
+      context.showInfoSnackBar('Discovering devices...');
+    }
+    await discoveryNotifier.discoverAll();
 
     final connections = <(String?, Future<void> Function(String), String)>[
       (profile.cameraId, deviceService.connectCamera, 'camera'),
@@ -266,6 +291,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
     int successCount = 0;
     int failCount = 0;
+    final List<String> failedDevices = [];
 
     for (final (id, connect, name) in connections) {
       if (id != null && id.isNotEmpty) {
@@ -274,15 +300,25 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
           successCount++;
         } catch (e) {
           failCount++;
-          if (mounted) {
-            context.showErrorSnackBar('Failed to connect $name: $e');
-          }
+          failedDevices.add(name);
         }
       }
     }
 
-    if (mounted && successCount > 0 && failCount == 0) {
+    if (!mounted) return;
+
+    if (successCount > 0 && failCount == 0) {
       context.showSuccessSnackBar('Connected $successCount device${successCount > 1 ? 's' : ''}');
+    } else if (successCount > 0 && failCount > 0) {
+      context.showWarningSnackBar(
+        'Connected $successCount device${successCount > 1 ? 's' : ''}, '
+        'failed: ${failedDevices.join(", ")}'
+      );
+    } else if (failCount > 0) {
+      context.showErrorSnackBar(
+        'Failed to connect: ${failedDevices.join(", ")}. '
+        'Ensure devices are powered on and available.'
+      );
     }
   }
 
