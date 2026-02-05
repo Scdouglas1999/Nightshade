@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -208,21 +210,30 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
 
         // Categories list - using provided scroll controller for DraggableScrollableSheet
         Expanded(
-          child: ListView.builder(
-            controller: widget.scrollController,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: filteredCategories.length,
-            itemBuilder: (context, index) {
-              final category = filteredCategories[index];
-              return _CategorySection(
-                category: category,
-                colors: widget.colors,
-                categoryColor: _getCategoryColor(category.name),
-                getIcon: _getIcon,
-                isMobile: true,
-                onNodeAdded: widget.onNodeAdded,
-              );
-            },
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.trackpad,
+              },
+            ),
+            child: ListView.builder(
+              controller: widget.scrollController,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: filteredCategories.length,
+              itemBuilder: (context, index) {
+                final category = filteredCategories[index];
+                return _CategorySection(
+                  category: category,
+                  colors: widget.colors,
+                  categoryColor: _getCategoryColor(category.name),
+                  getIcon: _getIcon,
+                  isMobile: true,
+                  onNodeAdded: widget.onNodeAdded,
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -341,18 +352,27 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
 
           // Categories
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: filteredCategories.length,
-              itemBuilder: (context, index) {
-                final category = filteredCategories[index];
-                return _CategorySection(
-                  category: category,
-                  colors: widget.colors,
-                  categoryColor: _getCategoryColor(category.name),
-                  getIcon: _getIcon,
-                );
-              },
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: {
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.trackpad,
+                },
+              ),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: filteredCategories.length,
+                itemBuilder: (context, index) {
+                  final category = filteredCategories[index];
+                  return _CategorySection(
+                    category: category,
+                    colors: widget.colors,
+                    categoryColor: _getCategoryColor(category.name),
+                    getIcon: _getIcon,
+                  );
+                },
+              ),
             ),
           ),
 

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -771,18 +773,27 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
 
         // Categories
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 8),
-            itemCount: filteredCategories.length,
-            itemBuilder: (context, index) {
-              final category = filteredCategories[index];
-              return _NodeCategorySection(
-                category: category,
-                colors: widget.colors,
-                categoryColor: _getCategoryColor(category.name),
-                getIcon: _getIcon,
-              );
-            },
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.trackpad,
+              },
+            ),
+            child: ListView.builder(
+              padding: const EdgeInsets.only(bottom: 8),
+              itemCount: filteredCategories.length,
+              itemBuilder: (context, index) {
+                final category = filteredCategories[index];
+                return _NodeCategorySection(
+                  category: category,
+                  colors: widget.colors,
+                  categoryColor: _getCategoryColor(category.name),
+                  getIcon: _getIcon,
+                );
+              },
+            ),
           ),
         ),
 
