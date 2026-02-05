@@ -1017,61 +1017,36 @@ class _PreFlightValidationDialogState extends ConsumerState<PreFlightValidationD
       child: Row(
         children: [
           // Refresh button
-          TextButton.icon(
+          NightshadeButton(
             onPressed: () {
               setState(() => _isValidating = true);
               _runValidation();
             },
-            icon: Icon(LucideIcons.refreshCw, size: 14, color: colors.textSecondary),
-            label: Text(
-              'Re-check',
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
-            ),
+            icon: LucideIcons.refreshCw,
+            label: 'Re-check',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
 
           const Spacer(),
 
           // Cancel button
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.textSecondary,
-              ),
-            ),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
           const SizedBox(width: 12),
 
           // Start button
-          ElevatedButton.icon(
+          _StartSequenceButton(
+            canStart: canStart,
+            hasWarningsOnly: hasWarningsOnly,
+            colors: colors,
             onPressed: (canStart || hasWarningsOnly) ? () async {
               await _handleStartSequence();
             } : null,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: canStart
-                  ? colors.success
-                  : hasWarningsOnly
-                      ? colors.warning
-                      : colors.textMuted,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            icon: Icon(canStart ? LucideIcons.play : LucideIcons.alertTriangle, size: 16),
-            label: Text(
-              hasWarningsOnly ? 'Start Anyway' : 'Start Sequence',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ),
         ],
       ),
@@ -1113,6 +1088,99 @@ class _CountBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Custom start sequence button with muted gradient styling
+class _StartSequenceButton extends StatefulWidget {
+  final bool canStart;
+  final bool hasWarningsOnly;
+  final NightshadeColors colors;
+  final VoidCallback? onPressed;
+
+  const _StartSequenceButton({
+    required this.canStart,
+    required this.hasWarningsOnly,
+    required this.colors,
+    this.onPressed,
+  });
+
+  @override
+  State<_StartSequenceButton> createState() => _StartSequenceButtonState();
+}
+
+class _StartSequenceButtonState extends State<_StartSequenceButton> {
+  bool _isHovered = false;
+
+  /// Creates a slightly darker shade of the given color
+  Color _darkenColor(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEnabled = widget.onPressed != null;
+    final baseColor = widget.canStart
+        ? widget.colors.success
+        : widget.hasWarningsOnly
+            ? widget.colors.warning
+            : widget.colors.textMuted;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: isEnabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: isEnabled
+                ? LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      baseColor,
+                      _darkenColor(baseColor, 0.08),
+                    ],
+                  )
+                : null,
+            color: isEnabled ? null : baseColor.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: isEnabled && _isHovered
+                ? [
+                    BoxShadow(
+                      color: baseColor.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      spreadRadius: 0,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.canStart ? LucideIcons.play : LucideIcons.alertTriangle,
+                size: 16,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.hasWarningsOnly ? 'Start Anyway' : 'Start Sequence',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

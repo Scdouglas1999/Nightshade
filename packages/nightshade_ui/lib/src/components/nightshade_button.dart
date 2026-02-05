@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
@@ -56,8 +57,11 @@ class _NightshadeButtonState extends State<NightshadeButton>
 
   void _handleTapDown(TapDownDetails details) {
     if (widget.onPressed != null && !widget.isLoading) {
-      setState(() => _isPressed = true);
-      _pressController.forward();
+      _runAfterSafeUpdate(() {
+        if (widget.onPressed == null || widget.isLoading) return;
+        _isPressed = true;
+        _pressController.forward();
+      });
     }
   }
 
@@ -69,10 +73,34 @@ class _NightshadeButtonState extends State<NightshadeButton>
     _releasePress();
   }
 
+  void _runAfterSafeUpdate(VoidCallback update) {
+    if (!mounted) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle || phase == SchedulerPhase.postFrameCallbacks) {
+      setState(update);
+    } else {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(update);
+      });
+    }
+  }
+
+  void _setHovered(bool value) {
+    if (_isHovered == value) return;
+    _runAfterSafeUpdate(() {
+      if (_isHovered == value) return;
+      _isHovered = value;
+    });
+  }
+
   void _releasePress() {
     if (_isPressed) {
-      setState(() => _isPressed = false);
-      _pressController.reverse();
+      _runAfterSafeUpdate(() {
+        if (!_isPressed) return;
+        _isPressed = false;
+        _pressController.reverse();
+      });
     }
   }
 
@@ -172,16 +200,10 @@ class _NightshadeButtonState extends State<NightshadeButton>
         showGlow = false;
     }
 
-    // Build gradient for primary/destructive buttons
-    final Gradient? gradient = useGradient
-        ? LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              _lightenColor(baseColor, 0.05),
-              baseColor,
-            ],
-          )
+    // Primary/destructive buttons use a muted, semi-transparent color
+    // This creates a translucent effect that lets the dark background show through
+    final Color? flatButtonColor = useGradient
+        ? baseColor.withValues(alpha: 0.65)
         : null;
 
     // Build glow shadow for hover state
@@ -200,9 +222,9 @@ class _NightshadeButtonState extends State<NightshadeButton>
       enabled: !isDisabled,
       label: widget.label,
       child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
+        onEnter: (_) => _setHovered(true),
         onExit: (_) {
-          setState(() => _isHovered = false);
+          _setHovered(false);
           _releasePress();
         },
         cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
@@ -223,8 +245,7 @@ class _NightshadeButtonState extends State<NightshadeButton>
               duration: NightshadeTokens.durationQuick,
               curve: NightshadeTokens.curveSnappy,
               decoration: BoxDecoration(
-                color: gradient == null ? baseColor : null,
-                gradient: gradient,
+                color: flatButtonColor ?? baseColor,
                 borderRadius: NightshadeTokens.borderRadiusSm,
                 border: Border.all(color: borderColor),
                 boxShadow: boxShadow,

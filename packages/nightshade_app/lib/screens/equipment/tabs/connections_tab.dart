@@ -335,17 +335,17 @@ Future<bool> showSaveToProfileDialog({
         ],
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context, false),
-          child: Text(
-            'Not Now',
-            style: TextStyle(color: colors.textMuted),
-          ),
+          label: 'Not Now',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
-        FilledButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context, true),
-          style: FilledButton.styleFrom(backgroundColor: colors.primary),
-          child: const Text('Save to Profile'),
+          label: 'Save to Profile',
+          variant: ButtonVariant.primary,
+          size: ButtonSize.small,
         ),
       ],
     ),
@@ -470,9 +470,11 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
           ),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            label: 'Close',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -548,19 +550,22 @@ class _ConnectionsTabState extends ConsumerState<ConnectionsTab> {
           ],
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
-          FilledButton(
+          NightshadeButton(
             onPressed: () async {
               Navigator.pop(context);
               final host = hostController.text.trim();
               final port = int.tryParse(portController.text) ?? 11111;
               await _connectToAlpacaServer(host, port);
             },
-            style: FilledButton.styleFrom(backgroundColor: colors.primary),
-            child: const Text('Connect'),
+            label: 'Connect',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -923,24 +928,12 @@ class _DeviceDiscoveryCard extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: FilledButton.icon(
+                child: NightshadeButton(
                   onPressed: isDiscovering ? null : onScan,
-                  icon: isDiscovering
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colors.textPrimary,
-                          ),
-                        )
-                      : const Icon(LucideIcons.search, size: 16),
-                  label: Text(isDiscovering ? 'Discovering...' : 'Discover Devices'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                  icon: LucideIcons.search,
+                  label: isDiscovering ? 'Discovering...' : 'Discover Devices',
+                  variant: ButtonVariant.primary,
+                  isLoading: isDiscovering,
                 ),
               ),
               const SizedBox(width: 12),
@@ -2568,25 +2561,23 @@ class _NoProfileDialog extends StatelessWidget {
         ],
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context, _NoProfileAction.cancel),
-          child: Text(
-            'Cancel',
-            style: TextStyle(color: colors.textMuted),
-          ),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
-        OutlinedButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context, _NoProfileAction.selectExisting),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.primary,
-            side: BorderSide(color: colors.primary),
-          ),
-          child: const Text('Select Existing'),
+          label: 'Select Existing',
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
         ),
-        FilledButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context, _NoProfileAction.createNew),
-          style: FilledButton.styleFrom(backgroundColor: colors.primary),
-          child: const Text('Create New Profile'),
+          label: 'Create New Profile',
+          variant: ButtonVariant.primary,
+          size: ButtonSize.small,
         ),
       ],
     );
@@ -2713,12 +2704,11 @@ class _ProfilePickerDialog extends ConsumerWidget {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: TextStyle(color: colors.textMuted),
-          ),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
       ],
     );

@@ -442,14 +442,16 @@ class QuickConnectBar extends ConsumerWidget {
                 ),
               ),
               actions: [
-                TextButton(
+                NightshadeButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
                 ),
-                FilledButton(
+                NightshadeButton(
                   onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
-                  style: FilledButton.styleFrom(backgroundColor: colors.primary),
-                  child: const Text('Save'),
+                  label: 'Save',
+                  variant: ButtonVariant.primary,
                 ),
               ],
             ),
@@ -502,13 +504,17 @@ class QuickConnectBar extends ConsumerWidget {
                 style: TextStyle(color: colors.textSecondary),
               ),
               actions: [
-                TextButton(
+                NightshadeButton(
                   onPressed: () => Navigator.pop(dialogContext, false),
-                  child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
                 ),
-                TextButton(
+                NightshadeButton(
                   onPressed: () => Navigator.pop(dialogContext, true),
-                  child: Text('Delete', style: TextStyle(color: colors.error)),
+                  label: 'Delete',
+                  variant: ButtonVariant.destructive,
+                  size: ButtonSize.small,
                 ),
               ],
             ),

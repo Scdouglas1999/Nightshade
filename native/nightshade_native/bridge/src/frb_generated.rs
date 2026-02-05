@@ -5298,6 +5298,7 @@ fn wire__crate__api__api_start_polar_alignment_impl(
     offset: impl CstDecode<Option<i32>>,
     solve_timeout: impl CstDecode<Option<f64>>,
     start_from_current: impl CstDecode<Option<bool>>,
+    auto_complete_threshold: impl CstDecode<Option<f64>>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -5316,6 +5317,7 @@ fn wire__crate__api__api_start_polar_alignment_impl(
             let api_offset = offset.cst_decode();
             let api_solve_timeout = solve_timeout.cst_decode();
             let api_start_from_current = start_from_current.cst_decode();
+            let api_auto_complete_threshold = auto_complete_threshold.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
@@ -5330,6 +5332,7 @@ fn wire__crate__api__api_start_polar_alignment_impl(
                             api_offset,
                             api_solve_timeout,
                             api_start_from_current,
+                            api_auto_complete_threshold,
                         )
                         .await?;
                         Ok(output_ok)
@@ -21256,6 +21259,7 @@ mod io {
         offset: *mut i32,
         solve_timeout: *mut f64,
         start_from_current: *mut bool,
+        auto_complete_threshold: *mut f64,
     ) {
         wire__crate__api__api_start_polar_alignment_impl(
             port_,
@@ -21269,6 +21273,7 @@ mod io {
             offset,
             solve_timeout,
             start_from_current,
+            auto_complete_threshold,
         )
     }
 

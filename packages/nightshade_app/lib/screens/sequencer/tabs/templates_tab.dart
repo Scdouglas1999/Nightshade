@@ -247,6 +247,7 @@ class TemplatesTab extends ConsumerWidget {
     final searchQuery = ref.watch(templateSearchProvider);
     final category = ref.watch(templateCategoryProvider);
     final isMobile = Responsive.isMobile(context);
+    final snippets = ref.watch(allSnippetsProvider);
 
     return Padding(
       padding: EdgeInsets.all(isMobile ? 12 : 24),
@@ -256,6 +257,13 @@ class TemplatesTab extends ConsumerWidget {
           _TemplatesHeader(colors: colors),
 
           const SizedBox(height: 24),
+
+          // Snippet summary card (shows count and quick access hint)
+          if (!isMobile && snippets.isNotEmpty)
+            _SnippetSummaryCard(colors: colors, snippetCount: snippets.length),
+
+          if (!isMobile && snippets.isNotEmpty)
+            const SizedBox(height: 16),
 
           // Content
           Expanded(
@@ -323,6 +331,81 @@ class TemplatesTab extends ConsumerWidget {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Summary card showing snippet count and quick access to snippets
+class _SnippetSummaryCard extends ConsumerWidget {
+  final NightshadeColors colors;
+  final int snippetCount;
+
+  const _SnippetSummaryCard({
+    required this.colors,
+    required this.snippetCount,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.accent.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: colors.accent.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              LucideIcons.bookMarked,
+              size: 20,
+              color: colors.accent,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Reusable Snippets',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$snippetCount snippets available. Switch to Builder tab and use the Snippets panel (Ctrl+T) to add them.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _ActionButton(
+            colors: colors,
+            icon: LucideIcons.arrowRight,
+            label: 'Go to Builder',
+            onPressed: () {
+              // Switch to Builder tab and show snippets
+              ref.read(sequencerTabProvider.notifier).state = 0;
+              ref.read(snippetPaletteVisibleProvider.notifier).state = true;
+            },
           ),
         ],
       ),
@@ -922,9 +1005,11 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
           ],
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text('Cancel', style: TextStyle(color: widget.colors.textMuted)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -1104,18 +1189,20 @@ context.showSuccessSnackBar('Created sequence from "${widget.template.name}"');
           style: TextStyle(color: widget.colors.textSecondary),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text('Cancel', style: TextStyle(color: widget.colors.textMuted)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
-          TextButton(
+          NightshadeButton(
             onPressed: () async {
               Navigator.of(dialogContext).pop();
-              
+
               try {
                 final repository = ref.read(sequenceRepositoryProvider);
                 await repository.deleteSequence(dbId);
-                
+
                 // Refresh the templates list
                 ref.invalidate(sequenceTemplatesProvider);
 
@@ -1128,7 +1215,9 @@ context.showSuccessSnackBar('Created sequence from "${widget.template.name}"');
                 }
               }
             },
-            child: Text('Delete', style: TextStyle(color: widget.colors.error)),
+            label: 'Delete',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -1481,18 +1570,18 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(
+                NightshadeButton(
                   onPressed: _isSaving ? null : () => Navigator.pop(context),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: widget.colors.textSecondary),
-                  ),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
                 ),
                 const SizedBox(width: 12),
                 NightshadeButton(
                   label: _isSaving ? 'Saving...' : 'Save Template',
                   icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
                   onPressed: _isSaving ? null : _saveTemplate,
+                  size: ButtonSize.small,
                 ),
               ],
             ),

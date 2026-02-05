@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../utils/snackbar_helper.dart';
+import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/settings_keys.dart';
 import 'catalog_settings_screen.dart';
 import 'equipment_profiles_screen.dart';
@@ -53,10 +54,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final isMobile = Responsive.isMobile(context);
 
-    if (isMobile) {
-      return _buildMobileLayout(colors);
-    }
-    return _buildDesktopLayout(colors);
+    final child = isMobile ? _buildMobileLayout(colors) : _buildDesktopLayout(colors);
+
+    return ContextualTourPrompt(
+      screenId: 'settings',
+      tourCategory: TutorialCategory.settingsTour,
+      title: 'Settings Tour',
+      description: 'Learn how to configure your Nightshade preferences.',
+      durationMinutes: 3,
+      alignment: Alignment.bottomRight,
+      child: child,
+    );
   }
 
   Widget _buildMobileLayout(NightshadeColors colors) {
@@ -738,18 +746,11 @@ class _ConnectionSettings extends ConsumerWidget {
               subtitle: isConnected
                   ? 'Return to connection screen to connect to a different server'
                   : 'Open connection screen to connect to a server',
-              trailing: ElevatedButton(
+              trailing: NightshadeButton(
+                label: isConnected ? 'Disconnect' : 'Connect',
+                variant: isConnected ? ButtonVariant.destructive : ButtonVariant.primary,
+                size: isMobile ? ButtonSize.small : ButtonSize.small,
                 onPressed: () => _handleConnectionAction(context, ref, isConnected),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isConnected ? colors.error : colors.primary,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 12 : 16,
-                    vertical: isMobile ? 6 : 8,
-                  ),
-                  textStyle: TextStyle(fontSize: isMobile ? 11 : 12, fontWeight: FontWeight.w600),
-                ),
-                child: Text(isConnected ? 'Disconnect' : 'Connect'),
               ),
               isLast: true,
               colors: colors,
@@ -810,21 +811,21 @@ class _ConnectionSettings extends ConsumerWidget {
             'You will return to the connection screen where you can connect to a different server.',
           ),
           actions: [
-            TextButton(
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
             ),
-            ElevatedButton(
+            NightshadeButton(
+              label: 'Disconnect',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
               onPressed: () {
                 Navigator.pop(ctx);
                 // Disconnect from server
                 ref.read(backendProvider.notifier).disconnect();
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.error,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Disconnect'),
             ),
           ],
         ),
@@ -866,11 +867,16 @@ class _ConnectionSettings extends ConsumerWidget {
           ],
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          NightshadeButton(
+            label: 'Connect',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
             onPressed: () {
               final host = hostController.text.trim();
               final port = int.tryParse(portController.text.trim()) ?? 8765;
@@ -880,7 +886,6 @@ class _ConnectionSettings extends ConsumerWidget {
                 ref.read(backendProvider.notifier).connect(host, port);
               }
             },
-            child: const Text('Connect'),
           ),
         ],
       ),
@@ -1878,16 +1883,15 @@ class _AnnotationSettings extends ConsumerWidget {
 
         // Reset Button
         Center(
-          child: TextButton.icon(
+          child: NightshadeButton(
+            label: 'Reset to Defaults',
+            icon: LucideIcons.rotateCcw,
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
             onPressed: () {
               settingsNotifier.reset();
               markerNotifier.reset();
             },
-            icon: Icon(LucideIcons.rotateCcw, size: 16, color: colors.warning),
-            label: Text(
-              'Reset to Defaults',
-              style: TextStyle(color: colors.warning),
-            ),
           ),
         ),
       ],
@@ -3043,26 +3047,12 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                   icon: LucideIcons.send,
                   title: 'Test Discord',
                   subtitle: 'Send a test notification to your Discord channel',
-                  trailing: SizedBox(
-                    width: 100,
-                    height: 32,
-                    child: ElevatedButton(
-                      onPressed: _testingDiscord ? null : _testDiscord,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: widget.colors.primary,
-                        padding: EdgeInsets.zero,
-                      ),
-                      child: _testingDiscord
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Test', style: TextStyle(fontSize: 12)),
-                    ),
+                  trailing: NightshadeButton(
+                    label: 'Test',
+                    variant: ButtonVariant.primary,
+                    size: ButtonSize.small,
+                    isLoading: _testingDiscord,
+                    onPressed: _testingDiscord ? null : _testDiscord,
                   ),
                   isLast: true,
                   colors: widget.colors,
@@ -3109,26 +3099,12 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                   icon: LucideIcons.send,
                   title: 'Test Pushover',
                   subtitle: 'Send a test notification to your device',
-                  trailing: SizedBox(
-                    width: 100,
-                    height: 32,
-                    child: ElevatedButton(
-                      onPressed: _testingPushover ? null : _testPushover,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: widget.colors.primary,
-                        padding: EdgeInsets.zero,
-                      ),
-                      child: _testingPushover
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Test', style: TextStyle(fontSize: 12)),
-                    ),
+                  trailing: NightshadeButton(
+                    label: 'Test',
+                    variant: ButtonVariant.primary,
+                    size: ButtonSize.small,
+                    isLoading: _testingPushover,
+                    onPressed: _testingPushover ? null : _testPushover,
                   ),
                   isLast: true,
                   colors: widget.colors,
@@ -3361,22 +3337,11 @@ class _HelpTutorialsSettings extends ConsumerWidget {
               iconColor: colors.error,
               title: 'Reset All Progress',
               subtitle: 'Clear all tutorial progress and start fresh',
-              trailing: ElevatedButton(
+              trailing: NightshadeButton(
+                label: 'Reset',
+                variant: ButtonVariant.destructive,
+                size: ButtonSize.small,
                 onPressed: () => _showResetConfirmation(context, ref),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colors.error.withValues(alpha: 0.1),
-                  foregroundColor: colors.error,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(color: colors.error.withValues(alpha: 0.3)),
-                  ),
-                ),
-                child: const Text(
-                  'Reset',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                ),
               ),
               isLast: true,
               colors: colors,
@@ -3445,26 +3410,20 @@ class _HelpTutorialsSettings extends ConsumerWidget {
           ),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: colors.textMuted),
-            ),
           ),
-          ElevatedButton(
+          NightshadeButton(
+            label: 'Reset',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
             onPressed: () {
               Navigator.pop(ctx);
               ref.read(tutorialProvider.notifier).resetProgress();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.error,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('Reset'),
           ),
         ],
       ),
@@ -3618,26 +3577,11 @@ class _TutorialRow extends StatelessWidget {
             ),
 
             // Action button
-            ElevatedButton(
+            NightshadeButton(
+              label: _buttonText,
+              variant: isCompleted ? ButtonVariant.outline : ButtonVariant.primary,
+              size: ButtonSize.small,
               onPressed: _buttonAction,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isCompleted
-                    ? colors.surfaceAlt
-                    : colors.primary.withValues(alpha: hasProgress ? 0.8 : 1.0),
-                foregroundColor: isCompleted ? colors.textSecondary : Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: isCompleted
-                      ? BorderSide(color: colors.border)
-                      : BorderSide.none,
-                ),
-              ),
-              child: Text(
-                _buttonText,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
             ),
           ],
         ),

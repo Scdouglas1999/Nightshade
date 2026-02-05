@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import '../utils/preview_transform.dart';
 
-/// Enhanced annotation overlay with fade effects, click-to-identify, and customizable styles
+/// Enhanced annotation overlay with fade effects, click-to-identify, hover tooltips, and customizable styles
 class AnnotationOverlay extends ConsumerStatefulWidget {
   final ImageAnnotation? annotation;
   final double zoomLevel;
@@ -11,6 +14,10 @@ class AnnotationOverlay extends ConsumerStatefulWidget {
   final Size imageSize;
   final void Function(CelestialObjectAnnotation object)? onObjectTapped;
   final void Function(double x, double y)? onIdentifyAt;
+  /// Called when the mouse hovers over a celestial object
+  final void Function(CelestialObjectAnnotation object, Offset screenPosition)? onObjectHovered;
+  /// Called when the mouse moves away from all objects
+  final VoidCallback? onObjectUnhovered;
 
   const AnnotationOverlay({
     super.key,
@@ -20,6 +27,8 @@ class AnnotationOverlay extends ConsumerStatefulWidget {
     required this.imageSize,
     this.onObjectTapped,
     this.onIdentifyAt,
+    this.onObjectHovered,
+    this.onObjectUnhovered,
   });
 
   @override
@@ -31,6 +40,11 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
   bool _isHovering = false;
+
+  // Hover detection state
+  CelestialObjectAnnotation? _currentHoveredObject;
+  Timer? _hoverDebounceTimer;
+  static const _hoverDebounceMs = 75; // Delay before showing tooltip
 
   Animation<double> _createFadeAnimation(AnnotationSettings settings) {
     return Tween<double>(
@@ -56,8 +70,99 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
 
   @override
   void dispose() {
+    _hoverDebounceTimer?.cancel();
     _fadeController.dispose();
     super.dispose();
+  }
+
+  void _clearHoverState() {
+    _hoverDebounceTimer?.cancel();
+    if (_currentHoveredObject != null) {
+      _currentHoveredObject = null;
+      widget.onObjectUnhovered?.call();
+    }
+  }
+
+  void _onHoverMove(PointerEvent event) {
+    final settings = ref.read(annotationSettingsProvider).valueOrNull ??
+        const AnnotationSettings();
+    if (!settings.enabled || widget.annotation == null) return;
+
+    final localPosition = event.localPosition;
+
+    // Convert screen position to image coordinates
+    final imagePoint = viewportToImage(
+      viewportPoint: localPosition,
+      imageOffset: widget.imageOffset,
+      zoomLevel: widget.zoomLevel,
+    );
+
+    // Find the object under the cursor (if any)
+    CelestialObjectAnnotation? foundObject;
+    for (final object in widget.annotation!.objects) {
+      // Skip objects that wouldn't be visible based on settings
+      if (!object.visible) continue;
+      if (object.magnitude != null) {
+        if (object.magnitude! > settings.magnitudeCutoff) continue;
+        if (object.magnitude! < settings.minMagnitude) continue;
+      }
+      if (!_isTypeVisibleForHover(object.type, settings.visibleTypes)) continue;
+
+      final dx = object.x - imagePoint.dx;
+      final dy = object.y - imagePoint.dy;
+      final distance = (dx * dx + dy * dy);
+      final hitRadius = (object.size ?? 30) * 1.5;
+
+      if (distance < hitRadius * hitRadius) {
+        foundObject = object;
+        break;
+      }
+    }
+
+    // Only update if the hovered object changed
+    if (foundObject?.name != _currentHoveredObject?.name) {
+      _hoverDebounceTimer?.cancel();
+
+      if (foundObject != null) {
+        // Debounce showing the tooltip to avoid flickering
+        final objectToShow = foundObject;
+        _hoverDebounceTimer = Timer(const Duration(milliseconds: _hoverDebounceMs), () {
+          if (!mounted) return;
+          _currentHoveredObject = objectToShow;
+
+          // Calculate screen position for the tooltip
+          final screenPosition = imageToViewport(
+            imagePoint: Offset(objectToShow.x, objectToShow.y),
+            imageOffset: widget.imageOffset,
+            zoomLevel: widget.zoomLevel,
+          );
+
+          widget.onObjectHovered?.call(objectToShow, screenPosition);
+        });
+      } else {
+        // Immediately clear when moving away from objects (no debounce needed)
+        _currentHoveredObject = null;
+        widget.onObjectUnhovered?.call();
+      }
+    }
+  }
+
+  bool _isTypeVisibleForHover(ObjectType type, Set<AnnotationObjectFilter> filters) {
+    switch (type) {
+      case ObjectType.galaxy:
+        return filters.contains(AnnotationObjectFilter.galaxies);
+      case ObjectType.nebula:
+        return filters.contains(AnnotationObjectFilter.nebulae);
+      case ObjectType.planetaryNebula:
+        return filters.contains(AnnotationObjectFilter.planetaryNebulae);
+      case ObjectType.starCluster:
+        return filters.contains(AnnotationObjectFilter.starClusters);
+      case ObjectType.star:
+      case ObjectType.doubleStar:
+        return filters.contains(AnnotationObjectFilter.stars);
+      default:
+        return filters.contains(AnnotationObjectFilter.other);
+    }
   }
 
   void _onHoverChanged(bool hovering) {
@@ -73,6 +178,8 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
       _fadeController.forward();
     } else {
       _fadeController.reverse();
+      // When mouse leaves the overlay entirely, clear hover state
+      _clearHoverState();
     }
   }
 
@@ -129,6 +236,7 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
     return MouseRegion(
       onEnter: (_) => _onHoverChanged(true),
       onExit: (_) => _onHoverChanged(false),
+      onHover: _onHoverMove,
       child: GestureDetector(
         onTapUp: _onTapUp,
         behavior: HitTestBehavior.translucent,
@@ -526,16 +634,11 @@ class ObjectInfoTooltip extends StatelessWidget {
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
-              child: TextButton(
+              child: NightshadeButton(
                 onPressed: onMoreInfo,
-                style: TextButton.styleFrom(
-                  backgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.2),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                ),
-                child: const Text(
-                  'More Info',
-                  style: TextStyle(color: Color(0xFF6366F1), fontSize: 12),
-                ),
+                label: 'More Info',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
               ),
             ),
           ],

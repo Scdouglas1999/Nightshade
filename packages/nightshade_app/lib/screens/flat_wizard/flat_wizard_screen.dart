@@ -9,6 +9,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as p;
 
+import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/flat_wizard_keys.dart';
 import 'widgets/flat_wizard_split_view.dart';
 import 'widgets/flat_preview_panel.dart';
@@ -60,29 +61,37 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final state = ref.watch(flatWizardProvider);
 
-    return Column(
-      children: [
-        // Screen header
-        _buildHeader(colors, state),
+    return ContextualTourPrompt(
+      screenId: 'flat_wizard',
+      tourCategory: TutorialCategory.flatWizardTour,
+      title: 'Flat Wizard Tour',
+      description: 'Learn how to capture calibration frames for your images.',
+      durationMinutes: 2,
+      alignment: Alignment.bottomRight,
+      child: Column(
+        children: [
+          // Screen header
+          _buildHeader(colors, state),
 
-        // Tab bar
-        _buildTabBar(colors),
+          // Tab bar
+          _buildTabBar(colors),
 
-        // Split view content
-        Expanded(
-          child: FlatWizardSplitView(
-            controlsPanel: TabBarView(
-              controller: _tabController,
-              children: const [
-                _QuickCaptureControls(),
-                _BatchCaptureControls(),
-                _SkyFlatsControls(),
-              ],
+          // Split view content
+          Expanded(
+            child: FlatWizardSplitView(
+              controlsPanel: TabBarView(
+                controller: _tabController,
+                children: const [
+                  _QuickCaptureControls(),
+                  _BatchCaptureControls(),
+                  _SkyFlatsControls(),
+                ],
+              ),
+              previewPanel: FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
             ),
-            previewPanel: FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1111,7 +1120,7 @@ class _ActionButtons extends ConsumerWidget {
               : null,
         );
       } catch (e) {
-        debugPrint('Failed to record calibration to history: $e');
+        debugPrint('[FlatWizard] Failed to record calibration to history: $e');
       }
     }
 

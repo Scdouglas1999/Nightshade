@@ -1502,7 +1502,8 @@ Future<void> apiStartPolarAlignment(
         int? gain,
         int? offset,
         double? solveTimeout,
-        bool? startFromCurrent}) =>
+        bool? startFromCurrent,
+        double? autoCompleteThreshold}) =>
     RustLib.instance.api.crateApiApiStartPolarAlignment(
         exposureTime: exposureTime,
         stepSize: stepSize,
@@ -1513,7 +1514,8 @@ Future<void> apiStartPolarAlignment(
         gain: gain,
         offset: offset,
         solveTimeout: solveTimeout,
-        startFromCurrent: startFromCurrent);
+        startFromCurrent: startFromCurrent,
+        autoCompleteThreshold: autoCompleteThreshold);
 
 /// Stop the polar alignment process
 Future<void> apiStopPolarAlignment() =>

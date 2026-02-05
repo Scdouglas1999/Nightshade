@@ -9286,6 +9286,7 @@ class RustLibWire implements BaseWire {
     ffi.Pointer<ffi.Int32> offset,
     ffi.Pointer<ffi.Double> solve_timeout,
     ffi.Pointer<ffi.Bool> start_from_current,
+    ffi.Pointer<ffi.Double> auto_complete_threshold,
   ) {
     return _wire__crate__api__api_start_polar_alignment(
       port_,
@@ -9299,6 +9300,7 @@ class RustLibWire implements BaseWire {
       offset,
       solve_timeout,
       start_from_current,
+      auto_complete_threshold,
     );
   }
 
@@ -9316,6 +9318,7 @@ class RustLibWire implements BaseWire {
                 ffi.Pointer<ffi.Int32>,
                 ffi.Pointer<ffi.Double>,
                 ffi.Pointer<ffi.Bool>,
+                ffi.Pointer<ffi.Double>,
               )>>(
       'frbgen_nightshade_bridge_wire__crate__api__api_start_polar_alignment');
   late final _wire__crate__api__api_start_polar_alignment =
@@ -9332,6 +9335,7 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<ffi.Int32>,
             ffi.Pointer<ffi.Double>,
             ffi.Pointer<ffi.Bool>,
+            ffi.Pointer<ffi.Double>,
           )>();
 
   void wire__crate__api__api_start_session(

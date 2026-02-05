@@ -67,14 +67,17 @@ class SequenceActionService {
           title: const Text('Stop Sequence?'),
           content: const Text('This will stop the current sequence. Are you sure?'),
           actions: [
-            TextButton(
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
             ),
-            ElevatedButton(
+            NightshadeButton(
+              label: 'Stop',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
               onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: colors.error),
-              child: const Text('Stop'),
             ),
           ],
         ),

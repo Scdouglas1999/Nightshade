@@ -226,9 +226,11 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
           ],
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+            label: 'OK',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -262,16 +264,20 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
           ],
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
-          ElevatedButton(
+          NightshadeButton(
             onPressed: () {
               Navigator.of(context).pop();
               onProceed();
             },
-            child: const Text('Proceed'),
+            label: 'Proceed',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -497,23 +503,19 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
+                  NightshadeButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                    label: 'Cancel',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
                   ),
                   const SizedBox(width: 12),
-                  ElevatedButton.icon(
+                  NightshadeButton(
                     onPressed: _generateMosaic,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Generate Mosaic'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                    ),
+                    icon: Icons.add,
+                    label: 'Generate Mosaic',
+                    variant: ButtonVariant.primary,
+                    size: ButtonSize.small,
                   ),
                 ],
               ),

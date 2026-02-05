@@ -14,6 +14,7 @@ import 'tables/settings.dart';
 import 'tables/weather_settings.dart';
 import 'tables/flat_history.dart';
 import 'tables/tutorial_progress.dart';
+import 'tables/polar_alignment_history.dart';
 import 'daos/images_dao.dart';
 import 'daos/equipment_profiles_dao.dart';
 import 'daos/sessions_dao.dart';
@@ -24,6 +25,7 @@ import 'daos/settings_dao.dart';
 import 'daos/weather_settings_dao.dart';
 import 'daos/flat_history_dao.dart';
 import 'daos/tutorial_progress_dao.dart';
+import 'daos/polar_alignment_history_dao.dart';
 
 part 'database.g.dart';
 
@@ -42,6 +44,7 @@ part 'database.g.dart';
     WeatherSettings,
     FlatHistory,
     TutorialProgress,
+    PolarAlignmentHistory,
   ],
   daos: [
     ImagesDao,
@@ -54,6 +57,7 @@ part 'database.g.dart';
     WeatherSettingsDao,
     FlatHistoryDao,
     TutorialProgressDao,
+    PolarAlignmentHistoryDao,
   ],
 )
 class NightshadeDatabase extends _$NightshadeDatabase {
@@ -63,7 +67,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration {
@@ -216,6 +220,20 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           await m.createTable(tutorialProgress);
           await customStatement(
             'CREATE INDEX IF NOT EXISTS idx_tutorial_progress_category ON tutorial_progress (category)',
+          );
+        }
+
+        // Version 10: Add polar alignment history table
+        if (from < 10) {
+          await m.createTable(polarAlignmentHistory);
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_polar_history_profile ON polar_alignment_history (equipment_profile_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_polar_history_started ON polar_alignment_history (started_at)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_polar_history_completed ON polar_alignment_history (completed_at)',
           );
         }
       },

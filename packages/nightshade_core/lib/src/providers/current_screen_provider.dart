@@ -15,6 +15,8 @@ enum AppScreen {
   analytics,
   flatWizard,
   weather,
+  suggestions,
+  transients,
   settings,
   unknown,
 }
@@ -39,6 +41,8 @@ AppScreen locationToAppScreen(String location) {
   if (location.startsWith('/analytics')) return AppScreen.analytics;
   if (location.startsWith('/flat-wizard')) return AppScreen.flatWizard;
   if (location.startsWith('/weather')) return AppScreen.weather;
+  if (location.startsWith('/suggestions')) return AppScreen.suggestions;
+  if (location.startsWith('/transients')) return AppScreen.transients;
   if (location.startsWith('/settings')) return AppScreen.settings;
   return AppScreen.unknown;
 }

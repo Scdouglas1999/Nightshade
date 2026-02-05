@@ -248,17 +248,16 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
-        FilledButton(
+        NightshadeButton(
           onPressed: _connectionSuccess == true ? _saveAndConnect : null,
-          style: FilledButton.styleFrom(
-            backgroundColor: colors.primary,
-            disabledBackgroundColor: colors.surfaceAlt,
-          ),
-          child: const Text('Connect'),
+          label: 'Connect',
+          variant: ButtonVariant.primary,
         ),
       ],
     );

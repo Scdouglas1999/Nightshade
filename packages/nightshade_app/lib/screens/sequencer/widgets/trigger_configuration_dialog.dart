@@ -209,28 +209,23 @@ class _TriggerConfigurationDialogState
               ),
               child: Row(
                 children: [
-                  ElevatedButton.icon(
+                  NightshadeButton(
                     onPressed: _addTrigger,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add Trigger'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colors.primary,
-                      foregroundColor: Colors.white,
-                    ),
+                    icon: Icons.add,
+                    label: 'Add Trigger',
+                    variant: ButtonVariant.outline,
                   ),
                   const Spacer(),
-                  TextButton(
+                  NightshadeButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                    label: 'Cancel',
+                    variant: ButtonVariant.ghost,
                   ),
                   const SizedBox(width: 12),
-                  ElevatedButton(
+                  NightshadeButton(
                     onPressed: () => Navigator.of(context).pop(_triggers),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colors.primary,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Save'),
+                    label: 'Save',
+                    variant: ButtonVariant.primary,
                   ),
                 ],
               ),
@@ -322,9 +317,6 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
-
     return AlertDialog(
       title: const Text('Edit Trigger'),
       content: SizedBox(
@@ -387,11 +379,12 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
         ),
-        ElevatedButton(
+        NightshadeButton(
           onPressed: () {
             widget.onSave(ExposureTriggerConfig(
               condition: _condition,
@@ -400,11 +393,8 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
               debounceSecs: _debounce,
             ));
           },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colors.primary,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Save'),
+          label: 'Save',
+          variant: ButtonVariant.primary,
         ),
       ],
     );

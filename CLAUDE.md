@@ -29,6 +29,12 @@ melos run format     # Format all packages
 # Testing
 melos run test       # Run flutter test in all packages
 
+# Run a single test file
+cd packages/nightshade_core && flutter test test/services/some_test.dart
+
+# Run a single test by name
+cd packages/nightshade_core && flutter test --name "test description"
+
 # Rust testing and linting
 cd native/nightshade_native
 cargo test --all-features
@@ -76,7 +82,7 @@ melos run dev:clean
 
 ### Pushing Updates to Imaging Laptop
 
-The user has a separate Windows imaging laptop (IP: `192.168.1.59`) for testing. SSH is configured for passwordless access. **Use this workflow when the user asks to push/deploy/test on the imaging laptop:**
+The user has a separate Windows imaging laptop (IP: `192.168.1.8`) for testing. SSH is configured for passwordless access. **Use this workflow when the user asks to push/deploy/test on the imaging laptop:**
 
 ```bash
 # 1. Build the app (if not already built)
@@ -86,20 +92,20 @@ cd apps/desktop && flutter build windows --release
 cp native/nightshade_native/target/release/nightshade_bridge.dll apps/desktop/build/windows/x64/runner/Release/
 
 # 3. Push ALL files to imaging laptop via SCP
-scp -r apps/desktop/build/windows/x64/runner/Release/* scdou@192.168.1.59:"C:/Program Files/Nightshade/"
+scp -r apps/desktop/build/windows/x64/runner/Release/* scdou@192.168.1.8:"C:/Program Files/Nightshade/"
 
 # 4. Verify the transfer
-ssh scdou@192.168.1.59 "dir \"C:\Program Files\Nightshade\data\app.so\""
+ssh scdou@192.168.1.8 "dir \"C:\Program Files\Nightshade\data\app.so\""
 ```
 
 **One-liner for quick pushes (after building):**
 ```bash
-scp -r apps/desktop/build/windows/x64/runner/Release/* scdou@192.168.1.59:"C:/Program Files/Nightshade/"
+scp -r apps/desktop/build/windows/x64/runner/Release/* scdou@192.168.1.8:"C:/Program Files/Nightshade/"
 ```
 
 **Full rebuild and push:**
 ```bash
-cd apps/desktop && flutter build windows --release && cp ../../native/nightshade_native/target/release/nightshade_bridge.dll build/windows/x64/runner/Release/ && scp -r build/windows/x64/runner/Release/* scdou@192.168.1.59:"C:/Program Files/Nightshade/"
+cd apps/desktop && flutter build windows --release && cp ../../native/nightshade_native/target/release/nightshade_bridge.dll build/windows/x64/runner/Release/ && scp -r build/windows/x64/runner/Release/* scdou@192.168.1.8:"C:/Program Files/Nightshade/"
 ```
 
 **IMPORTANT NOTES:**
@@ -184,6 +190,8 @@ docs/               # Documentation
 - Session management with checkpoint recovery
 
 **FFI Boundary**: Dart ↔ Rust via flutter_rust_bridge 2.11.1. Bindings auto-generated from `native/nightshade_native/bridge/src/lib.rs`.
+
+**Event Streaming**: Rust publishes events to a tokio broadcast channel (`EventBus` in `bridge/src/event.rs`). Dart subscribes via `NativeBridge.eventStream()` which `FfiBackend` transforms and broadcasts. Providers like `GuideStatsNotifier`, `GuideGraphNotifier` listen to `backend.eventStream` filtered by `EventCategory`. Always add `mounted` checks in StateNotifier event listeners to prevent updates after disposal.
 
 **Database**: Drift ORM with SQLite. Tables:
 - equipment_profiles, targets, imaging_sessions, captured_images, image_metadata

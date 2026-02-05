@@ -512,34 +512,25 @@ class _MeridianFlipProgressDialogState
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           if (_isComplete) ...[
-            ElevatedButton.icon(
+            NightshadeButton(
+              label: 'Done',
+              icon: LucideIcons.check,
               onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.success,
-                foregroundColor: Colors.white,
-              ),
-              icon: const Icon(LucideIcons.check, size: 16),
-              label: const Text('Done'),
             ),
           ] else if (_hasFailed) ...[
-            TextButton(
+            NightshadeButton(
+              label: 'Close',
+              variant: ButtonVariant.ghost,
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Close',
-                style: TextStyle(color: colors.textSecondary),
-              ),
             ),
           ] else ...[
-            ElevatedButton.icon(
+            NightshadeButton(
+              label: 'Abort Flip',
+              icon: LucideIcons.octagon,
+              variant: ButtonVariant.destructive,
               onPressed: () {
                 widget.onAbort?.call();
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.error,
-                foregroundColor: Colors.white,
-              ),
-              icon: const Icon(LucideIcons.octagon, size: 16),
-              label: const Text('Abort Flip'),
             ),
           ],
         ],

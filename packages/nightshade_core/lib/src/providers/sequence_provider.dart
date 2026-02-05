@@ -5,9 +5,11 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/sequence/sequence_models.dart';
+import '../models/sequence/template_snippet.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart';
 import '../models/settings/app_settings.dart' show ObserverLocation, SafetyFailMode;
+import '../services/logging_service.dart';
 import 'equipment_provider.dart';
 import 'database_provider.dart';
 import 'profiles_provider.dart';
@@ -435,6 +437,491 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     );
   }
 
+  /// Insert a template snippet into the sequence.
+  /// The snippet's nodes are deserialized and inserted at the specified parent,
+  /// or the currently selected node if no parent is specified.
+  void insertSnippet(
+    TemplateSnippet snippet, {
+    String? parentId,
+    int? index,
+  }) {
+    if (state == null) return;
+    if (snippet.nodeData.isEmpty) return;
+    _saveUndo();
+
+    final newNodes = Map<String, SequenceNode>.from(state!.nodes);
+    final idMapping = <String, String>{};
+    final createdNodes = <SequenceNode>[];
+
+    // Find the parent to insert into
+    String? insertParentId = parentId;
+    if (insertParentId != null) {
+      // Check if the specified parent can have children
+      final parentNode = newNodes[insertParentId];
+      if (parentNode != null && !_canHaveChildren(parentNode)) {
+        // Use the parent's parent instead
+        insertParentId = parentNode.parentId;
+      }
+    }
+
+    // Fallback to root if no valid parent found
+    insertParentId ??= state!.rootNodeId;
+    if (insertParentId == null) {
+      // Create root if sequence is empty
+      final rootNode = InstructionSetNode(name: 'Sequence Root');
+      newNodes[rootNode.id] = rootNode;
+      insertParentId = rootNode.id;
+    }
+
+    final insertParent = newNodes[insertParentId];
+    if (insertParent == null) return;
+
+    // Helper function to deserialize a single node and its children
+    SequenceNode deserializeNodeData(
+      Map<String, dynamic> json, {
+      String? parentIdOverride,
+      int orderIdx = 0,
+    }) {
+      // Generate new ID for this node
+      final originalId = json['id'] as String? ?? const Uuid().v4();
+      final newId = const Uuid().v4();
+      idMapping[originalId] = newId;
+
+      // Parse children recursively first to get their IDs
+      final childrenJson = json['children'] as List<dynamic>? ?? [];
+      final childNodes = <SequenceNode>[];
+      for (int i = 0; i < childrenJson.length; i++) {
+        final childJson = childrenJson[i] as Map<String, dynamic>;
+        final childNode = deserializeNodeData(
+          childJson,
+          parentIdOverride: newId,
+          orderIdx: i,
+        );
+        childNodes.add(childNode);
+      }
+      final childIds = childNodes.map((n) => n.id).toList();
+
+      // Create the node with the new ID and children
+      final nodeJson = Map<String, dynamic>.from(json);
+      nodeJson['id'] = newId;
+      nodeJson['parentId'] = parentIdOverride;
+      nodeJson['childIds'] = childIds;
+      nodeJson['orderIndex'] = orderIdx;
+      nodeJson.remove('children'); // Remove children from JSON as we've processed them
+
+      final node = _deserializeSnippetNode(nodeJson);
+      createdNodes.add(node);
+      return node;
+    }
+
+    // Deserialize all top-level snippet nodes
+    final topLevelNodeIds = <String>[];
+    final existingChildCount = insertParent.childIds.length;
+    final insertIdx = index ?? existingChildCount;
+
+    for (int i = 0; i < snippet.nodeData.length; i++) {
+      final nodeJson = snippet.nodeData[i];
+      final node = deserializeNodeData(
+        nodeJson,
+        parentIdOverride: insertParentId,
+        orderIdx: insertIdx + i,
+      );
+      topLevelNodeIds.add(node.id);
+    }
+
+    // Add all created nodes to the sequence
+    for (final node in createdNodes) {
+      newNodes[node.id] = node;
+    }
+
+    // Update parent's children list
+    final newChildIds = List<String>.from(insertParent.childIds);
+    newChildIds.insertAll(insertIdx, topLevelNodeIds);
+
+    // Update order indices for all children after insertion point
+    for (int i = insertIdx + topLevelNodeIds.length; i < newChildIds.length; i++) {
+      final childId = newChildIds[i];
+      if (newNodes.containsKey(childId)) {
+        newNodes[childId] = newNodes[childId]!.copyWith(orderIndex: i);
+      }
+    }
+
+    newNodes[insertParentId] = insertParent.copyWith(childIds: newChildIds);
+
+    state = state!.copyWith(
+      nodes: newNodes,
+      modifiedAt: DateTime.now(),
+    );
+  }
+
+  /// Check if a node type can have children
+  bool _canHaveChildren(SequenceNode node) {
+    return node is TargetHeaderNode ||
+        node is LoopNode ||
+        node is InstructionSetNode ||
+        node is ParallelNode ||
+        node is ConditionalNode ||
+        node is RecoveryNode;
+  }
+
+  /// Deserialize a single node from snippet JSON data
+  SequenceNode _deserializeSnippetNode(Map<String, dynamic> json) {
+    final rawType = json['nodeType'] as String?;
+    if (rawType == null || rawType.trim().isEmpty) {
+      throw FormatException('Snippet node missing nodeType');
+    }
+
+    final nodeType = rawType.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final id = json['id'] as String? ?? const Uuid().v4();
+    final name = json['name'] as String?;
+    final parentId = json['parentId'] as String?;
+    final childIds = (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
+    final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
+    final isEnabled = json['isEnabled'] as bool? ?? true;
+
+    switch (nodeType) {
+      case 'targetheader':
+      case 'targetgroup':
+        return TargetHeaderNode(
+          id: id,
+          name: name ?? 'Target',
+          targetName: json['targetName'] as String? ?? 'Target',
+          raHours: (json['raHours'] as num?)?.toDouble() ?? 0.0,
+          decDegrees: (json['decDegrees'] as num?)?.toDouble() ?? 0.0,
+          rotation: (json['rotation'] as num?)?.toDouble(),
+          priority: (json['priority'] as num?)?.toInt() ?? 0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'loop':
+        return LoopNode(
+          id: id,
+          name: name ?? 'Loop',
+          conditionType: _parseLoopType(json['conditionType']),
+          repeatCount: (json['repeatCount'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'parallel':
+        return ParallelNode(
+          id: id,
+          name: name ?? 'Parallel',
+          requiredSuccesses: (json['requiredSuccesses'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'conditional':
+        return ConditionalNode(
+          id: id,
+          name: name ?? 'Conditional',
+          conditionType: _parseConditionType(json['conditionType']),
+          thresholdValue: (json['thresholdValue'] as num?)?.toDouble(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'recovery':
+        return RecoveryNode(
+          id: id,
+          name: name ?? 'Recovery',
+          recoveryAction: _parseRecoveryAction(json['recoveryAction']),
+          maxRetries: (json['maxRetries'] as num?)?.toInt() ?? 3,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'instructionset':
+        return InstructionSetNode(
+          id: id,
+          name: name ?? 'Instructions',
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'slewtotarget':
+      case 'slew':
+        return SlewNode(
+          id: id,
+          name: name ?? 'Slew to Target',
+          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          customRa: (json['customRa'] as num?)?.toDouble(),
+          customDec: (json['customDec'] as num?)?.toDouble(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'centertarget':
+      case 'center':
+        return CenterNode(
+          id: id,
+          name: name ?? 'Center Target',
+          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          accuracyArcsec: (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
+          maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 5,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'takeexposure':
+      case 'exposure':
+        return ExposureNode(
+          id: id,
+          name: name ?? 'Take Exposures',
+          durationSecs: (json['durationSecs'] as num?)?.toDouble() ?? 60.0,
+          count: (json['count'] as num?)?.toInt() ?? 10,
+          frameType: _parseFrameTypeForSnippet(json['frameType']),
+          filter: json['filter'] as String?,
+          filterIndex: (json['filterIndex'] as num?)?.toInt(),
+          gain: (json['gain'] as num?)?.toInt(),
+          offset: (json['offset'] as num?)?.toInt(),
+          binning: _parseBinningForSnippet(json['binning']),
+          ditherEvery: (json['ditherEvery'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'autofocus':
+        return AutofocusNode(
+          id: id,
+          name: name ?? 'Autofocus',
+          method: _parseAutofocusMethodForSnippet(json['method']),
+          stepSize: (json['stepSize'] as num?)?.toInt() ?? 100,
+          stepsOut: (json['stepsOut'] as num?)?.toInt() ?? 7,
+          exposuresPerPoint: (json['exposuresPerPoint'] as num?)?.toInt() ?? 1,
+          exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 3.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'dither':
+        return DitherNode(
+          id: id,
+          name: name ?? 'Dither',
+          pixels: (json['pixels'] as num?)?.toDouble() ?? 5.0,
+          settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
+          settleTime: (json['settleTime'] as num?)?.toDouble() ?? 30.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'startguiding':
+        return StartGuidingNode(
+          id: id,
+          name: name ?? 'Start Guiding',
+          settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
+          settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
+          settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 60.0,
+          autoSelectStar: json['autoSelectStar'] as bool? ?? true,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'stopguiding':
+        return StopGuidingNode(
+          id: id,
+          name: name ?? 'Stop Guiding',
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'filterchange':
+        return FilterChangeNode(
+          id: id,
+          name: name ?? 'Change Filter',
+          filterName: json['filterName'] as String? ?? 'L',
+          filterPosition: (json['filterPosition'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'coolcamera':
+        return CoolCameraNode(
+          id: id,
+          name: name ?? 'Cool Camera',
+          targetTemp: (json['targetTemp'] as num?)?.toDouble() ?? -10.0,
+          durationMins: (json['durationMins'] as num?)?.toDouble(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'warmcamera':
+        return WarmCameraNode(
+          id: id,
+          name: name ?? 'Warm Camera',
+          ratePerMin: (json['ratePerMin'] as num?)?.toDouble() ?? 5.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'park':
+        return ParkNode(
+          id: id,
+          name: name ?? 'Park Mount',
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'unpark':
+        return UnparkNode(
+          id: id,
+          name: name ?? 'Unpark Mount',
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'meridianflip':
+        return MeridianFlipNode(
+          id: id,
+          name: name ?? 'Meridian Flip',
+          minutesPastMeridian: (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
+          pauseGuiding: json['pauseGuiding'] as bool? ?? true,
+          autoCenter: json['autoCenter'] as bool? ?? true,
+          settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'delay':
+        return DelayNode(
+          id: id,
+          name: name ?? 'Delay',
+          seconds: (json['seconds'] as num?)?.toDouble() ?? 0.0,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'notification':
+        return NotificationNode(
+          id: id,
+          name: name ?? 'Notification',
+          title: json['title'] as String? ?? 'Notification',
+          message: json['message'] as String? ?? '',
+          level: _parseNotificationLevel(json['level']),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      default:
+        // Default to InstructionSetNode for unknown types
+        return InstructionSetNode(
+          id: id,
+          name: name ?? nodeType,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+    }
+  }
+
+  LoopConditionType _parseLoopType(dynamic value) {
+    if (value == null) return LoopConditionType.count;
+    final str = value.toString().toLowerCase();
+    return LoopConditionType.values.firstWhere(
+      (e) => e.name.toLowerCase() == str,
+      orElse: () => LoopConditionType.count,
+    );
+  }
+
+  ConditionalType _parseConditionType(dynamic value) {
+    if (value == null) return ConditionalType.weatherSafe;
+    final str = value.toString().toLowerCase();
+    return ConditionalType.values.firstWhere(
+      (e) => e.name.toLowerCase() == str,
+      orElse: () => ConditionalType.weatherSafe,
+    );
+  }
+
+  RecoveryActionType _parseRecoveryAction(dynamic value) {
+    if (value == null) return RecoveryActionType.retry;
+    final str = value.toString().toLowerCase();
+    return RecoveryActionType.values.firstWhere(
+      (e) => e.name.toLowerCase() == str,
+      orElse: () => RecoveryActionType.retry,
+    );
+  }
+
+  FrameType _parseFrameTypeForSnippet(dynamic value) {
+    if (value == null) return FrameType.light;
+    final str = value.toString().toLowerCase();
+    return FrameType.values.firstWhere(
+      (e) => e.name.toLowerCase() == str,
+      orElse: () => FrameType.light,
+    );
+  }
+
+  BinningMode _parseBinningForSnippet(dynamic value) {
+    if (value == null) return BinningMode.one;
+    final str = value.toString().toLowerCase();
+    return BinningMode.values.firstWhere(
+      (e) => e.name.toLowerCase() == str,
+      orElse: () => BinningMode.one,
+    );
+  }
+
+  AutofocusMethod _parseAutofocusMethodForSnippet(dynamic value) {
+    if (value == null) return AutofocusMethod.vCurve;
+    final str = value.toString().toLowerCase();
+    return AutofocusMethod.values.firstWhere(
+      (e) => e.name.toLowerCase() == str,
+      orElse: () => AutofocusMethod.vCurve,
+    );
+  }
+
+  NotificationLevel _parseNotificationLevel(dynamic value) {
+    if (value == null) return NotificationLevel.info;
+    final str = value.toString().toLowerCase();
+    return NotificationLevel.values.firstWhere(
+      (e) => e.name.toLowerCase() == str,
+      orElse: () => NotificationLevel.info,
+    );
+  }
+
   /// Remove a node from the sequence
   void removeNode(String nodeId) {
     if (state == null) return;
@@ -768,6 +1255,7 @@ class SequenceExecutor {
   bool _isPaused = false;
   StreamSubscription? _nativeEventSubscription;
   Timer? _checkpointTimer;
+  LoggingService get _logger => _ref.read(loggingServiceProvider);
 
   SequenceExecutor(this._ref);
 
@@ -1320,20 +1808,20 @@ class SequenceExecutor {
     // This ensures the sequencer has access to the current location from settings
     final settingsAsync = _ref.read(appSettingsProvider);
     final settings = settingsAsync.valueOrNull;
-    print('[SEQUENCE] _startNativeExecution: settings=${settings != null ? "loaded" : "null"}');
+    _logger.debug('_startNativeExecution: settings=${settings != null ? "loaded" : "null"}', source: 'SequenceExecutor');
     if (settings != null) {
-      print('[SEQUENCE] Location from settings: lat=${settings.latitude}, lon=${settings.longitude}, elev=${settings.elevation}');
+      _logger.debug('Location from settings: lat=${settings.latitude}, lon=${settings.longitude}, elev=${settings.elevation}', source: 'SequenceExecutor');
     }
     if (settings != null && (settings.latitude != 0.0 || settings.longitude != 0.0)) {
-      print('[SEQUENCE] Syncing location to backend...');
+      _logger.debug('Syncing location to backend...', source: 'SequenceExecutor');
       await backend.setLocation(ObserverLocation(
         latitude: settings.latitude,
         longitude: settings.longitude,
         elevation: settings.elevation,
       ));
-      print('[SEQUENCE] Location sync complete');
+      _logger.debug('Location sync complete', source: 'SequenceExecutor');
     } else {
-      print('[SEQUENCE] Skipping location sync: settings null or location is 0,0');
+      _logger.debug('Skipping location sync: settings null or location is 0,0', source: 'SequenceExecutor');
     }
 
     // Set simulation mode based on settings
@@ -1347,17 +1835,17 @@ class SequenceExecutor {
         SafetyFailMode.warnOnly => 'warn_only',
       };
       await backend.sequencerSetSafetyFailMode(modeString);
-      print('[SEQUENCE] Safety fail mode set to: $modeString');
+      _logger.debug('Safety fail mode set to: $modeString', source: 'SequenceExecutor');
     }
 
     // Set save path for captured images
     final savePath = settings?.imageOutputPath;
     if (savePath != null && savePath.isNotEmpty) {
       await backend.sequencerSetSavePath(savePath);
-      print('[SEQUENCE] Save path set to: $savePath');
+      _logger.debug('Save path set to: $savePath', source: 'SequenceExecutor');
     } else {
       await backend.sequencerSetSavePath(null);
-      print('[SEQUENCE] WARNING: No save path configured - images will NOT be saved to disk!');
+      _logger.warning('No save path configured - images will NOT be saved to disk!', source: 'SequenceExecutor');
     }
 
     // Get connected device IDs from equipment providers
@@ -1392,7 +1880,7 @@ class SequenceExecutor {
     // to the event bus. We just need to subscribe to the broadcast stream here.
     _nativeEventSubscription = backend.eventStream.listen(
       _handleSequencerEvent,
-      onError: (e) => print('[SequenceProvider] Event stream error: $e'),
+      onError: (e) => _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
     );
 
     // Start the execution via backend
@@ -1402,12 +1890,12 @@ class SequenceExecutor {
   /// Handle events from the backend (native or remote)
   void _handleSequencerEvent(NightshadeEvent event) {
     // Log all events to verify handler is being called
-    print('[SequenceProvider] Received event: type=${event.eventType}, category=${event.category}');
+    _logger.debug('Received event: type=${event.eventType}, category=${event.category}', source: 'SequenceExecutor');
 
     // Handle imaging events for image preview during sequences
     // This MUST be before the category filter since ExposureComplete has category=imaging
     if (event.category == EventCategory.imaging && event.eventType == 'ExposureComplete') {
-      print('[SEQ_PROVIDER] ExposureComplete imaging event received - fetching image for preview');
+      _logger.debug('ExposureComplete imaging event received - fetching image for preview', source: 'SequenceExecutor');
       final durationSecs = (event.data['duration_secs'] as num?)?.toDouble() ?? 2.0;
       _fetchAndDisplaySequenceImage(durationSecs);
       return;
@@ -1523,11 +2011,11 @@ class SequenceExecutor {
         final progressPercent = (event.data['progress_percent'] as num?)?.toDouble() ?? 0.0;
         final detail = event.data['detail'] as String? ?? '';
 
-        print('[SequenceProvider] InstructionProgress: nodeId=$nodeId, instruction=$instruction, progress=$progressPercent%, detail=$detail');
+        _logger.debug('InstructionProgress: nodeId=$nodeId, instruction=$instruction, progress=$progressPercent%, detail=$detail', source: 'SequenceExecutor');
 
         // Use node_id from event, fallback to currentNodeId for backwards compatibility
         final targetNodeId = nodeId ?? _ref.read(sequenceProgressProvider).currentNodeId;
-        print('[SequenceProvider] Updating node progress for: $targetNodeId');
+        _logger.debug('Updating node progress for: $targetNodeId', source: 'SequenceExecutor');
         if (targetNodeId != null) {
           progressNotifier.updateNodeProgress(targetNodeId, progressPercent, detail);
           // Also update the global message to show current instruction progress
@@ -1585,13 +2073,13 @@ class SequenceExecutor {
         final cameraState = _ref.read(cameraStateProvider);
         final cameraDeviceId = cameraState.deviceId;
         if (cameraDeviceId == null || cameraDeviceId.isEmpty) {
-          print('[SequenceProvider] No camera device ID available, skipping image fetch');
+          _logger.debug('No camera device ID available, skipping image fetch', source: 'SequenceExecutor');
           return;
         }
         final backend = _ref.read(backendProvider);
         final capturedImage = await backend.cameraGetLastImage(cameraDeviceId);
         if (capturedImage == null) {
-          print('[SequenceProvider] No image data available from camera');
+          _logger.debug('No image data available from camera', source: 'SequenceExecutor');
           return;
         }
 
@@ -1633,7 +2121,7 @@ class SequenceExecutor {
         _ref.read(lastImageStatsProvider.notifier).state = imageData.stats;
       } catch (e) {
         // Log but don't fail - image display is non-critical
-        print('Failed to fetch sequence image for display: $e');
+        _logger.warning('Failed to fetch sequence image for display: $e', source: 'SequenceExecutor');
       }
     });
   }
@@ -1753,7 +2241,7 @@ class SequenceExecutor {
         await backend.discardCheckpoint();
       } catch (e) {
         // Ignore errors during cleanup
-        print('Failed to clear checkpoint on stop: $e');
+        _logger.warning('Failed to clear checkpoint on stop: $e', source: 'SequenceExecutor');
       }
     }
   }
@@ -1788,7 +2276,7 @@ class SequenceExecutor {
       try {
         await backend.sequencerReset();
       } catch (e) {
-        print('[SequenceExecutor] Error resetting native sequencer: $e');
+        _logger.warning('Error resetting native sequencer: $e', source: 'SequenceExecutor');
         // Continue anyway - the Dart-side reset is more important
       }
     }
@@ -1797,13 +2285,13 @@ class SequenceExecutor {
     try {
       await backend.discardCheckpoint();
     } catch (e) {
-      print('[SequenceExecutor] Error clearing checkpoint on reset: $e');
+      _logger.warning('Error clearing checkpoint on reset: $e', source: 'SequenceExecutor');
     }
 
     // Ensure we're in idle state
     _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.idle;
 
-    print('[SequenceExecutor] Sequence reset - ready to run from beginning');
+    _logger.info('Sequence reset - ready to run from beginning', source: 'SequenceExecutor');
   }
 
   TargetHeaderNode? _findParentTargetHeader(Sequence sequence, String nodeId) {
@@ -2648,7 +3136,7 @@ class SequenceExecutor {
           await backend.saveCheckpoint();
         } catch (e) {
           // Log error but don't interrupt sequence
-          print('Failed to save checkpoint: $e');
+          _logger.warning('Failed to save checkpoint: $e', source: 'SequenceExecutor');
         }
       }
     });

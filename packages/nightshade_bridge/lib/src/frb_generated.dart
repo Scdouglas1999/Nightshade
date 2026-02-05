@@ -770,7 +770,8 @@ abstract class RustLibApi extends BaseApi {
       int? gain,
       int? offset,
       double? solveTimeout,
-      bool? startFromCurrent});
+      bool? startFromCurrent,
+      double? autoCompleteThreshold});
 
   Future<void> crateApiApiStartSession(
       {String? targetName, double? ra, double? dec});
@@ -6290,7 +6291,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       int? gain,
       int? offset,
       double? solveTimeout,
-      bool? startFromCurrent}) {
+      bool? startFromCurrent,
+      double? autoCompleteThreshold}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_f_64(exposureTime);
@@ -6303,8 +6305,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg7 = cst_encode_opt_box_autoadd_i_32(offset);
         var arg8 = cst_encode_opt_box_autoadd_f_64(solveTimeout);
         var arg9 = cst_encode_opt_box_autoadd_bool(startFromCurrent);
-        return wire.wire__crate__api__api_start_polar_alignment(
-            port_, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
+        var arg10 = cst_encode_opt_box_autoadd_f_64(autoCompleteThreshold);
+        return wire.wire__crate__api__api_start_polar_alignment(port_, arg0,
+            arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
@@ -6321,7 +6324,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         gain,
         offset,
         solveTimeout,
-        startFromCurrent
+        startFromCurrent,
+        autoCompleteThreshold
       ],
       apiImpl: this,
     ));
@@ -6340,7 +6344,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "gain",
           "offset",
           "solveTimeout",
-          "startFromCurrent"
+          "startFromCurrent",
+          "autoCompleteThreshold"
         ],
       );
 
@@ -8594,15 +8599,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dec: dco_decode_f_64(raw[2]),
         );
       case 7:
-        return const EquipmentEvent_MountTrackingStarted();
+        return EquipmentEvent_MountTrackingStarted();
       case 8:
-        return const EquipmentEvent_MountTrackingStopped();
+        return EquipmentEvent_MountTrackingStopped();
       case 9:
-        return const EquipmentEvent_MountParkStarted();
+        return EquipmentEvent_MountParkStarted();
       case 10:
-        return const EquipmentEvent_MountParkCompleted();
+        return EquipmentEvent_MountParkCompleted();
       case 11:
-        return const EquipmentEvent_MountUnparked();
+        return EquipmentEvent_MountUnparked();
       case 12:
         return EquipmentEvent_FocuserMoveStarted(
           targetPosition: dco_decode_i_32(raw[1]),
@@ -8643,9 +8648,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           temperature: dco_decode_f_64(raw[1]),
         );
       case 21:
-        return const EquipmentEvent_CameraWarmingStarted();
+        return EquipmentEvent_CameraWarmingStarted();
       case 22:
-        return const EquipmentEvent_CameraWarmingCompleted();
+        return EquipmentEvent_CameraWarmingCompleted();
       case 23:
         return EquipmentEvent_HeartbeatStarted(
           deviceType: dco_decode_String(raw[1]),
@@ -8948,29 +8953,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return const GuidingEvent_Connected();
+        return GuidingEvent_Connected();
       case 1:
-        return const GuidingEvent_Disconnected();
+        return GuidingEvent_Disconnected();
       case 2:
-        return const GuidingEvent_GuidingStarted();
+        return GuidingEvent_GuidingStarted();
       case 3:
-        return const GuidingEvent_GuidingStopped();
+        return GuidingEvent_GuidingStopped();
       case 4:
-        return const GuidingEvent_Paused();
+        return GuidingEvent_Paused();
       case 5:
-        return const GuidingEvent_Resumed();
+        return GuidingEvent_Resumed();
       case 6:
         return GuidingEvent_Settled(
           rms: dco_decode_f_64(raw[1]),
         );
       case 7:
-        return const GuidingEvent_LostStar();
+        return GuidingEvent_LostStar();
       case 8:
         return GuidingEvent_DitherStarted(
           pixels: dco_decode_f_64(raw[1]),
         );
       case 9:
-        return const GuidingEvent_DitherCompleted();
+        return GuidingEvent_DitherCompleted();
       case 10:
         return GuidingEvent_Correction(
           ra: dco_decode_f_64(raw[1]),
@@ -8979,13 +8984,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decRaw: dco_decode_f_64(raw[4]),
         );
       case 11:
-        return const GuidingEvent_Looping();
+        return GuidingEvent_Looping();
       case 12:
-        return const GuidingEvent_Settling();
+        return GuidingEvent_Settling();
       case 13:
-        return const GuidingEvent_Calibrating();
+        return GuidingEvent_Calibrating();
       case 14:
-        return const GuidingEvent_CalibrationComplete();
+        return GuidingEvent_CalibrationComplete();
       case 15:
         return GuidingEvent_StarSelected(
           x: dco_decode_f_64(raw[1]),
@@ -9079,11 +9084,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           error: dco_decode_String(raw[1]),
         );
       case 6:
-        return const ImagingEvent_ExposureCancelled();
+        return ImagingEvent_ExposureCancelled();
       case 7:
-        return const ImagingEvent_DownloadStarted();
+        return ImagingEvent_DownloadStarted();
       case 8:
-        return const ImagingEvent_DownloadCompleted();
+        return ImagingEvent_DownloadCompleted();
       case 9:
         return ImagingEvent_ImageReady(
           width: dco_decode_u_32(raw[1]),
@@ -9434,9 +9439,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_String(raw[1]),
         );
       case 19:
-        return const NightshadeError_NoImageAvailable();
+        return NightshadeError_NoImageAvailable();
       case 20:
-        return const NightshadeError_ExposureCancelled();
+        return NightshadeError_ExposureCancelled();
       case 21:
         return NightshadeError_ExposureFailed(
           cameraId: dco_decode_String(raw[1]),
@@ -9495,7 +9500,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_String(raw[1]),
         );
       case 32:
-        return const NightshadeError_Cancelled();
+        return NightshadeError_Cancelled();
       case 33:
         return NightshadeError_RuntimeInitFailed(
           dco_decode_String(raw[1]),
@@ -9945,7 +9950,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           reason: dco_decode_String(raw[1]),
         );
       case 1:
-        return const SafetyEvent_WeatherSafe();
+        return SafetyEvent_WeatherSafe();
       case 2:
         return SafetyEvent_EmergencyStop(
           reason: dco_decode_String(raw[1]),
@@ -9955,7 +9960,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           reason: dco_decode_String(raw[1]),
         );
       case 4:
-        return const SafetyEvent_ParkCompleted();
+        return SafetyEvent_ParkCompleted();
       default:
         throw Exception("unreachable");
     }
@@ -9998,13 +10003,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sequenceName: dco_decode_String(raw[1]),
         );
       case 1:
-        return const SequencerEvent_Paused();
+        return SequencerEvent_Paused();
       case 2:
-        return const SequencerEvent_Resumed();
+        return SequencerEvent_Resumed();
       case 3:
-        return const SequencerEvent_Stopped();
+        return SequencerEvent_Stopped();
       case 4:
-        return const SequencerEvent_Completed();
+        return SequencerEvent_Completed();
       case 5:
         return SequencerEvent_NodeStarted(
           nodeId: dco_decode_String(raw[1]),
@@ -10267,9 +10272,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
-        return const SystemEvent_Initialized();
+        return SystemEvent_Initialized();
       case 1:
-        return const SystemEvent_ShuttingDown();
+        return SystemEvent_ShuttingDown();
       case 2:
         return SystemEvent_Error(
           message: dco_decode_String(raw[1]),
@@ -11263,15 +11268,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_dec = sse_decode_f_64(deserializer);
         return EquipmentEvent_MountSlewCompleted(ra: var_ra, dec: var_dec);
       case 7:
-        return const EquipmentEvent_MountTrackingStarted();
+        return EquipmentEvent_MountTrackingStarted();
       case 8:
-        return const EquipmentEvent_MountTrackingStopped();
+        return EquipmentEvent_MountTrackingStopped();
       case 9:
-        return const EquipmentEvent_MountParkStarted();
+        return EquipmentEvent_MountParkStarted();
       case 10:
-        return const EquipmentEvent_MountParkCompleted();
+        return EquipmentEvent_MountParkCompleted();
       case 11:
-        return const EquipmentEvent_MountUnparked();
+        return EquipmentEvent_MountUnparked();
       case 12:
         var var_targetPosition = sse_decode_i_32(deserializer);
         return EquipmentEvent_FocuserMoveStarted(
@@ -11310,9 +11315,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return EquipmentEvent_CameraCoolingReached(
             temperature: var_temperature);
       case 21:
-        return const EquipmentEvent_CameraWarmingStarted();
+        return EquipmentEvent_CameraWarmingStarted();
       case 22:
-        return const EquipmentEvent_CameraWarmingCompleted();
+        return EquipmentEvent_CameraWarmingCompleted();
       case 23:
         var var_deviceType = sse_decode_String(deserializer);
         var var_deviceId = sse_decode_String(deserializer);
@@ -11685,27 +11690,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        return const GuidingEvent_Connected();
+        return GuidingEvent_Connected();
       case 1:
-        return const GuidingEvent_Disconnected();
+        return GuidingEvent_Disconnected();
       case 2:
-        return const GuidingEvent_GuidingStarted();
+        return GuidingEvent_GuidingStarted();
       case 3:
-        return const GuidingEvent_GuidingStopped();
+        return GuidingEvent_GuidingStopped();
       case 4:
-        return const GuidingEvent_Paused();
+        return GuidingEvent_Paused();
       case 5:
-        return const GuidingEvent_Resumed();
+        return GuidingEvent_Resumed();
       case 6:
         var var_rms = sse_decode_f_64(deserializer);
         return GuidingEvent_Settled(rms: var_rms);
       case 7:
-        return const GuidingEvent_LostStar();
+        return GuidingEvent_LostStar();
       case 8:
         var var_pixels = sse_decode_f_64(deserializer);
         return GuidingEvent_DitherStarted(pixels: var_pixels);
       case 9:
-        return const GuidingEvent_DitherCompleted();
+        return GuidingEvent_DitherCompleted();
       case 10:
         var var_ra = sse_decode_f_64(deserializer);
         var var_dec = sse_decode_f_64(deserializer);
@@ -11714,13 +11719,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return GuidingEvent_Correction(
             ra: var_ra, dec: var_dec, raRaw: var_raRaw, decRaw: var_decRaw);
       case 11:
-        return const GuidingEvent_Looping();
+        return GuidingEvent_Looping();
       case 12:
-        return const GuidingEvent_Settling();
+        return GuidingEvent_Settling();
       case 13:
-        return const GuidingEvent_Calibrating();
+        return GuidingEvent_Calibrating();
       case 14:
-        return const GuidingEvent_CalibrationComplete();
+        return GuidingEvent_CalibrationComplete();
       case 15:
         var var_x = sse_decode_f_64(deserializer);
         var var_y = sse_decode_f_64(deserializer);
@@ -11824,11 +11829,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_error = sse_decode_String(deserializer);
         return ImagingEvent_ExposureFailed(error: var_error);
       case 6:
-        return const ImagingEvent_ExposureCancelled();
+        return ImagingEvent_ExposureCancelled();
       case 7:
-        return const ImagingEvent_DownloadStarted();
+        return ImagingEvent_DownloadStarted();
       case 8:
-        return const ImagingEvent_DownloadCompleted();
+        return ImagingEvent_DownloadCompleted();
       case 9:
         var var_width = sse_decode_u_32(deserializer);
         var var_height = sse_decode_u_32(deserializer);
@@ -12319,9 +12324,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field0 = sse_decode_String(deserializer);
         return NightshadeError_CameraError(var_field0);
       case 19:
-        return const NightshadeError_NoImageAvailable();
+        return NightshadeError_NoImageAvailable();
       case 20:
-        return const NightshadeError_ExposureCancelled();
+        return NightshadeError_ExposureCancelled();
       case 21:
         var var_cameraId = sse_decode_String(deserializer);
         var var_reason = sse_decode_String(deserializer);
@@ -12382,7 +12387,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field0 = sse_decode_String(deserializer);
         return NightshadeError_Internal(var_field0);
       case 32:
-        return const NightshadeError_Cancelled();
+        return NightshadeError_Cancelled();
       case 33:
         var var_field0 = sse_decode_String(deserializer);
         return NightshadeError_RuntimeInitFailed(var_field0);
@@ -12927,7 +12932,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_reason = sse_decode_String(deserializer);
         return SafetyEvent_WeatherUnsafe(reason: var_reason);
       case 1:
-        return const SafetyEvent_WeatherSafe();
+        return SafetyEvent_WeatherSafe();
       case 2:
         var var_reason = sse_decode_String(deserializer);
         return SafetyEvent_EmergencyStop(reason: var_reason);
@@ -12935,7 +12940,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_reason = sse_decode_String(deserializer);
         return SafetyEvent_ParkInitiated(reason: var_reason);
       case 4:
-        return const SafetyEvent_ParkCompleted();
+        return SafetyEvent_ParkCompleted();
       default:
         throw UnimplementedError('');
     }
@@ -12978,13 +12983,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_sequenceName = sse_decode_String(deserializer);
         return SequencerEvent_Started(sequenceName: var_sequenceName);
       case 1:
-        return const SequencerEvent_Paused();
+        return SequencerEvent_Paused();
       case 2:
-        return const SequencerEvent_Resumed();
+        return SequencerEvent_Resumed();
       case 3:
-        return const SequencerEvent_Stopped();
+        return SequencerEvent_Stopped();
       case 4:
-        return const SequencerEvent_Completed();
+        return SequencerEvent_Completed();
       case 5:
         var var_nodeId = sse_decode_String(deserializer);
         var var_nodeType = sse_decode_String(deserializer);
@@ -13263,9 +13268,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
-        return const SystemEvent_Initialized();
+        return SystemEvent_Initialized();
       case 1:
-        return const SystemEvent_ShuttingDown();
+        return SystemEvent_ShuttingDown();
       case 2:
         var var_message = sse_decode_String(deserializer);
         return SystemEvent_Error(message: var_message);

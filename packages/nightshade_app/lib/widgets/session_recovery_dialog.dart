@@ -69,7 +69,7 @@ class SessionRecoveryDialog extends ConsumerWidget {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () async {
             // Discard all
             for (final session in incompleteSessions) {
@@ -78,7 +78,9 @@ class SessionRecoveryDialog extends ConsumerWidget {
             if (!context.mounted) return;
             Navigator.of(context).pop();
           },
-          child: const Text('Discard All'),
+          label: 'Discard All',
+          variant: ButtonVariant.destructive,
+          size: ButtonSize.small,
         ),
       ],
     );
@@ -215,19 +217,18 @@ class _SessionCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton.icon(
+                NightshadeButton(
                   onPressed: onDiscard,
-                  icon: const Icon(LucideIcons.trash2, size: 16),
-                  label: const Text('Discard'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: theme.colorScheme.error,
-                  ),
+                  icon: LucideIcons.trash2,
+                  label: 'Discard',
+                  variant: ButtonVariant.destructive,
+                  size: ButtonSize.small,
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton.icon(
+                NightshadeButton(
                   onPressed: onRecover,
-                  icon: const Icon(LucideIcons.rotateCcw, size: 16),
-                  label: const Text('Resume'),
+                  icon: LucideIcons.rotateCcw,
+                  label: 'Resume',
                 ),
               ],
             ),

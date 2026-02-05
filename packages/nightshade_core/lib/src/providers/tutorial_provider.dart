@@ -25,6 +25,46 @@ final tutorialKeyRegistry = Provider<TutorialKeyRegistry>((ref) {
   return TutorialKeyRegistry();
 });
 
+/// Provider for dismissed tour prompts with database persistence.
+/// Tracks which screen IDs have had their contextual tour prompts dismissed.
+final dismissedTourPromptsProvider =
+    StateNotifierProvider<DismissedTourPromptsNotifier, Set<String>>((ref) {
+  final dao = ref.watch(tutorialProgressDaoProvider);
+  final notifier = DismissedTourPromptsNotifier(dao);
+  notifier._loadDismissedPrompts();
+  return notifier;
+});
+
+/// Manages dismissed tour prompts with database persistence
+class DismissedTourPromptsNotifier extends StateNotifier<Set<String>> {
+  final TutorialProgressDao _dao;
+
+  DismissedTourPromptsNotifier(this._dao) : super({});
+
+  /// Load dismissed prompts from database
+  Future<void> _loadDismissedPrompts() async {
+    final dismissed = await _dao.getDismissedPromptScreenIds();
+    state = dismissed;
+  }
+
+  /// Dismiss a tour prompt for a screen (persists to database)
+  Future<void> dismissPrompt(String screenId) async {
+    await _dao.dismissPromptForScreen(screenId);
+    state = {...state, screenId};
+  }
+
+  /// Check if a screen's prompt has been dismissed
+  bool isPromptDismissed(String screenId) {
+    return state.contains(screenId);
+  }
+
+  /// Reset all dismissed prompts (for "reset tutorials" feature)
+  Future<void> resetAllDismissed() async {
+    // This will be handled by resetAllProgress in TutorialProgressDao
+    state = {};
+  }
+}
+
 /// Manages global keys for tutorial targets
 class TutorialKeyRegistry {
   final Map<String, GlobalKey> _keys = {};

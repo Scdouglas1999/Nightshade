@@ -17,6 +17,7 @@ import 'package:nightshade_app/utils/snackbar_helper.dart';
 import 'package:nightshade_app/widgets/slew_dropdown_button.dart';
 import 'framing_altaz.dart';
 import '../../widgets/tutorial_keys/framing_keys.dart';
+import '../../widgets/contextual_tour_prompt.dart';
 
 class FramingScreen extends ConsumerStatefulWidget {
   const FramingScreen({super.key});
@@ -116,68 +117,76 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
     final searchState = ref.watch(targetSearchProvider);
     final equipmentResult = ref.watch(framingFOVProvider);
 
-    return Row(
-      children: [
-        // Main framing canvas
-        Expanded(
-          child: _FramingCanvas(
-            key: FramingTutorialKeys.canvas,
-            colors: colors,
-            framingState: framingState,
-            equipmentResult: equipmentResult.valueOrNull,
-            onPan: (dx, dy) {
-              ref.read(framingProvider.notifier).pan(dx, dy);
-            },
-            onRotate: (angle) {
-              ref.read(framingProvider.notifier).setRotation(angle);
-            },
-          ),
-        ),
-
-        // Right sidebar
-        ResizablePanel(
-          initialWidth: 320,
-          minWidth: 250,
-          maxWidth: 500,
-          side: ResizeSide.left,
-          child: Container(
-            // width: 320, // Removed for ResizablePanel
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(left: BorderSide(color: colors.border)),
+    return ContextualTourPrompt(
+      screenId: 'framing',
+      tourCategory: TutorialCategory.framingTour,
+      title: 'Framing Tour',
+      description: 'Learn how to frame and compose your astrophotography targets.',
+      durationMinutes: 3,
+      alignment: Alignment.bottomRight,
+      child: Row(
+        children: [
+          // Main framing canvas
+          Expanded(
+            child: _FramingCanvas(
+              key: FramingTutorialKeys.canvas,
+              colors: colors,
+              framingState: framingState,
+              equipmentResult: equipmentResult.valueOrNull,
+              onPan: (dx, dy) {
+                ref.read(framingProvider.notifier).pan(dx, dy);
+              },
+              onRotate: (angle) {
+                ref.read(framingProvider.notifier).setRotation(angle);
+              },
             ),
-            child: Column(
-              children: [
-                // Target search
-                _buildTargetSearch(colors, searchState),
+          ),
 
-                // Controls
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildEquipmentSection(colors, equipmentResult),
-                        const SizedBox(height: 20),
-                        _buildFramingControls(colors, framingState, equipmentResult),
-                        const SizedBox(height: 20),
-                        _buildCoordinatesPanel(colors, framingState),
-                        const SizedBox(height: 20),
-                        _buildAltitudePanel(colors, framingState),
-                        const SizedBox(height: 20),
-                        _buildMosaicPanel(colors, framingState, equipmentResult),
-                        const SizedBox(height: 20),
-                        _buildActionsPanel(colors, framingState, equipmentResult),
-                      ],
+          // Right sidebar
+          ResizablePanel(
+            initialWidth: 320,
+            minWidth: 250,
+            maxWidth: 500,
+            side: ResizeSide.left,
+            child: Container(
+              // width: 320, // Removed for ResizablePanel
+              decoration: BoxDecoration(
+                color: colors.surface,
+                border: Border(left: BorderSide(color: colors.border)),
+              ),
+              child: Column(
+                children: [
+                  // Target search
+                  _buildTargetSearch(colors, searchState),
+
+                  // Controls
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildEquipmentSection(colors, equipmentResult),
+                          const SizedBox(height: 20),
+                          _buildFramingControls(colors, framingState, equipmentResult),
+                          const SizedBox(height: 20),
+                          _buildCoordinatesPanel(colors, framingState),
+                          const SizedBox(height: 20),
+                          _buildAltitudePanel(colors, framingState),
+                          const SizedBox(height: 20),
+                          _buildMosaicPanel(colors, framingState, equipmentResult),
+                          const SizedBox(height: 20),
+                          _buildActionsPanel(colors, framingState, equipmentResult),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -3051,6 +3060,11 @@ class _ActionButton extends StatefulWidget {
 class _ActionButtonState extends State<_ActionButton> {
   bool _isHovered = false;
 
+  Color _darkenColor(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+  }
+
   @override
   Widget build(BuildContext context) {
     final enabled = widget.isEnabled && widget.onTap != null;
@@ -3068,7 +3082,7 @@ class _ActionButtonState extends State<_ActionButton> {
                 ? LinearGradient(
                     colors: [
                       widget.colors.primary,
-                      widget.colors.primary.withValues(alpha: 0.8),
+                      _darkenColor(widget.colors.primary, 0.08),
                     ],
                   )
                 : null,

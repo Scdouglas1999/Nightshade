@@ -284,26 +284,18 @@ class _AnnotationCatalogDialogState extends ConsumerState<AnnotationCatalogDialo
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 if (!_isDownloading)
-                  TextButton(
+                  NightshadeButton(
                     onPressed: widget.onSkip,
-                    child: Text(
-                      'Maybe later',
-                      style: TextStyle(color: colors.textSecondary),
-                    ),
+                    label: 'Maybe later',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
                   ),
                 const SizedBox(width: 12),
-                ElevatedButton.icon(
+                NightshadeButton(
                   onPressed: _isDownloading ? null : _downloadCatalog,
-                  icon: Icon(_isDownloading ? LucideIcons.loader2 : LucideIcons.download, size: 18),
-                  label: Text(_isDownloading ? 'Downloading...' : 'Download'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                  ),
+                  icon: _isDownloading ? LucideIcons.loader2 : LucideIcons.download,
+                  label: _isDownloading ? 'Downloading...' : 'Download',
+                  isLoading: _isDownloading,
                 ),
               ],
             ),
@@ -480,17 +472,10 @@ class AnnotationCatalogBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          TextButton.icon(
+          NightshadeButton(
             onPressed: onSetup,
-            icon: Icon(LucideIcons.download, size: 14, color: colors.primary),
-            label: Text(
-              'Setup',
-              style: TextStyle(color: colors.primary, fontWeight: FontWeight.w600),
-            ),
-            style: TextButton.styleFrom(
-              backgroundColor: colors.primary.withValues(alpha: 0.1),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
+            icon: LucideIcons.download,
+            label: 'Setup',
           ),
         ],
       ),

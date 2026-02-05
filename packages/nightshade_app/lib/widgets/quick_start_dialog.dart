@@ -399,16 +399,11 @@ class QuickStartDialog extends ConsumerWidget {
         const SizedBox(height: NightshadeTokens.spaceMd),
         // Skip button
         Center(
-          child: TextButton(
+          child: NightshadeButton(
             onPressed: onSkip,
-            style: TextButton.styleFrom(
-              foregroundColor: colors.textMuted,
-              padding: const EdgeInsets.symmetric(
-                horizontal: NightshadeTokens.spaceLg,
-                vertical: NightshadeTokens.spaceSm,
-              ),
-            ),
-            child: const Text('Skip for now'),
+            label: 'Skip for now',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
         ),
       ],

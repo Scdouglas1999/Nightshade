@@ -10,6 +10,7 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 import 'package:nightshade_app/widgets/phd2_connection_dialog.dart';
 import 'package:nightshade_app/utils/phd2_helper.dart';
 import '../../widgets/tutorial_keys/guiding_keys.dart';
+import '../../widgets/contextual_tour_prompt.dart';
 
 /// Full PHD2 guiding interface screen
 ///
@@ -58,19 +59,27 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
     // Initialize controller
     ref.watch(phd2ControllerProvider);
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: Column(
-        children: [
-          // Status bar - adapts for mobile
-          _buildStatusBar(colors, isConnected, phd2State, guideStats),
-          // Main content - responsive layout
-          Expanded(
-            child: Responsive.isMobile(context)
-                ? _buildMobileLayout(colors, isConnected, phd2State, guideStats)
-                : _buildDesktopLayout(colors, isConnected, phd2State, guideStats),
-          ),
-        ],
+    return ContextualTourPrompt(
+      screenId: 'guiding',
+      tourCategory: TutorialCategory.guidingTour,
+      title: 'Guiding Tour',
+      description: 'Learn how to set up and monitor autoguiding.',
+      durationMinutes: 3,
+      alignment: Alignment.bottomRight,
+      child: Scaffold(
+        backgroundColor: colors.background,
+        body: Column(
+          children: [
+            // Status bar - adapts for mobile
+            _buildStatusBar(colors, isConnected, phd2State, guideStats),
+            // Main content - responsive layout
+            Expanded(
+              child: Responsive.isMobile(context)
+                  ? _buildMobileLayout(colors, isConnected, phd2State, guideStats)
+                  : _buildDesktopLayout(colors, isConnected, phd2State, guideStats),
+            ),
+          ],
+        ),
       ),
     );
   }

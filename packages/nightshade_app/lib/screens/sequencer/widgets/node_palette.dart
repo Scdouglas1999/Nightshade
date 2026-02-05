@@ -9,6 +9,7 @@ class NodePalette extends ConsumerStatefulWidget {
   final ScrollController? scrollController;
   final bool isMobileSheet;
   final VoidCallback? onNodeAdded;
+  final VoidCallback? onCollapse;
 
   const NodePalette({
     super.key,
@@ -16,6 +17,7 @@ class NodePalette extends ConsumerStatefulWidget {
     this.scrollController,
     this.isMobileSheet = false,
     this.onNodeAdded,
+    this.onCollapse,
   });
 
   @override
@@ -253,14 +255,32 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                       color: widget.colors.textMuted,
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      'Node Palette',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.colors.textPrimary,
+                    Expanded(
+                      child: Text(
+                        'Node Palette',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: widget.colors.textPrimary,
+                        ),
                       ),
                     ),
+                    if (widget.onCollapse != null)
+                      Tooltip(
+                        message: 'Collapse panel',
+                        child: InkWell(
+                          onTap: widget.onCollapse,
+                          borderRadius: BorderRadius.circular(4),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              LucideIcons.panelLeftClose,
+                              size: 16,
+                              color: widget.colors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12),

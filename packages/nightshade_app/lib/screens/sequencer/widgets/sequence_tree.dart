@@ -39,11 +39,18 @@ class SequenceTree extends ConsumerWidget {
       return _EmptyState(colors: colors);
     }
 
-    return DragTarget<NodePaletteItem>(
+    return DragTarget<Object>(
+      onWillAcceptWithDetails: (details) =>
+          details.data is NodePaletteItem || details.data is TemplateSnippet,
       onAcceptWithDetails: (details) {
-        final node = details.data.createNode();
-        ref.read(currentSequenceProvider.notifier).addNode(node);
-        ref.read(selectedNodeIdProvider.notifier).state = node.id;
+        final data = details.data;
+        if (data is NodePaletteItem) {
+          final node = data.createNode();
+          ref.read(currentSequenceProvider.notifier).addNode(node);
+          ref.read(selectedNodeIdProvider.notifier).state = node.id;
+        } else if (data is TemplateSnippet) {
+          ref.read(currentSequenceProvider.notifier).insertSnippet(data);
+        }
       },
       builder: (context, candidateData, rejectedData) {
         final isAccepting = candidateData.isNotEmpty;
@@ -208,16 +215,20 @@ class _SequenceHeader extends ConsumerWidget {
           ),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
-          TextButton(
+          NightshadeButton(
             onPressed: () {
               ref.read(currentSequenceProvider.notifier).setName(controller.text);
               Navigator.pop(context);
             },
-            child: Text('Rename', style: TextStyle(color: colors.primary)),
+            label: 'Rename',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -340,7 +351,10 @@ class _NodeTreeView extends ConsumerWidget {
           Padding(
             padding: EdgeInsets.only(left: isMobile ? 16 : 24),
             child: DragTarget<Object>(
-              onWillAcceptWithDetails: (data) => data is String || data is NodePaletteItem,
+              onWillAcceptWithDetails: (data) =>
+                  data is String ||
+                  data is NodePaletteItem ||
+                  data is TemplateSnippet,
               onAcceptWithDetails: (details) {
                 final data = details.data;
                 if (data is String) {
@@ -357,6 +371,11 @@ class _NodeTreeView extends ConsumerWidget {
                     // No index = append
                   );
                   ref.read(selectedNodeIdProvider.notifier).state = newNode.id;
+                } else if (data is TemplateSnippet) {
+                  ref.read(currentSequenceProvider.notifier).insertSnippet(
+                    data,
+                    parentId: nodeId,
+                  );
                 }
               },
               builder: (context, candidateData, rejectedData) {
@@ -1082,7 +1101,10 @@ class _DropZone extends ConsumerWidget {
     final isDragging = ref.watch(isDraggingNodeProvider);
 
     return DragTarget<Object>(
-      onWillAcceptWithDetails: (data) => data.data is String || data.data is NodePaletteItem,
+      onWillAcceptWithDetails: (data) =>
+          data.data is String ||
+          data.data is NodePaletteItem ||
+          data.data is TemplateSnippet,
       onAcceptWithDetails: (details) {
         final data = details.data;
         if (data is String) {
@@ -1099,6 +1121,12 @@ class _DropZone extends ConsumerWidget {
             index: index,
           );
           ref.read(selectedNodeIdProvider.notifier).state = node.id;
+        } else if (data is TemplateSnippet) {
+          ref.read(currentSequenceProvider.notifier).insertSnippet(
+            data,
+            parentId: parentId,
+            index: index,
+          );
         }
         // Reset drag state after drop
         ref.read(isDraggingNodeProvider.notifier).state = false;

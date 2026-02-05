@@ -69,7 +69,7 @@ class HygStarCatalog extends Catalog<Star> {
         _cachedStars = stars;
         return stars;
       } catch (e) {
-        print('Error loading stars in isolate: $e');
+        debugPrint('[Catalog] Error loading stars in isolate: $e');
         return [];
       }
     } finally {

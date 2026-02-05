@@ -99,3 +99,15 @@ scripts:
     run: melos exec -- flutter clean
     description: Clean all packages
 
+  # ==========================================================================
+  # SDK/DLL Copy Scripts
+  # ==========================================================================
+
+  copy:fujifilm:
+    run: powershell -ExecutionPolicy Bypass -File scripts/copy_fujifilm_sdk.ps1 -Release
+    description: Copy Fujifilm X Acquire SDK DLLs to Release build output
+
+  copy:fujifilm:debug:
+    run: powershell -ExecutionPolicy Bypass -File scripts/copy_fujifilm_sdk.ps1 -Debug
+    description: Copy Fujifilm X Acquire SDK DLLs to Debug build output
+

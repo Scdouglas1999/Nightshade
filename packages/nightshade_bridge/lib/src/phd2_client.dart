@@ -13,6 +13,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 import 'utils/retry.dart';
 import 'utils/circuit_breaker.dart';
 
@@ -231,11 +233,11 @@ class Phd2Client {
       _subscription = _socket!.listen(
         (data) => _handleData(data),
         onError: (Object error) {
-          print('PHD2 socket error: $error');
+          debugPrint('[PHD2] socket error: $error');
           _handleConnectionLost();
         },
         onDone: () {
-          print('PHD2 connection closed');
+          debugPrint('[PHD2] connection closed');
           _handleConnectionLost();
         },
       );
@@ -298,7 +300,7 @@ class Phd2Client {
 
     // Check if connection is stale
     if (isStale) {
-      print('PHD2 connection is stale, triggering reconnect');
+      debugPrint('[PHD2] connection is stale, triggering reconnect');
       _updateConnectionState(Phd2ConnectionState.stale);
       _handleConnectionLost();
       return;
@@ -311,7 +313,7 @@ class Phd2Client {
         throw TimeoutException('Heartbeat timeout');
       });
     } on Exception catch (e) {
-      print('PHD2 heartbeat failed: $e');
+      debugPrint('[PHD2] heartbeat failed: $e');
       _handleConnectionLost();
     }
   }
@@ -323,7 +325,7 @@ class Phd2Client {
     _handleDisconnect();
 
     if (_shouldReconnect && !_isReconnecting) {
-      print('PHD2 connection lost, starting reconnection...');
+      debugPrint('[PHD2] connection lost, starting reconnection...');
       _updateConnectionState(Phd2ConnectionState.reconnecting);
       _reconnectWithBackoff();
     }
@@ -349,19 +351,20 @@ class Phd2Client {
         shouldRetry: isNetworkException,
         onRetry: (attempt, error, delay) {
           _reconnectAttempts = attempt;
-          print('PHD2 reconnect attempt $attempt failed: $error. '
+          debugPrint('[PHD2] reconnect attempt $attempt failed: $error. '
               'Retrying in ${delay.inSeconds}s...');
         },
       );
 
-      print('PHD2 reconnection successful after $_reconnectAttempts attempts');
+      debugPrint(
+          '[PHD2] reconnection successful after $_reconnectAttempts attempts');
       _eventController.add(Phd2Event(
         event: 'Reconnected',
         data: {'attempts': _reconnectAttempts},
         timestamp: DateTime.now(),
       ));
     } on RetryExhaustedException catch (e) {
-      print('PHD2 reconnection failed after all attempts: $e');
+      debugPrint('[PHD2] reconnection failed after all attempts: $e');
       _updateConnectionState(Phd2ConnectionState.failed);
       _eventController.add(Phd2Event(
         event: 'ReconnectionFailed',
@@ -369,7 +372,7 @@ class Phd2Client {
         timestamp: DateTime.now(),
       ));
     } catch (e) {
-      print('PHD2 reconnection error: $e');
+      debugPrint('[PHD2] reconnection error: $e');
       _updateConnectionState(Phd2ConnectionState.failed);
     } finally {
       _isReconnecting = false;
@@ -422,7 +425,7 @@ class Phd2Client {
         final json = jsonDecode(line) as Map<String, dynamic>;
         _handleMessage(json);
       } catch (e) {
-        print('Failed to parse PHD2 message: $line');
+        debugPrint('[PHD2] Failed to parse message: $line');
       }
     }
   }
@@ -454,7 +457,7 @@ class Phd2Client {
   void _handleEvent(String event, Map<String, dynamic> json) {
     switch (event) {
       case 'Version':
-        print('PHD2 Version: ${json['PHDVersion']}');
+        debugPrint('[PHD2] Version: ${json['PHDVersion']}');
         break;
 
       case 'AppState':

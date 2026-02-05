@@ -295,7 +295,7 @@ class CatalogManager {
       await dir.create(recursive: true);
     }
     
-    debugPrint('CatalogManager initialized with directory: $catalogDirectory');
+    debugPrint('[Catalog] initialized with directory: $catalogDirectory');
   }
   
   /// Get the catalog directory path
@@ -347,7 +347,7 @@ class CatalogManager {
         installedDate = DateTime.tryParse(metaJson['installedDate'] ?? '');
       } catch (e) {
         // Metadata corrupted or malformed - report as installed with defaults
-        debugPrint('CatalogManager: Failed to parse metadata: $e');
+        debugPrint('[Catalog]: Failed to parse metadata: $e');
       }
     }
     
@@ -393,7 +393,7 @@ class CatalogManager {
     required CatalogPackage package,
     void Function(DownloadProgress)? onProgress,
   }) async {
-    debugPrint('Starting download of ${source.name} from ${source.downloadUrl}');
+    debugPrint('[Catalog] Starting download of ${source.name} from ${source.downloadUrl}');
     
     final progress = DownloadProgress.starting(source.name);
     _downloadController.add(progress);
@@ -414,12 +414,12 @@ class CatalogManager {
       final client = http.Client();
       
       try {
-        debugPrint('Sending HTTP GET request to ${source.downloadUrl}');
+        debugPrint('[Catalog] Sending HTTP GET request to ${source.downloadUrl}');
         
         final request = http.Request('GET', Uri.parse(source.downloadUrl));
         final streamedResponse = await client.send(request);
         
-        debugPrint('Response status: ${streamedResponse.statusCode}');
+        debugPrint('[Catalog] Response status: ${streamedResponse.statusCode}');
         
         if (streamedResponse.statusCode != 200) {
           final errorMsg = 'HTTP ${streamedResponse.statusCode}: Failed to download from ${source.downloadUrl}';
@@ -435,7 +435,7 @@ class CatalogManager {
         final file = File(filePath);
         final sink = file.openWrite();
         
-        debugPrint('Writing to $filePath, expected size: $contentLength bytes');
+        debugPrint('[Catalog] Writing to $filePath, expected size: $contentLength bytes');
         
         // Check if the download is gzip compressed
         final isGzipped = source.downloadUrl.endsWith('.gz');
@@ -461,14 +461,14 @@ class CatalogManager {
         // Decompress if needed
         Uint8List finalBytes;
         if (isGzipped) {
-          debugPrint('Decompressing gzip data...');
+          debugPrint('[Catalog] Decompressing gzip data...');
           try {
             finalBytes = Uint8List.fromList(
               gzip.decode(downloadedBytes)
             );
-            debugPrint('Decompressed ${downloadedBytes.length} bytes to ${finalBytes.length} bytes');
+            debugPrint('[Catalog] Decompressed ${downloadedBytes.length} bytes to ${finalBytes.length} bytes');
           } catch (e) {
-            debugPrint('Gzip decompression failed: $e');
+            debugPrint('[Catalog] Gzip decompression failed: $e');
             // Try to use the data as-is (maybe it wasn't actually gzipped)
             finalBytes = Uint8List.fromList(downloadedBytes);
           }
@@ -480,7 +480,7 @@ class CatalogManager {
         sink.add(finalBytes);
         await sink.close();
         
-        debugPrint('Download complete: $bytesReceived bytes written to $filePath');
+        debugPrint('[Catalog] Download complete: $bytesReceived bytes written to $filePath');
         
         // Verify file was written
         if (!await file.exists()) {
@@ -492,13 +492,13 @@ class CatalogManager {
           throw Exception('Downloaded file is empty');
         }
         
-        debugPrint('File verified: $fileSize bytes');
+        debugPrint('[Catalog] File verified: $fileSize bytes');
         
         // Count objects and save metadata
         final objectCount = await _countObjects(filePath);
         await _saveMetadata(type, source, package, objectCount);
         
-        debugPrint('Catalog saved with $objectCount objects');
+        debugPrint('[Catalog] Catalog saved with $objectCount objects');
         
         final complete = DownloadProgress.complete(source.name, bytesReceived);
         _downloadController.add(complete);
@@ -511,7 +511,7 @@ class CatalogManager {
     } catch (e, stackTrace) {
       final errorMsg = 'Download error: $e';
       debugPrint(errorMsg);
-      debugPrint('Stack trace: $stackTrace');
+      debugPrint('[Catalog] Stack trace: $stackTrace');
       
       final error = DownloadProgress.error(source.name, errorMsg);
       _downloadController.add(error);
@@ -527,7 +527,7 @@ class CatalogManager {
       // Subtract 1 for header row
       return lines.length - 1;
     } catch (e) {
-      debugPrint('Error counting objects: $e');
+      debugPrint('[Catalog] Error counting objects: $e');
       return 0;
     }
   }
@@ -574,7 +574,7 @@ class CatalogManager {
       
       return true;
     } catch (e) {
-      debugPrint('Import error: $e');
+      debugPrint('[Catalog] Import error: $e');
       return false;
     }
   }
@@ -635,8 +635,8 @@ class CatalogManager {
     // Build the VizieR TAP URL based on the selected package tier
     final downloadUrl = buildGladePlusUrl(package);
 
-    debugPrint('Starting download of ${source.name} (${package.displayName} tier)');
-    debugPrint('VizieR TAP URL: $downloadUrl');
+    debugPrint('[Catalog] Starting download of ${source.name} (${package.displayName} tier)');
+    debugPrint('[Catalog] VizieR TAP URL: $downloadUrl');
 
     final progress = DownloadProgress.starting(source.name);
     _downloadController.add(progress);
@@ -655,12 +655,12 @@ class CatalogManager {
       final client = http.Client();
 
       try {
-        debugPrint('Sending HTTP GET request to VizieR TAP...');
+        debugPrint('[Catalog] Sending HTTP GET request to VizieR TAP...');
 
         final request = http.Request('GET', Uri.parse(downloadUrl));
         final streamedResponse = await client.send(request);
 
-        debugPrint('Response status: ${streamedResponse.statusCode}');
+        debugPrint('[Catalog] Response status: ${streamedResponse.statusCode}');
 
         if (streamedResponse.statusCode != 200) {
           final errorMsg = 'HTTP ${streamedResponse.statusCode}: Failed to download from VizieR TAP';
@@ -676,7 +676,7 @@ class CatalogManager {
         final file = File(filePath);
         final sink = file.openWrite();
 
-        debugPrint('Writing to $filePath, expected size: $contentLength bytes');
+        debugPrint('[Catalog] Writing to $filePath, expected size: $contentLength bytes');
 
         // VizieR TAP returns CSV directly (not gzipped)
         var bytesReceived = 0;
@@ -702,7 +702,7 @@ class CatalogManager {
         sink.add(finalBytes);
         await sink.close();
 
-        debugPrint('Download complete: $bytesReceived bytes written to $filePath');
+        debugPrint('[Catalog] Download complete: $bytesReceived bytes written to $filePath');
 
         if (!await file.exists()) {
           throw Exception('File was not created after download');
@@ -713,12 +713,12 @@ class CatalogManager {
           throw Exception('Downloaded file is empty');
         }
 
-        debugPrint('File verified: $fileSize bytes');
+        debugPrint('[Catalog] File verified: $fileSize bytes');
 
         final objectCount = await _countObjects(filePath);
         await _saveAnnotationMetadata(source, package, objectCount);
 
-        debugPrint('Annotation catalog saved with $objectCount objects');
+        debugPrint('[Catalog] Annotation catalog saved with $objectCount objects');
 
         final complete = DownloadProgress.complete(source.name, bytesReceived);
         _downloadController.add(complete);
@@ -731,7 +731,7 @@ class CatalogManager {
     } catch (e, stackTrace) {
       final errorMsg = 'Download error: $e';
       debugPrint(errorMsg);
-      debugPrint('Stack trace: $stackTrace');
+      debugPrint('[Catalog] Stack trace: $stackTrace');
 
       final error = DownloadProgress.error(source.name, errorMsg);
       _downloadController.add(error);
@@ -770,7 +770,7 @@ class CatalogManager {
     try {
       final sourceFile = File(sourcePath);
       if (!await sourceFile.exists()) {
-        debugPrint('Import source file not found: $sourcePath');
+        debugPrint('[Catalog] Import source file not found: $sourcePath');
         return false;
       }
 
@@ -783,10 +783,10 @@ class CatalogManager {
       final objectCount = await _countObjects(destPath);
       await _saveAnnotationMetadata(gladePlusCatalog, package, objectCount);
 
-      debugPrint('Annotation catalog imported: $objectCount objects from $sourcePath');
+      debugPrint('[Catalog] Annotation catalog imported: $objectCount objects from $sourcePath');
       return true;
     } catch (e) {
-      debugPrint('Import annotation catalog error: $e');
+      debugPrint('[Catalog] Import annotation catalog error: $e');
       return false;
     }
   }
@@ -863,7 +863,7 @@ class CatalogManager {
           size: d.sizeString,
         )));
       } catch (e) {
-        debugPrint('DSO search error: $e');
+        debugPrint('[Catalog] DSO search error: $e');
       }
     }
     
@@ -884,7 +884,7 @@ class CatalogManager {
           constellation: s.constellation,
         )));
       } catch (e) {
-        debugPrint('Star search error: $e');
+        debugPrint('[Catalog] Star search error: $e');
       }
     }
     
@@ -913,7 +913,7 @@ class CatalogManager {
         maxMagnitude: maxMagnitude,
       );
     } catch (e) {
-      debugPrint('DSO searchNearby error: $e');
+      debugPrint('[Catalog] DSO searchNearby error: $e');
       return [];
     }
   }
@@ -940,7 +940,7 @@ class CatalogManager {
         maxMagnitude: maxMagnitude,
       );
     } catch (e) {
-      debugPrint('Star searchNearby error: $e');
+      debugPrint('[Catalog] Star searchNearby error: $e');
       return [];
     }
   }
@@ -1107,10 +1107,17 @@ class OpenNgcData {
   });
   
   /// Parse a line from the OpenNGC CSV file
-  /// Format: Name;Type;RA;Dec;Const;MajAx;MinAx;PosAng;B-Mag;V-Mag;J-Mag;H-Mag;K-Mag;SurfBr;Hubble;Cstar U-Mag;Cstar B-Mag;Cstar V-Mag;M;NGC;IC;Cstar Names;Identifiers;Common names;NED notes;OpenNGC notes
+  /// Format: Name;Type;RA;Dec;Const;MajAx;MinAx;PosAng;B-Mag;V-Mag;J-Mag;H-Mag;K-Mag;SurfBr;Hubble;Pax;Pm-RA;Pm-Dec;RadVel;Redshift;Cstar U-Mag;Cstar B-Mag;Cstar V-Mag;M;NGC;IC;Cstar Names;Identifiers;Common names;NED notes;OpenNGC notes;Sources
+  /// Column indices:
+  /// 0:Name, 1:Type, 2:RA, 3:Dec, 4:Const, 5:MajAx, 6:MinAx, 7:PosAng,
+  /// 8:B-Mag, 9:V-Mag, 10:J-Mag, 11:H-Mag, 12:K-Mag, 13:SurfBr, 14:Hubble,
+  /// 15:Pax, 16:Pm-RA, 17:Pm-Dec, 18:RadVel, 19:Redshift,
+  /// 20:Cstar U-Mag, 21:Cstar B-Mag, 22:Cstar V-Mag,
+  /// 23:M, 24:NGC, 25:IC, 26:Cstar Names, 27:Identifiers,
+  /// 28:Common names, 29:NED notes, 30:OpenNGC notes, 31:Sources
   factory OpenNgcData.fromCsvLine(String line) {
     final parts = line.split(';');
-    
+
     // Parse RA (format: HH:MM:SS.ss)
     double parseRa(String raStr) {
       if (raStr.isEmpty) return 0;
@@ -1130,7 +1137,7 @@ class OpenNgcData {
       }
       return 0;
     }
-    
+
     // Parse Dec (format: +/-DD:MM:SS.s)
     double parseDec(String decStr) {
       if (decStr.isEmpty) return 0;
@@ -1143,7 +1150,7 @@ class OpenNgcData {
       final s = double.tryParse(parts[2]) ?? 0;
       return sign * (d + m / 60 + s / 3600);
     }
-    
+
     return OpenNgcData(
       name: parts[0],
       type: parts[1],
@@ -1154,10 +1161,10 @@ class OpenNgcData {
       minorAxis: parts.length > 6 ? double.tryParse(parts[6]) : null,
       positionAngle: parts.length > 7 ? double.tryParse(parts[7]) : null,
       magnitude: parts.length > 9 ? double.tryParse(parts[9]) : null, // V-Mag
-      messier: parts.length > 18 && parts[18].isNotEmpty ? 'M${parts[18]}' : null,
-      ngcId: parts.length > 19 && parts[19].isNotEmpty ? 'NGC ${parts[19]}' : null,
-      commonNames: parts.length > 23 && parts[23].isNotEmpty ? parts[23] : null,
-      notes: parts.length > 25 && parts[25].isNotEmpty ? parts[25] : null,
+      messier: parts.length > 23 && parts[23].isNotEmpty ? 'M${parts[23]}' : null,
+      ngcId: parts.length > 24 && parts[24].isNotEmpty ? 'NGC ${parts[24]}' : null,
+      commonNames: parts.length > 28 && parts[28].isNotEmpty ? parts[28] : null,
+      notes: parts.length > 30 && parts[30].isNotEmpty ? parts[30] : null,
     );
   }
   
@@ -1240,7 +1247,7 @@ class HygCatalogLoader {
     }
 
     if (malformedLines > 0) {
-      debugPrint('StarCatalogLoader: Skipped $malformedLines malformed lines');
+      debugPrint('[Catalog] StarCatalogLoader: Skipped $malformedLines malformed lines');
     }
 
     _cachedData = stars;
@@ -1341,7 +1348,7 @@ class OpenNgcCatalogLoader {
     }
 
     if (malformedLines > 0) {
-      debugPrint('DSOCatalogLoader: Skipped $malformedLines malformed lines');
+      debugPrint('[Catalog] DSOCatalogLoader: Skipped $malformedLines malformed lines');
     }
 
     _cachedData = dsos;

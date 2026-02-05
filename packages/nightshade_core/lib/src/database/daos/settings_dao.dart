@@ -124,6 +124,23 @@ class SettingsDao extends DatabaseAccessor<NightshadeDatabase>
 
   Future<void> setObserverElevation(double elevation) =>
       setSetting('observer_elevation', elevation.toString());
+
+  // Auto-stretch settings
+  static const String _autoStretchKey = 'auto_stretch_settings';
+
+  /// Get auto-stretch settings as JSON string
+  Future<String?> getAutoStretchSettings() async {
+    return await getSetting(_autoStretchKey);
+  }
+
+  /// Watch auto-stretch settings
+  Stream<String?> watchAutoStretchSettings() {
+    return watchSetting(_autoStretchKey);
+  }
+
+  /// Save auto-stretch settings as JSON string
+  Future<void> setAutoStretchSettings(String jsonSettings) =>
+      setSetting(_autoStretchKey, jsonSettings);
 }
 
 

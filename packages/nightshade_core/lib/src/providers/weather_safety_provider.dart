@@ -119,6 +119,9 @@ class WeatherSafetyState {
   }
 }
 
+// Note: All async callbacks and stream listeners check `mounted`
+// before updating state to prevent updates after disposal.
+
 /// Notifier for weather safety state
 class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   final Ref _ref;
@@ -138,6 +141,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   void _startPeriodicEvaluation() {
     _periodicEvalTimer?.cancel();
     _periodicEvalTimer = Timer.periodic(_evaluationInterval, (_) {
+      if (!mounted) return;
       _evaluateAllSources();
     });
     // Also run initial evaluation
@@ -146,6 +150,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
 
   /// Evaluate all safety sources (API weather, hardware weather, safety monitor)
   void _evaluateAllSources() {
+    if (!mounted) return;
     final weatherSettings = _ref.read(weatherSettingsProvider);
     final appSettings = _ref.read(appSettingsProvider).valueOrNull;
     final failMode = appSettings?.safetyFailMode ?? SafetyFailMode.failOpen;
@@ -306,6 +311,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     final alertService = _ref.read(weatherAlertServiceProvider);
 
     _alertSubscription = alertService.alertStream.listen((alert) {
+      if (!mounted) return;
       // Re-evaluate all sources when API alert changes
       _evaluateAllSources();
     });
@@ -327,6 +333,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
 
     // Start timer to end snooze
     _snoozeTimer = Timer(duration, () {
+      if (!mounted) return;
       cancelSnooze();
     });
   }

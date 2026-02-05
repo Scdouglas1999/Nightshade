@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../widgets/transient_alert_badge.dart';
+
 // Conditional import for window_manager (desktop only)
 import 'title_bar_stub.dart'
     if (dart.library.io) 'title_bar_desktop.dart' as window_impl;
@@ -61,6 +63,22 @@ class TitleBar extends ConsumerWidget {
 
             const Spacer(),
 
+            // Transient Alert Badge - shows count of new alerts
+            Builder(
+              builder: (context) => TransientAlertBadge(
+                showDropdown: true,
+                onTap: () {
+                  try {
+                    context.go('/transients');
+                  } catch (e) {
+                    debugPrint('[TitleBar] Could not navigate to transients: $e');
+                  }
+                },
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
             // Profile button - navigates to Settings > Equipment Profiles
             Builder(
               builder: (context) => _TitleBarButton(
@@ -72,7 +90,7 @@ class TitleBar extends ConsumerWidget {
                     context.go('/settings');
                   } catch (e) {
                     // Fallback for when router is not available
-                    debugPrint('Could not navigate to settings: $e');
+                    debugPrint('[TitleBar] Could not navigate to settings: $e');
                   }
                 },
               ),

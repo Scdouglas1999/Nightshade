@@ -64,7 +64,7 @@ class OpenNgcDsoCatalog extends Catalog<DeepSkyObject> {
       
       if (!await file.exists()) {
         // Return empty list if catalog not installed - user should download catalog
-        debugPrint('DSO catalog not found at $path. Download the catalog in Settings > Catalogs.');
+        debugPrint('[Catalog] DSO catalog not found at $path. Download the catalog in Settings > Catalogs.');
         _cachedObjects = [];
         return _cachedObjects!;
       }
@@ -75,7 +75,7 @@ class OpenNgcDsoCatalog extends Catalog<DeepSkyObject> {
         _cachedObjects = objects;
         return objects;
       } catch (e) {
-        print('Error loading DSOs in isolate: $e');
+        debugPrint('[Catalog] Error loading DSOs in isolate: $e');
         return [];
       }
     } finally {

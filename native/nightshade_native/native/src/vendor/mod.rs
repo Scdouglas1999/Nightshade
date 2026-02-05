@@ -11,6 +11,8 @@ pub mod atik;
 pub mod fli;
 pub mod touptek;
 pub mod moravian;
+#[cfg(target_os = "windows")]
+pub mod fujifilm;
 
 // Mount protocols (serial communication)
 pub mod skywatcher;

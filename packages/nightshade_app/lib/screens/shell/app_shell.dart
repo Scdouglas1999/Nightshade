@@ -86,19 +86,17 @@ class _AppShellState extends ConsumerState<AppShell> {
             style: TextStyle(color: colors.textSecondary),
           ),
           actions: [
-            TextButton(
+            NightshadeButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: colors.textSecondary),
-              ),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
             ),
-            ElevatedButton(
+            NightshadeButton(
               onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.error,
-              ),
-              child: const Text('Close Anyway'),
+              label: 'Close Anyway',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
             ),
           ],
         );
@@ -132,7 +130,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         }
       }
     } catch (e) {
-      debugPrint('Error checking catalog status: $e');
+      debugPrint('[AppShell] Error checking catalog status: $e');
     }
   }
 
@@ -173,6 +171,8 @@ class _AppShellState extends ConsumerState<AppShell> {
           return 8;
         case '/weather':
           return 9;
+        case '/suggestions':
+          return 10;
         default:
           return 0;
       }
@@ -194,6 +194,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       '/analytics',
       '/flat-wizard',
       '/weather',
+      '/suggestions',
     ];
     if (index < routes.length) {
       try {

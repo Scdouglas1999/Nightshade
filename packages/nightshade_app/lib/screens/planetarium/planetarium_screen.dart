@@ -16,6 +16,7 @@ import '../../utils/snackbar_helper.dart';
 import '../../widgets/slew_dropdown_button.dart';
 import '../../widgets/tutorial_keys/planetarium_keys.dart';
 import '../imaging/centering_dialog.dart';
+import '../../widgets/contextual_tour_prompt.dart';
 
 /// Get display name and catalog tag for a DSO
 /// Returns (displayName, catalogTag)
@@ -315,13 +316,17 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
               : 'Slew mount to coordinates?\n\nRA: ${coords.ra.toStringAsFixed(4)}h\nDec: ${coords.dec.toStringAsFixed(4)}°',
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
-          FilledButton(
+          NightshadeButton(
+            label: 'Slew',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Slew'),
           ),
         ],
       ),
@@ -750,32 +755,40 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
       }
     });
 
-    return Focus(
-      autofocus: true,
-      onKeyEvent: _handleKeyEvent,
-      child: GestureDetector(
-        onTapDown: (details) {
-          // Dismiss popup when clicking elsewhere
-          if (_showPopup) {
-            // Check if tap is outside the popup area
-            final popupRect = Rect.fromCenter(
-              center: _popupPosition,
-              width: 320,
-              height: 280,
-            );
-            if (!popupRect.contains(details.globalPosition)) {
-              _dismissPopup();
+    return ContextualTourPrompt(
+      screenId: 'planetarium',
+      tourCategory: TutorialCategory.planetariumTour,
+      title: 'Planetarium Tour',
+      description: 'Learn how to navigate the sky and find targets.',
+      durationMinutes: 3,
+      alignment: Alignment.bottomRight,
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: GestureDetector(
+          onTapDown: (details) {
+            // Dismiss popup when clicking elsewhere
+            if (_showPopup) {
+              // Check if tap is outside the popup area
+              final popupRect = Rect.fromCenter(
+                center: _popupPosition,
+                width: 320,
+                height: 280,
+              );
+              if (!popupRect.contains(details.globalPosition)) {
+                _dismissPopup();
+              }
             }
-          }
-        },
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isMobile = constraints.maxWidth < _mobileBreakpoint;
-            if (isMobile) {
-              return _buildMobileLayout(context, colors, selectedObject);
-            }
-            return _buildDesktopLayout(context, colors, selectedObject);
           },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < _mobileBreakpoint;
+              if (isMobile) {
+                return _buildMobileLayout(context, colors, selectedObject);
+              }
+              return _buildDesktopLayout(context, colors, selectedObject);
+            },
+          ),
         ),
       ),
     );
@@ -4151,31 +4164,34 @@ class _SlewPopupMenuButtonState extends State<_SlewPopupMenuButton> {
                   ]
                 : null,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                LucideIcons.crosshair,
-                size: 14,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                'Slew',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.crosshair,
+                  size: 14,
                   color: Colors.white,
                 ),
-              ),
-              const SizedBox(width: 4),
-              Icon(
-                LucideIcons.chevronDown,
-                size: 12,
-                color: Colors.white70,
-              ),
-            ],
+                const SizedBox(width: 6),
+                const Text(
+                  'Slew',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  LucideIcons.chevronDown,
+                  size: 12,
+                  color: Colors.white70,
+                ),
+              ],
+            ),
           ),
         ),
       ),

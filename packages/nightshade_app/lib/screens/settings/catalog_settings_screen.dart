@@ -572,15 +572,11 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            child: ElevatedButton.icon(
+            child: NightshadeButton(
+              label: _isDownloading ? 'Downloading...' : 'Download Selected Package',
+              icon: Icons.download,
+              variant: ButtonVariant.primary,
               onPressed: _isDownloading ? null : _downloadCatalogs,
-              icon: const Icon(Icons.download),
-              label: Text(_isDownloading ? 'Downloading...' : 'Download Selected Package'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
             ),
           ),
         ],
@@ -697,44 +693,38 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  OutlinedButton.icon(
+                  NightshadeButton(
+                    label: 'Refresh Status',
+                    icon: Icons.refresh,
+                    variant: ButtonVariant.outline,
                     onPressed: _isDownloading ? null : _loadCatalogStatus,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Refresh Status'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
                   ),
                   if (hasInstalledCatalogs) ...[
                     const SizedBox(height: 8),
-                    OutlinedButton.icon(
+                    NightshadeButton(
+                      label: 'Delete Catalogs',
+                      icon: Icons.delete_outline,
+                      variant: ButtonVariant.destructive,
                       onPressed: _isDownloading ? null : _deleteCatalogs,
-                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                      label: const Text('Delete Catalogs'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
                     ),
                   ],
                 ],
               )
             : Row(
                 children: [
-                  OutlinedButton.icon(
+                  NightshadeButton(
+                    label: 'Refresh Status',
+                    icon: Icons.refresh,
+                    variant: ButtonVariant.outline,
                     onPressed: _isDownloading ? null : _loadCatalogStatus,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Refresh Status'),
                   ),
                   const SizedBox(width: 12),
                   if (hasInstalledCatalogs)
-                    OutlinedButton.icon(
+                    NightshadeButton(
+                      label: 'Delete Catalogs',
+                      icon: Icons.delete_outline,
+                      variant: ButtonVariant.destructive,
                       onPressed: _isDownloading ? null : _deleteCatalogs,
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      label: const Text('Delete Catalogs'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
                     ),
                 ],
               ),
@@ -896,41 +886,32 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
+              child: NightshadeButton(
+                label: 'Download ${_selectedAnnotationPackage.displayName} (~${_selectedAnnotationPackage.approximateSizeMB} MB)',
+                icon: Icons.download,
+                variant: ButtonVariant.primary,
                 onPressed: _isDownloading ? null : _downloadAnnotationCatalog,
-                icon: const Icon(Icons.download, size: 18),
-                label: Text('Download ${_selectedAnnotationPackage.displayName} (~${_selectedAnnotationPackage.approximateSizeMB} MB)'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
               ),
             ),
             const SizedBox(height: 12),
             // Optional manual import
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
+              child: NightshadeButton(
+                label: 'Or Import from File (CSV)',
+                icon: Icons.folder_open,
+                variant: ButtonVariant.outline,
                 onPressed: _isDownloading ? null : _importAnnotationCatalog,
-                icon: const Icon(Icons.folder_open, size: 18),
-                label: const Text('Or Import from File (CSV)'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
               ),
             ),
           ] else ...[
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
+              child: NightshadeButton(
+                label: 'Delete Annotation Catalog',
+                icon: Icons.delete_outline,
+                variant: ButtonVariant.destructive,
                 onPressed: _isDownloading ? null : _deleteAnnotationCatalog,
-                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                label: const Text('Delete Annotation Catalog'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
               ),
             ),
           ],

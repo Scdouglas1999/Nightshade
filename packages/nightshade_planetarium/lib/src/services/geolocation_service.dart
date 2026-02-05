@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
 
@@ -37,7 +38,7 @@ class GeolocationService {
       }
     } catch (e) {
       // Silently fail - network might be unavailable
-      print('Geolocation failed: $e');
+      debugPrint('[Geolocation] IP-based location failed: $e');
     }
     
     return null;
@@ -75,7 +76,7 @@ class GeolocationService {
         }
       }
     } catch (e) {
-      print('Alternative geolocation failed: $e');
+      debugPrint('[Geolocation] Alternative IP-based location failed: $e');
     }
     
     return null;
@@ -108,7 +109,7 @@ class GeolocationService {
       // Check if location services are enabled on the device
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        print('Location services are disabled on device');
+        debugPrint('[Geolocation] Location services are disabled on device');
         // Fallback to IP-based location
         return await fetchLocation();
       }
@@ -118,14 +119,14 @@ class GeolocationService {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          print('Location permission denied by user');
+          debugPrint('[Geolocation] Location permission denied by user');
           // Fallback to IP-based location
           return await fetchLocation();
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        print('Location permissions are permanently denied');
+        debugPrint('[Geolocation] Location permissions are permanently denied');
         // Fallback to IP-based location
         return await fetchLocation();
       }
@@ -159,7 +160,7 @@ class GeolocationService {
 
     } catch (e) {
       // GPS failed (timeout, no GPS hardware, etc.)
-      print('GPS location fetch failed: $e');
+      debugPrint('[Geolocation] GPS location fetch failed: $e');
 
       // Fallback to IP-based location
       return await fetchLocation();

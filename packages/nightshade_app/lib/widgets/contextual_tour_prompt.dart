@@ -4,9 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Provider that tracks which screens have had their tour prompts dismissed.
-/// This is a simple in-memory cache; for persistence, another agent will add database support.
-final dismissedTourPromptsProvider = StateProvider<Set<String>>((ref) => {});
+// Note: dismissedTourPromptsProvider is now imported from nightshade_core
+// with database persistence for tracking dismissed prompts across app restarts.
 
 /// A small, non-intrusive tooltip that appears when user first visits certain screens.
 /// Offers to start a contextual tour relevant to the current screen.
@@ -129,10 +128,8 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
     _animController.reverse().then((_) {
       if (mounted) {
         setState(() => _isVisible = false);
-        // Remember that this prompt was dismissed
-        ref.read(dismissedTourPromptsProvider.notifier).update(
-          (state) => {...state, widget.screenId},
-        );
+        // Remember that this prompt was dismissed (persisted to database)
+        ref.read(dismissedTourPromptsProvider.notifier).dismissPrompt(widget.screenId);
       }
     });
   }
@@ -286,54 +283,20 @@ class _PromptCard extends StatelessWidget {
               children: [
                 // Maybe Later button - 48px touch target
                 Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: TextButton(
-                      onPressed: onDismiss,
-                      style: TextButton.styleFrom(
-                        foregroundColor: colors.textMuted,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'Maybe Later',
-                        style: TextStyle(fontSize: 13),
-                      ),
-                    ),
+                  child: NightshadeButton(
+                    onPressed: onDismiss,
+                    label: 'Maybe Later',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.medium,
                   ),
                 ),
                 const SizedBox(width: 8),
 
                 // Start Tour button - 48px touch target
-                SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: onStartTour,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Start Tour',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Icon(LucideIcons.arrowRight, size: 14),
-                      ],
-                    ),
-                  ),
+                NightshadeButton(
+                  onPressed: onStartTour,
+                  label: 'Start Tour',
+                  icon: LucideIcons.arrowRight,
                 ),
               ],
             ),
@@ -500,9 +463,8 @@ class _ContextualTourPromptOverlayState
   void _dismissPrompt() {
     _animController.reverse().then((_) {
       _removeOverlay();
-      ref.read(dismissedTourPromptsProvider.notifier).update(
-        (state) => {...state, widget.screenId},
-      );
+      // Remember that this prompt was dismissed (persisted to database)
+      ref.read(dismissedTourPromptsProvider.notifier).dismissPrompt(widget.screenId);
     });
   }
 

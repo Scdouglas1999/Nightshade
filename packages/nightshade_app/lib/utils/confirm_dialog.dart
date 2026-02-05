@@ -29,16 +29,17 @@ class ConfirmDialog {
         title: Text(title),
         content: Text(message),
         actions: [
-          TextButton(
+          NightshadeButton(
+            label: cancelLabel,
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(cancelLabel, style: TextStyle(color: colors.textSecondary)),
           ),
-          ElevatedButton(
+          NightshadeButton(
+            label: confirmLabel,
+            variant: isDestructive ? ButtonVariant.destructive : ButtonVariant.primary,
+            size: ButtonSize.small,
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isDestructive ? colors.error : colors.primary,
-            ),
-            child: Text(confirmLabel),
           ),
         ],
       ),

@@ -17,16 +17,19 @@ import '../providers/ui_notification_provider.dart';
 import '../backend/nightshade_backend.dart';
 import '../database/database.dart' show CapturedImagesCompanion;
 import 'notification_service.dart';
+import 'logging_service.dart';
 
 /// Service for managing camera capture operations
 class ImagingService {
   final Ref _ref;
-  
+
   // Capture state
   bool _isCapturing = false;
   bool _cancelRequested = false;
   int _frameNumber = 0;
-  
+
+  LoggingService get _logger => _ref.read(loggingServiceProvider);
+
   ImagingService(this._ref);
   
   /// Start a single exposure capture
@@ -88,7 +91,7 @@ class ImagingService {
             progressNotifier.updateProgress(elapsed, remainingSecs, progress * 100);
           } else if (event.eventType == 'ExposureComplete') {
             // Exposure is complete - signal the completer
-            print('[ImagingService] ExposureComplete event received');
+            _logger.debug('ExposureComplete event received', source: 'ImagingService');
             if (!exposureCompleter.isCompleted) {
               exposureCompleter.complete(true);
             }
@@ -120,7 +123,7 @@ class ImagingService {
           binX: settings.binningX,
           binY: settings.binningY,
         );
-        print('[ImagingService] cameraStartExposure returned');
+        _logger.debug('cameraStartExposure returned', source: 'ImagingService');
 
         // Wait for exposure completion event OR timeout
         // The Completer is completed by the event listener above
@@ -129,7 +132,7 @@ class ImagingService {
           onTimeout: () {
             // Timeout - exposure took too long, warn user but still try to retrieve image
             // Events may have been missed but image could still be available
-            print('[ImagingService] Exposure timeout reached, checking for image...');
+            _logger.warning('Exposure timeout reached, checking for image...', source: 'ImagingService');
             _ref.read(uiNotificationProvider.notifier).showWarning(
               'Exposure event not received in time - checking for image. Camera may be unresponsive.',
               title: 'Exposure Timeout',
@@ -152,28 +155,28 @@ class ImagingService {
         progressNotifier.startDownload();
 
         // Get the captured image from backend
-        print('[ImagingService] Calling cameraGetLastImage...');
+        _logger.debug('Calling cameraGetLastImage...', source: 'ImagingService');
         final capturedImage = await backend.cameraGetLastImage(deviceId);
-        print('[ImagingService] cameraGetLastImage returned: ${capturedImage != null ? "${capturedImage.width}x${capturedImage.height}" : "null"}');
+        _logger.debug('cameraGetLastImage returned: ${capturedImage != null ? "${capturedImage.width}x${capturedImage.height}" : "null"}', source: 'ImagingService');
 
         if (capturedImage == null) {
           throw Exception('Failed to retrieve captured image');
         }
 
-        print('[ImagingService] Parsing timestamp: ${capturedImage.timestamp}');
+        _logger.debug('Parsing timestamp: ${capturedImage.timestamp}', source: 'ImagingService');
         // Capture timestamp before any processing - use try-catch for robustness
         DateTime captureTimestamp;
         try {
           captureTimestamp = DateTime.parse(capturedImage.timestamp);
         } catch (e) {
-          print('[ImagingService] Failed to parse timestamp "${capturedImage.timestamp}": $e - using current time');
+          _logger.warning('Failed to parse timestamp "${capturedImage.timestamp}": $e - using current time', source: 'ImagingService');
           captureTimestamp = DateTime.now();
         }
-        print('[ImagingService] Timestamp parsed: $captureTimestamp');
+        _logger.debug('Timestamp parsed: $captureTimestamp', source: 'ImagingService');
 
         // IMMEDIATELY create CapturedImageData and update providers
         // This ensures the UI shows the image even if file saving fails
-        print('[ImagingService] Creating CapturedImageData...');
+        _logger.debug('Creating CapturedImageData...', source: 'ImagingService');
         CapturedImageData imageData;
         try {
           imageData = CapturedImageData(
@@ -203,15 +206,15 @@ class ImagingService {
             filePath: null, // Will be updated after FITS save
           );
         } catch (e) {
-          print('[ImagingService] Error creating CapturedImageData: $e');
+          _logger.error('Error creating CapturedImageData: $e', source: 'ImagingService');
           rethrow; // This is a critical error, must propagate
         }
 
-        print('[ImagingService] CapturedImageData created, updating providers IMMEDIATELY...');
+        _logger.debug('CapturedImageData created, updating providers IMMEDIATELY...', source: 'ImagingService');
         // Update providers FIRST to show image in UI
         _ref.read(currentImageProvider.notifier).state = imageData;
         _ref.read(lastImageStatsProvider.notifier).state = imageData.stats;
-        print('[ImagingService] Providers updated! Image should now be visible.');
+        _logger.debug('Providers updated! Image should now be visible.', source: 'ImagingService');
 
         // Now save FITS file and persist to database (non-critical operations)
         String? savedFilePath;
@@ -243,7 +246,7 @@ class ImagingService {
             final timestamp = DateTime.now().millisecondsSinceEpoch;
             savedFilePath = path.join(nightshadeTemp.path, 'capture_$timestamp.fits');
             isTempFile = true;
-            print('[ImagingService] No output path configured, saving to temp: $savedFilePath');
+            _logger.debug('No output path configured, saving to temp: $savedFilePath', source: 'ImagingService');
           }
 
           // Call native FITS save API
@@ -290,7 +293,7 @@ class ImagingService {
           _ref.read(currentImageProvider.notifier).state = imageData;
         } catch (e) {
           // Log error but don't fail the capture - image is already displayed!
-          print('[ImagingService] Error saving image: $e');
+          _logger.error('Error saving image: $e', source: 'ImagingService');
 
           // Notify user of save failure via notification service
           final notificationService = _ref.read(notificationServiceProvider);
@@ -301,7 +304,7 @@ class ImagingService {
           );
         }
 
-        print('[ImagingService] FITS save complete.');
+        _logger.debug('FITS save complete.', source: 'ImagingService');
 
         // Store as session image
         try {
@@ -316,41 +319,41 @@ class ImagingService {
             ),
           );
         } catch (e) {
-          print('[ImagingService] Error adding to session images: $e');
+          _logger.warning('Error adding to session images: $e', source: 'ImagingService');
           // Non-critical, continue
         }
 
         // Reset state BEFORE returning so UI updates immediately
         // Don't rely only on finally block since eventSubscription.cancel() may hang
-        print('[ImagingService] Resetting capture state before return...');
+        _logger.debug('Resetting capture state before return...', source: 'ImagingService');
         _isCapturing = false;
         cameraNotifier.setExposing(false);
         progressNotifier.reset();
-        print('[ImagingService] State reset, returning imageData from captureImage');
+        _logger.debug('State reset, returning imageData from captureImage', source: 'ImagingService');
         return imageData;
       } finally {
-        print('[ImagingService] Inner finally: cancelling event subscription');
+        _logger.debug('Inner finally: cancelling event subscription', source: 'ImagingService');
         // Add timeout to prevent hanging
         try {
           await eventSubscription.cancel().timeout(
             const Duration(seconds: 2),
             onTimeout: () {
-              print('[ImagingService] Warning: eventSubscription.cancel() timed out');
+              _logger.warning('eventSubscription.cancel() timed out', source: 'ImagingService');
             },
           );
         } catch (e) {
-          print('[ImagingService] Error cancelling event subscription: $e');
+          _logger.warning('Error cancelling event subscription: $e', source: 'ImagingService');
         }
-        print('[ImagingService] Inner finally complete');
+        _logger.debug('Inner finally complete', source: 'ImagingService');
       }
     } finally {
       // This is a safety net - state should already be reset above
       // but ensure it happens even on exceptions
-      print('[ImagingService] Outer finally: ensuring state is reset');
+      _logger.debug('Outer finally: ensuring state is reset', source: 'ImagingService');
       _isCapturing = false;
       cameraNotifier.setExposing(false);
       progressNotifier.reset();
-      print('[ImagingService] captureImage complete!');
+      _logger.debug('captureImage complete!', source: 'ImagingService');
     }
   }
   

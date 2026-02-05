@@ -435,6 +435,12 @@ class _PlayButtonState extends State<_PlayButton>
     super.dispose();
   }
 
+  /// Creates a slightly darker shade of the given color
+  Color _darkenColor(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -450,21 +456,21 @@ class _PlayButtonState extends State<_PlayButton>
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                   colors: [
                     widget.colors.success,
-                    Color.lerp(widget.colors.success, widget.colors.primary, 0.3)!,
+                    _darkenColor(widget.colors.success, 0.08),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.colors.success.withValues(alpha: 
-                      _isHovered ? 0.5 : 0.2 + _pulseController.value * 0.1,
+                    color: widget.colors.success.withValues(alpha:
+                      _isHovered ? 0.3 : 0.1 + _pulseController.value * 0.05,
                     ),
-                    blurRadius: _isHovered ? 16 : 8,
-                    offset: const Offset(0, 4),
+                    blurRadius: _isHovered ? 12 : 6,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),

@@ -402,61 +402,11 @@ class _WelcomeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Ensure minimum touch target of 48px
-    return SizedBox(
-      height: 48,
-      child: isPrimary
-          ? ElevatedButton(
-              onPressed: onPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                elevation: 0,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    text,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(icon, size: 16),
-                ],
-              ),
-            )
-          : OutlinedButton(
-              onPressed: onPressed,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: colors.textSecondary,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                side: BorderSide(color: colors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    text,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Icon(icon, size: 16),
-                ],
-              ),
-            ),
+    return NightshadeButton(
+      onPressed: onPressed,
+      label: text,
+      icon: icon,
+      variant: isPrimary ? ButtonVariant.primary : ButtonVariant.outline,
     );
   }
 }

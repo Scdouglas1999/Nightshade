@@ -12,6 +12,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'utils/retry.dart';
 import 'utils/circuit_breaker.dart';
@@ -99,7 +100,7 @@ Future<List<AlpacaServer>> discoverAlpacaServers({
               // Avoid duplicates
               if (!servers.any((s) => s.host == host && s.port == alpacaPort)) {
                 servers.add(AlpacaServer(host: host, port: alpacaPort));
-                print('Discovered Alpaca server at $host:$alpacaPort');
+                debugPrint('[Alpaca] Discovered server at $host:$alpacaPort');
               }
             }
           } catch (e) {
@@ -123,7 +124,7 @@ Future<List<AlpacaServer>> discoverAlpacaServers({
 
     return servers;
   } catch (e) {
-    print('Alpaca discovery error: $e');
+    debugPrint('[Alpaca] Discovery error: $e');
     // Try common localhost ports as fallback
     await _tryLocalPorts(servers);
     return servers;
@@ -144,7 +145,7 @@ Future<void> _tryLocalPorts(List<AlpacaServer> servers) async {
       if (response.statusCode == 200) {
         if (!servers.any((s) => s.host == 'localhost' && s.port == port)) {
           servers.add(AlpacaServer(host: 'localhost', port: port));
-          print('Found Alpaca server at localhost:$port');
+          debugPrint('[Alpaca] Found server at localhost:$port');
         }
       }
       client.close();
@@ -184,7 +185,7 @@ Future<List<AlpacaDevice>> getAlpacaDevices(AlpacaServer server) async {
 
     client.close();
   } catch (e) {
-    print('Error getting devices from ${server.baseUrl}: $e');
+    debugPrint('[Alpaca] Error getting devices from ${server.baseUrl}: $e');
   }
 
   return devices;

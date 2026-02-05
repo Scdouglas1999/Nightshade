@@ -287,23 +287,11 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
               children: [
                 // Cancel button
                 Expanded(
-                  child: TextButton(
+                  child: NightshadeButton(
                     onPressed: _isUnparking ? null : _handleCancel,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(color: colors.border),
-                      ),
-                    ),
-                    child: Text(
-                      'Cancel Sequence',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: _isUnparking ? colors.textMuted : colors.textSecondary,
-                      ),
-                    ),
+                    label: 'Cancel Sequence',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
                   ),
                 ),
 
@@ -311,28 +299,12 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
 
                 // Unpark now button
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: NightshadeButton(
                     onPressed: _isUnparking ? null : _handleUnparkAndContinue,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colors.success,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                    ),
-                    icon: Icon(
-                      _isUnparking ? LucideIcons.loader2 : LucideIcons.play,
-                      size: 16,
-                    ),
-                    label: Text(
-                      _isUnparking ? 'Unparking...' : 'Unpark Now',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    icon: LucideIcons.play,
+                    label: _isUnparking ? 'Unparking...' : 'Unpark Now',
+                    variant: ButtonVariant.primary,
+                    isLoading: _isUnparking,
                   ),
                 ),
               ],
