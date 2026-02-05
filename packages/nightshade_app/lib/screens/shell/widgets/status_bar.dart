@@ -6,6 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../../widgets/equipment_status_indicator.dart';
 import '../../../widgets/operation_status_bar.dart';
 
 class StatusBar extends ConsumerStatefulWidget {
@@ -212,6 +213,19 @@ class _StatusBarState extends ConsumerState<StatusBar> {
           _SequenceIndicator(colors: colors),
 
           const SizedBox(width: 16),
+
+          Container(
+            width: 1,
+            height: 20,
+            color: colors.border.withValues(alpha: 0.5),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Profile-based equipment status indicator with dropdown
+          const EquipmentStatusIndicator(),
+
+          const SizedBox(width: 8),
 
           Container(
             width: 1,

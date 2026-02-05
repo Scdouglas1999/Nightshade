@@ -21,6 +21,7 @@ import '../../widgets/tutorial_keys/framing_keys.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../suggestions/widgets/suggestion_card.dart';
 import '../suggestions/widgets/suggestion_filters.dart';
+import 'widgets/optical_config_panel.dart';
 
 /// The main framing screen that contains two tabs:
 /// 1. Framing - For composing and framing astrophotography targets
@@ -239,19 +240,32 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
       alignment: Alignment.bottomRight,
       child: Row(
         children: [
-          // Main framing canvas
+          // Main framing canvas with optical config overlay
           Expanded(
-            child: _FramingCanvas(
-              key: FramingTutorialKeys.canvas,
-              colors: colors,
-              framingState: framingState,
-              equipmentResult: equipmentResult.valueOrNull,
-              onPan: (dx, dy) {
-                ref.read(framingProvider.notifier).pan(dx, dy);
-              },
-              onRotate: (angle) {
-                ref.read(framingProvider.notifier).setRotation(angle);
-              },
+            child: Stack(
+              children: [
+                // The framing canvas fills the entire area
+                Positioned.fill(
+                  child: _FramingCanvas(
+                    key: FramingTutorialKeys.canvas,
+                    colors: colors,
+                    framingState: framingState,
+                    equipmentResult: equipmentResult.valueOrNull,
+                    onPan: (dx, dy) {
+                      ref.read(framingProvider.notifier).pan(dx, dy);
+                    },
+                    onRotate: (angle) {
+                      ref.read(framingProvider.notifier).setRotation(angle);
+                    },
+                  ),
+                ),
+                // Optical config panel overlaid in top-left corner
+                const Positioned(
+                  top: 16,
+                  left: 16,
+                  child: OpticalConfigPanel(),
+                ),
+              ],
             ),
           ),
 

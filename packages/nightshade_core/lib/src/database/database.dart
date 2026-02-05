@@ -67,7 +67,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration {
@@ -235,6 +235,93 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           await customStatement(
             'CREATE INDEX IF NOT EXISTS idx_polar_history_completed ON polar_alignment_history (completed_at)',
           );
+        }
+
+        // Version 11: Add user-friendly device names, telescope info, and profile customization to equipment_profiles
+        if (from < 11) {
+          // User-friendly device names
+          final hasCameraName = await _columnExists('equipment_profiles', 'camera_name');
+          if (!hasCameraName) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN camera_name TEXT',
+            );
+          }
+          final hasMountName = await _columnExists('equipment_profiles', 'mount_name');
+          if (!hasMountName) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN mount_name TEXT',
+            );
+          }
+          final hasFocuserName = await _columnExists('equipment_profiles', 'focuser_name');
+          if (!hasFocuserName) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN focuser_name TEXT',
+            );
+          }
+          final hasFilterWheelName = await _columnExists('equipment_profiles', 'filter_wheel_name');
+          if (!hasFilterWheelName) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN filter_wheel_name TEXT',
+            );
+          }
+          final hasGuiderName = await _columnExists('equipment_profiles', 'guider_name');
+          if (!hasGuiderName) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN guider_name TEXT',
+            );
+          }
+          final hasRotatorName = await _columnExists('equipment_profiles', 'rotator_name');
+          if (!hasRotatorName) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN rotator_name TEXT',
+            );
+          }
+
+          // Telescope/OTA information
+          final hasTelescopeName = await _columnExists('equipment_profiles', 'telescope_name');
+          if (!hasTelescopeName) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN telescope_name TEXT',
+            );
+          }
+          final hasTelescopeFocalLength = await _columnExists('equipment_profiles', 'telescope_focal_length');
+          if (!hasTelescopeFocalLength) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN telescope_focal_length REAL',
+            );
+          }
+          final hasTelescopeAperture = await _columnExists('equipment_profiles', 'telescope_aperture');
+          if (!hasTelescopeAperture) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN telescope_aperture REAL',
+            );
+          }
+
+          // Profile customization
+          final hasProfileIcon = await _columnExists('equipment_profiles', 'profile_icon');
+          if (!hasProfileIcon) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN profile_icon TEXT',
+            );
+          }
+          final hasProfileColor = await _columnExists('equipment_profiles', 'profile_color');
+          if (!hasProfileColor) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN profile_color INTEGER',
+            );
+          }
+          final hasSortOrder = await _columnExists('equipment_profiles', 'sort_order');
+          if (!hasSortOrder) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN sort_order INTEGER DEFAULT 0',
+            );
+          }
+          final hasIsDefault = await _columnExists('equipment_profiles', 'is_default');
+          if (!hasIsDefault) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN is_default INTEGER DEFAULT 0',
+            );
+          }
         }
       },
     );

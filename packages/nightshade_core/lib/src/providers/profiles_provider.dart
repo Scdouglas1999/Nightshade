@@ -3,7 +3,12 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database.dart';
+import '../models/backend/device_capabilities.dart';
+import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
+import '../models/optical_config.dart';
+import 'capability_provider.dart';
 import 'database_provider.dart';
+import 'equipment_provider.dart';
 import '../services/profile_service.dart';
 
 // ============================================================================
@@ -16,7 +21,7 @@ class EquipmentProfileModel {
   final String name;
   final String? description;
   final bool isActive;
-  
+
   // Device identifiers
   final String? cameraId;
   final String? mountId;
@@ -27,23 +32,42 @@ class EquipmentProfileModel {
   final String? domeId;
   final String? weatherId;
   final String? coverCalibratorId;
-  
-  // Optical setup
+
+  // User-friendly device names (can be auto-generated or custom)
+  final String? cameraName;
+  final String? mountName;
+  final String? focuserName;
+  final String? filterWheelName;
+  final String? guiderName;
+  final String? rotatorName;
+
+  // Telescope/OTA information
+  final String? telescopeName;
+  final double? telescopeFocalLength;
+  final double? telescopeAperture;
+
+  // Optical setup (profile-level, may differ from telescope if using reducers/barlows)
   final double focalLength;
   final double aperture;
   final double? focalRatio;
-  
+
   // Camera defaults
   final int? defaultGain;
   final int? defaultOffset;
   final int defaultBinX;
   final int defaultBinY;
   final double? defaultCoolingTemp;
-  
+
   // Filter configuration
   final List<String> filterNames;
   final Map<String, int> filterFocusOffsets;
-  
+
+  // Profile customization
+  final String? profileIcon;
+  final int? profileColor;
+  final int sortOrder;
+  final bool isDefault;
+
   // Timestamps
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -62,6 +86,15 @@ class EquipmentProfileModel {
     this.domeId,
     this.weatherId,
     this.coverCalibratorId,
+    this.cameraName,
+    this.mountName,
+    this.focuserName,
+    this.filterWheelName,
+    this.guiderName,
+    this.rotatorName,
+    this.telescopeName,
+    this.telescopeFocalLength,
+    this.telescopeAperture,
     this.focalLength = 0.0,
     this.aperture = 0.0,
     this.focalRatio,
@@ -72,28 +105,54 @@ class EquipmentProfileModel {
     this.defaultCoolingTemp,
     this.filterNames = const [],
     this.filterFocusOffsets = const {},
+    this.profileIcon,
+    this.profileColor,
+    this.sortOrder = 0,
+    this.isDefault = false,
     this.createdAt,
     this.updatedAt,
   });
+
+  /// Returns telescope name + camera name as subtitle, or fallback
+  String get subtitle {
+    if (telescopeName != null && cameraName != null) {
+      return '$telescopeName + $cameraName';
+    }
+    if (cameraName != null) return cameraName!;
+    if (mountName != null) return mountName!;
+    return '$deviceCount devices';
+  }
+
+  /// Count of assigned devices (non-null device IDs)
+  int get deviceCount {
+    int count = 0;
+    if (cameraId != null) count++;
+    if (mountId != null) count++;
+    if (focuserId != null) count++;
+    if (filterWheelId != null) count++;
+    if (guiderId != null) count++;
+    if (rotatorId != null) count++;
+    return count;
+  }
 
   /// Create from database entity
   factory EquipmentProfileModel.fromDatabase(EquipmentProfile db) {
     List<String> filters = [];
     Map<String, int> offsets = {};
-    
+
     if (db.filterNames != null) {
       try {
         filters = (jsonDecode(db.filterNames!) as List).cast<String>();
       } catch (_) {}
     }
-    
+
     if (db.filterFocusOffsets != null) {
       try {
         final decoded = jsonDecode(db.filterFocusOffsets!) as Map<String, dynamic>;
         offsets = decoded.map((key, value) => MapEntry(key, value as int));
       } catch (_) {}
     }
-    
+
     return EquipmentProfileModel(
       id: db.id,
       name: db.name,
@@ -108,6 +167,15 @@ class EquipmentProfileModel {
       domeId: db.domeId,
       weatherId: db.weatherId,
       coverCalibratorId: db.coverCalibratorId,
+      cameraName: db.cameraName,
+      mountName: db.mountName,
+      focuserName: db.focuserName,
+      filterWheelName: db.filterWheelName,
+      guiderName: db.guiderName,
+      rotatorName: db.rotatorName,
+      telescopeName: db.telescopeName,
+      telescopeFocalLength: db.telescopeFocalLength,
+      telescopeAperture: db.telescopeAperture,
       focalLength: db.focalLength,
       aperture: db.aperture,
       focalRatio: db.focalRatio,
@@ -118,6 +186,10 @@ class EquipmentProfileModel {
       defaultCoolingTemp: db.defaultCoolingTemp,
       filterNames: filters,
       filterFocusOffsets: offsets,
+      profileIcon: db.profileIcon,
+      profileColor: db.profileColor,
+      sortOrder: db.sortOrder,
+      isDefault: db.isDefault,
       createdAt: db.createdAt,
       updatedAt: db.updatedAt,
     );
@@ -139,6 +211,15 @@ class EquipmentProfileModel {
       domeId: Value(domeId),
       weatherId: Value(weatherId),
       coverCalibratorId: Value(coverCalibratorId),
+      cameraName: Value(cameraName),
+      mountName: Value(mountName),
+      focuserName: Value(focuserName),
+      filterWheelName: Value(filterWheelName),
+      guiderName: Value(guiderName),
+      rotatorName: Value(rotatorName),
+      telescopeName: Value(telescopeName),
+      telescopeFocalLength: Value(telescopeFocalLength),
+      telescopeAperture: Value(telescopeAperture),
       focalLength: Value(focalLength),
       aperture: Value(aperture),
       focalRatio: Value(focalRatio),
@@ -149,6 +230,10 @@ class EquipmentProfileModel {
       defaultCoolingTemp: Value(defaultCoolingTemp),
       filterNames: Value(filterNames.isNotEmpty ? jsonEncode(filterNames) : null),
       filterFocusOffsets: Value(filterFocusOffsets.isNotEmpty ? jsonEncode(filterFocusOffsets) : null),
+      profileIcon: Value(profileIcon),
+      profileColor: Value(profileColor),
+      sortOrder: Value(sortOrder),
+      isDefault: Value(isDefault),
       updatedAt: Value(DateTime.now()),
     );
   }
@@ -167,6 +252,15 @@ class EquipmentProfileModel {
     String? domeId,
     String? weatherId,
     String? coverCalibratorId,
+    String? cameraName,
+    String? mountName,
+    String? focuserName,
+    String? filterWheelName,
+    String? guiderName,
+    String? rotatorName,
+    String? telescopeName,
+    double? telescopeFocalLength,
+    double? telescopeAperture,
     double? focalLength,
     double? aperture,
     double? focalRatio,
@@ -177,6 +271,10 @@ class EquipmentProfileModel {
     double? defaultCoolingTemp,
     List<String>? filterNames,
     Map<String, int>? filterFocusOffsets,
+    String? profileIcon,
+    int? profileColor,
+    int? sortOrder,
+    bool? isDefault,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -194,6 +292,15 @@ class EquipmentProfileModel {
       domeId: domeId ?? this.domeId,
       weatherId: weatherId ?? this.weatherId,
       coverCalibratorId: coverCalibratorId ?? this.coverCalibratorId,
+      cameraName: cameraName ?? this.cameraName,
+      mountName: mountName ?? this.mountName,
+      focuserName: focuserName ?? this.focuserName,
+      filterWheelName: filterWheelName ?? this.filterWheelName,
+      guiderName: guiderName ?? this.guiderName,
+      rotatorName: rotatorName ?? this.rotatorName,
+      telescopeName: telescopeName ?? this.telescopeName,
+      telescopeFocalLength: telescopeFocalLength ?? this.telescopeFocalLength,
+      telescopeAperture: telescopeAperture ?? this.telescopeAperture,
       focalLength: focalLength ?? this.focalLength,
       aperture: aperture ?? this.aperture,
       focalRatio: focalRatio ?? this.focalRatio,
@@ -204,6 +311,10 @@ class EquipmentProfileModel {
       defaultCoolingTemp: defaultCoolingTemp ?? this.defaultCoolingTemp,
       filterNames: filterNames ?? this.filterNames,
       filterFocusOffsets: filterFocusOffsets ?? this.filterFocusOffsets,
+      profileIcon: profileIcon ?? this.profileIcon,
+      profileColor: profileColor ?? this.profileColor,
+      sortOrder: sortOrder ?? this.sortOrder,
+      isDefault: isDefault ?? this.isDefault,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -413,6 +524,95 @@ final activeEquipmentProfileProvider = Provider<EquipmentProfileModel?>((ref) {
 final equipmentProfileListProvider = Provider<List<EquipmentProfileModel>>((ref) {
   final state = ref.watch(equipmentProfilesProvider);
   return state.valueOrNull?.profiles ?? [];
+});
+
+// ============================================================================
+// Optical Configuration Provider
+// ============================================================================
+
+/// Provider that computes optical configuration from the active profile and
+/// connected camera capabilities.
+///
+/// This combines:
+/// - Telescope focal length and aperture from the active profile
+/// - Camera sensor dimensions and pixel size from camera capabilities
+///
+/// Returns null if no profile is active or required data is missing.
+final opticalConfigProvider = Provider<OpticalConfig?>((ref) {
+  final profile = ref.watch(activeEquipmentProfileProvider);
+  if (profile == null) return null;
+
+  // Get effective focal length - prefer profile focalLength, fall back to telescope
+  final effectiveFocalLength = profile.focalLength > 0
+      ? profile.focalLength
+      : (profile.telescopeFocalLength ?? 0);
+  final effectiveAperture = profile.aperture > 0
+      ? profile.aperture
+      : (profile.telescopeAperture ?? 0);
+
+  // Try to get camera capabilities if camera is connected
+  final cameraState = ref.watch(cameraStateProvider);
+  int? sensorWidth;
+  int? sensorHeight;
+  double? pixelSize;
+
+  if (cameraState.deviceId != null &&
+      cameraState.connectionState == DeviceConnectionState.connected) {
+    // Watch camera capabilities for the connected camera
+    final capabilitiesAsync =
+        ref.watch(cameraCapabilitiesProvider(cameraState.deviceId!));
+    final CameraCapabilities? capabilities = capabilitiesAsync.valueOrNull;
+
+    if (capabilities != null) {
+      sensorWidth = capabilities.maxWidth;
+      sensorHeight = capabilities.maxHeight;
+      // Use X pixel size, assuming square pixels for most cameras
+      pixelSize = capabilities.pixelSizeX;
+    }
+  }
+
+  return OpticalConfig(
+    telescopeName: profile.telescopeName,
+    focalLength: effectiveFocalLength > 0 ? effectiveFocalLength : null,
+    aperture: effectiveAperture > 0 ? effectiveAperture : null,
+    focalRatio: profile.focalRatio,
+    cameraName: profile.cameraName ?? cameraState.deviceName,
+    sensorWidth: sensorWidth,
+    sensorHeight: sensorHeight,
+    pixelSize: pixelSize,
+  );
+});
+
+// ============================================================================
+// Profile Filters Provider
+// ============================================================================
+
+/// Provider that returns the filter names from the active profile.
+///
+/// Returns an empty list if no profile is active or no filters are configured.
+final profileFiltersProvider = Provider<List<String>>((ref) {
+  final profile = ref.watch(activeEquipmentProfileProvider);
+  if (profile == null) return [];
+  return profile.filterNames;
+});
+
+// ============================================================================
+// Sorted Profiles Provider
+// ============================================================================
+
+/// Provider that returns all profiles sorted by sortOrder field.
+///
+/// Profiles with lower sortOrder values appear first.
+/// Profiles with the same sortOrder are sorted by name alphabetically.
+final sortedProfilesProvider = Provider<List<EquipmentProfileModel>>((ref) {
+  final profiles = ref.watch(equipmentProfileListProvider);
+  final sorted = List<EquipmentProfileModel>.from(profiles);
+  sorted.sort((a, b) {
+    final orderCompare = a.sortOrder.compareTo(b.sortOrder);
+    if (orderCompare != 0) return orderCompare;
+    return a.name.compareTo(b.name);
+  });
+  return sorted;
 });
 
 

@@ -159,6 +159,90 @@ class $EquipmentProfilesTable extends EquipmentProfiles
   late final GeneratedColumn<String> meridianFlipOverrides =
       GeneratedColumn<String>('meridian_flip_overrides', aliasedName, true,
           type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _cameraNameMeta =
+      const VerificationMeta('cameraName');
+  @override
+  late final GeneratedColumn<String> cameraName = GeneratedColumn<String>(
+      'camera_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _mountNameMeta =
+      const VerificationMeta('mountName');
+  @override
+  late final GeneratedColumn<String> mountName = GeneratedColumn<String>(
+      'mount_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _focuserNameMeta =
+      const VerificationMeta('focuserName');
+  @override
+  late final GeneratedColumn<String> focuserName = GeneratedColumn<String>(
+      'focuser_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _filterWheelNameMeta =
+      const VerificationMeta('filterWheelName');
+  @override
+  late final GeneratedColumn<String> filterWheelName = GeneratedColumn<String>(
+      'filter_wheel_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _guiderNameMeta =
+      const VerificationMeta('guiderName');
+  @override
+  late final GeneratedColumn<String> guiderName = GeneratedColumn<String>(
+      'guider_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _rotatorNameMeta =
+      const VerificationMeta('rotatorName');
+  @override
+  late final GeneratedColumn<String> rotatorName = GeneratedColumn<String>(
+      'rotator_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _telescopeNameMeta =
+      const VerificationMeta('telescopeName');
+  @override
+  late final GeneratedColumn<String> telescopeName = GeneratedColumn<String>(
+      'telescope_name', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _telescopeFocalLengthMeta =
+      const VerificationMeta('telescopeFocalLength');
+  @override
+  late final GeneratedColumn<double> telescopeFocalLength =
+      GeneratedColumn<double>('telescope_focal_length', aliasedName, true,
+          type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _telescopeApertureMeta =
+      const VerificationMeta('telescopeAperture');
+  @override
+  late final GeneratedColumn<double> telescopeAperture =
+      GeneratedColumn<double>('telescope_aperture', aliasedName, true,
+          type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _profileIconMeta =
+      const VerificationMeta('profileIcon');
+  @override
+  late final GeneratedColumn<String> profileIcon = GeneratedColumn<String>(
+      'profile_icon', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _profileColorMeta =
+      const VerificationMeta('profileColor');
+  @override
+  late final GeneratedColumn<int> profileColor = GeneratedColumn<int>(
+      'profile_color', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _sortOrderMeta =
+      const VerificationMeta('sortOrder');
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+      'sort_order', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _isDefaultMeta =
+      const VerificationMeta('isDefault');
+  @override
+  late final GeneratedColumn<bool> isDefault = GeneratedColumn<bool>(
+      'is_default', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_default" IN (0, 1))'),
+      defaultValue: const Constant(false));
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -210,6 +294,19 @@ class $EquipmentProfilesTable extends EquipmentProfiles
         filterNames,
         filterFocusOffsets,
         meridianFlipOverrides,
+        cameraName,
+        mountName,
+        focuserName,
+        filterWheelName,
+        guiderName,
+        rotatorName,
+        telescopeName,
+        telescopeFocalLength,
+        telescopeAperture,
+        profileIcon,
+        profileColor,
+        sortOrder,
+        isDefault,
         createdAt,
         updatedAt,
         isActive
@@ -343,6 +440,78 @@ class $EquipmentProfilesTable extends EquipmentProfiles
           meridianFlipOverrides.isAcceptableOrUnknown(
               data['meridian_flip_overrides']!, _meridianFlipOverridesMeta));
     }
+    if (data.containsKey('camera_name')) {
+      context.handle(
+          _cameraNameMeta,
+          cameraName.isAcceptableOrUnknown(
+              data['camera_name']!, _cameraNameMeta));
+    }
+    if (data.containsKey('mount_name')) {
+      context.handle(_mountNameMeta,
+          mountName.isAcceptableOrUnknown(data['mount_name']!, _mountNameMeta));
+    }
+    if (data.containsKey('focuser_name')) {
+      context.handle(
+          _focuserNameMeta,
+          focuserName.isAcceptableOrUnknown(
+              data['focuser_name']!, _focuserNameMeta));
+    }
+    if (data.containsKey('filter_wheel_name')) {
+      context.handle(
+          _filterWheelNameMeta,
+          filterWheelName.isAcceptableOrUnknown(
+              data['filter_wheel_name']!, _filterWheelNameMeta));
+    }
+    if (data.containsKey('guider_name')) {
+      context.handle(
+          _guiderNameMeta,
+          guiderName.isAcceptableOrUnknown(
+              data['guider_name']!, _guiderNameMeta));
+    }
+    if (data.containsKey('rotator_name')) {
+      context.handle(
+          _rotatorNameMeta,
+          rotatorName.isAcceptableOrUnknown(
+              data['rotator_name']!, _rotatorNameMeta));
+    }
+    if (data.containsKey('telescope_name')) {
+      context.handle(
+          _telescopeNameMeta,
+          telescopeName.isAcceptableOrUnknown(
+              data['telescope_name']!, _telescopeNameMeta));
+    }
+    if (data.containsKey('telescope_focal_length')) {
+      context.handle(
+          _telescopeFocalLengthMeta,
+          telescopeFocalLength.isAcceptableOrUnknown(
+              data['telescope_focal_length']!, _telescopeFocalLengthMeta));
+    }
+    if (data.containsKey('telescope_aperture')) {
+      context.handle(
+          _telescopeApertureMeta,
+          telescopeAperture.isAcceptableOrUnknown(
+              data['telescope_aperture']!, _telescopeApertureMeta));
+    }
+    if (data.containsKey('profile_icon')) {
+      context.handle(
+          _profileIconMeta,
+          profileIcon.isAcceptableOrUnknown(
+              data['profile_icon']!, _profileIconMeta));
+    }
+    if (data.containsKey('profile_color')) {
+      context.handle(
+          _profileColorMeta,
+          profileColor.isAcceptableOrUnknown(
+              data['profile_color']!, _profileColorMeta));
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(_sortOrderMeta,
+          sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
+    }
+    if (data.containsKey('is_default')) {
+      context.handle(_isDefaultMeta,
+          isDefault.isAcceptableOrUnknown(data['is_default']!, _isDefaultMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -411,6 +580,33 @@ class $EquipmentProfilesTable extends EquipmentProfiles
       meridianFlipOverrides: attachedDatabase.typeMapping.read(
           DriftSqlType.string,
           data['${effectivePrefix}meridian_flip_overrides']),
+      cameraName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}camera_name']),
+      mountName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}mount_name']),
+      focuserName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}focuser_name']),
+      filterWheelName: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}filter_wheel_name']),
+      guiderName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}guider_name']),
+      rotatorName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}rotator_name']),
+      telescopeName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}telescope_name']),
+      telescopeFocalLength: attachedDatabase.typeMapping.read(
+          DriftSqlType.double,
+          data['${effectivePrefix}telescope_focal_length']),
+      telescopeAperture: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}telescope_aperture']),
+      profileIcon: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}profile_icon']),
+      profileColor: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}profile_color']),
+      sortOrder: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      isDefault: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_default'])!,
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
       updatedAt: attachedDatabase.typeMapping
@@ -451,6 +647,19 @@ class EquipmentProfile extends DataClass
   final String? filterNames;
   final String? filterFocusOffsets;
   final String? meridianFlipOverrides;
+  final String? cameraName;
+  final String? mountName;
+  final String? focuserName;
+  final String? filterWheelName;
+  final String? guiderName;
+  final String? rotatorName;
+  final String? telescopeName;
+  final double? telescopeFocalLength;
+  final double? telescopeAperture;
+  final String? profileIcon;
+  final int? profileColor;
+  final int sortOrder;
+  final bool isDefault;
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isActive;
@@ -478,6 +687,19 @@ class EquipmentProfile extends DataClass
       this.filterNames,
       this.filterFocusOffsets,
       this.meridianFlipOverrides,
+      this.cameraName,
+      this.mountName,
+      this.focuserName,
+      this.filterWheelName,
+      this.guiderName,
+      this.rotatorName,
+      this.telescopeName,
+      this.telescopeFocalLength,
+      this.telescopeAperture,
+      this.profileIcon,
+      this.profileColor,
+      required this.sortOrder,
+      required this.isDefault,
       required this.createdAt,
       required this.updatedAt,
       required this.isActive});
@@ -541,6 +763,41 @@ class EquipmentProfile extends DataClass
     if (!nullToAbsent || meridianFlipOverrides != null) {
       map['meridian_flip_overrides'] = Variable<String>(meridianFlipOverrides);
     }
+    if (!nullToAbsent || cameraName != null) {
+      map['camera_name'] = Variable<String>(cameraName);
+    }
+    if (!nullToAbsent || mountName != null) {
+      map['mount_name'] = Variable<String>(mountName);
+    }
+    if (!nullToAbsent || focuserName != null) {
+      map['focuser_name'] = Variable<String>(focuserName);
+    }
+    if (!nullToAbsent || filterWheelName != null) {
+      map['filter_wheel_name'] = Variable<String>(filterWheelName);
+    }
+    if (!nullToAbsent || guiderName != null) {
+      map['guider_name'] = Variable<String>(guiderName);
+    }
+    if (!nullToAbsent || rotatorName != null) {
+      map['rotator_name'] = Variable<String>(rotatorName);
+    }
+    if (!nullToAbsent || telescopeName != null) {
+      map['telescope_name'] = Variable<String>(telescopeName);
+    }
+    if (!nullToAbsent || telescopeFocalLength != null) {
+      map['telescope_focal_length'] = Variable<double>(telescopeFocalLength);
+    }
+    if (!nullToAbsent || telescopeAperture != null) {
+      map['telescope_aperture'] = Variable<double>(telescopeAperture);
+    }
+    if (!nullToAbsent || profileIcon != null) {
+      map['profile_icon'] = Variable<String>(profileIcon);
+    }
+    if (!nullToAbsent || profileColor != null) {
+      map['profile_color'] = Variable<int>(profileColor);
+    }
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['is_default'] = Variable<bool>(isDefault);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['is_active'] = Variable<bool>(isActive);
@@ -605,6 +862,41 @@ class EquipmentProfile extends DataClass
       meridianFlipOverrides: meridianFlipOverrides == null && nullToAbsent
           ? const Value.absent()
           : Value(meridianFlipOverrides),
+      cameraName: cameraName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(cameraName),
+      mountName: mountName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(mountName),
+      focuserName: focuserName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(focuserName),
+      filterWheelName: filterWheelName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(filterWheelName),
+      guiderName: guiderName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(guiderName),
+      rotatorName: rotatorName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(rotatorName),
+      telescopeName: telescopeName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(telescopeName),
+      telescopeFocalLength: telescopeFocalLength == null && nullToAbsent
+          ? const Value.absent()
+          : Value(telescopeFocalLength),
+      telescopeAperture: telescopeAperture == null && nullToAbsent
+          ? const Value.absent()
+          : Value(telescopeAperture),
+      profileIcon: profileIcon == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileIcon),
+      profileColor: profileColor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileColor),
+      sortOrder: Value(sortOrder),
+      isDefault: Value(isDefault),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       isActive: Value(isActive),
@@ -642,6 +934,21 @@ class EquipmentProfile extends DataClass
           serializer.fromJson<String?>(json['filterFocusOffsets']),
       meridianFlipOverrides:
           serializer.fromJson<String?>(json['meridianFlipOverrides']),
+      cameraName: serializer.fromJson<String?>(json['cameraName']),
+      mountName: serializer.fromJson<String?>(json['mountName']),
+      focuserName: serializer.fromJson<String?>(json['focuserName']),
+      filterWheelName: serializer.fromJson<String?>(json['filterWheelName']),
+      guiderName: serializer.fromJson<String?>(json['guiderName']),
+      rotatorName: serializer.fromJson<String?>(json['rotatorName']),
+      telescopeName: serializer.fromJson<String?>(json['telescopeName']),
+      telescopeFocalLength:
+          serializer.fromJson<double?>(json['telescopeFocalLength']),
+      telescopeAperture:
+          serializer.fromJson<double?>(json['telescopeAperture']),
+      profileIcon: serializer.fromJson<String?>(json['profileIcon']),
+      profileColor: serializer.fromJson<int?>(json['profileColor']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      isDefault: serializer.fromJson<bool>(json['isDefault']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       isActive: serializer.fromJson<bool>(json['isActive']),
@@ -675,6 +982,19 @@ class EquipmentProfile extends DataClass
       'filterFocusOffsets': serializer.toJson<String?>(filterFocusOffsets),
       'meridianFlipOverrides':
           serializer.toJson<String?>(meridianFlipOverrides),
+      'cameraName': serializer.toJson<String?>(cameraName),
+      'mountName': serializer.toJson<String?>(mountName),
+      'focuserName': serializer.toJson<String?>(focuserName),
+      'filterWheelName': serializer.toJson<String?>(filterWheelName),
+      'guiderName': serializer.toJson<String?>(guiderName),
+      'rotatorName': serializer.toJson<String?>(rotatorName),
+      'telescopeName': serializer.toJson<String?>(telescopeName),
+      'telescopeFocalLength': serializer.toJson<double?>(telescopeFocalLength),
+      'telescopeAperture': serializer.toJson<double?>(telescopeAperture),
+      'profileIcon': serializer.toJson<String?>(profileIcon),
+      'profileColor': serializer.toJson<int?>(profileColor),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'isDefault': serializer.toJson<bool>(isDefault),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'isActive': serializer.toJson<bool>(isActive),
@@ -705,6 +1025,19 @@ class EquipmentProfile extends DataClass
           Value<String?> filterNames = const Value.absent(),
           Value<String?> filterFocusOffsets = const Value.absent(),
           Value<String?> meridianFlipOverrides = const Value.absent(),
+          Value<String?> cameraName = const Value.absent(),
+          Value<String?> mountName = const Value.absent(),
+          Value<String?> focuserName = const Value.absent(),
+          Value<String?> filterWheelName = const Value.absent(),
+          Value<String?> guiderName = const Value.absent(),
+          Value<String?> rotatorName = const Value.absent(),
+          Value<String?> telescopeName = const Value.absent(),
+          Value<double?> telescopeFocalLength = const Value.absent(),
+          Value<double?> telescopeAperture = const Value.absent(),
+          Value<String?> profileIcon = const Value.absent(),
+          Value<int?> profileColor = const Value.absent(),
+          int? sortOrder,
+          bool? isDefault,
           DateTime? createdAt,
           DateTime? updatedAt,
           bool? isActive}) =>
@@ -742,6 +1075,27 @@ class EquipmentProfile extends DataClass
         meridianFlipOverrides: meridianFlipOverrides.present
             ? meridianFlipOverrides.value
             : this.meridianFlipOverrides,
+        cameraName: cameraName.present ? cameraName.value : this.cameraName,
+        mountName: mountName.present ? mountName.value : this.mountName,
+        focuserName: focuserName.present ? focuserName.value : this.focuserName,
+        filterWheelName: filterWheelName.present
+            ? filterWheelName.value
+            : this.filterWheelName,
+        guiderName: guiderName.present ? guiderName.value : this.guiderName,
+        rotatorName: rotatorName.present ? rotatorName.value : this.rotatorName,
+        telescopeName:
+            telescopeName.present ? telescopeName.value : this.telescopeName,
+        telescopeFocalLength: telescopeFocalLength.present
+            ? telescopeFocalLength.value
+            : this.telescopeFocalLength,
+        telescopeAperture: telescopeAperture.present
+            ? telescopeAperture.value
+            : this.telescopeAperture,
+        profileIcon: profileIcon.present ? profileIcon.value : this.profileIcon,
+        profileColor:
+            profileColor.present ? profileColor.value : this.profileColor,
+        sortOrder: sortOrder ?? this.sortOrder,
+        isDefault: isDefault ?? this.isDefault,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         isActive: isActive ?? this.isActive,
@@ -790,6 +1144,34 @@ class EquipmentProfile extends DataClass
       meridianFlipOverrides: data.meridianFlipOverrides.present
           ? data.meridianFlipOverrides.value
           : this.meridianFlipOverrides,
+      cameraName:
+          data.cameraName.present ? data.cameraName.value : this.cameraName,
+      mountName: data.mountName.present ? data.mountName.value : this.mountName,
+      focuserName:
+          data.focuserName.present ? data.focuserName.value : this.focuserName,
+      filterWheelName: data.filterWheelName.present
+          ? data.filterWheelName.value
+          : this.filterWheelName,
+      guiderName:
+          data.guiderName.present ? data.guiderName.value : this.guiderName,
+      rotatorName:
+          data.rotatorName.present ? data.rotatorName.value : this.rotatorName,
+      telescopeName: data.telescopeName.present
+          ? data.telescopeName.value
+          : this.telescopeName,
+      telescopeFocalLength: data.telescopeFocalLength.present
+          ? data.telescopeFocalLength.value
+          : this.telescopeFocalLength,
+      telescopeAperture: data.telescopeAperture.present
+          ? data.telescopeAperture.value
+          : this.telescopeAperture,
+      profileIcon:
+          data.profileIcon.present ? data.profileIcon.value : this.profileIcon,
+      profileColor: data.profileColor.present
+          ? data.profileColor.value
+          : this.profileColor,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      isDefault: data.isDefault.present ? data.isDefault.value : this.isDefault,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
@@ -822,6 +1204,19 @@ class EquipmentProfile extends DataClass
           ..write('filterNames: $filterNames, ')
           ..write('filterFocusOffsets: $filterFocusOffsets, ')
           ..write('meridianFlipOverrides: $meridianFlipOverrides, ')
+          ..write('cameraName: $cameraName, ')
+          ..write('mountName: $mountName, ')
+          ..write('focuserName: $focuserName, ')
+          ..write('filterWheelName: $filterWheelName, ')
+          ..write('guiderName: $guiderName, ')
+          ..write('rotatorName: $rotatorName, ')
+          ..write('telescopeName: $telescopeName, ')
+          ..write('telescopeFocalLength: $telescopeFocalLength, ')
+          ..write('telescopeAperture: $telescopeAperture, ')
+          ..write('profileIcon: $profileIcon, ')
+          ..write('profileColor: $profileColor, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('isDefault: $isDefault, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isActive: $isActive')
@@ -854,6 +1249,19 @@ class EquipmentProfile extends DataClass
         filterNames,
         filterFocusOffsets,
         meridianFlipOverrides,
+        cameraName,
+        mountName,
+        focuserName,
+        filterWheelName,
+        guiderName,
+        rotatorName,
+        telescopeName,
+        telescopeFocalLength,
+        telescopeAperture,
+        profileIcon,
+        profileColor,
+        sortOrder,
+        isDefault,
         createdAt,
         updatedAt,
         isActive
@@ -885,6 +1293,19 @@ class EquipmentProfile extends DataClass
           other.filterNames == this.filterNames &&
           other.filterFocusOffsets == this.filterFocusOffsets &&
           other.meridianFlipOverrides == this.meridianFlipOverrides &&
+          other.cameraName == this.cameraName &&
+          other.mountName == this.mountName &&
+          other.focuserName == this.focuserName &&
+          other.filterWheelName == this.filterWheelName &&
+          other.guiderName == this.guiderName &&
+          other.rotatorName == this.rotatorName &&
+          other.telescopeName == this.telescopeName &&
+          other.telescopeFocalLength == this.telescopeFocalLength &&
+          other.telescopeAperture == this.telescopeAperture &&
+          other.profileIcon == this.profileIcon &&
+          other.profileColor == this.profileColor &&
+          other.sortOrder == this.sortOrder &&
+          other.isDefault == this.isDefault &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
           other.isActive == this.isActive);
@@ -914,6 +1335,19 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
   final Value<String?> filterNames;
   final Value<String?> filterFocusOffsets;
   final Value<String?> meridianFlipOverrides;
+  final Value<String?> cameraName;
+  final Value<String?> mountName;
+  final Value<String?> focuserName;
+  final Value<String?> filterWheelName;
+  final Value<String?> guiderName;
+  final Value<String?> rotatorName;
+  final Value<String?> telescopeName;
+  final Value<double?> telescopeFocalLength;
+  final Value<double?> telescopeAperture;
+  final Value<String?> profileIcon;
+  final Value<int?> profileColor;
+  final Value<int> sortOrder;
+  final Value<bool> isDefault;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<bool> isActive;
@@ -941,6 +1375,19 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.filterNames = const Value.absent(),
     this.filterFocusOffsets = const Value.absent(),
     this.meridianFlipOverrides = const Value.absent(),
+    this.cameraName = const Value.absent(),
+    this.mountName = const Value.absent(),
+    this.focuserName = const Value.absent(),
+    this.filterWheelName = const Value.absent(),
+    this.guiderName = const Value.absent(),
+    this.rotatorName = const Value.absent(),
+    this.telescopeName = const Value.absent(),
+    this.telescopeFocalLength = const Value.absent(),
+    this.telescopeAperture = const Value.absent(),
+    this.profileIcon = const Value.absent(),
+    this.profileColor = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.isDefault = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.isActive = const Value.absent(),
@@ -969,6 +1416,19 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.filterNames = const Value.absent(),
     this.filterFocusOffsets = const Value.absent(),
     this.meridianFlipOverrides = const Value.absent(),
+    this.cameraName = const Value.absent(),
+    this.mountName = const Value.absent(),
+    this.focuserName = const Value.absent(),
+    this.filterWheelName = const Value.absent(),
+    this.guiderName = const Value.absent(),
+    this.rotatorName = const Value.absent(),
+    this.telescopeName = const Value.absent(),
+    this.telescopeFocalLength = const Value.absent(),
+    this.telescopeAperture = const Value.absent(),
+    this.profileIcon = const Value.absent(),
+    this.profileColor = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.isDefault = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.isActive = const Value.absent(),
@@ -997,6 +1457,19 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     Expression<String>? filterNames,
     Expression<String>? filterFocusOffsets,
     Expression<String>? meridianFlipOverrides,
+    Expression<String>? cameraName,
+    Expression<String>? mountName,
+    Expression<String>? focuserName,
+    Expression<String>? filterWheelName,
+    Expression<String>? guiderName,
+    Expression<String>? rotatorName,
+    Expression<String>? telescopeName,
+    Expression<double>? telescopeFocalLength,
+    Expression<double>? telescopeAperture,
+    Expression<String>? profileIcon,
+    Expression<int>? profileColor,
+    Expression<int>? sortOrder,
+    Expression<bool>? isDefault,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<bool>? isActive,
@@ -1028,6 +1501,20 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
         'filter_focus_offsets': filterFocusOffsets,
       if (meridianFlipOverrides != null)
         'meridian_flip_overrides': meridianFlipOverrides,
+      if (cameraName != null) 'camera_name': cameraName,
+      if (mountName != null) 'mount_name': mountName,
+      if (focuserName != null) 'focuser_name': focuserName,
+      if (filterWheelName != null) 'filter_wheel_name': filterWheelName,
+      if (guiderName != null) 'guider_name': guiderName,
+      if (rotatorName != null) 'rotator_name': rotatorName,
+      if (telescopeName != null) 'telescope_name': telescopeName,
+      if (telescopeFocalLength != null)
+        'telescope_focal_length': telescopeFocalLength,
+      if (telescopeAperture != null) 'telescope_aperture': telescopeAperture,
+      if (profileIcon != null) 'profile_icon': profileIcon,
+      if (profileColor != null) 'profile_color': profileColor,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (isDefault != null) 'is_default': isDefault,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (isActive != null) 'is_active': isActive,
@@ -1058,6 +1545,19 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       Value<String?>? filterNames,
       Value<String?>? filterFocusOffsets,
       Value<String?>? meridianFlipOverrides,
+      Value<String?>? cameraName,
+      Value<String?>? mountName,
+      Value<String?>? focuserName,
+      Value<String?>? filterWheelName,
+      Value<String?>? guiderName,
+      Value<String?>? rotatorName,
+      Value<String?>? telescopeName,
+      Value<double?>? telescopeFocalLength,
+      Value<double?>? telescopeAperture,
+      Value<String?>? profileIcon,
+      Value<int?>? profileColor,
+      Value<int>? sortOrder,
+      Value<bool>? isDefault,
       Value<DateTime>? createdAt,
       Value<DateTime>? updatedAt,
       Value<bool>? isActive}) {
@@ -1086,6 +1586,19 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       filterFocusOffsets: filterFocusOffsets ?? this.filterFocusOffsets,
       meridianFlipOverrides:
           meridianFlipOverrides ?? this.meridianFlipOverrides,
+      cameraName: cameraName ?? this.cameraName,
+      mountName: mountName ?? this.mountName,
+      focuserName: focuserName ?? this.focuserName,
+      filterWheelName: filterWheelName ?? this.filterWheelName,
+      guiderName: guiderName ?? this.guiderName,
+      rotatorName: rotatorName ?? this.rotatorName,
+      telescopeName: telescopeName ?? this.telescopeName,
+      telescopeFocalLength: telescopeFocalLength ?? this.telescopeFocalLength,
+      telescopeAperture: telescopeAperture ?? this.telescopeAperture,
+      profileIcon: profileIcon ?? this.profileIcon,
+      profileColor: profileColor ?? this.profileColor,
+      sortOrder: sortOrder ?? this.sortOrder,
+      isDefault: isDefault ?? this.isDefault,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isActive: isActive ?? this.isActive,
@@ -1165,6 +1678,46 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       map['meridian_flip_overrides'] =
           Variable<String>(meridianFlipOverrides.value);
     }
+    if (cameraName.present) {
+      map['camera_name'] = Variable<String>(cameraName.value);
+    }
+    if (mountName.present) {
+      map['mount_name'] = Variable<String>(mountName.value);
+    }
+    if (focuserName.present) {
+      map['focuser_name'] = Variable<String>(focuserName.value);
+    }
+    if (filterWheelName.present) {
+      map['filter_wheel_name'] = Variable<String>(filterWheelName.value);
+    }
+    if (guiderName.present) {
+      map['guider_name'] = Variable<String>(guiderName.value);
+    }
+    if (rotatorName.present) {
+      map['rotator_name'] = Variable<String>(rotatorName.value);
+    }
+    if (telescopeName.present) {
+      map['telescope_name'] = Variable<String>(telescopeName.value);
+    }
+    if (telescopeFocalLength.present) {
+      map['telescope_focal_length'] =
+          Variable<double>(telescopeFocalLength.value);
+    }
+    if (telescopeAperture.present) {
+      map['telescope_aperture'] = Variable<double>(telescopeAperture.value);
+    }
+    if (profileIcon.present) {
+      map['profile_icon'] = Variable<String>(profileIcon.value);
+    }
+    if (profileColor.present) {
+      map['profile_color'] = Variable<int>(profileColor.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (isDefault.present) {
+      map['is_default'] = Variable<bool>(isDefault.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1203,6 +1756,19 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
           ..write('filterNames: $filterNames, ')
           ..write('filterFocusOffsets: $filterFocusOffsets, ')
           ..write('meridianFlipOverrides: $meridianFlipOverrides, ')
+          ..write('cameraName: $cameraName, ')
+          ..write('mountName: $mountName, ')
+          ..write('focuserName: $focuserName, ')
+          ..write('filterWheelName: $filterWheelName, ')
+          ..write('guiderName: $guiderName, ')
+          ..write('rotatorName: $rotatorName, ')
+          ..write('telescopeName: $telescopeName, ')
+          ..write('telescopeFocalLength: $telescopeFocalLength, ')
+          ..write('telescopeAperture: $telescopeAperture, ')
+          ..write('profileIcon: $profileIcon, ')
+          ..write('profileColor: $profileColor, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('isDefault: $isDefault, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('isActive: $isActive')
@@ -9473,6 +10039,19 @@ typedef $$EquipmentProfilesTableCreateCompanionBuilder
   Value<String?> filterNames,
   Value<String?> filterFocusOffsets,
   Value<String?> meridianFlipOverrides,
+  Value<String?> cameraName,
+  Value<String?> mountName,
+  Value<String?> focuserName,
+  Value<String?> filterWheelName,
+  Value<String?> guiderName,
+  Value<String?> rotatorName,
+  Value<String?> telescopeName,
+  Value<double?> telescopeFocalLength,
+  Value<double?> telescopeAperture,
+  Value<String?> profileIcon,
+  Value<int?> profileColor,
+  Value<int> sortOrder,
+  Value<bool> isDefault,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
   Value<bool> isActive,
@@ -9502,6 +10081,19 @@ typedef $$EquipmentProfilesTableUpdateCompanionBuilder
   Value<String?> filterNames,
   Value<String?> filterFocusOffsets,
   Value<String?> meridianFlipOverrides,
+  Value<String?> cameraName,
+  Value<String?> mountName,
+  Value<String?> focuserName,
+  Value<String?> filterWheelName,
+  Value<String?> guiderName,
+  Value<String?> rotatorName,
+  Value<String?> telescopeName,
+  Value<double?> telescopeFocalLength,
+  Value<double?> telescopeAperture,
+  Value<String?> profileIcon,
+  Value<int?> profileColor,
+  Value<int> sortOrder,
+  Value<bool> isDefault,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
   Value<bool> isActive,
@@ -9611,6 +10203,48 @@ class $$EquipmentProfilesTableFilterComposer
   ColumnFilters<String> get meridianFlipOverrides => $composableBuilder(
       column: $table.meridianFlipOverrides,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get cameraName => $composableBuilder(
+      column: $table.cameraName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mountName => $composableBuilder(
+      column: $table.mountName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get focuserName => $composableBuilder(
+      column: $table.focuserName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get filterWheelName => $composableBuilder(
+      column: $table.filterWheelName,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get guiderName => $composableBuilder(
+      column: $table.guiderName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get rotatorName => $composableBuilder(
+      column: $table.rotatorName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get telescopeName => $composableBuilder(
+      column: $table.telescopeName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get telescopeFocalLength => $composableBuilder(
+      column: $table.telescopeFocalLength,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get telescopeAperture => $composableBuilder(
+      column: $table.telescopeAperture,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get profileIcon => $composableBuilder(
+      column: $table.profileIcon, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get profileColor => $composableBuilder(
+      column: $table.profileColor, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+      column: $table.sortOrder, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isDefault => $composableBuilder(
+      column: $table.isDefault, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnFilters(column));
@@ -9727,6 +10361,50 @@ class $$EquipmentProfilesTableOrderingComposer
       column: $table.meridianFlipOverrides,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get cameraName => $composableBuilder(
+      column: $table.cameraName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mountName => $composableBuilder(
+      column: $table.mountName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get focuserName => $composableBuilder(
+      column: $table.focuserName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get filterWheelName => $composableBuilder(
+      column: $table.filterWheelName,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get guiderName => $composableBuilder(
+      column: $table.guiderName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get rotatorName => $composableBuilder(
+      column: $table.rotatorName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get telescopeName => $composableBuilder(
+      column: $table.telescopeName,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get telescopeFocalLength => $composableBuilder(
+      column: $table.telescopeFocalLength,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get telescopeAperture => $composableBuilder(
+      column: $table.telescopeAperture,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get profileIcon => $composableBuilder(
+      column: $table.profileIcon, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get profileColor => $composableBuilder(
+      column: $table.profileColor,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+      column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isDefault => $composableBuilder(
+      column: $table.isDefault, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -9815,6 +10493,45 @@ class $$EquipmentProfilesTableAnnotationComposer
   GeneratedColumn<String> get meridianFlipOverrides => $composableBuilder(
       column: $table.meridianFlipOverrides, builder: (column) => column);
 
+  GeneratedColumn<String> get cameraName => $composableBuilder(
+      column: $table.cameraName, builder: (column) => column);
+
+  GeneratedColumn<String> get mountName =>
+      $composableBuilder(column: $table.mountName, builder: (column) => column);
+
+  GeneratedColumn<String> get focuserName => $composableBuilder(
+      column: $table.focuserName, builder: (column) => column);
+
+  GeneratedColumn<String> get filterWheelName => $composableBuilder(
+      column: $table.filterWheelName, builder: (column) => column);
+
+  GeneratedColumn<String> get guiderName => $composableBuilder(
+      column: $table.guiderName, builder: (column) => column);
+
+  GeneratedColumn<String> get rotatorName => $composableBuilder(
+      column: $table.rotatorName, builder: (column) => column);
+
+  GeneratedColumn<String> get telescopeName => $composableBuilder(
+      column: $table.telescopeName, builder: (column) => column);
+
+  GeneratedColumn<double> get telescopeFocalLength => $composableBuilder(
+      column: $table.telescopeFocalLength, builder: (column) => column);
+
+  GeneratedColumn<double> get telescopeAperture => $composableBuilder(
+      column: $table.telescopeAperture, builder: (column) => column);
+
+  GeneratedColumn<String> get profileIcon => $composableBuilder(
+      column: $table.profileIcon, builder: (column) => column);
+
+  GeneratedColumn<int> get profileColor => $composableBuilder(
+      column: $table.profileColor, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDefault =>
+      $composableBuilder(column: $table.isDefault, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -9894,6 +10611,19 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<String?> filterNames = const Value.absent(),
             Value<String?> filterFocusOffsets = const Value.absent(),
             Value<String?> meridianFlipOverrides = const Value.absent(),
+            Value<String?> cameraName = const Value.absent(),
+            Value<String?> mountName = const Value.absent(),
+            Value<String?> focuserName = const Value.absent(),
+            Value<String?> filterWheelName = const Value.absent(),
+            Value<String?> guiderName = const Value.absent(),
+            Value<String?> rotatorName = const Value.absent(),
+            Value<String?> telescopeName = const Value.absent(),
+            Value<double?> telescopeFocalLength = const Value.absent(),
+            Value<double?> telescopeAperture = const Value.absent(),
+            Value<String?> profileIcon = const Value.absent(),
+            Value<int?> profileColor = const Value.absent(),
+            Value<int> sortOrder = const Value.absent(),
+            Value<bool> isDefault = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<bool> isActive = const Value.absent(),
@@ -9922,6 +10652,19 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             filterNames: filterNames,
             filterFocusOffsets: filterFocusOffsets,
             meridianFlipOverrides: meridianFlipOverrides,
+            cameraName: cameraName,
+            mountName: mountName,
+            focuserName: focuserName,
+            filterWheelName: filterWheelName,
+            guiderName: guiderName,
+            rotatorName: rotatorName,
+            telescopeName: telescopeName,
+            telescopeFocalLength: telescopeFocalLength,
+            telescopeAperture: telescopeAperture,
+            profileIcon: profileIcon,
+            profileColor: profileColor,
+            sortOrder: sortOrder,
+            isDefault: isDefault,
             createdAt: createdAt,
             updatedAt: updatedAt,
             isActive: isActive,
@@ -9950,6 +10693,19 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<String?> filterNames = const Value.absent(),
             Value<String?> filterFocusOffsets = const Value.absent(),
             Value<String?> meridianFlipOverrides = const Value.absent(),
+            Value<String?> cameraName = const Value.absent(),
+            Value<String?> mountName = const Value.absent(),
+            Value<String?> focuserName = const Value.absent(),
+            Value<String?> filterWheelName = const Value.absent(),
+            Value<String?> guiderName = const Value.absent(),
+            Value<String?> rotatorName = const Value.absent(),
+            Value<String?> telescopeName = const Value.absent(),
+            Value<double?> telescopeFocalLength = const Value.absent(),
+            Value<double?> telescopeAperture = const Value.absent(),
+            Value<String?> profileIcon = const Value.absent(),
+            Value<int?> profileColor = const Value.absent(),
+            Value<int> sortOrder = const Value.absent(),
+            Value<bool> isDefault = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<bool> isActive = const Value.absent(),
@@ -9978,6 +10734,19 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             filterNames: filterNames,
             filterFocusOffsets: filterFocusOffsets,
             meridianFlipOverrides: meridianFlipOverrides,
+            cameraName: cameraName,
+            mountName: mountName,
+            focuserName: focuserName,
+            filterWheelName: filterWheelName,
+            guiderName: guiderName,
+            rotatorName: rotatorName,
+            telescopeName: telescopeName,
+            telescopeFocalLength: telescopeFocalLength,
+            telescopeAperture: telescopeAperture,
+            profileIcon: profileIcon,
+            profileColor: profileColor,
+            sortOrder: sortOrder,
+            isDefault: isDefault,
             createdAt: createdAt,
             updatedAt: updatedAt,
             isActive: isActive,
