@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -122,7 +123,7 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
           ));
         }
       } catch (e) {
-        print('Framing search error: $e');
+        debugPrint('[Framing] Search error: $e');
       }
 
       // Sort results

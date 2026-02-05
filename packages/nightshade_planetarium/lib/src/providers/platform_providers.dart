@@ -35,7 +35,7 @@ final displayRefreshRateProvider = Provider<double>((ref) {
         return parsed;
       }
       if (kDebugMode) {
-        debugPrint('Invalid NIGHTSHADE_REFRESH_RATE="$override", using $defaultHz Hz.');
+        debugPrint('[Platform] Invalid NIGHTSHADE_REFRESH_RATE="$override", using $defaultHz Hz.');
       }
     }
   }
@@ -43,7 +43,7 @@ final displayRefreshRateProvider = Provider<double>((ref) {
   final views = PlatformDispatcher.instance.views;
   if (views.isEmpty) {
     if (kDebugMode) {
-      debugPrint('No Flutter views available, using $defaultHz Hz.');
+      debugPrint('[Platform] No Flutter views available, using $defaultHz Hz.');
     }
     return defaultHz;
   }

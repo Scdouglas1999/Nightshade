@@ -2259,7 +2259,8 @@ void frbgen_nightshade_bridge_wire__crate__api__api_start_polar_alignment(int64_
                                                                           int32_t *gain,
                                                                           int32_t *offset,
                                                                           double *solve_timeout,
-                                                                          bool *start_from_current);
+                                                                          bool *start_from_current,
+                                                                          double *auto_complete_threshold);
 
 void frbgen_nightshade_bridge_wire__crate__api__api_start_session(int64_t port_,
                                                                   struct wire_cst_list_prim_u_8_strict *target_name,

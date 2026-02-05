@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../utils/snackbar_helper.dart';
 
@@ -151,18 +152,19 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 if (!_isCentering) ...[
-                  OutlinedButton(
+                  NightshadeButton(
+                    label: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Close'),
+                    variant: ButtonVariant.outline,
                   ),
                   const SizedBox(width: 12),
                 ],
-                FilledButton.icon(
+                NightshadeButton(
+                  label: _isCentering ? 'Centering...' : 'Start Centering',
+                  icon: _isCentering ? LucideIcons.loader2 : LucideIcons.target,
                   onPressed: _isCentering ? null : _startCentering,
-                  icon: Icon(
-                    _isCentering ? LucideIcons.loader2 : LucideIcons.target,
-                  ),
-                  label: Text(_isCentering ? 'Centering...' : 'Start Centering'),
+                  isLoading: _isCentering,
+                  variant: ButtonVariant.primary,
                 ),
               ],
             ),

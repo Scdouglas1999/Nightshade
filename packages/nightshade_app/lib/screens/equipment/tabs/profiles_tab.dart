@@ -672,13 +672,17 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
             style: TextStyle(color: colors.textSecondary),
           ),
           actions: [
-            TextButton(
+            NightshadeButton(
               onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
             ),
-            TextButton(
+            NightshadeButton(
               onPressed: () => Navigator.pop(context, true),
-              child: Text('Delete', style: TextStyle(color: colors.error)),
+              label: 'Delete',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
             ),
           ],
         );
@@ -1044,24 +1048,22 @@ class _MissingDevicesDialog extends StatelessWidget {
         ],
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context, _ValidationAction.cancel),
-          child: Text(
-            'Cancel',
-            style: TextStyle(color: colors.textMuted),
-          ),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context, _ValidationAction.updateProfile),
-          child: Text(
-            'Update Profile',
-            style: TextStyle(color: colors.primary),
-          ),
+          label: 'Update Profile',
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
         ),
-        FilledButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context, _ValidationAction.proceedAnyway),
-          style: FilledButton.styleFrom(backgroundColor: colors.warning),
-          child: const Text('Proceed Anyway'),
+          label: 'Proceed Anyway',
+          variant: ButtonVariant.primary,
         ),
       ],
     );

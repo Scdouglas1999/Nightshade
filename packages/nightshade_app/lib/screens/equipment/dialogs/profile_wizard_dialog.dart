@@ -514,13 +514,12 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
                 ),
               ),
               const SizedBox(width: 12),
-              TextButton.icon(
+              NightshadeButton(
                 onPressed: _createFromCurrentSetup,
-                icon: const Icon(LucideIcons.arrowRight, size: 16),
-                label: const Text('Use Current Setup'),
-                style: TextButton.styleFrom(
-                  foregroundColor: colors.primary,
-                ),
+                icon: LucideIcons.arrowRight,
+                label: 'Use Current Setup',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
               ),
             ],
           ),
@@ -1079,12 +1078,11 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
       child: Row(
         children: [
           // Cancel button
-          TextButton(
+          NightshadeButton(
             onPressed: _isCreating ? null : () => Navigator.of(context).pop(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: colors.textMuted),
-            ),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
           const Spacer(),
 
@@ -1103,35 +1101,16 @@ class _ProfileWizardDialogState extends ConsumerState<ProfileWizardDialog> {
           const SizedBox(width: 12),
 
           // Next/Create button
-          FilledButton.icon(
+          NightshadeButton(
             onPressed: _isCreating
                 ? null
                 : _isLastStep
                     ? _createProfile
                     : _goNext,
-            icon: _isCreating
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white.withValues(alpha: 0.8),
-                    ),
-                  )
-                : Icon(
-                    _isLastStep ? LucideIcons.check : LucideIcons.arrowRight,
-                    size: 16,
-                  ),
-            label: Text(_isLastStep ? 'Create Profile' : 'Next'),
-            style: FilledButton.styleFrom(
-              backgroundColor: colors.primary,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: colors.primary.withValues(alpha: 0.5),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 12,
-              ),
-            ),
+            icon: _isLastStep ? LucideIcons.check : LucideIcons.arrowRight,
+            label: _isLastStep ? 'Create Profile' : 'Next',
+            variant: ButtonVariant.primary,
+            isLoading: _isCreating,
           ),
         ],
       ),

@@ -4106,8 +4106,10 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
 
     // Set up event callback to forward PHD2 events to the main event stream
     client.set_event_callback(move |event| {
+        tracing::trace!("PHD2 event callback received: {:?}", event);
         match event {
             nightshade_imaging::Phd2Event::GuideStep(ref frame) => {
+                tracing::trace!("PHD2 GuideStep: RA={:.3}, Dec={:.3}, SNR={:.1}", frame.ra_distance, frame.dec_distance, frame.snr);
                 // Forward guide step correction data
                 get_state().publish_guiding_event(
                     GuidingEvent::Correction {
@@ -6154,6 +6156,7 @@ pub async fn api_start_polar_alignment(
     offset: Option<i32>,
     solve_timeout: Option<f64>,
     start_from_current: Option<bool>,
+    auto_complete_threshold: Option<f64>,
 ) -> Result<(), NightshadeError> {
     // Check if already running
     if get_polar_align_flag().load(PolarOrdering::Relaxed) {
@@ -6196,6 +6199,7 @@ pub async fn api_start_polar_alignment(
     let offset_val = offset.unwrap_or(0);
     let solve_timeout_val = solve_timeout.unwrap_or(60.0);
     let _start_from_current_val = start_from_current.unwrap_or(true);
+    let auto_complete_threshold_val = auto_complete_threshold.unwrap_or(1.0); // Default 1 arcminute
 
     tokio::spawn(async move {
         let result = run_polar_alignment(
@@ -6210,6 +6214,7 @@ pub async fn api_start_polar_alignment(
             gain_val,
             offset_val,
             solve_timeout_val,
+            auto_complete_threshold_val,
         ).await;
 
         if let Err(e) = result {
@@ -6236,6 +6241,7 @@ async fn run_polar_alignment(
     gain: i32,
     offset: i32,
     solve_timeout_secs: f64,
+    auto_complete_threshold: f64,
 ) -> Result<(), String> {
     let mut solved_points: Vec<(f64, f64)> = Vec::new();
 
@@ -6356,13 +6362,32 @@ async fn run_polar_alignment(
     // Phase 2: Calculate center of rotation
     emit_polar_status("Calculating polar alignment error...", "adjusting", 3);
 
-    let (center_ra, center_dec) = calculate_rotation_center(&solved_points);
+    let (mut center_ra, mut center_dec) = calculate_rotation_center(&solved_points);
     let pole_dec = if is_north { 90.0 } else { -90.0 };
 
     tracing::info!("Rotation center: RA={:.4}°, Dec={:.4}°", center_ra, center_dec);
 
-    // Phase 3: Adjustment loop - continuously update error
+    // Geometric validation: check if calculated center is within 15° of expected pole
+    let dec_diff = (center_dec - pole_dec).abs();
+    if dec_diff > 15.0 {
+        let error_msg = format!(
+            "Calculated rotation center (Dec={:.2}°) is {:.1}° away from expected pole (Dec={:.0}°). \
+            This suggests poor plate solves or insufficient mount rotation. \
+            Please ensure: 1) Clear view of pole area, 2) Mount rotates at least {}° between points, \
+            3) Plate solving is accurate. Try increasing step size or checking camera focus.",
+            center_dec, dec_diff, pole_dec, step_size
+        );
+        tracing::error!("{}", error_msg);
+        emit_polar_status(&format!("Error: {}", error_msg), "error", 0);
+        return Err(error_msg);
+    }
+
+    // Phase 3: Adjustment loop - continuously update error with rolling recalculation
     emit_polar_status("Adjustment mode - make corrections", "adjusting", 0);
+
+    // Auto-complete timer: tracks when error first dropped below threshold
+    let mut auto_complete_start: Option<std::time::Instant> = None;
+    const AUTO_COMPLETE_DURATION_SECS: u64 = 3;
 
     let mut consecutive_failures = 0;
     const MAX_FAILURES: i32 = 5;
@@ -6378,8 +6403,8 @@ async fn run_polar_alignment(
         if let Err(e) = api_camera_start_exposure(
             camera_id.clone(),
             exposure_time,
-            0, // gain (auto)
-            0, // offset (auto)
+            gain,
+            offset,
             binning,
             binning,
         ).await {
@@ -6478,12 +6503,87 @@ async fn run_polar_alignment(
             // Emit image again with plate solve coordinates
             emit_polar_image(&image, 0, "adjusting", Some(ra_degrees), Some(solve_result.dec));
 
-            // Calculate error relative to calculated pole position
+            // Rolling 3-point recalculation: add new point and keep only last 3
+            solved_points.push((ra_degrees, solve_result.dec));
+            if solved_points.len() > 3 {
+                solved_points.remove(0); // Remove oldest point to maintain sliding window
+            }
+
+            // Recalculate rotation center from updated points (requires at least 3 points)
+            if solved_points.len() >= 3 {
+                let (new_center_ra, new_center_dec) = calculate_rotation_center(&solved_points);
+                center_ra = new_center_ra;
+                center_dec = new_center_dec;
+                tracing::debug!("Updated rotation center: RA={:.4}°, Dec={:.4}°", center_ra, center_dec);
+            }
+
+            // Calculate error relative to recalculated pole position
             let alt_error = (pole_dec - center_dec) * 60.0; // arcminutes
             let az_error = (0.0 - center_ra) * center_dec.to_radians().cos() * 60.0;
             let total_error = (az_error.powi(2) + alt_error.powi(2)).sqrt();
 
-            emit_polar_status("Adjusting - make corrections", "adjusting", 0);
+            // Auto-complete logic: check if error is below threshold
+            if total_error <= auto_complete_threshold {
+                match auto_complete_start {
+                    Some(start_time) => {
+                        let elapsed = start_time.elapsed();
+                        if elapsed.as_secs() >= AUTO_COMPLETE_DURATION_SECS {
+                            // Error has been below threshold for required duration
+                            tracing::info!(
+                                "Polar alignment complete! Total error {:.2} arcmin below threshold {:.2} for {} seconds",
+                                total_error, auto_complete_threshold, AUTO_COMPLETE_DURATION_SECS
+                            );
+                            emit_polar_status(
+                                &format!("Complete! Error {:.2}' below threshold for {}s", total_error, AUTO_COMPLETE_DURATION_SECS),
+                                "complete",
+                                0,
+                            );
+                            emit_polar_error(
+                                az_error,
+                                alt_error,
+                                total_error,
+                                ra_degrees,
+                                solve_result.dec,
+                                center_ra,
+                                center_dec,
+                            );
+                            return Ok(());
+                        } else {
+                            // Still within threshold, update status with countdown
+                            let remaining = AUTO_COMPLETE_DURATION_SECS - elapsed.as_secs();
+                            emit_polar_status(
+                                &format!("Below threshold - completing in {}s...", remaining),
+                                "adjusting",
+                                0,
+                            );
+                        }
+                    }
+                    None => {
+                        // First time below threshold, start timer
+                        auto_complete_start = Some(std::time::Instant::now());
+                        tracing::info!(
+                            "Error {:.2} arcmin dropped below threshold {:.2}, starting auto-complete timer",
+                            total_error, auto_complete_threshold
+                        );
+                        emit_polar_status(
+                            &format!("Below threshold - completing in {}s...", AUTO_COMPLETE_DURATION_SECS),
+                            "adjusting",
+                            0,
+                        );
+                    }
+                }
+            } else {
+                // Error above threshold, reset timer if it was running
+                if auto_complete_start.is_some() {
+                    tracing::debug!(
+                        "Error {:.2} arcmin went back above threshold {:.2}, resetting auto-complete timer",
+                        total_error, auto_complete_threshold
+                    );
+                    auto_complete_start = None;
+                }
+                emit_polar_status("Adjusting - make corrections", "adjusting", 0);
+            }
+
             emit_polar_error(
                 az_error,
                 alt_error,
@@ -6491,10 +6591,12 @@ async fn run_polar_alignment(
                 ra_degrees,
                 solve_result.dec,
                 center_ra,
-                pole_dec,
+                center_dec,
             );
         } else {
             consecutive_failures += 1;
+            // Failed solve means we can't track error, reset auto-complete timer
+            auto_complete_start = None;
             emit_polar_status(&format!("Solve unsuccessful (retry {}/{})", consecutive_failures, MAX_FAILURES), "adjusting", 0);
             if consecutive_failures >= MAX_FAILURES {
                 return Err(format!("Too many consecutive failures ({}) in adjustment loop", MAX_FAILURES));

@@ -562,9 +562,11 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
           ),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
           NightshadeButton(
             label: 'Add Preset',
@@ -637,14 +639,16 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
           style: TextStyle(color: colors.textSecondary),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
           NightshadeButton(
             label: 'Delete',
             size: ButtonSize.small,
-            variant: ButtonVariant.outline,
+            variant: ButtonVariant.destructive,
             onPressed: () => Navigator.of(context).pop(true),
           ),
         ],

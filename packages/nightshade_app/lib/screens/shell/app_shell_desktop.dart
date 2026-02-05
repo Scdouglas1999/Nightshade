@@ -36,7 +36,7 @@ void initWindowManager(State state, {OnCloseRequested? onCloseRequested}) {
       _closeListener = _WindowCloseListener(onCloseRequested: onCloseRequested);
       windowManager.addListener(_closeListener!);
     } catch (e) {
-      debugPrint('Error initializing window manager: $e');
+      debugPrint('[AppShell] Error initializing window manager: $e');
     }
   }
 }
@@ -50,7 +50,7 @@ void disposeWindowManager(State state) {
         _closeListener = null;
       }
     } catch (e) {
-      debugPrint('Error disposing window manager: $e');
+      debugPrint('[AppShell] Error disposing window manager: $e');
     }
   }
 }

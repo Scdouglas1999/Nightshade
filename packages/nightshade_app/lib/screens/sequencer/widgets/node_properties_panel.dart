@@ -10,6 +10,7 @@ class NodePropertiesPanel extends ConsumerWidget {
   final ScrollController? scrollController;
   final bool isMobileSheet;
   final VoidCallback? onClose;
+  final VoidCallback? onCollapse;
 
   const NodePropertiesPanel({
     super.key,
@@ -17,6 +18,7 @@ class NodePropertiesPanel extends ConsumerWidget {
     this.scrollController,
     this.isMobileSheet = false,
     this.onClose,
+    this.onCollapse,
   });
 
   @override
@@ -29,7 +31,8 @@ class NodePropertiesPanel extends ConsumerWidget {
     return _buildDesktopSidebarContent(context, ref, selectedNode);
   }
 
-  Widget _buildMobileSheetContent(BuildContext context, WidgetRef ref, SequenceNode? selectedNode) {
+  Widget _buildMobileSheetContent(
+      BuildContext context, WidgetRef ref, SequenceNode? selectedNode) {
     return Column(
       children: [
         // Handle bar
@@ -92,7 +95,8 @@ class NodePropertiesPanel extends ConsumerWidget {
     );
   }
 
-  Widget _buildDesktopSidebarContent(BuildContext context, WidgetRef ref, SequenceNode? selectedNode) {
+  Widget _buildDesktopSidebarContent(
+      BuildContext context, WidgetRef ref, SequenceNode? selectedNode) {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -115,14 +119,32 @@ class NodePropertiesPanel extends ConsumerWidget {
                   color: colors.textSecondary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Properties',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
+                Expanded(
+                  child: Text(
+                    'Properties',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
                   ),
                 ),
+                if (onCollapse != null)
+                  Tooltip(
+                    message: 'Collapse panel',
+                    child: InkWell(
+                      onTap: onCollapse,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          LucideIcons.panelRightClose,
+                          size: 16,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -253,8 +275,8 @@ class _NodeEditor extends ConsumerWidget {
               value: node.name,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(name: value),
-                );
+                      node.copyWith(name: value),
+                    );
               },
             ),
           ),
@@ -268,8 +290,8 @@ class _NodeEditor extends ConsumerWidget {
               value: node.isEnabled,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(isEnabled: value),
-                );
+                      node.copyWith(isEnabled: value),
+                    );
               },
             ),
           ),
@@ -300,90 +322,104 @@ class _NodeEditor extends ConsumerWidget {
   }
 
   Widget _buildTypeSpecificProperties(WidgetRef ref) {
+    // Build the main properties widget
+    Widget propertiesWidget;
+
     if (node is ExposureNode) {
-      return _ExposureProperties(colors: colors, node: node as ExposureNode);
-    }
-    if (node is TargetHeaderNode) {
-      return _TargetGroupProperties(colors: colors, node: node as TargetHeaderNode);
-    }
-    if (node is LoopNode) {
-      return _LoopProperties(colors: colors, node: node as LoopNode);
-    }
-    if (node is CenterNode) {
-      return _CenterProperties(colors: colors, node: node as CenterNode);
-    }
-    if (node is AutofocusNode) {
-      return _AutofocusProperties(colors: colors, node: node as AutofocusNode);
-    }
-    if (node is CoolCameraNode) {
-      return _CoolCameraProperties(colors: colors, node: node as CoolCameraNode);
-    }
-    if (node is FilterChangeNode) {
-      return _FilterChangeProperties(colors: colors, node: node as FilterChangeNode);
-    }
-    if (node is DelayNode) {
-      return _DelayProperties(colors: colors, node: node as DelayNode);
-    }
-    if (node is DitherNode) {
-      return _DitherProperties(colors: colors, node: node as DitherNode);
-    }
-    if (node is WarmCameraNode) {
-      return _WarmCameraProperties(colors: colors, node: node as WarmCameraNode);
-    }
-    if (node is RotatorNode) {
-      return _RotatorProperties(colors: colors, node: node as RotatorNode);
-    }
-    if (node is SlewNode) {
-      return _SlewProperties(colors: colors, node: node as SlewNode);
-    }
-    if (node is WaitTimeNode) {
-      return _WaitTimeProperties(colors: colors, node: node as WaitTimeNode);
-    }
-    if (node is ConditionalNode) {
-      return _ConditionalProperties(colors: colors, node: node as ConditionalNode);
-    }
-    if (node is ParallelNode) {
-      return _ParallelProperties(colors: colors, node: node as ParallelNode);
-    }
-    if (node is RecoveryNode) {
-      return _RecoveryProperties(colors: colors, node: node as RecoveryNode);
-    }
-    if (node is NotificationNode) {
-      return _NotificationProperties(colors: colors, node: node as NotificationNode);
-    }
-    if (node is ScriptNode) {
-      return _ScriptProperties(colors: colors, node: node as ScriptNode);
-    }
-    if (node is ParkNode || node is UnparkNode) {
-      return _SimpleInstructionInfo(colors: colors, node: node);
-    }
-    if (node is MeridianFlipNode) {
-      return _MeridianFlipProperties(colors: colors, node: node as MeridianFlipNode);
-    }
-    if (node is OpenDomeNode) {
-      return _DomeProperties(colors: colors, node: node);
-    }
-    if (node is CloseDomeNode) {
-      return _DomeProperties(colors: colors, node: node);
-    }
-    if (node is ParkDomeNode) {
-      return _DomeProperties(colors: colors, node: node);
-    }
-    if (node is PolarAlignmentNode) {
-      return _PolarAlignmentProperties(colors: colors, node: node as PolarAlignmentNode);
-    }
-    if (node is InstructionSetNode) {
-      return _InstructionSetInfo(colors: colors, node: node as InstructionSetNode);
+      propertiesWidget =
+          _ExposureProperties(colors: colors, node: node as ExposureNode);
+    } else if (node is TargetHeaderNode) {
+      propertiesWidget = _TargetGroupProperties(
+          colors: colors, node: node as TargetHeaderNode);
+    } else if (node is LoopNode) {
+      propertiesWidget =
+          _LoopProperties(colors: colors, node: node as LoopNode);
+    } else if (node is CenterNode) {
+      propertiesWidget =
+          _CenterProperties(colors: colors, node: node as CenterNode);
+    } else if (node is AutofocusNode) {
+      propertiesWidget =
+          _AutofocusProperties(colors: colors, node: node as AutofocusNode);
+    } else if (node is CoolCameraNode) {
+      propertiesWidget =
+          _CoolCameraProperties(colors: colors, node: node as CoolCameraNode);
+    } else if (node is FilterChangeNode) {
+      propertiesWidget = _FilterChangeProperties(
+          colors: colors, node: node as FilterChangeNode);
+    } else if (node is DelayNode) {
+      propertiesWidget =
+          _DelayProperties(colors: colors, node: node as DelayNode);
+    } else if (node is DitherNode) {
+      propertiesWidget =
+          _DitherProperties(colors: colors, node: node as DitherNode);
+    } else if (node is WarmCameraNode) {
+      propertiesWidget =
+          _WarmCameraProperties(colors: colors, node: node as WarmCameraNode);
+    } else if (node is RotatorNode) {
+      propertiesWidget =
+          _RotatorProperties(colors: colors, node: node as RotatorNode);
+    } else if (node is SlewNode) {
+      propertiesWidget =
+          _SlewProperties(colors: colors, node: node as SlewNode);
+    } else if (node is WaitTimeNode) {
+      propertiesWidget =
+          _WaitTimeProperties(colors: colors, node: node as WaitTimeNode);
+    } else if (node is ConditionalNode) {
+      propertiesWidget =
+          _ConditionalProperties(colors: colors, node: node as ConditionalNode);
+    } else if (node is ParallelNode) {
+      propertiesWidget =
+          _ParallelProperties(colors: colors, node: node as ParallelNode);
+    } else if (node is RecoveryNode) {
+      propertiesWidget =
+          _RecoveryProperties(colors: colors, node: node as RecoveryNode);
+    } else if (node is NotificationNode) {
+      propertiesWidget = _NotificationProperties(
+          colors: colors, node: node as NotificationNode);
+    } else if (node is ScriptNode) {
+      propertiesWidget =
+          _ScriptProperties(colors: colors, node: node as ScriptNode);
+    } else if (node is ParkNode || node is UnparkNode) {
+      propertiesWidget = _SimpleInstructionInfo(colors: colors, node: node);
+    } else if (node is MeridianFlipNode) {
+      propertiesWidget = _MeridianFlipProperties(
+          colors: colors, node: node as MeridianFlipNode);
+    } else if (node is OpenDomeNode) {
+      propertiesWidget = _DomeProperties(colors: colors, node: node);
+    } else if (node is CloseDomeNode) {
+      propertiesWidget = _DomeProperties(colors: colors, node: node);
+    } else if (node is ParkDomeNode) {
+      propertiesWidget = _DomeProperties(colors: colors, node: node);
+    } else if (node is PolarAlignmentNode) {
+      propertiesWidget = _PolarAlignmentProperties(
+          colors: colors, node: node as PolarAlignmentNode);
+    } else if (node is InstructionSetNode) {
+      propertiesWidget =
+          _InstructionSetInfo(colors: colors, node: node as InstructionSetNode);
+    } else {
+      propertiesWidget = Text(
+        'No additional properties',
+        style: TextStyle(
+          fontSize: 12,
+          color: colors.textMuted,
+          fontStyle: FontStyle.italic,
+        ),
+      );
     }
 
-    return Text(
-      'No additional properties',
-      style: TextStyle(
-        fontSize: 12,
-        color: colors.textMuted,
-        fontStyle: FontStyle.italic,
-      ),
-    );
+    // Add timing section for nodes with meaningful duration
+    if (_hasMeaningfulDuration(node)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          propertiesWidget,
+          const SizedBox(height: 16),
+          _TimingSection(colors: colors, node: node),
+        ],
+      );
+    }
+
+    return propertiesWidget;
   }
 }
 
@@ -395,36 +431,61 @@ class _NodeTypeBadge extends StatelessWidget {
 
   Color _getCategoryColor() {
     switch (node.category) {
-      case NodeCategory.instruction: return colors.primary;
-      case NodeCategory.trigger: return colors.warning;
-      case NodeCategory.logic: return colors.accent;
-      case NodeCategory.target: return colors.warning;
+      case NodeCategory.instruction:
+        return colors.primary;
+      case NodeCategory.trigger:
+        return colors.warning;
+      case NodeCategory.logic:
+        return colors.accent;
+      case NodeCategory.target:
+        return colors.warning;
     }
   }
 
   IconData _getIcon() {
     switch (node.iconName) {
-      case 'target': return LucideIcons.target;
-      case 'camera': return LucideIcons.camera;
-      case 'circle': return LucideIcons.circle;
-      case 'shuffle': return LucideIcons.shuffle;
-      case 'compass': return LucideIcons.compass;
-      case 'crosshair': return LucideIcons.crosshair;
-      case 'parking-circle': return LucideIcons.parkingCircle;
-      case 'unlock': return LucideIcons.unlock;
-      case 'focus': return LucideIcons.focus;
-      case 'snowflake': return LucideIcons.snowflake;
-      case 'flame': return LucideIcons.flame;
-      case 'rotate-cw': return LucideIcons.rotateCw;
-      case 'repeat': return LucideIcons.repeat;
-      case 'git-merge': return LucideIcons.gitMerge;
-      case 'git-branch': return LucideIcons.gitBranch;
-      case 'shield-check': return LucideIcons.shieldCheck;
-      case 'clock': return LucideIcons.clock;
-      case 'timer': return LucideIcons.timer;
-      case 'bell': return LucideIcons.bell;
-      case 'code': return LucideIcons.code;
-      default: return LucideIcons.box;
+      case 'target':
+        return LucideIcons.target;
+      case 'camera':
+        return LucideIcons.camera;
+      case 'circle':
+        return LucideIcons.circle;
+      case 'shuffle':
+        return LucideIcons.shuffle;
+      case 'compass':
+        return LucideIcons.compass;
+      case 'crosshair':
+        return LucideIcons.crosshair;
+      case 'parking-circle':
+        return LucideIcons.parkingCircle;
+      case 'unlock':
+        return LucideIcons.unlock;
+      case 'focus':
+        return LucideIcons.focus;
+      case 'snowflake':
+        return LucideIcons.snowflake;
+      case 'flame':
+        return LucideIcons.flame;
+      case 'rotate-cw':
+        return LucideIcons.rotateCw;
+      case 'repeat':
+        return LucideIcons.repeat;
+      case 'git-merge':
+        return LucideIcons.gitMerge;
+      case 'git-branch':
+        return LucideIcons.gitBranch;
+      case 'shield-check':
+        return LucideIcons.shieldCheck;
+      case 'clock':
+        return LucideIcons.clock;
+      case 'timer':
+        return LucideIcons.timer;
+      case 'bell':
+        return LucideIcons.bell;
+      case 'code':
+        return LucideIcons.code;
+      default:
+        return LucideIcons.box;
     }
   }
 
@@ -686,8 +747,11 @@ class _NumberInputState extends State<_NumberInput> {
                 final parsed = double.tryParse(value);
                 if (parsed != null) {
                   var clamped = parsed;
-                  if (widget.min != null) clamped = clamped.clamp(widget.min!, double.infinity);
-                  if (widget.max != null) clamped = clamped.clamp(double.negativeInfinity, widget.max!);
+                  if (widget.min != null)
+                    clamped = clamped.clamp(widget.min!, double.infinity);
+                  if (widget.max != null)
+                    clamped =
+                        clamped.clamp(double.negativeInfinity, widget.max!);
                   widget.onChanged(clamped);
                 }
               },
@@ -857,9 +921,7 @@ class _DangerButtonState extends State<_DangerButton> {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: _isHovered
-                  ? widget.colors.error
-                  : widget.colors.border,
+              color: _isHovered ? widget.colors.error : widget.colors.border,
             ),
           ),
           child: Row(
@@ -912,7 +974,7 @@ class _ExposureProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        
+
         _PropertyField(
           colors: colors,
           label: 'Duration',
@@ -925,12 +987,14 @@ class _ExposureProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(durationSecs: value),
-              );
+                    node.copyWith(durationSecs: value),
+                  );
               // Save as default for future nodes
-              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
-                duration: value,
-              );
+              ref
+                  .read(sequencerDefaultsProvider.notifier)
+                  .updateExposureDefaults(
+                    duration: value,
+                  );
             },
           ),
         ),
@@ -946,12 +1010,14 @@ class _ExposureProperties extends ConsumerWidget {
             onChanged: (value) {
               final count = value.toInt();
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(count: count),
-              );
+                    node.copyWith(count: count),
+                  );
               // Save as default for future nodes
-              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
-                count: count,
-              );
+              ref
+                  .read(sequencerDefaultsProvider.notifier)
+                  .updateExposureDefaults(
+                    count: count,
+                  );
             },
           ),
         ),
@@ -966,8 +1032,8 @@ class _ExposureProperties extends ConsumerWidget {
             labelBuilder: (t) => t.name.toUpperCase(),
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(frameType: value),
-              );
+                    node.copyWith(frameType: value),
+                  );
             },
           ),
         ),
@@ -984,12 +1050,14 @@ class _ExposureProperties extends ConsumerWidget {
             labelBuilder: (b) => b.label,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(binning: value),
-              );
+                    node.copyWith(binning: value),
+                  );
               // Save as default for future nodes
-              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
-                binning: value,
-              );
+              ref
+                  .read(sequencerDefaultsProvider.notifier)
+                  .updateExposureDefaults(
+                    binning: value,
+                  );
             },
           ),
         ),
@@ -1008,12 +1076,14 @@ class _ExposureProperties extends ConsumerWidget {
                   onChanged: (value) {
                     final gain = value.toInt();
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(gain: gain),
-                    );
+                          node.copyWith(gain: gain),
+                        );
                     // Save as default for future nodes
-                    ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
-                      gain: gain,
-                    );
+                    ref
+                        .read(sequencerDefaultsProvider.notifier)
+                        .updateExposureDefaults(
+                          gain: gain,
+                        );
                   },
                 ),
               ),
@@ -1031,12 +1101,14 @@ class _ExposureProperties extends ConsumerWidget {
                   onChanged: (value) {
                     final offset = value.toInt();
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(offset: offset),
-                    );
+                          node.copyWith(offset: offset),
+                        );
                     // Save as default for future nodes
-                    ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
-                      offset: offset,
-                    );
+                    ref
+                        .read(sequencerDefaultsProvider.notifier)
+                        .updateExposureDefaults(
+                          offset: offset,
+                        );
                   },
                 ),
               ),
@@ -1056,12 +1128,14 @@ class _ExposureProperties extends ConsumerWidget {
             onChanged: (value) {
               final ditherEvery = value.toInt();
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(ditherEvery: ditherEvery),
-              );
+                    node.copyWith(ditherEvery: ditherEvery),
+                  );
               // Save as default for future nodes
-              ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
-                ditherEvery: ditherEvery,
-              );
+              ref
+                  .read(sequencerDefaultsProvider.notifier)
+                  .updateExposureDefaults(
+                    ditherEvery: ditherEvery,
+                  );
             },
           ),
         ),
@@ -1106,8 +1180,9 @@ class _ExposureProperties extends ConsumerWidget {
 
     // Find current selection
     final currentFilter = filterOptions.firstWhere(
-      (f) => (node.filterIndex != null && f.index == node.filterIndex) ||
-             (node.filterIndex == null && f.name == (node.filter ?? '')),
+      (f) =>
+          (node.filterIndex != null && f.index == node.filterIndex) ||
+          (node.filterIndex == null && f.name == (node.filter ?? '')),
       orElse: () => filterOptions.first,
     );
 
@@ -1122,11 +1197,13 @@ class _ExposureProperties extends ConsumerWidget {
               onChanged: (value) {
                 final filter = value.isEmpty ? null : value;
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(filter: filter),
-                );
-                ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
-                  filter: filter,
-                );
+                      node.copyWith(filter: filter),
+                    );
+                ref
+                    .read(sequencerDefaultsProvider.notifier)
+                    .updateExposureDefaults(
+                      filter: filter,
+                    );
               },
             )
           : Container(
@@ -1159,16 +1236,19 @@ class _ExposureProperties extends ConsumerWidget {
                   onChanged: (newValue) {
                     if (newValue != null) {
                       final filter = newValue.index < 0 ? null : newValue.name;
-                      final filterIndex = newValue.index < 0 ? null : newValue.index;
+                      final filterIndex =
+                          newValue.index < 0 ? null : newValue.index;
                       ref.read(currentSequenceProvider.notifier).updateNode(
-                        node.copyWith(
-                          filter: filter,
-                          filterIndex: filterIndex,
-                        ),
-                      );
-                      ref.read(sequencerDefaultsProvider.notifier).updateExposureDefaults(
-                        filter: filter,
-                      );
+                            node.copyWith(
+                              filter: filter,
+                              filterIndex: filterIndex,
+                            ),
+                          );
+                      ref
+                          .read(sequencerDefaultsProvider.notifier)
+                          .updateExposureDefaults(
+                            filter: filter,
+                          );
                     }
                   },
                 ),
@@ -1204,7 +1284,6 @@ class _TargetGroupProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Target Name',
@@ -1213,12 +1292,11 @@ class _TargetGroupProperties extends ConsumerWidget {
             value: node.targetName,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(targetName: value),
-              );
+                    node.copyWith(targetName: value),
+                  );
             },
           ),
         ),
-
         Row(
           children: [
             Expanded(
@@ -1234,8 +1312,8 @@ class _TargetGroupProperties extends ConsumerWidget {
                   decimals: 4,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(raHours: value),
-                    );
+                          node.copyWith(raHours: value),
+                        );
                   },
                 ),
               ),
@@ -1254,15 +1332,14 @@ class _TargetGroupProperties extends ConsumerWidget {
                   decimals: 4,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(decDegrees: value),
-                    );
+                          node.copyWith(decDegrees: value),
+                        );
                   },
                 ),
               ),
             ),
           ],
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Rotation (optional)',
@@ -1275,12 +1352,11 @@ class _TargetGroupProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(rotation: value),
-              );
+                    node.copyWith(rotation: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Min Altitude',
@@ -1293,8 +1369,8 @@ class _TargetGroupProperties extends ConsumerWidget {
             decimals: 0,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(minAltitude: value),
-              );
+                    node.copyWith(minAltitude: value),
+                  );
             },
           ),
         ),
@@ -1323,7 +1399,6 @@ class _LoopProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Condition Type',
@@ -1333,21 +1408,25 @@ class _LoopProperties extends ConsumerWidget {
             items: LoopConditionType.values,
             labelBuilder: (t) {
               switch (t) {
-                case LoopConditionType.count: return 'Fixed Count';
-                case LoopConditionType.untilTime: return 'Until Time';
-                case LoopConditionType.untilAltitude: return 'Until Altitude';
-                case LoopConditionType.forever: return 'Forever';
-                case LoopConditionType.whileDark: return 'While Dark';
+                case LoopConditionType.count:
+                  return 'Fixed Count';
+                case LoopConditionType.untilTime:
+                  return 'Until Time';
+                case LoopConditionType.untilAltitude:
+                  return 'Until Altitude';
+                case LoopConditionType.forever:
+                  return 'Forever';
+                case LoopConditionType.whileDark:
+                  return 'While Dark';
               }
             },
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(conditionType: value),
-              );
+                    node.copyWith(conditionType: value),
+                  );
             },
           ),
         ),
-
         if (node.conditionType == LoopConditionType.count)
           _PropertyField(
             colors: colors,
@@ -1359,12 +1438,11 @@ class _LoopProperties extends ConsumerWidget {
               max: 9999,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(repeatCount: value.toInt()),
-                );
+                      node.copyWith(repeatCount: value.toInt()),
+                    );
               },
             ),
           ),
-
         if (node.conditionType == LoopConditionType.untilTime)
           _PropertyField(
             colors: colors,
@@ -1375,21 +1453,24 @@ class _LoopProperties extends ConsumerWidget {
                   onTap: () async {
                     final time = await showTimePicker(
                       context: context,
-                      initialTime: TimeOfDay.fromDateTime(node.repeatUntil ?? DateTime.now()),
+                      initialTime: TimeOfDay.fromDateTime(
+                          node.repeatUntil ?? DateTime.now()),
                     );
                     if (time != null) {
                       final now = DateTime.now();
-                      var targetDate = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+                      var targetDate = DateTime(
+                          now.year, now.month, now.day, time.hour, time.minute);
                       if (targetDate.isBefore(now)) {
                         targetDate = targetDate.add(const Duration(days: 1));
                       }
                       ref.read(currentSequenceProvider.notifier).updateNode(
-                        node.copyWith(repeatUntil: targetDate),
-                      );
+                            node.copyWith(repeatUntil: targetDate),
+                          );
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: colors.surfaceAlt,
                       borderRadius: BorderRadius.circular(8),
@@ -1397,7 +1478,8 @@ class _LoopProperties extends ConsumerWidget {
                     ),
                     child: Row(
                       children: [
-                        Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
+                        Icon(LucideIcons.clock,
+                            size: 14, color: colors.textMuted),
                         const SizedBox(width: 8),
                         Text(
                           node.repeatUntil != null
@@ -1405,7 +1487,9 @@ class _LoopProperties extends ConsumerWidget {
                               : 'Select time...',
                           style: TextStyle(
                             fontSize: 13,
-                            color: node.repeatUntil != null ? colors.textPrimary : colors.textMuted,
+                            color: node.repeatUntil != null
+                                ? colors.textPrimary
+                                : colors.textMuted,
                           ),
                         ),
                       ],
@@ -1420,33 +1504,35 @@ class _LoopProperties extends ConsumerWidget {
                       colors: colors,
                       label: 'Civil Dawn',
                       onPressed: () {
-                         final location = ref.read(observerLocationProvider);
-                         final now = DateTime.now();
-                         
-                         // Calculate for today first
-                         var twilight = AstronomyCalculations.calculateTwilightTimes(
-                           date: now,
-                           latitudeDeg: location.latitude,
-                           longitudeDeg: location.longitude,
-                         );
-                         
-                         var target = twilight.civilDawn;
-                         
-                         // If dawn passed or not available today, try tomorrow
-                         if (target == null || target.isBefore(now)) {
-                           twilight = AstronomyCalculations.calculateTwilightTimes(
-                             date: now.add(const Duration(days: 1)),
-                             latitudeDeg: location.latitude,
-                             longitudeDeg: location.longitude,
-                           );
-                           target = twilight.civilDawn;
-                         }
-                         
-                         if (target != null) {
-                           ref.read(currentSequenceProvider.notifier).updateNode(
-                             node.copyWith(repeatUntil: target),
-                           );
-                         }
+                        final location = ref.read(observerLocationProvider);
+                        final now = DateTime.now();
+
+                        // Calculate for today first
+                        var twilight =
+                            AstronomyCalculations.calculateTwilightTimes(
+                          date: now,
+                          latitudeDeg: location.latitude,
+                          longitudeDeg: location.longitude,
+                        );
+
+                        var target = twilight.civilDawn;
+
+                        // If dawn passed or not available today, try tomorrow
+                        if (target == null || target.isBefore(now)) {
+                          twilight =
+                              AstronomyCalculations.calculateTwilightTimes(
+                            date: now.add(const Duration(days: 1)),
+                            latitudeDeg: location.latitude,
+                            longitudeDeg: location.longitude,
+                          );
+                          target = twilight.civilDawn;
+                        }
+
+                        if (target != null) {
+                          ref.read(currentSequenceProvider.notifier).updateNode(
+                                node.copyWith(repeatUntil: target),
+                              );
+                        }
                       },
                     ),
                     const SizedBox(width: 8),
@@ -1454,33 +1540,35 @@ class _LoopProperties extends ConsumerWidget {
                       colors: colors,
                       label: 'Nautical Dawn',
                       onPressed: () {
-                         final location = ref.read(observerLocationProvider);
-                         final now = DateTime.now();
-                         
-                         // Calculate for today first
-                         var twilight = AstronomyCalculations.calculateTwilightTimes(
-                           date: now,
-                           latitudeDeg: location.latitude,
-                           longitudeDeg: location.longitude,
-                         );
-                         
-                         var target = twilight.nauticalDawn;
-                         
-                         // If dawn passed or not available today, try tomorrow
-                         if (target == null || target.isBefore(now)) {
-                           twilight = AstronomyCalculations.calculateTwilightTimes(
-                             date: now.add(const Duration(days: 1)),
-                             latitudeDeg: location.latitude,
-                             longitudeDeg: location.longitude,
-                           );
-                           target = twilight.nauticalDawn;
-                         }
-                         
-                         if (target != null) {
-                           ref.read(currentSequenceProvider.notifier).updateNode(
-                             node.copyWith(repeatUntil: target),
-                           );
-                         }
+                        final location = ref.read(observerLocationProvider);
+                        final now = DateTime.now();
+
+                        // Calculate for today first
+                        var twilight =
+                            AstronomyCalculations.calculateTwilightTimes(
+                          date: now,
+                          latitudeDeg: location.latitude,
+                          longitudeDeg: location.longitude,
+                        );
+
+                        var target = twilight.nauticalDawn;
+
+                        // If dawn passed or not available today, try tomorrow
+                        if (target == null || target.isBefore(now)) {
+                          twilight =
+                              AstronomyCalculations.calculateTwilightTimes(
+                            date: now.add(const Duration(days: 1)),
+                            latitudeDeg: location.latitude,
+                            longitudeDeg: location.longitude,
+                          );
+                          target = twilight.nauticalDawn;
+                        }
+
+                        if (target != null) {
+                          ref.read(currentSequenceProvider.notifier).updateNode(
+                                node.copyWith(repeatUntil: target),
+                              );
+                        }
                       },
                     ),
                   ],
@@ -1488,7 +1576,6 @@ class _LoopProperties extends ConsumerWidget {
               ],
             ),
           ),
-
         if (node.conditionType == LoopConditionType.untilAltitude)
           _PropertyField(
             colors: colors,
@@ -1501,8 +1588,8 @@ class _LoopProperties extends ConsumerWidget {
               max: 90,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(repeatUntilAltitude: value),
-                );
+                      node.copyWith(repeatUntilAltitude: value),
+                    );
               },
             ),
           ),
@@ -1531,7 +1618,6 @@ class _CenterProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Accuracy',
@@ -1544,12 +1630,11 @@ class _CenterProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(accuracyArcsec: value),
-              );
+                    node.copyWith(accuracyArcsec: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Max Attempts',
@@ -1560,8 +1645,8 @@ class _CenterProperties extends ConsumerWidget {
             max: 20,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(maxAttempts: value.toInt()),
-              );
+                    node.copyWith(maxAttempts: value.toInt()),
+                  );
             },
           ),
         ),
@@ -1590,7 +1675,6 @@ class _AutofocusProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Method',
@@ -1600,19 +1684,21 @@ class _AutofocusProperties extends ConsumerWidget {
             items: AutofocusMethod.values,
             labelBuilder: (m) {
               switch (m) {
-                case AutofocusMethod.vCurve: return 'V-Curve';
-                case AutofocusMethod.hyperbolic: return 'Hyperbolic';
-                case AutofocusMethod.parabolic: return 'Parabolic';
+                case AutofocusMethod.vCurve:
+                  return 'V-Curve';
+                case AutofocusMethod.hyperbolic:
+                  return 'Hyperbolic';
+                case AutofocusMethod.parabolic:
+                  return 'Parabolic';
               }
             },
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(method: value),
-              );
+                    node.copyWith(method: value),
+                  );
             },
           ),
         ),
-
         Row(
           children: [
             Expanded(
@@ -1627,12 +1713,14 @@ class _AutofocusProperties extends ConsumerWidget {
                   onChanged: (value) {
                     final stepSize = value.toInt();
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(stepSize: stepSize),
-                    );
+                          node.copyWith(stepSize: stepSize),
+                        );
                     // Save as default for future nodes
-                    ref.read(sequencerDefaultsProvider.notifier).updateAutofocusDefaults(
-                      stepSize: stepSize,
-                    );
+                    ref
+                        .read(sequencerDefaultsProvider.notifier)
+                        .updateAutofocusDefaults(
+                          stepSize: stepSize,
+                        );
                   },
                 ),
               ),
@@ -1650,19 +1738,20 @@ class _AutofocusProperties extends ConsumerWidget {
                   onChanged: (value) {
                     final stepsOut = value.toInt();
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(stepsOut: stepsOut),
-                    );
+                          node.copyWith(stepsOut: stepsOut),
+                        );
                     // Save as default for future nodes
-                    ref.read(sequencerDefaultsProvider.notifier).updateAutofocusDefaults(
-                      stepsOut: stepsOut,
-                    );
+                    ref
+                        .read(sequencerDefaultsProvider.notifier)
+                        .updateAutofocusDefaults(
+                          stepsOut: stepsOut,
+                        );
                   },
                 ),
               ),
             ),
           ],
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Exposure Duration',
@@ -1675,12 +1764,14 @@ class _AutofocusProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(exposureDuration: value),
-              );
+                    node.copyWith(exposureDuration: value),
+                  );
               // Save as default for future nodes
-              ref.read(sequencerDefaultsProvider.notifier).updateAutofocusDefaults(
-                exposureDuration: value,
-              );
+              ref
+                  .read(sequencerDefaultsProvider.notifier)
+                  .updateAutofocusDefaults(
+                    exposureDuration: value,
+                  );
             },
           ),
         ),
@@ -1709,7 +1800,6 @@ class _CoolCameraProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Target Temperature',
@@ -1721,12 +1811,11 @@ class _CoolCameraProperties extends ConsumerWidget {
             max: 30,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(targetTemp: value),
-              );
+                    node.copyWith(targetTemp: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Max Duration',
@@ -1738,8 +1827,8 @@ class _CoolCameraProperties extends ConsumerWidget {
             max: 60,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(durationMins: value),
-              );
+                    node.copyWith(durationMins: value),
+                  );
             },
           ),
         ),
@@ -1787,7 +1876,6 @@ class _FilterChangeProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Filter',
@@ -1798,8 +1886,8 @@ class _FilterChangeProperties extends ConsumerWidget {
                   hint: 'No filters in profile',
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(filterName: value),
-                    );
+                          node.copyWith(filterName: value),
+                        );
                   },
                 )
               : Container(
@@ -1833,18 +1921,17 @@ class _FilterChangeProperties extends ConsumerWidget {
                         if (newValue != null) {
                           // Set BOTH name and position for reliable filter changes
                           ref.read(currentSequenceProvider.notifier).updateNode(
-                            node.copyWith(
-                              filterName: newValue.name,
-                              filterPosition: newValue.index,
-                            ),
-                          );
+                                node.copyWith(
+                                  filterName: newValue.name,
+                                  filterPosition: newValue.index,
+                                ),
+                              );
                         }
                       },
                     ),
                   ),
                 ),
         ),
-
       ],
     );
   }
@@ -1870,7 +1957,6 @@ class _DelayProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Duration',
@@ -1883,8 +1969,8 @@ class _DelayProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(seconds: value),
-              );
+                    node.copyWith(seconds: value),
+                  );
             },
           ),
         ),
@@ -1913,7 +1999,6 @@ class _DitherProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Dither Amount',
@@ -1926,16 +2011,15 @@ class _DitherProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(pixels: value),
-              );
+                    node.copyWith(pixels: value),
+                  );
               // Save as default for future nodes
               ref.read(sequencerDefaultsProvider.notifier).updateDitherDefaults(
-                pixels: value,
-              );
+                    pixels: value,
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Settle Time',
@@ -1948,16 +2032,15 @@ class _DitherProperties extends ConsumerWidget {
             decimals: 0,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(settleTime: value),
-              );
+                    node.copyWith(settleTime: value),
+                  );
               // Save as default for future nodes
               ref.read(sequencerDefaultsProvider.notifier).updateDitherDefaults(
-                settleTime: value,
-              );
+                    settleTime: value,
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Settle Threshold',
@@ -1970,8 +2053,8 @@ class _DitherProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(settlePixels: value),
-              );
+                    node.copyWith(settlePixels: value),
+                  );
             },
           ),
         ),
@@ -2000,7 +2083,6 @@ class _WarmCameraProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Warming Rate',
@@ -2013,12 +2095,11 @@ class _WarmCameraProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(ratePerMin: value),
-              );
+                    node.copyWith(ratePerMin: value),
+                  );
             },
           ),
         ),
-
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -2066,7 +2147,6 @@ class _RotatorProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Target Angle',
@@ -2079,12 +2159,11 @@ class _RotatorProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(targetAngle: value),
-              );
+                    node.copyWith(targetAngle: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Relative Movement',
@@ -2093,15 +2172,14 @@ class _RotatorProperties extends ConsumerWidget {
             value: node.relative,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(relative: value),
-              );
+                    node.copyWith(relative: value),
+                  );
             },
           ),
         ),
-
         Text(
-          node.relative 
-              ? 'Rotates relative to current position' 
+          node.relative
+              ? 'Rotates relative to current position'
               : 'Moves to absolute position angle',
           style: TextStyle(
             fontSize: 11,
@@ -2134,7 +2212,6 @@ class _SlewProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Use Target Coordinates',
@@ -2143,12 +2220,11 @@ class _SlewProperties extends ConsumerWidget {
             value: node.useTargetCoords,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(useTargetCoords: value),
-              );
+                    node.copyWith(useTargetCoords: value),
+                  );
             },
           ),
         ),
-
         if (!node.useTargetCoords) ...[
           const SizedBox(height: 8),
           Row(
@@ -2166,8 +2242,8 @@ class _SlewProperties extends ConsumerWidget {
                     decimals: 4,
                     onChanged: (value) {
                       ref.read(currentSequenceProvider.notifier).updateNode(
-                        node.copyWith(customRa: value),
-                      );
+                            node.copyWith(customRa: value),
+                          );
                     },
                   ),
                 ),
@@ -2186,8 +2262,8 @@ class _SlewProperties extends ConsumerWidget {
                     decimals: 4,
                     onChanged: (value) {
                       ref.read(currentSequenceProvider.notifier).updateNode(
-                        node.copyWith(customDec: value),
-                      );
+                            node.copyWith(customDec: value),
+                          );
                     },
                   ),
                 ),
@@ -2195,13 +2271,12 @@ class _SlewProperties extends ConsumerWidget {
             ],
           ),
         ],
-
         if (node.useTargetCoords) ...[
           Builder(
             builder: (context) {
               final sequence = ref.watch(currentSequenceProvider);
               TargetHeaderNode? targetGroup;
-              
+
               if (sequence != null) {
                 // Try to find parent target group first
                 try {
@@ -2212,17 +2287,17 @@ class _SlewProperties extends ConsumerWidget {
                 } catch (e) {
                   // No direct parent found
                 }
-                
+
                 // If no direct parent, use first target group in sequence
                 if (targetGroup == null && sequence.targetHeaders.isNotEmpty) {
                   targetGroup = sequence.targetHeaders.first;
                 }
               }
-              
+
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: targetGroup != null 
+                  color: targetGroup != null
                       ? colors.success.withValues(alpha: 0.1)
                       : colors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -2230,9 +2305,12 @@ class _SlewProperties extends ConsumerWidget {
                 child: Row(
                   children: [
                     Icon(
-                      targetGroup != null ? LucideIcons.checkCircle : LucideIcons.alertCircle,
+                      targetGroup != null
+                          ? LucideIcons.checkCircle
+                          : LucideIcons.alertCircle,
                       size: 14,
-                      color: targetGroup != null ? colors.success : colors.warning,
+                      color:
+                          targetGroup != null ? colors.success : colors.warning,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -2242,7 +2320,9 @@ class _SlewProperties extends ConsumerWidget {
                             : 'No target group found in sequence',
                         style: TextStyle(
                           fontSize: 11,
-                          color: targetGroup != null ? colors.success : colors.warning,
+                          color: targetGroup != null
+                              ? colors.success
+                              : colors.warning,
                         ),
                       ),
                     ),
@@ -2277,7 +2357,6 @@ class _WaitTimeProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Wait For',
@@ -2289,17 +2368,18 @@ class _WaitTimeProperties extends ConsumerWidget {
             onChanged: (value) {
               if (value == 'twilight') {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(waitForTwilight: TwilightType.astronomical, waitUntil: null),
-                );
+                      node.copyWith(
+                          waitForTwilight: TwilightType.astronomical,
+                          waitUntil: null),
+                    );
               } else {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(waitForTwilight: null),
-                );
+                      node.copyWith(waitForTwilight: null),
+                    );
               }
             },
           ),
         ),
-
         if (node.waitForTwilight != null) ...[
           _PropertyField(
             colors: colors,
@@ -2310,20 +2390,22 @@ class _WaitTimeProperties extends ConsumerWidget {
               items: TwilightType.values,
               labelBuilder: (t) {
                 switch (t) {
-                  case TwilightType.civil: return 'Civil (-6°)';
-                  case TwilightType.nautical: return 'Nautical (-12°)';
-                  case TwilightType.astronomical: return 'Astronomical (-18°)';
+                  case TwilightType.civil:
+                    return 'Civil (-6°)';
+                  case TwilightType.nautical:
+                    return 'Nautical (-12°)';
+                  case TwilightType.astronomical:
+                    return 'Astronomical (-18°)';
                 }
               },
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(waitForTwilight: value),
-                );
+                      node.copyWith(waitForTwilight: value),
+                    );
               },
             ),
           ),
         ],
-
         if (node.waitForTwilight == null) ...[
           _PropertyField(
             colors: colors,
@@ -2336,17 +2418,19 @@ class _WaitTimeProperties extends ConsumerWidget {
                 );
                 if (time != null) {
                   final now = DateTime.now();
-                  var targetDate = DateTime(now.year, now.month, now.day, time.hour, time.minute);
+                  var targetDate = DateTime(
+                      now.year, now.month, now.day, time.hour, time.minute);
                   if (targetDate.isBefore(now)) {
                     targetDate = targetDate.add(const Duration(days: 1));
                   }
                   ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(waitUntil: targetDate),
-                  );
+                        node.copyWith(waitUntil: targetDate),
+                      );
                 }
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
                   borderRadius: BorderRadius.circular(8),
@@ -2362,7 +2446,9 @@ class _WaitTimeProperties extends ConsumerWidget {
                           : 'Select time...',
                       style: TextStyle(
                         fontSize: 13,
-                        color: node.waitUntil != null ? colors.textPrimary : colors.textMuted,
+                        color: node.waitUntil != null
+                            ? colors.textPrimary
+                            : colors.textMuted,
                       ),
                     ),
                   ],
@@ -2396,7 +2482,6 @@ class _ConditionalProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Condition Type',
@@ -2406,24 +2491,31 @@ class _ConditionalProperties extends ConsumerWidget {
             items: ConditionalType.values,
             labelBuilder: (t) {
               switch (t) {
-                case ConditionalType.always: return 'Always Execute';
-                case ConditionalType.altitudeAbove: return 'Altitude Above';
-                case ConditionalType.timeAfter: return 'Time After';
-                case ConditionalType.guidingRmsBelow: return 'Guiding RMS Below';
-                case ConditionalType.hfrBelow: return 'HFR Below';
-                case ConditionalType.weatherSafe: return 'Weather is Safe';
-                case ConditionalType.moonSeparationAbove: return 'Moon Separation Above';
-                case ConditionalType.safetyMonitorSafe: return 'Safety Monitor Safe';
+                case ConditionalType.always:
+                  return 'Always Execute';
+                case ConditionalType.altitudeAbove:
+                  return 'Altitude Above';
+                case ConditionalType.timeAfter:
+                  return 'Time After';
+                case ConditionalType.guidingRmsBelow:
+                  return 'Guiding RMS Below';
+                case ConditionalType.hfrBelow:
+                  return 'HFR Below';
+                case ConditionalType.weatherSafe:
+                  return 'Weather is Safe';
+                case ConditionalType.moonSeparationAbove:
+                  return 'Moon Separation Above';
+                case ConditionalType.safetyMonitorSafe:
+                  return 'Safety Monitor Safe';
               }
             },
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(conditionType: value),
-              );
+                    node.copyWith(conditionType: value),
+                  );
             },
           ),
         ),
-
         if (node.conditionType == ConditionalType.altitudeAbove ||
             node.conditionType == ConditionalType.moonSeparationAbove)
           _PropertyField(
@@ -2438,12 +2530,11 @@ class _ConditionalProperties extends ConsumerWidget {
               decimals: 0,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(thresholdValue: value),
-                );
+                      node.copyWith(thresholdValue: value),
+                    );
               },
             ),
           ),
-
         if (node.conditionType == ConditionalType.guidingRmsBelow)
           _PropertyField(
             colors: colors,
@@ -2457,12 +2548,11 @@ class _ConditionalProperties extends ConsumerWidget {
               decimals: 1,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(thresholdValue: value),
-                );
+                      node.copyWith(thresholdValue: value),
+                    );
               },
             ),
           ),
-
         if (node.conditionType == ConditionalType.hfrBelow)
           _PropertyField(
             colors: colors,
@@ -2476,8 +2566,8 @@ class _ConditionalProperties extends ConsumerWidget {
               decimals: 1,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(thresholdValue: value),
-                );
+                      node.copyWith(thresholdValue: value),
+                    );
               },
             ),
           ),
@@ -2506,7 +2596,6 @@ class _ParallelProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Required Successes',
@@ -2517,12 +2606,11 @@ class _ParallelProperties extends ConsumerWidget {
             max: 10,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(requiredSuccesses: value.toInt()),
-              );
+                    node.copyWith(requiredSuccesses: value.toInt()),
+                  );
             },
           ),
         ),
-
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -2571,7 +2659,6 @@ class _RecoveryProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Trigger Type',
@@ -2582,23 +2669,29 @@ class _RecoveryProperties extends ConsumerWidget {
             labelBuilder: (t) {
               if (t == null) return 'Any Error';
               switch (t) {
-                case TriggerType.hfrDegraded: return 'HFR Degraded';
-                case TriggerType.meridianFlip: return 'Meridian Flip Needed';
-                case TriggerType.guidingFailed: return 'Guiding Failed';
-                case TriggerType.altitudeLimit: return 'Altitude Limit';
-                case TriggerType.weatherUnsafe: return 'Weather Unsafe';
-                case TriggerType.temperatureShift: return 'Temperature Shift';
-                case TriggerType.filterChange: return 'Filter Change';
+                case TriggerType.hfrDegraded:
+                  return 'HFR Degraded';
+                case TriggerType.meridianFlip:
+                  return 'Meridian Flip Needed';
+                case TriggerType.guidingFailed:
+                  return 'Guiding Failed';
+                case TriggerType.altitudeLimit:
+                  return 'Altitude Limit';
+                case TriggerType.weatherUnsafe:
+                  return 'Weather Unsafe';
+                case TriggerType.temperatureShift:
+                  return 'Temperature Shift';
+                case TriggerType.filterChange:
+                  return 'Filter Change';
               }
             },
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(triggerType: value),
-              );
+                    node.copyWith(triggerType: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Recovery Action',
@@ -2608,23 +2701,29 @@ class _RecoveryProperties extends ConsumerWidget {
             items: RecoveryActionType.values,
             labelBuilder: (a) {
               switch (a) {
-                case RecoveryActionType.continueExecution: return 'Continue';
-                case RecoveryActionType.pause: return 'Pause Sequence';
-                case RecoveryActionType.autofocus: return 'Run Autofocus';
-                case RecoveryActionType.nextTarget: return 'Skip to Next Target';
-                case RecoveryActionType.retry: return 'Retry Operation';
-                case RecoveryActionType.parkAndAbort: return 'Park & Abort';
-                case RecoveryActionType.customBranch: return 'Custom Branch';
+                case RecoveryActionType.continueExecution:
+                  return 'Continue';
+                case RecoveryActionType.pause:
+                  return 'Pause Sequence';
+                case RecoveryActionType.autofocus:
+                  return 'Run Autofocus';
+                case RecoveryActionType.nextTarget:
+                  return 'Skip to Next Target';
+                case RecoveryActionType.retry:
+                  return 'Retry Operation';
+                case RecoveryActionType.parkAndAbort:
+                  return 'Park & Abort';
+                case RecoveryActionType.customBranch:
+                  return 'Custom Branch';
               }
             },
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(recoveryAction: value),
-              );
+                    node.copyWith(recoveryAction: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Max Retries',
@@ -2635,12 +2734,11 @@ class _RecoveryProperties extends ConsumerWidget {
             max: 10,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(maxRetries: value.toInt()),
-              );
+                    node.copyWith(maxRetries: value.toInt()),
+                  );
             },
           ),
         ),
-
         if (node.triggerType == TriggerType.hfrDegraded)
           _PropertyField(
             colors: colors,
@@ -2654,12 +2752,11 @@ class _RecoveryProperties extends ConsumerWidget {
               decimals: 1,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(triggerThreshold: value),
-                );
+                      node.copyWith(triggerThreshold: value),
+                    );
               },
             ),
           ),
-
         if (node.triggerType == TriggerType.altitudeLimit)
           _PropertyField(
             colors: colors,
@@ -2673,8 +2770,8 @@ class _RecoveryProperties extends ConsumerWidget {
               decimals: 0,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  node.copyWith(triggerThreshold: value),
-                );
+                      node.copyWith(triggerThreshold: value),
+                    );
               },
             ),
           ),
@@ -2703,7 +2800,6 @@ class _NotificationProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Title',
@@ -2713,12 +2809,11 @@ class _NotificationProperties extends ConsumerWidget {
             hint: 'Notification title',
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(title: value),
-              );
+                    node.copyWith(title: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Message',
@@ -2728,12 +2823,11 @@ class _NotificationProperties extends ConsumerWidget {
             hint: 'Notification message',
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(message: value),
-              );
+                    node.copyWith(message: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Level',
@@ -2743,16 +2837,20 @@ class _NotificationProperties extends ConsumerWidget {
             items: NotificationLevel.values,
             labelBuilder: (l) {
               switch (l) {
-                case NotificationLevel.info: return 'Info';
-                case NotificationLevel.warning: return 'Warning';
-                case NotificationLevel.error: return 'Error';
-                case NotificationLevel.success: return 'Success';
+                case NotificationLevel.info:
+                  return 'Info';
+                case NotificationLevel.warning:
+                  return 'Warning';
+                case NotificationLevel.error:
+                  return 'Error';
+                case NotificationLevel.success:
+                  return 'Success';
               }
             },
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(level: value),
-              );
+                    node.copyWith(level: value),
+                  );
             },
           ),
         ),
@@ -2781,7 +2879,6 @@ class _ScriptProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Script Path',
@@ -2791,12 +2888,11 @@ class _ScriptProperties extends ConsumerWidget {
             hint: 'Path to script file',
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(scriptPath: value),
-              );
+                    node.copyWith(scriptPath: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Arguments',
@@ -2806,12 +2902,15 @@ class _ScriptProperties extends ConsumerWidget {
             hint: 'Space-separated arguments',
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(arguments: value.split(' ').where((s) => s.isNotEmpty).toList()),
-              );
+                    node.copyWith(
+                        arguments: value
+                            .split(' ')
+                            .where((s) => s.isNotEmpty)
+                            .toList()),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Timeout',
@@ -2823,12 +2922,11 @@ class _ScriptProperties extends ConsumerWidget {
             max: 3600,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(timeoutSecs: value.toInt()),
-              );
+                    node.copyWith(timeoutSecs: value.toInt()),
+                  );
             },
           ),
         ),
-
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -2869,10 +2967,12 @@ class _SimpleInstructionInfo extends StatelessWidget {
     final IconData icon;
 
     if (node is ParkNode) {
-      description = 'Parks the mount at its home position. The mount will not track after parking.';
+      description =
+          'Parks the mount at its home position. The mount will not track after parking.';
       icon = LucideIcons.parkingCircle;
     } else if (node is UnparkNode) {
-      description = 'Unparks the mount and enables tracking. Required before slewing or imaging.';
+      description =
+          'Unparks the mount and enables tracking. Required before slewing or imaging.';
       icon = LucideIcons.unlock;
     } else {
       description = 'This instruction has no additional settings.';
@@ -2925,7 +3025,6 @@ class _MeridianFlipProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Minutes Past Meridian',
@@ -2938,12 +3037,11 @@ class _MeridianFlipProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(minutesPastMeridian: value),
-              );
+                    node.copyWith(minutesPastMeridian: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Pause Guiding',
@@ -2952,12 +3050,11 @@ class _MeridianFlipProperties extends ConsumerWidget {
             value: node.pauseGuiding,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(pauseGuiding: value),
-              );
+                    node.copyWith(pauseGuiding: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Auto Center After Flip',
@@ -2966,12 +3063,11 @@ class _MeridianFlipProperties extends ConsumerWidget {
             value: node.autoCenter,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(autoCenter: value),
-              );
+                    node.copyWith(autoCenter: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Settle Time',
@@ -2984,12 +3080,11 @@ class _MeridianFlipProperties extends ConsumerWidget {
             decimals: 0,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(settleTime: value),
-              );
+                    node.copyWith(settleTime: value),
+                  );
             },
           ),
         ),
-
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -3033,17 +3128,20 @@ class _DomeProperties extends ConsumerWidget {
 
     if (node is OpenDomeNode) {
       title = 'Open Dome Settings';
-      description = 'Opens the dome shutter to allow imaging. If not using shutter-only mode, will also rotate dome to tracking position.';
+      description =
+          'Opens the dome shutter to allow imaging. If not using shutter-only mode, will also rotate dome to tracking position.';
       icon = LucideIcons.doorOpen;
       shutterOnly = (node as OpenDomeNode).shutterOnly;
     } else if (node is CloseDomeNode) {
       title = 'Close Dome Settings';
-      description = 'Closes the dome shutter to protect equipment. Typically used at end of session or when weather becomes unsafe.';
+      description =
+          'Closes the dome shutter to protect equipment. Typically used at end of session or when weather becomes unsafe.';
       icon = LucideIcons.doorClosed;
       shutterOnly = (node as CloseDomeNode).shutterOnly;
     } else {
       title = 'Park Dome Settings';
-      description = 'Parks the dome at its home position. The dome will stop tracking the telescope.';
+      description =
+          'Parks the dome at its home position. The dome will stop tracking the telescope.';
       icon = LucideIcons.parkingCircle;
       shutterOnly = (node as ParkDomeNode).shutterOnly;
     }
@@ -3060,7 +3158,6 @@ class _DomeProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Shutter Only',
@@ -3070,21 +3167,20 @@ class _DomeProperties extends ConsumerWidget {
             onChanged: (value) {
               if (node is OpenDomeNode) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  (node as OpenDomeNode).copyWith(shutterOnly: value),
-                );
+                      (node as OpenDomeNode).copyWith(shutterOnly: value),
+                    );
               } else if (node is CloseDomeNode) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  (node as CloseDomeNode).copyWith(shutterOnly: value),
-                );
+                      (node as CloseDomeNode).copyWith(shutterOnly: value),
+                    );
               } else if (node is ParkDomeNode) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                  (node as ParkDomeNode).copyWith(shutterOnly: value),
-                );
+                      (node as ParkDomeNode).copyWith(shutterOnly: value),
+                    );
               }
             },
           ),
         ),
-
         Text(
           shutterOnly
               ? 'Only operates the shutter, dome will not rotate'
@@ -3095,9 +3191,7 @@ class _DomeProperties extends ConsumerWidget {
             fontStyle: FontStyle.italic,
           ),
         ),
-
         const SizedBox(height: 16),
-
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -3146,7 +3240,6 @@ class _PolarAlignmentProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-
         _PropertyField(
           colors: colors,
           label: 'Hemisphere',
@@ -3157,12 +3250,11 @@ class _PolarAlignmentProperties extends ConsumerWidget {
             labelBuilder: (v) => v ? 'Northern' : 'Southern',
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(isNorth: value),
-              );
+                    node.copyWith(isNorth: value),
+                  );
             },
           ),
         ),
-
         Row(
           children: [
             Expanded(
@@ -3178,8 +3270,8 @@ class _PolarAlignmentProperties extends ConsumerWidget {
                   decimals: 1,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(exposureDuration: value),
-                    );
+                          node.copyWith(exposureDuration: value),
+                        );
                   },
                 ),
               ),
@@ -3196,15 +3288,14 @@ class _PolarAlignmentProperties extends ConsumerWidget {
                   max: 4,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(binning: value.toInt()),
-                    );
+                          node.copyWith(binning: value.toInt()),
+                        );
                   },
                 ),
               ),
             ),
           ],
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Start Altitude',
@@ -3217,12 +3308,11 @@ class _PolarAlignmentProperties extends ConsumerWidget {
             decimals: 0,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(startAltitude: value),
-              );
+                    node.copyWith(startAltitude: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Rotation Step',
@@ -3235,12 +3325,11 @@ class _PolarAlignmentProperties extends ConsumerWidget {
             decimals: 0,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(rotationStep: value),
-              );
+                    node.copyWith(rotationStep: value),
+                  );
             },
           ),
         ),
-
         Row(
           children: [
             Expanded(
@@ -3254,8 +3343,8 @@ class _PolarAlignmentProperties extends ConsumerWidget {
                   max: 1000,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(gain: value.toInt()),
-                    );
+                          node.copyWith(gain: value.toInt()),
+                        );
                   },
                 ),
               ),
@@ -3272,15 +3361,14 @@ class _PolarAlignmentProperties extends ConsumerWidget {
                   max: 1000,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(offset: value.toInt()),
-                    );
+                          node.copyWith(offset: value.toInt()),
+                        );
                   },
                 ),
               ),
             ),
           ],
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Start From Current Position',
@@ -3289,12 +3377,11 @@ class _PolarAlignmentProperties extends ConsumerWidget {
             value: node.startFromCurrent,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(startFromCurrent: value),
-              );
+                    node.copyWith(startFromCurrent: value),
+                  );
             },
           ),
         ),
-
         _PropertyField(
           colors: colors,
           label: 'Manual Slew Mode',
@@ -3303,12 +3390,11 @@ class _PolarAlignmentProperties extends ConsumerWidget {
             value: node.manualSlew,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(manualSlew: value),
-              );
+                    node.copyWith(manualSlew: value),
+                  );
             },
           ),
         ),
-
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -3379,3 +3465,499 @@ class _InstructionSetInfo extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// TIMING SECTION
+// ============================================================================
+
+/// Formats a Duration into a human-readable string like "5m 30s", "1h 20m", etc.
+String _formatDurationNice(Duration duration) {
+  if (duration.inSeconds < 60) {
+    return '${duration.inSeconds}s';
+  }
+  if (duration.inMinutes < 60) {
+    final mins = duration.inMinutes;
+    final secs = duration.inSeconds % 60;
+    if (secs == 0) {
+      return '${mins}m';
+    }
+    return '${mins}m ${secs}s';
+  }
+  final hours = duration.inHours;
+  final mins = duration.inMinutes % 60;
+  if (mins == 0) {
+    return '${hours}h';
+  }
+  return '${hours}h ${mins}m';
+}
+
+/// Checks if a node type has a meaningful duration that should be displayed.
+bool _hasMeaningfulDuration(SequenceNode node) {
+  return node is ExposureNode ||
+      node is AutofocusNode ||
+      node is DelayNode ||
+      node is WaitTimeNode ||
+      node is SlewNode ||
+      node is CenterNode ||
+      node is MeridianFlipNode ||
+      node is DitherNode ||
+      node is FilterChangeNode ||
+      node is RotatorNode ||
+      node is ParkNode ||
+      node is UnparkNode ||
+      node is CoolCameraNode ||
+      node is WarmCameraNode ||
+      node is StartGuidingNode ||
+      node is StopGuidingNode ||
+      node is OpenDomeNode ||
+      node is CloseDomeNode ||
+      node is ParkDomeNode ||
+      node is PolarAlignmentNode ||
+      node is ScriptNode;
+}
+
+/// Widget that displays timing information for a sequence node.
+class _TimingSection extends ConsumerWidget {
+  final NightshadeColors colors;
+  final SequenceNode node;
+
+  const _TimingSection({
+    required this.colors,
+    required this.node,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sequence = ref.watch(currentSequenceProvider);
+    if (sequence == null) return const SizedBox.shrink();
+
+    // Calculate timing for this node
+    final estimator = SequenceTimeEstimator();
+    final timings = estimator.estimateSequenceTiming(sequence, DateTime.now());
+    final nodeTiming = timings.where((t) => t.nodeId == node.id).firstOrNull;
+
+    // Calculate total sequence duration for percentage
+    final totalDuration =
+        estimator.estimateTotalDuration(sequence, DateTime.now());
+
+    // Get node-specific duration details
+    final durationDetails = _getDurationDetails();
+
+    // If we have no timing info and no details, don't show the section
+    if (nodeTiming == null && durationDetails == null) {
+      return const SizedBox.shrink();
+    }
+
+    final duration = nodeTiming?.duration ?? Duration.zero;
+    final percentage = totalDuration.inSeconds > 0
+        ? (duration.inSeconds / totalDuration.inSeconds * 100)
+        : 0.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header with divider line
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 1,
+                color: colors.border,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                'Timing',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textMuted,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Container(
+                height: 1,
+                color: colors.border,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Node-specific duration details (if any)
+        if (durationDetails != null) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final detail in durationDetails)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          detail.label,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          detail.value,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: colors.textPrimary,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Summary timing info
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Icon(LucideIcons.clock, size: 14, color: colors.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Duration:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _formatDurationNice(duration),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colors.primary,
+                    ),
+                  ),
+                ],
+              ),
+              if (totalDuration.inSeconds > 0 && percentage > 0.1) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(LucideIcons.pieChart,
+                        size: 14, color: colors.textMuted),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Contributes:',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${percentage.toStringAsFixed(1)}% of total',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  /// Returns node-specific duration breakdown details, or null if not applicable.
+  List<_DurationDetail>? _getDurationDetails() {
+    if (node is ExposureNode) {
+      final exposure = node as ExposureNode;
+      final exposureTotal = exposure.durationSecs * exposure.count;
+      // Estimate download overhead at ~2 seconds per frame
+      final downloadOverhead = exposure.count * 2.0;
+      final total = exposureTotal + downloadOverhead;
+
+      return [
+        _DurationDetail(
+          label: 'Exposures',
+          value:
+              '${exposure.count} x ${exposure.durationSecs.toStringAsFixed(exposure.durationSecs == exposure.durationSecs.truncate() ? 0 : 1)}s',
+        ),
+        _DurationDetail(
+          label: 'Download overhead',
+          value: '~${downloadOverhead.toStringAsFixed(0)}s',
+        ),
+        _DurationDetail(
+          label: 'Total',
+          value: _formatDurationNice(Duration(seconds: total.round())),
+        ),
+      ];
+    }
+
+    if (node is AutofocusNode) {
+      final autofocus = node as AutofocusNode;
+      // Calculate: (stepsOut * 2 + 1) data points, each with exposuresPerPoint exposures
+      final dataPoints = autofocus.stepsOut * 2 + 1;
+      final totalExposures = dataPoints * autofocus.exposuresPerPoint;
+      final totalSecs = totalExposures * autofocus.exposureDuration;
+
+      return [
+        _DurationDetail(
+          label: 'Data points',
+          value: '$dataPoints',
+        ),
+        _DurationDetail(
+          label: 'Exposures/point',
+          value:
+              '${autofocus.exposuresPerPoint} x ${autofocus.exposureDuration}s',
+        ),
+        _DurationDetail(
+          label: 'Est. duration',
+          value: _formatDurationNice(Duration(seconds: totalSecs.round())),
+        ),
+      ];
+    }
+
+    if (node is DelayNode) {
+      final delay = node as DelayNode;
+      return [
+        _DurationDetail(
+          label: 'Delay',
+          value: _formatDurationNice(
+              Duration(milliseconds: (delay.seconds * 1000).round())),
+        ),
+      ];
+    }
+
+    if (node is WaitTimeNode) {
+      final wait = node as WaitTimeNode;
+      if (wait.waitUntil != null) {
+        return [
+          _DurationDetail(
+            label: 'Wait until',
+            value:
+                '${wait.waitUntil!.hour.toString().padLeft(2, '0')}:${wait.waitUntil!.minute.toString().padLeft(2, '0')}',
+          ),
+        ];
+      } else if (wait.waitForTwilight != null) {
+        final twilightName = switch (wait.waitForTwilight!) {
+          TwilightType.civil => 'Civil twilight',
+          TwilightType.nautical => 'Nautical twilight',
+          TwilightType.astronomical => 'Astronomical twilight',
+        };
+        return [
+          _DurationDetail(
+            label: 'Wait for',
+            value: twilightName,
+          ),
+        ];
+      }
+    }
+
+    if (node is SlewNode) {
+      return const [
+        _DurationDetail(
+          label: 'Est. slew time',
+          value: '~30s',
+        ),
+      ];
+    }
+
+    if (node is CenterNode) {
+      final center = node as CenterNode;
+      return [
+        const _DurationDetail(
+          label: 'Est. centering time',
+          value: '~30s',
+        ),
+        _DurationDetail(
+          label: 'Max attempts',
+          value: '${center.maxAttempts}',
+        ),
+      ];
+    }
+
+    if (node is MeridianFlipNode) {
+      final flip = node as MeridianFlipNode;
+      var totalSecs = 120.0; // Base flip time
+      if (flip.autoCenter) {
+        totalSecs += 30; // Add centering time
+      }
+      totalSecs += flip.settleTime;
+
+      return [
+        const _DurationDetail(
+          label: 'Flip duration',
+          value: '~2m',
+        ),
+        if (flip.autoCenter)
+          const _DurationDetail(
+            label: 'Auto-center',
+            value: '~30s',
+          ),
+        _DurationDetail(
+          label: 'Settle time',
+          value: '${flip.settleTime.toStringAsFixed(0)}s',
+        ),
+        _DurationDetail(
+          label: 'Est. total',
+          value: _formatDurationNice(Duration(seconds: totalSecs.round())),
+        ),
+      ];
+    }
+
+    if (node is CoolCameraNode) {
+      final cool = node as CoolCameraNode;
+      return [
+        _DurationDetail(
+          label: 'Max cooling time',
+          value: '${(cool.durationMins ?? 10).toStringAsFixed(0)}m',
+        ),
+      ];
+    }
+
+    if (node is WarmCameraNode) {
+      final warm = node as WarmCameraNode;
+      // Estimate: 30C delta at given rate
+      final mins = 30.0 / warm.ratePerMin;
+      return [
+        _DurationDetail(
+          label: 'Warming rate',
+          value: '${warm.ratePerMin}C/min',
+        ),
+        _DurationDetail(
+          label: 'Est. duration',
+          value: '~${mins.round()}m',
+        ),
+      ];
+    }
+
+    if (node is DitherNode) {
+      final dither = node as DitherNode;
+      return [
+        _DurationDetail(
+          label: 'Settle time',
+          value: '${dither.settleTime.toStringAsFixed(0)}s',
+        ),
+      ];
+    }
+
+    if (node is FilterChangeNode) {
+      return const [
+        _DurationDetail(
+          label: 'Est. change time',
+          value: '~10s',
+        ),
+      ];
+    }
+
+    if (node is RotatorNode) {
+      return const [
+        _DurationDetail(
+          label: 'Est. rotation time',
+          value: '~15s',
+        ),
+      ];
+    }
+
+    if (node is ParkNode || node is UnparkNode) {
+      return const [
+        _DurationDetail(
+          label: 'Est. time',
+          value: '~30s',
+        ),
+      ];
+    }
+
+    if (node is StartGuidingNode) {
+      final guiding = node as StartGuidingNode;
+      return [
+        _DurationDetail(
+          label: 'Settle timeout',
+          value: '${guiding.settleTimeout.toStringAsFixed(0)}s',
+        ),
+      ];
+    }
+
+    if (node is StopGuidingNode) {
+      return const [
+        _DurationDetail(
+          label: 'Est. time',
+          value: '~2s',
+        ),
+      ];
+    }
+
+    if (node is OpenDomeNode || node is CloseDomeNode || node is ParkDomeNode) {
+      return const [
+        _DurationDetail(
+          label: 'Est. time',
+          value: '~1m',
+        ),
+      ];
+    }
+
+    if (node is PolarAlignmentNode) {
+      return const [
+        _DurationDetail(
+          label: 'Est. time',
+          value: '~5m',
+        ),
+        _DurationDetail(
+          label: 'Note',
+          value: '3 plate solves + adjustment',
+        ),
+      ];
+    }
+
+    if (node is ScriptNode) {
+      final script = node as ScriptNode;
+      return [
+        _DurationDetail(
+          label: 'Timeout',
+          value: '${script.timeoutSecs ?? 30}s',
+        ),
+      ];
+    }
+
+    return null;
+  }
+}
+
+/// Helper class for duration detail display.
+class _DurationDetail {
+  final String label;
+  final String value;
+
+  const _DurationDetail({
+    required this.label,
+    required this.value,
+  });
+}

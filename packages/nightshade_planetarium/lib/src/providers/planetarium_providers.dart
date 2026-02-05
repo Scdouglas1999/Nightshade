@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../celestial_object.dart';
@@ -1254,24 +1255,10 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
           return idMatch || nameMatch || catalogMatch || normalizedIdMatch || normalizedNameMatch || normalizedCatalogMatch;
         }).toList();
         
-        print('Search for "$query" (norm: "$normalizedQuery") found ${matchingDsos.length} DSOs');
-        if (matchingDsos.isEmpty) {
-           // Debug specific missing objects
-           if (normalizedQuery.contains('ic410')) {
-             print('DEBUG: IC 410 not found. Checking first 5 objects in DB:');
-             for (var i = 0; i < 5 && i < loadedDsos.length; i++) {
-               print('${loadedDsos[i].id} / ${loadedDsos[i].name} / ${loadedDsos[i].catalogIds}');
-             }
-             // Check if it exists at all
-             final exists = loadedDsos.any((o) => o.id == 'IC410' || o.name == 'IC410');
-             print('DEBUG: Does IC410 exist in DB? $exists');
-           }
-        }
-        
         results.addAll(matchingDsos);
       } catch (e) {
         // DSO search failed, continue with what we have
-        print('DSO search error: $e');
+        debugPrint('[Planetarium] DSO search error: $e');
       }
       
       // Sort by relevance (exact matches first, then by brightness)

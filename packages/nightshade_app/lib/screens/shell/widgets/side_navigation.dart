@@ -72,6 +72,11 @@ class SideNavigation extends StatelessWidget {
       label: 'Weather',
       description: 'Cloud radar',
     ),
+    NavItem(
+      icon: LucideIcons.lightbulb,
+      label: 'Suggestions',
+      description: "Tonight's targets",
+    ),
   ];
 
   Widget _buildNavButton(

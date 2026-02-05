@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:math' as math;
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' hide EventCategory, Phd2GuideStats, Phd2StarImage, Phd2CalibrationData;
 import '../backend/nightshade_backend.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/phd2_models.dart';
+import '../services/logging_service.dart';
 import 'backend_provider.dart';
 import 'equipment_provider.dart';
 
@@ -32,6 +32,7 @@ final guideStatsProvider = StateNotifierProvider<GuideStatsNotifier, Phd2GuideSt
 class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
   final Ref ref;
   StreamSubscription? _sub;
+  LoggingService get _logger => ref.read(loggingServiceProvider);
 
   // Rolling RMS calculators for accurate statistics
   final _rmsRaCalculator = RollingRmsCalculator(windowSize: 100);
@@ -53,15 +54,19 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
   void _init() {
     final backend = ref.read(backendProvider);
     _sub = backend.eventStream.listen((event) {
+      if (!mounted) return; // Guard against updates after disposal
       if (event.category == EventCategory.guiding) {
         if (event.eventType == 'GuideStep') {
+          _logger.debug('Received GuideStep event', source: 'GuideStatsNotifier');
           _handleGuideStep(event.data);
         } else if (event.eventType == 'GuideStats') {
           // Update SNR and star mass from separate stats event
           final snr = (event.data['SNR'] ?? 0).toDouble();
           final starMass = (event.data['StarMass'] ?? 0).toDouble();
+          _logger.debug('Received GuideStats: SNR=$snr, StarMass=$starMass', source: 'GuideStatsNotifier');
           updateStarData(snr, starMass);
         } else if (event.eventType == 'GuidingStopped') {
+          _logger.debug('Received GuidingStopped', source: 'GuideStatsNotifier');
           reset();
         }
       }
@@ -157,14 +162,17 @@ class GuideGraphNotifier extends StateNotifier<List<GuideGraphPoint>> {
   StreamSubscription? _sub;
   static const int maxPoints = 100;
   final Queue<GuideGraphPoint> _buffer = Queue<GuideGraphPoint>();
+  LoggingService get _logger => ref.read(loggingServiceProvider);
 
   GuideGraphNotifier(this.ref) : super([]) {
     final backend = ref.read(backendProvider);
     _sub = backend.eventStream.listen((event) {
+      if (!mounted) return; // Guard against updates after disposal
       if (event.category == EventCategory.guiding && event.eventType == 'GuideStep') {
         final json = event.data;
         final ra = (json['RADistanceRaw'] ?? 0).toDouble();
         final dec = (json['DECDistanceRaw'] ?? 0).toDouble();
+        _logger.debug('Adding point: RA=$ra, Dec=$dec', source: 'GuideGraphNotifier');
         addPoint(ra, dec);
       } else if (event.eventType == 'GuidingStopped') {
         // Clear graph when guiding stops for fresh start
@@ -213,6 +221,7 @@ class Phd2Controller {
   final Ref ref;
   final NightshadeBackend backend;
   StreamSubscription? _eventSub;
+  LoggingService get _logger => ref.read(loggingServiceProvider);
 
   Phd2Controller(this.ref, this.backend) {
     _init();
@@ -223,17 +232,21 @@ class Phd2Controller {
     _eventSub = backend.eventStream.listen((event) {
       if (event.category != EventCategory.guiding) return;
 
+      _logger.debug('Received guiding event: ${event.eventType}', source: 'Phd2Controller');
+
       // Update the main GuiderState used by the UI
       final guiderNotifier = ref.read(guiderStateProvider.notifier);
-      
+
       switch (event.eventType) {
         case 'AppState':
           _updateStateFromString(event.data['State']);
           break;
         case 'GuideStep':
+          _logger.debug('Processing GuideStep event', source: 'Phd2Controller');
           _handleGuideStep(event.data);
           break;
         case 'GuideStats':
+          _logger.debug('Processing GuideStats event', source: 'Phd2Controller');
           _handleGuideStats(event.data);
           break;
         case 'GuidingStarted':
@@ -261,7 +274,7 @@ class Phd2Controller {
         case 'SettleDone':
           // Settle complete - return to guiding state
           ref.read(phd2StateProvider.notifier).state = Phd2State.guiding;
-          debugPrint('PHD2: Settle complete');
+          _logger.info('Settle complete', source: 'PHD2');
           break;
         case 'LoopingExposures':
           ref.read(phd2StateProvider.notifier).state = Phd2State.looping;
@@ -270,7 +283,7 @@ class Phd2Controller {
           ref.read(phd2StateProvider.notifier).state = Phd2State.calibrating;
           break;
         case 'CalibrationComplete':
-          debugPrint('PHD2: Calibration complete');
+          _logger.info('Calibration complete', source: 'PHD2');
           ref.read(calibrationStateProvider.notifier)._fetchCalibrationData();
           break;
         // Note: StarSelected is handled by LockPositionNotifier's own event listener
@@ -282,7 +295,7 @@ class Phd2Controller {
       }
       
     }, onError: (err) {
-      debugPrint('PHD2 Controller Event Error: $err');
+      _logger.error('Controller Event Error: $err', source: 'PHD2');
       ref.read(guiderStateProvider.notifier).setDisconnected();
     });
   }
@@ -339,7 +352,7 @@ class Phd2Controller {
     guiderNotifier.setGuiding(false);
 
     // Log the event
-    debugPrint('PHD2: Guide star lost! Guiding paused.');
+    _logger.warning('Guide star lost! Guiding paused.', source: 'PHD2');
 
     // Note: The sequencer can monitor starLostEventProvider to pause/abort
     // or implement automatic recovery logic. For now, we just notify.
@@ -506,12 +519,15 @@ class TargetDisplayHistoryNotifier extends StateNotifier<List<GuideErrorPoint>> 
   final Ref ref;
   StreamSubscription? _sub;
   final Queue<GuideErrorPoint> _buffer = Queue<GuideErrorPoint>();
+  LoggingService get _logger => ref.read(loggingServiceProvider);
 
   TargetDisplayHistoryNotifier(this.ref) : super([]) {
     final backend = ref.read(backendProvider);
     _sub = backend.eventStream.listen((event) {
+      if (!mounted) return;
       if (event.category == EventCategory.guiding &&
           event.eventType == 'GuideStep') {
+        _logger.debug('Received GuideStep event', source: 'TargetDisplayHistoryNotifier');
         final json = event.data;
         final raError = (json['RADistanceRaw'] ?? 0).toDouble();
         final decError = (json['DECDistanceRaw'] ?? 0).toDouble();
@@ -524,6 +540,7 @@ class TargetDisplayHistoryNotifier extends StateNotifier<List<GuideErrorPoint>> 
   }
 
   void _addPoint(double raError, double decError) {
+    if (!mounted) return;
     final point = GuideErrorPoint(
       raError: raError,
       decError: decError,
@@ -563,6 +580,7 @@ final brainParamsProvider =
 class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
   final Ref ref;
   bool _hasFetched = false;
+  LoggingService get _logger => ref.read(loggingServiceProvider);
 
   BrainParamsNotifier(this.ref) : super(const AsyncValue.loading()) {
     // Auto-fetch when PHD2 is connected
@@ -642,7 +660,7 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
         }
       });
     } catch (e) {
-      debugPrint('Failed to set brain param $name: $e');
+      _logger.error('Failed to set brain param $name: $e', source: 'PHD2');
       rethrow;
     }
   }
@@ -663,29 +681,31 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
   final Ref ref;
   StreamSubscription? _sub;
   bool _hasFetched = false;
+  LoggingService get _logger => ref.read(loggingServiceProvider);
 
   CalibrationStateNotifier(this.ref)
       : super(const Phd2CalibrationData()) {
-    debugPrint('PHD2 CalibrationStateNotifier: Initializing...');
+    _logger.debug('CalibrationStateNotifier: Initializing...', source: 'PHD2');
 
     final backend = ref.read(backendProvider);
     _sub = backend.eventStream.listen((event) {
+      if (!mounted) return; // Guard against updates after disposal
       if (event.category == EventCategory.guiding) {
         switch (event.eventType) {
           case 'CalibrationComplete':
-            debugPrint('PHD2: CalibrationComplete event received');
+            _logger.info('CalibrationComplete event received', source: 'PHD2');
             state = state.copyWith(
               isCalibrated: true,
               calibratedAt: DateTime.now(),
             );
             break;
           case 'CalibrationFailed':
-            debugPrint('PHD2: CalibrationFailed event received');
+            _logger.warning('CalibrationFailed event received', source: 'PHD2');
             state = state.copyWith(isCalibrated: false);
             break;
           case 'CalibrationDataFlipped':
             // Calibration was flipped (meridian flip)
-            debugPrint('PHD2: Calibration data flipped');
+            _logger.info('Calibration data flipped', source: 'PHD2');
             break;
         }
       }
@@ -693,12 +713,12 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
 
     // Fetch calibration data when PHD2 connects
     ref.listen<GuiderState>(guiderStateProvider, (previous, next) {
-      debugPrint('PHD2 CalibrationStateNotifier: guiderState changed from ${previous?.connectionState} to ${next.connectionState}');
+      _logger.debug('CalibrationStateNotifier: guiderState changed from ${previous?.connectionState} to ${next.connectionState}', source: 'PHD2');
       if (next.connectionState == DeviceConnectionState.connected && !_hasFetched) {
-        debugPrint('PHD2 CalibrationStateNotifier: PHD2 connected, fetching calibration data...');
+        _logger.debug('CalibrationStateNotifier: PHD2 connected, fetching calibration data...', source: 'PHD2');
         _fetchCalibrationData();
       } else if (next.connectionState == DeviceConnectionState.disconnected) {
-        debugPrint('PHD2 CalibrationStateNotifier: PHD2 disconnected, resetting state');
+        _logger.debug('CalibrationStateNotifier: PHD2 disconnected, resetting state', source: 'PHD2');
         _hasFetched = false;
         state = const Phd2CalibrationData();
       }
@@ -706,9 +726,9 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
 
     // Also check current state on initialization
     final guiderState = ref.read(guiderStateProvider);
-    debugPrint('PHD2 CalibrationStateNotifier: Initial guiderState.connectionState = ${guiderState.connectionState}');
+    _logger.debug('CalibrationStateNotifier: Initial guiderState.connectionState = ${guiderState.connectionState}', source: 'PHD2');
     if (guiderState.connectionState == DeviceConnectionState.connected) {
-      debugPrint('PHD2 CalibrationStateNotifier: Already connected on init, fetching calibration data...');
+      _logger.debug('CalibrationStateNotifier: Already connected on init, fetching calibration data...', source: 'PHD2');
       _fetchCalibrationData();
     }
   }
@@ -722,10 +742,10 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
 
       if (mounted) {
         state = data;
-        debugPrint('PHD2: Fetched calibration data - calibrated: ${data.isCalibrated}');
+        _logger.info('Fetched calibration data - calibrated: ${data.isCalibrated}', source: 'PHD2');
       }
     } catch (e) {
-      debugPrint('PHD2: Failed to fetch calibration data: $e');
+      _logger.error('Failed to fetch calibration data: $e', source: 'PHD2');
     }
   }
 
@@ -768,6 +788,7 @@ class LockPositionNotifier extends StateNotifier<({double x, double y})?> {
   LockPositionNotifier(this.ref) : super(null) {
     final backend = ref.read(backendProvider);
     _sub = backend.eventStream.listen((event) {
+      if (!mounted) return; // Guard against updates after disposal
       if (event.category == EventCategory.guiding) {
         if (event.eventType == 'StarSelected' ||
             event.eventType == 'LockPositionSet') {

@@ -111,14 +111,15 @@ class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
-        FilledButton(
+        NightshadeButton(
           onPressed: _connect,
-          style: FilledButton.styleFrom(backgroundColor: colors.primary),
-          child: const Text('Connect'),
+          label: 'Connect',
         ),
       ],
     );

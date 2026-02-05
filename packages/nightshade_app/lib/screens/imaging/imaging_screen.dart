@@ -16,9 +16,11 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import '../../widgets/annotation_overlay.dart';
 import '../settings/catalog_settings_screen.dart';
 import 'tabs/mount_tab.dart';
+import 'widgets/stretch_controls.dart';
 import '../../widgets/focuser_controls.dart';
 import '../../widgets/filter_wheel_selector.dart';
 import '../../widgets/tutorial_keys/imaging_keys.dart';
+import '../../widgets/contextual_tour_prompt.dart';
 
 /// Provider to check if annotation catalog is installed
 final annotationCatalogInstalledProvider = FutureProvider<bool>((ref) async {
@@ -72,7 +74,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     // Reading the provider creates the AnnotationService instance
     // which sets up the listener for currentImageProvider
     ref.read(annotationServiceProvider);
-    print('[IMAGING] AnnotationService initialized');
+    debugPrint('[Imaging] AnnotationService initialized');
   }
 
   @override
@@ -228,40 +230,48 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
         catalogInstalled.valueOrNull == false &&
         !bannerDismissed;
 
-    return Column(
-      children: [
-        // Annotation catalog banner
-        if (showBanner)
-          _AnnotationCatalogBanner(
-            colors: colors,
-            onDismiss: () => ref
-                .read(annotationBannerDismissedProvider.notifier)
-                .state = true,
-            onSetup: () {
-              // Show catalog settings dialog
-              showDialog(
-                context: context,
-                builder: (context) => Dialog(
-                  child: ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(maxWidth: 800, maxHeight: 700),
-                    child: const CatalogSettingsScreen(),
+    return ContextualTourPrompt(
+      screenId: 'imaging',
+      tourCategory: TutorialCategory.imagingTour,
+      title: 'Imaging Tour',
+      description: 'Learn how to capture, preview, and manage your images.',
+      durationMinutes: 4,
+      alignment: Alignment.bottomRight,
+      child: Column(
+        children: [
+          // Annotation catalog banner
+          if (showBanner)
+            _AnnotationCatalogBanner(
+              colors: colors,
+              onDismiss: () => ref
+                  .read(annotationBannerDismissedProvider.notifier)
+                  .state = true,
+              onSetup: () {
+                // Show catalog settings dialog
+                showDialog(
+                  context: context,
+                  builder: (context) => Dialog(
+                    child: ConstrainedBox(
+                      constraints:
+                          const BoxConstraints(maxWidth: 800, maxHeight: 700),
+                      child: const CatalogSettingsScreen(),
+                    ),
                   ),
-                ),
-              ).then((_) {
-                // Refresh catalog status after dialog closes
-                ref.invalidate(annotationCatalogInstalledProvider);
-              });
-            },
-          ),
+                ).then((_) {
+                  // Refresh catalog status after dialog closes
+                  ref.invalidate(annotationCatalogInstalledProvider);
+                });
+              },
+            ),
 
-        // Main content
-        Expanded(
-          child: Responsive.isMobile(context)
-              ? _buildMobileLayout(colors, selectedPanel)
-              : _buildDesktopLayout(colors, selectedPanel),
-        ),
-      ],
+          // Main content
+          Expanded(
+            child: Responsive.isMobile(context)
+                ? _buildMobileLayout(colors, selectedPanel)
+                : _buildDesktopLayout(colors, selectedPanel),
+          ),
+        ],
+      ),
     );
   }
 
@@ -576,6 +586,13 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                     compact: true,
                   ),
                 ),
+                SizedBox(height: sectionSpacing),
+                // Stretch controls
+                _ControlSection(
+                  title: 'Display',
+                  colors: colors,
+                  child: const StretchControls(compact: true),
+                ),
               ],
             ),
           );
@@ -700,6 +717,15 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                     style: FilterSelectorStyle.buttons,
                     compact: isMobile,
                   ),
+                ),
+
+                SizedBox(width: sectionSpacing),
+
+                // Stretch controls
+                _ControlSection(
+                  title: 'Display',
+                  colors: colors,
+                  child: const StretchControls(compact: true),
                 ),
 
                 if (!isMobile) ...[
@@ -987,6 +1013,18 @@ class _LivePreviewArea extends ConsumerWidget {
                                         isActive: showStarOverlay,
                                         onTap: onToggleStarOverlay,
                                       ),
+                                      Consumer(
+                                        builder: (context, ref, _) {
+                                          final isPanelVisible = ref.watch(annotationPanelVisibleProvider);
+                                          return _OverlayIconButton(
+                                            icon: LucideIcons.list,
+                                            tooltip: 'Objects',
+                                            colors: colors,
+                                            isActive: isPanelVisible,
+                                            onTap: () => ref.read(annotationPanelVisibleProvider.notifier).state = !isPanelVisible,
+                                          );
+                                        },
+                                      ),
                                       Row(
                                         key: ImagingTutorialKeys.zoomControls,
                                         mainAxisSize: MainAxisSize.min,
@@ -1069,6 +1107,20 @@ class _LivePreviewArea extends ConsumerWidget {
                               colors: colors,
                               isActive: showStarOverlay,
                               onTap: onToggleStarOverlay,
+                            ),
+                            Consumer(
+                              builder: (context, ref, _) {
+                                final isPanelVisible = ref.watch(annotationPanelVisibleProvider);
+                                final annotation = ref.watch(currentAnnotationProvider);
+                                final objectCount = annotation?.objects.length ?? 0;
+                                return _OverlayIconButton(
+                                  icon: LucideIcons.list,
+                                  tooltip: 'Objects panel${objectCount > 0 ? ' ($objectCount)' : ''}',
+                                  colors: colors,
+                                  isActive: isPanelVisible,
+                                  onTap: () => ref.read(annotationPanelVisibleProvider.notifier).state = !isPanelVisible,
+                                );
+                              },
                             ),
                             Row(
                               key: ImagingTutorialKeys.zoomControls,
@@ -1672,6 +1724,12 @@ class _BigActionButtonState extends State<_BigActionButton>
   bool _isPressed = false;
   late AnimationController _loadingController;
 
+  /// Creates a slightly darker shade of the given color
+  Color _darkenColor(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1717,21 +1775,14 @@ class _BigActionButtonState extends State<_BigActionButton>
             vertical: widget.isMobile ? 12 : 16,
           ),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                effectiveColor,
-                effectiveColor.withValues(alpha: 0.8),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: effectiveColor.withValues(alpha: 0.65),
             borderRadius: BorderRadius.circular(12),
             boxShadow: _isHovered && widget.isEnabled
                 ? [
                     BoxShadow(
-                      color: effectiveColor.withValues(alpha: 0.4),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
+                      color: effectiveColor.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
                     ),
                   ]
                 : null,
@@ -1979,7 +2030,7 @@ class _EditableCompactInputState extends State<_EditableCompactInput> {
 // IMAGE DISPLAY AND OVERLAYS
 // =============================================================================
 
-class _ImageDisplayWidget extends StatefulWidget {
+class _ImageDisplayWidget extends ConsumerStatefulWidget {
   final CapturedImageData imageData;
   final double zoomLevel;
   final Offset panOffset;
@@ -1991,12 +2042,13 @@ class _ImageDisplayWidget extends StatefulWidget {
   });
 
   @override
-  State<_ImageDisplayWidget> createState() => _ImageDisplayWidgetState();
+  ConsumerState<_ImageDisplayWidget> createState() => _ImageDisplayWidgetState();
 }
 
-class _ImageDisplayWidgetState extends State<_ImageDisplayWidget> {
+class _ImageDisplayWidgetState extends ConsumerState<_ImageDisplayWidget> {
   ui.Image? _decodedImage;
   bool _isDecoding = false;
+  Uint8List? _lastDecodedPixels;
 
   @override
   void initState() {
@@ -2012,14 +2064,22 @@ class _ImageDisplayWidgetState extends State<_ImageDisplayWidget> {
     }
   }
 
-  Future<void> _decodeImage() async {
+  Future<void> _decodeImage({Uint8List? stretchedData}) async {
     if (_isDecoding) return;
     _isDecoding = true;
 
     try {
       final width = widget.imageData.width;
       final height = widget.imageData.height;
-      final pixels = widget.imageData.displayData;
+      // Use stretched data if available, otherwise fall back to display data
+      final pixels = stretchedData ?? widget.imageData.displayData;
+
+      // Skip re-decoding if pixels haven't changed
+      if (_lastDecodedPixels != null && _lastDecodedPixels == pixels) {
+        _isDecoding = false;
+        return;
+      }
+      _lastDecodedPixels = pixels;
 
       // If RGB, we need to add Alpha channel (RGBA) for decodeImageFromPixels
       // Or use a format that supports RGB. Unfortunately, Flutter usually expects RGBA.
@@ -2085,13 +2145,28 @@ class _ImageDisplayWidgetState extends State<_ImageDisplayWidget> {
         },
       );
     } catch (e) {
-      debugPrint("Error decoding image: $e");
+      debugPrint('[Imaging] Error decoding image: $e');
       _isDecoding = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Watch the stretched image provider for auto-stretch updates
+    final stretchedImageAsync = ref.watch(stretchedImageProvider);
+
+    // When stretched data changes, trigger re-decode
+    stretchedImageAsync.whenData((stretchedData) {
+      if (stretchedData != null && stretchedData != _lastDecodedPixels) {
+        // Defer the decode to avoid setState during build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _decodeImage(stretchedData: stretchedData);
+          }
+        });
+      }
+    });
+
     if (_decodedImage == null) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -2886,20 +2961,20 @@ class _CapturePanel extends ConsumerWidget {
           ],
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
-          ElevatedButton(
+          _GradientDialogButton(
             onPressed: () async {
               // Capture context before closing dialog
               final dialogContext = context;
               Navigator.of(context).pop();
               await _endSession(ref, dialogContext);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.warning,
-            ),
+            color: colors.warning,
             child: const Text('End Session'),
           ),
         ],
@@ -2916,12 +2991,12 @@ class _CapturePanel extends ConsumerWidget {
 
       // Park mount if requested (service handles connection check)
       if (parkOnEnd) {
-        debugPrint('Parking mount after session end...');
+        debugPrint('[Imaging] Parking mount after session end...');
         final success = await ref.read(mountCommandServiceProvider).park(context);
-        debugPrint(success ? 'Mount parked successfully' : 'Mount park failed or not connected');
+        debugPrint(success ? '[Imaging] Mount parked successfully' : '[Imaging] Mount park failed or not connected');
       }
     } catch (e) {
-      debugPrint('Error ending session: $e');
+      debugPrint('[Imaging] Error ending session: $e');
     }
   }
 }
@@ -3337,11 +3412,13 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
             ],
           ),
           actions: [
-            TextButton(
+            NightshadeButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
             ),
-            ElevatedButton(
+            _GradientDialogButton(
               onPressed: () {
                 final position = int.tryParse(controller.text);
                 if (position != null && position >= 0 && position <= maxPosition) {
@@ -3351,6 +3428,7 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
                   context.showWarningSnackBar('Invalid position. Must be between 0 and $maxPosition');
                 }
               },
+              color: Theme.of(context).extension<NightshadeColors>()!.primary,
               child: const Text('Go'),
             ),
           ],
@@ -4425,11 +4503,27 @@ class _SmallButton extends StatefulWidget {
 class _SmallButtonState extends State<_SmallButton> {
   bool _isHovered = false;
 
+  /// Creates a slightly darker shade of the given color
+  Color _darkenColor(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.isEnabled;
     final primaryColor =
         isEnabled ? widget.colors.primary : widget.colors.textMuted;
+
+    // Build gradient for filled (non-outline) buttons
+    final useGradient = !widget.isOutline && isEnabled;
+    final fillColor = widget.isOutline
+        ? _isHovered && isEnabled
+            ? primaryColor.withValues(alpha: 0.1)
+            : Colors.transparent
+        : isEnabled
+            ? null // Use gradient instead
+            : widget.colors.surfaceAlt;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -4440,13 +4534,9 @@ class _SmallButtonState extends State<_SmallButton> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
           decoration: BoxDecoration(
-            color: widget.isOutline
-                ? _isHovered && isEnabled
-                    ? primaryColor.withValues(alpha: 0.1)
-                    : Colors.transparent
-                : isEnabled
-                    ? primaryColor
-                    : widget.colors.surfaceAlt,
+            color: useGradient
+                ? primaryColor.withValues(alpha: 0.65)
+                : fillColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: primaryColor,
@@ -4483,6 +4573,89 @@ class _SmallButtonState extends State<_SmallButton> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// GRADIENT DIALOG BUTTON
+// =============================================================================
+
+/// A dialog action button with gradient styling to match NightshadeButton
+class _GradientDialogButton extends StatefulWidget {
+  final VoidCallback? onPressed;
+  final Color color;
+  final Widget child;
+
+  const _GradientDialogButton({
+    required this.onPressed,
+    required this.color,
+    required this.child,
+  });
+
+  @override
+  State<_GradientDialogButton> createState() => _GradientDialogButtonState();
+}
+
+class _GradientDialogButtonState extends State<_GradientDialogButton> {
+  bool _isHovered = false;
+  bool _isPressed = false;
+
+  /// Creates a slightly darker shade of the given color
+  Color _darkenColor(Color color, double amount) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDisabled = widget.onPressed == null;
+    final effectiveColor = isDisabled
+        ? widget.color.withValues(alpha: 0.4)
+        : _isPressed
+            ? _darkenColor(widget.color, 0.1)
+            : widget.color;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) {
+        setState(() {
+          _isHovered = false;
+          _isPressed = false;
+        });
+      },
+      cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
+      child: GestureDetector(
+        onTapDown: isDisabled ? null : (_) => setState(() => _isPressed = true),
+        onTapUp: isDisabled ? null : (_) => setState(() => _isPressed = false),
+        onTapCancel: isDisabled ? null : () => setState(() => _isPressed = false),
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: effectiveColor.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: _isHovered && !isDisabled && !_isPressed
+                ? [
+                    BoxShadow(
+                      color: effectiveColor.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      spreadRadius: 0,
+                    ),
+                  ]
+                : null,
+          ),
+          child: DefaultTextStyle(
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
+            child: widget.child,
           ),
         ),
       ),
@@ -4638,6 +4811,7 @@ class _AnnotationOverlayWrapperState
     extends ConsumerState<_AnnotationOverlayWrapper> {
   CelestialObjectAnnotation? _selectedObject;
   Offset? _tooltipPosition;
+  bool _isHoverTooltip = false; // Tracks if tooltip is from hover
 
   void _onObjectTapped(CelestialObjectAnnotation object) {
     final screenPosition = imageToViewport(
@@ -4648,11 +4822,38 @@ class _AnnotationOverlayWrapperState
 
     setState(() {
       _selectedObject = object;
+      _isHoverTooltip = false; // This is a click, not hover
       // Position tooltip near the object
       _tooltipPosition = Offset(
         screenPosition.dx + 20,
         screenPosition.dy,
       );
+    });
+  }
+
+  void _onObjectHovered(CelestialObjectAnnotation object, Offset screenPosition) {
+    // Don't override a click-selected tooltip with hover
+    if (_selectedObject != null && !_isHoverTooltip) return;
+
+    setState(() {
+      _selectedObject = object;
+      _isHoverTooltip = true;
+      // Position tooltip near the object with offset so it doesn't cover it
+      _tooltipPosition = Offset(
+        screenPosition.dx + 20,
+        screenPosition.dy - 10,
+      );
+    });
+  }
+
+  void _onObjectUnhovered() {
+    // Only clear if this was a hover tooltip, not a click
+    if (!_isHoverTooltip) return;
+
+    setState(() {
+      _selectedObject = null;
+      _tooltipPosition = null;
+      _isHoverTooltip = false;
     });
   }
 
@@ -4690,6 +4891,7 @@ class _AnnotationOverlayWrapperState
     setState(() {
       _selectedObject = null;
       _tooltipPosition = null;
+      _isHoverTooltip = false;
     });
   }
 
@@ -4727,9 +4929,11 @@ class _AnnotationOverlayWrapperState
           ),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
+            label: 'Close',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -4738,9 +4942,29 @@ class _AnnotationOverlayWrapperState
     _closeTooltip();
   }
 
+  void _onObjectSelectedFromPanel(CelestialObjectAnnotation object) {
+    // When an object is selected from the sidebar panel, show its tooltip
+    final screenPosition = imageToViewport(
+      imagePoint: Offset(object.x, object.y),
+      imageOffset: widget.imageOffset,
+      zoomLevel: widget.zoomLevel,
+    );
+
+    setState(() {
+      _selectedObject = object;
+      _isHoverTooltip = false; // Panel selection is like a click
+      // Position tooltip near the center of the viewport
+      _tooltipPosition = Offset(
+        screenPosition.dx.clamp(50, MediaQuery.of(context).size.width - 350),
+        screenPosition.dy.clamp(50, MediaQuery.of(context).size.height - 250),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final annotation = ref.watch(currentAnnotationProvider);
+    final isPanelVisible = ref.watch(annotationPanelVisibleProvider);
 
     return Stack(
       children: [
@@ -4751,6 +4975,8 @@ class _AnnotationOverlayWrapperState
           imageSize: widget.imageSize,
           onObjectTapped: _onObjectTapped,
           onIdentifyAt: _onIdentifyAt,
+          onObjectHovered: _onObjectHovered,
+          onObjectUnhovered: _onObjectUnhovered,
         ),
         // Object info tooltip
         if (_selectedObject != null && _tooltipPosition != null)
@@ -4762,7 +4988,18 @@ class _AnnotationOverlayWrapperState
             child: ObjectInfoTooltip(
               object: _selectedObject!,
               onClose: _closeTooltip,
-              onMoreInfo: _showMoreInfo,
+              onMoreInfo: _isHoverTooltip ? null : _showMoreInfo,
+            ),
+          ),
+        // Objects sidebar panel
+        if (isPanelVisible)
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: 0,
+            child: _AnnotationObjectsPanel(
+              colors: widget.colors,
+              onObjectSelected: _onObjectSelectedFromPanel,
             ),
           ),
       ],
@@ -4807,13 +5044,11 @@ class _AnnotationCatalogBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          TextButton(
+          NightshadeButton(
             onPressed: onSetup,
-            style: TextButton.styleFrom(
-              foregroundColor: colors.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            ),
-            child: const Text('Setup'),
+            label: 'Setup',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
           IconButton(
             icon: Icon(LucideIcons.x, size: 16, color: colors.textMuted),
@@ -4993,6 +5228,546 @@ class _AnnotationStatusIndicator extends ConsumerWidget {
         return 'No catalogs installed';
       case AnnotationStatus.idle:
         return '';
+    }
+  }
+}
+
+/// Provider for the annotation sidebar panel visibility state
+final annotationPanelVisibleProvider = StateProvider<bool>((ref) => false);
+
+/// Provider for the annotation panel filter state (which object types to show)
+final annotationPanelFiltersProvider = StateProvider<Set<ObjectType>>((ref) {
+  // By default, show everything except stars
+  return {
+    ObjectType.galaxy,
+    ObjectType.nebula,
+    ObjectType.starCluster,
+    ObjectType.planetaryNebula,
+    ObjectType.doubleStar,
+    ObjectType.asterism,
+    ObjectType.unknown,
+  };
+});
+
+/// Sidebar panel showing list of detected celestial objects
+class _AnnotationObjectsPanel extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+  final void Function(CelestialObjectAnnotation object) onObjectSelected;
+
+  const _AnnotationObjectsPanel({
+    required this.colors,
+    required this.onObjectSelected,
+  });
+
+  @override
+  ConsumerState<_AnnotationObjectsPanel> createState() => _AnnotationObjectsPanelState();
+}
+
+class _AnnotationObjectsPanelState extends ConsumerState<_AnnotationObjectsPanel> {
+  bool _filtersExpanded = false;
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final annotation = ref.watch(currentAnnotationProvider);
+    final filters = ref.watch(annotationPanelFiltersProvider);
+    final objects = annotation?.objects ?? [];
+
+    // Filter objects based on type filters and search query
+    final filteredObjects = objects.where((obj) {
+      // Apply type filter
+      if (!filters.contains(obj.type)) return false;
+
+      // Apply search filter
+      if (_searchQuery.isNotEmpty) {
+        final query = _searchQuery.toLowerCase();
+        final nameMatch = obj.name.toLowerCase().contains(query);
+        final commonNameMatch = obj.commonName?.toLowerCase().contains(query) ?? false;
+        final catalogMatch = obj.catalogId?.toLowerCase().contains(query) ?? false;
+        if (!nameMatch && !commonNameMatch && !catalogMatch) return false;
+      }
+
+      return true;
+    }).toList();
+
+    // Sort by magnitude (brightest first), then by name
+    filteredObjects.sort((a, b) {
+      final aMag = a.magnitude ?? 99.0;
+      final bMag = b.magnitude ?? 99.0;
+      final magCompare = aMag.compareTo(bMag);
+      if (magCompare != 0) return magCompare;
+      return a.name.compareTo(b.name);
+    });
+
+    // Group objects by type for the count display
+    final typeCounts = <ObjectType, int>{};
+    for (final obj in objects) {
+      typeCounts[obj.type] = (typeCounts[obj.type] ?? 0) + 1;
+    }
+
+    return Container(
+      width: 280,
+      decoration: BoxDecoration(
+        color: widget.colors.surface.withValues(alpha: 0.95),
+        border: Border(
+          left: BorderSide(color: widget.colors.border),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(-2, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: widget.colors.surfaceAlt,
+              border: Border(
+                bottom: BorderSide(color: widget.colors.border),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.sparkle,
+                  size: 16,
+                  color: widget.colors.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Detected Objects',
+                  style: TextStyle(
+                    color: widget.colors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                // Object count badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: widget.colors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${filteredObjects.length}',
+                    style: TextStyle(
+                      color: widget.colors.primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Close button
+                InkWell(
+                  onTap: () => ref.read(annotationPanelVisibleProvider.notifier).state = false,
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      LucideIcons.x,
+                      size: 16,
+                      color: widget.colors.textMuted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: TextField(
+              style: TextStyle(color: widget.colors.textPrimary, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Search objects...',
+                hintStyle: TextStyle(color: widget.colors.textMuted, fontSize: 13),
+                prefixIcon: Icon(
+                  LucideIcons.search,
+                  size: 16,
+                  color: widget.colors.textMuted,
+                ),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                filled: true,
+                fillColor: widget.colors.surfaceAlt,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: widget.colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: widget.colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: widget.colors.primary),
+                ),
+              ),
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
+          ),
+
+          // Filters section
+          ExpansionTile(
+            initiallyExpanded: _filtersExpanded,
+            onExpansionChanged: (expanded) => setState(() => _filtersExpanded = expanded),
+            tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+            childrenPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            dense: true,
+            title: Text(
+              'Filters',
+              style: TextStyle(
+                color: widget.colors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: Icon(
+              _filtersExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+              size: 16,
+              color: widget.colors.textMuted,
+            ),
+            children: [
+              Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: ObjectType.values.map((type) {
+                  final isSelected = filters.contains(type);
+                  final count = typeCounts[type] ?? 0;
+                  return _FilterChip(
+                    label: _getObjectTypeLabel(type),
+                    count: count,
+                    isSelected: isSelected,
+                    colors: widget.colors,
+                    onTap: () {
+                      final newFilters = Set<ObjectType>.from(filters);
+                      if (isSelected) {
+                        newFilters.remove(type);
+                      } else {
+                        newFilters.add(type);
+                      }
+                      ref.read(annotationPanelFiltersProvider.notifier).state = newFilters;
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+
+          Divider(height: 1, color: widget.colors.border),
+
+          // Objects list
+          Expanded(
+            child: filteredObjects.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          annotation == null
+                              ? LucideIcons.sparkle
+                              : LucideIcons.searchX,
+                          size: 32,
+                          color: widget.colors.textMuted.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          annotation == null
+                              ? 'No image annotated'
+                              : _searchQuery.isNotEmpty
+                                  ? 'No matching objects'
+                                  : 'No objects match filters',
+                          style: TextStyle(
+                            color: widget.colors.textMuted,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: filteredObjects.length,
+                    itemBuilder: (context, index) {
+                      final object = filteredObjects[index];
+                      return _ObjectListItem(
+                        object: object,
+                        colors: widget.colors,
+                        onTap: () => widget.onObjectSelected(object),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getObjectTypeLabel(ObjectType type) {
+    switch (type) {
+      case ObjectType.galaxy:
+        return 'Galaxies';
+      case ObjectType.nebula:
+        return 'Nebulae';
+      case ObjectType.starCluster:
+        return 'Clusters';
+      case ObjectType.planetaryNebula:
+        return 'PN';
+      case ObjectType.star:
+        return 'Stars';
+      case ObjectType.doubleStar:
+        return 'Doubles';
+      case ObjectType.asterism:
+        return 'Asterisms';
+      case ObjectType.unknown:
+        return 'Other';
+    }
+  }
+}
+
+/// Filter chip for object type filtering
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool isSelected;
+  final NightshadeColors colors;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.isSelected,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colors.primary.withValues(alpha: 0.15)
+              : colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: isSelected
+                ? colors.primary.withValues(alpha: 0.5)
+                : colors.border,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? colors.primary : colors.textSecondary,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 4),
+              Text(
+                '($count)',
+                style: TextStyle(
+                  color: isSelected
+                      ? colors.primary.withValues(alpha: 0.7)
+                      : colors.textMuted,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// List item for a celestial object
+class _ObjectListItem extends StatelessWidget {
+  final CelestialObjectAnnotation object;
+  final NightshadeColors colors;
+  final VoidCallback onTap;
+
+  const _ObjectListItem({
+    required this.object,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: colors.border.withValues(alpha: 0.5),
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Object type icon
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: _getTypeColor(object.type).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Center(
+                child: Icon(
+                  _getTypeIcon(object.type),
+                  size: 14,
+                  color: _getTypeColor(object.type),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // Object info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    object.commonName ?? object.name,
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (object.commonName != null) ...[
+                        Text(
+                          object.name,
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: 10,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Text(
+                        _getTypeShortLabel(object.type),
+                        style: TextStyle(
+                          color: _getTypeColor(object.type).withValues(alpha: 0.8),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Magnitude
+            if (object.magnitude != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'm${object.magnitude!.toStringAsFixed(1)}',
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _getTypeIcon(ObjectType type) {
+    switch (type) {
+      case ObjectType.galaxy:
+        return LucideIcons.disc3;
+      case ObjectType.nebula:
+        return LucideIcons.cloud;
+      case ObjectType.starCluster:
+        return LucideIcons.sparkles;
+      case ObjectType.planetaryNebula:
+        return LucideIcons.circle;
+      case ObjectType.star:
+        return LucideIcons.star;
+      case ObjectType.doubleStar:
+        return LucideIcons.gitMerge;
+      case ObjectType.asterism:
+        return LucideIcons.shapes;
+      case ObjectType.unknown:
+        return LucideIcons.helpCircle;
+    }
+  }
+
+  Color _getTypeColor(ObjectType type) {
+    switch (type) {
+      case ObjectType.galaxy:
+        return const Color(0xFFE879F9); // Purple/Pink for galaxies
+      case ObjectType.nebula:
+        return const Color(0xFF60A5FA); // Blue for nebulae
+      case ObjectType.starCluster:
+        return const Color(0xFFFBBF24); // Yellow for clusters
+      case ObjectType.planetaryNebula:
+        return const Color(0xFF34D399); // Green for planetary nebulae
+      case ObjectType.star:
+        return const Color(0xFFFFF7ED); // Warm white for stars
+      case ObjectType.doubleStar:
+        return const Color(0xFFF472B6); // Pink for double stars
+      case ObjectType.asterism:
+        return const Color(0xFFA78BFA); // Violet for asterisms
+      case ObjectType.unknown:
+        return const Color(0xFF9CA3AF); // Gray for unknown
+    }
+  }
+
+  String _getTypeShortLabel(ObjectType type) {
+    switch (type) {
+      case ObjectType.galaxy:
+        return 'Galaxy';
+      case ObjectType.nebula:
+        return 'Nebula';
+      case ObjectType.starCluster:
+        return 'Cluster';
+      case ObjectType.planetaryNebula:
+        return 'PN';
+      case ObjectType.star:
+        return 'Star';
+      case ObjectType.doubleStar:
+        return 'Double';
+      case ObjectType.asterism:
+        return 'Asterism';
+      case ObjectType.unknown:
+        return 'Unknown';
     }
   }
 }

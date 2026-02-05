@@ -7,6 +7,7 @@ import 'package:nightshade_core/src/database/database.dart' show CapturedImage, 
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../../utils/snackbar_helper.dart';
+import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/analytics_keys.dart';
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
@@ -27,51 +28,59 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
 
-    return Column(
-      children: [
-        // Sub-tabs
-        Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            border: Border(bottom: BorderSide(color: colors.border)),
+    return ContextualTourPrompt(
+      screenId: 'analytics',
+      tourCategory: TutorialCategory.analyticsTour,
+      title: 'Analytics Tour',
+      description: 'Learn how to analyze your imaging data and session statistics.',
+      durationMinutes: 2,
+      alignment: Alignment.bottomRight,
+      child: Column(
+        children: [
+          // Sub-tabs
+          Container(
+            height: 40,
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              border: Border(bottom: BorderSide(color: colors.border)),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                ..._tabs.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final label = entry.value;
+                  // Attach tutorial keys to the tab buttons, not content
+                  final key = index == 0
+                      ? AnalyticsTutorialKeys.sessionTab
+                      : index == 1
+                          ? AnalyticsTutorialKeys.historyTab
+                          : AnalyticsTutorialKeys.equipmentTab;
+                  return SubTabButton(
+                    key: key,
+                    label: label,
+                    isSelected: index == _currentSubTab,
+                    onTap: () => setState(() => _currentSubTab = index),
+                  );
+                }),
+                const Spacer(),
+              ],
+            ),
           ),
-          child: Row(
-            children: [
-              const SizedBox(width: 16),
-              ..._tabs.asMap().entries.map((entry) {
-                final index = entry.key;
-                final label = entry.value;
-                // Attach tutorial keys to the tab buttons, not content
-                final key = index == 0
-                    ? AnalyticsTutorialKeys.sessionTab
-                    : index == 1
-                        ? AnalyticsTutorialKeys.historyTab
-                        : AnalyticsTutorialKeys.equipmentTab;
-                return SubTabButton(
-                  key: key,
-                  label: label,
-                  isSelected: index == _currentSubTab,
-                  onTap: () => setState(() => _currentSubTab = index),
-                );
-              }),
-              const Spacer(),
-            ],
-          ),
-        ),
 
-        // Content
-        Expanded(
-          child: IndexedStack(
-            index: _currentSubTab,
-            children: const [
-              _SessionTab(),
-              _HistoryTab(),
-              _EquipmentStatsTab(),
-            ],
+          // Content
+          Expanded(
+            child: IndexedStack(
+              index: _currentSubTab,
+              children: const [
+                _SessionTab(),
+                _HistoryTab(),
+                _EquipmentStatsTab(),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

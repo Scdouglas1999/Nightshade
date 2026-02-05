@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// A horizontal timeline visualization of the sequence
@@ -9,9 +12,18 @@ class SequenceTimeline extends ConsumerWidget {
   final NightshadeColors colors;
   final bool showMiniVersion;
 
+  /// Optional start time for the sequence. If provided, the timeline will show
+  /// actual clock times. If null, shows relative times from 0:00.
+  final DateTime? startTime;
+
+  /// Whether to show astronomical overlay bands (twilight zones)
+  final bool showAstronomicalOverlay;
+
   const SequenceTimeline({
     required this.colors,
     this.showMiniVersion = false,
+    this.startTime,
+    this.showAstronomicalOverlay = true,
     super.key,
   });
 
@@ -45,6 +57,9 @@ class SequenceTimeline extends ConsumerWidget {
       segments: segments,
       totalDuration: totalDuration,
       isRunning: isRunning,
+      startTime: startTime,
+      showAstronomicalOverlay: showAstronomicalOverlay,
+      sequence: sequence,
     );
   }
 
@@ -274,22 +289,171 @@ class _MiniTimeline extends StatelessWidget {
   }
 }
 
-/// Full timeline view with labels and details
-class _FullTimeline extends StatelessWidget {
+/// Full timeline view with labels, astronomical overlays, and details
+class _FullTimeline extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final List<TimelineSegment> segments;
   final double totalDuration;
   final bool isRunning;
+  final DateTime? startTime;
+  final bool showAstronomicalOverlay;
+  final Sequence sequence;
 
   const _FullTimeline({
     required this.colors,
     required this.segments,
     required this.totalDuration,
     required this.isRunning,
+    required this.startTime,
+    required this.showAstronomicalOverlay,
+    required this.sequence,
   });
 
   @override
+  ConsumerState<_FullTimeline> createState() => _FullTimelineState();
+}
+
+class _FullTimelineState extends ConsumerState<_FullTimeline> {
+  Timer? _nowTimer;
+  DateTime _now = DateTime.now();
+
+  // Cached twilight times to avoid recalculation on every build
+  TwilightTimes? _twilightTimes;
+  DateTime? _twilightCacheDate;
+  double? _twilightCacheLat;
+  double? _twilightCacheLon;
+
+
+  @override
+  void initState() {
+    super.initState();
+    // Update the "now" indicator every minute
+    _nowTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {
+          _now = DateTime.now();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _nowTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Calculate twilight times, caching to avoid redundant computations
+  TwilightTimes? _getTwilightTimes(double lat, double lon, DateTime date) {
+    final cacheDate = DateTime(date.year, date.month, date.day);
+
+    if (_twilightTimes != null &&
+        _twilightCacheDate == cacheDate &&
+        _twilightCacheLat == lat &&
+        _twilightCacheLon == lon) {
+      return _twilightTimes;
+    }
+
+    _twilightTimes = AstronomyCalculations.calculateTwilightTimes(
+      date: date,
+      latitudeDeg: lat,
+      longitudeDeg: lon,
+    );
+    _twilightCacheDate = cacheDate;
+    _twilightCacheLat = lat;
+    _twilightCacheLon = lon;
+
+    return _twilightTimes;
+  }
+
+  /// Calculate target visibility windows for rise/set markers
+  Map<String, ObjectVisibility> _getTargetWindows(
+    double lat,
+    double lon,
+    DateTime date,
+  ) {
+    final windows = <String, ObjectVisibility>{};
+
+    for (final node in widget.sequence.nodes.values) {
+      if (node is TargetHeaderNode && node.isEnabled) {
+        final visibility = AstronomyCalculations.calculateObjectVisibility(
+          raDeg: node.raHours * 15.0, // Convert RA hours to degrees
+          decDeg: node.decDegrees,
+          date: date,
+          latitudeDeg: lat,
+          longitudeDeg: lon,
+          minAltitude: node.minAltitude ?? 0,
+        );
+        windows[node.id] = visibility;
+      }
+    }
+
+    return windows;
+  }
+
+  DateTime get _effectiveStartTime => widget.startTime ?? DateTime.now();
+
+  DateTime get _estimatedEndTime =>
+      _effectiveStartTime.add(Duration(seconds: widget.totalDuration.round()));
+
+  bool get _isNowInRange {
+    if (widget.totalDuration <= 0) return false;
+    return _now.isAfter(_effectiveStartTime) &&
+        _now.isBefore(_estimatedEndTime);
+  }
+
+  double? get _nowFraction {
+    if (!_isNowInRange || widget.totalDuration <= 0) return null;
+    final elapsed = _now.difference(_effectiveStartTime).inSeconds;
+    return elapsed / widget.totalDuration;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final settingsAsync = ref.watch(appSettingsProvider);
+
+    return settingsAsync.when(
+      loading: () => _buildWithoutOverlay(),
+      error: (_, __) => _buildWithoutOverlay(),
+      data: (settings) {
+        final lat = settings.latitude;
+        final lon = settings.longitude;
+
+        // Only show astronomical overlay if we have valid location
+        final hasValidLocation = lat != 0.0 || lon != 0.0;
+        final shouldShowOverlay =
+            widget.showAstronomicalOverlay && hasValidLocation;
+
+        TwilightTimes? twilight;
+        Map<String, ObjectVisibility>? targetWindows;
+
+        if (shouldShowOverlay) {
+          twilight = _getTwilightTimes(lat, lon, _effectiveStartTime);
+          targetWindows = _getTargetWindows(lat, lon, _effectiveStartTime);
+        }
+
+        return _buildTimeline(
+          twilight: twilight,
+          targetWindows: targetWindows,
+          showOverlay: shouldShowOverlay,
+        );
+      },
+    );
+  }
+
+  Widget _buildWithoutOverlay() {
+    return _buildTimeline(
+      twilight: null,
+      targetWindows: null,
+      showOverlay: false,
+    );
+  }
+
+  Widget _buildTimeline({
+    required TwilightTimes? twilight,
+    required Map<String, ObjectVisibility>? targetWindows,
+    required bool showOverlay,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -298,23 +462,23 @@ class _FullTimeline extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
-              Icon(LucideIcons.ganttChart, size: 14, color: colors.textMuted),
+              Icon(LucideIcons.ganttChart, size: 14, color: widget.colors.textMuted),
               const SizedBox(width: 8),
               Text(
                 'Sequence Timeline',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
+                  color: widget.colors.textSecondary,
                   letterSpacing: 0.5,
                 ),
               ),
               const Spacer(),
               Text(
-                _formatDuration(totalDuration),
+                _formatDuration(widget.totalDuration),
                 style: TextStyle(
                   fontSize: 11,
-                  color: colors.textMuted,
+                  color: widget.colors.textMuted,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
@@ -322,40 +486,69 @@ class _FullTimeline extends StatelessWidget {
           ),
         ),
 
-        // Timeline bar
-        Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: colors.border),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: totalDuration > 0
-                ? Row(
-                    children: segments.map((segment) {
-                      final widthFraction = segment.duration / totalDuration;
-                      return Expanded(
-                        flex: (widthFraction * 1000).round().clamp(1, 1000),
-                        child: _TimelineBlock(
-                          colors: colors,
-                          segment: segment,
-                        ),
-                      );
-                    }).toList(),
-                  )
-                : Center(
-                    child: Text(
-                      'No timed activities',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.textMuted,
-                      ),
-                    ),
-                  ),
-          ),
+        // Timeline bar with overlays
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: widget.colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: widget.colors.border),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Stack(
+                  children: [
+                    // Twilight overlay bands (behind the timeline segments)
+                    if (showOverlay && twilight != null)
+                      _buildTwilightOverlay(twilight, constraints.maxWidth),
+
+                    // Timeline segments
+                    widget.totalDuration > 0
+                        ? Row(
+                            children: widget.segments.map((segment) {
+                              final widthFraction =
+                                  segment.duration / widget.totalDuration;
+                              return Expanded(
+                                flex:
+                                    (widthFraction * 1000).round().clamp(1, 1000),
+                                child: _TimelineBlock(
+                                  colors: widget.colors,
+                                  segment: segment,
+                                ),
+                              );
+                            }).toList(),
+                          )
+                        : Center(
+                            child: Text(
+                              'No timed activities',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: widget.colors.textMuted,
+                              ),
+                            ),
+                          ),
+
+                    // Target rise/set markers
+                    if (showOverlay && targetWindows != null)
+                      ..._buildTargetMarkers(targetWindows, constraints.maxWidth),
+
+                    // "Now" indicator
+                    if (_nowFraction != null)
+                      _buildNowIndicator(constraints.maxWidth),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
+
+        // Estimated completion time
+        if (widget.startTime != null || widget.totalDuration > 0) ...[
+          const SizedBox(height: 8),
+          _buildCompletionInfo(),
+        ],
 
         // Legend
         const SizedBox(height: 12),
@@ -363,12 +556,313 @@ class _FullTimeline extends StatelessWidget {
           spacing: 16,
           runSpacing: 4,
           children: [
-            _LegendItem(colors: colors, color: colors.primary, label: 'Exposure'),
-            _LegendItem(colors: colors, color: colors.warning, label: 'Focus'),
-            _LegendItem(colors: colors, color: colors.accent, label: 'Slew'),
-            _LegendItem(colors: colors, color: colors.info, label: 'Dither'),
-            _LegendItem(colors: colors, color: colors.textMuted, label: 'Wait'),
+            _LegendItem(
+                colors: widget.colors, color: widget.colors.primary, label: 'Exposure'),
+            _LegendItem(
+                colors: widget.colors, color: widget.colors.warning, label: 'Focus'),
+            _LegendItem(
+                colors: widget.colors, color: widget.colors.accent, label: 'Slew'),
+            _LegendItem(
+                colors: widget.colors, color: widget.colors.info, label: 'Dither'),
+            _LegendItem(
+                colors: widget.colors, color: widget.colors.textMuted, label: 'Wait'),
+            if (showOverlay) ...[
+              const SizedBox(width: 8),
+              _LegendItem(
+                colors: widget.colors,
+                color: Colors.lightBlue.withValues(alpha: 0.2),
+                label: 'Civil',
+              ),
+              _LegendItem(
+                colors: widget.colors,
+                color: Colors.blue.withValues(alpha: 0.3),
+                label: 'Nautical',
+              ),
+              _LegendItem(
+                colors: widget.colors,
+                color: Colors.indigo.withValues(alpha: 0.4),
+                label: 'Astro',
+              ),
+            ],
           ],
+        ),
+      ],
+    );
+  }
+
+  /// Build twilight overlay bands behind the timeline
+  Widget _buildTwilightOverlay(TwilightTimes twilight, double totalWidth) {
+    if (widget.totalDuration <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    final start = _effectiveStartTime;
+    final end = _estimatedEndTime;
+
+    // Build list of twilight regions within our timeline range
+    final regions = <_TwilightRegion>[];
+
+    // Helper to add a region if it overlaps with our timeline
+    void addRegion(DateTime? regionStart, DateTime? regionEnd, Color color) {
+      if (regionStart == null || regionEnd == null) return;
+      if (regionEnd.isBefore(start) || regionStart.isAfter(end)) return;
+
+      // Clamp to timeline range
+      final clampedStart = regionStart.isBefore(start) ? start : regionStart;
+      final clampedEnd = regionEnd.isAfter(end) ? end : regionEnd;
+
+      final startFraction =
+          clampedStart.difference(start).inSeconds / widget.totalDuration;
+      final endFraction =
+          clampedEnd.difference(start).inSeconds / widget.totalDuration;
+
+      if (endFraction > startFraction) {
+        regions.add(_TwilightRegion(
+          startFraction: startFraction.clamp(0.0, 1.0),
+          endFraction: endFraction.clamp(0.0, 1.0),
+          color: color,
+        ));
+      }
+    }
+
+    // Civil twilight (evening): sunset to civil dusk
+    addRegion(
+      twilight.sunset,
+      twilight.civilDusk,
+      Colors.lightBlue.withValues(alpha: 0.2),
+    );
+
+    // Nautical twilight (evening): civil dusk to nautical dusk
+    addRegion(
+      twilight.civilDusk,
+      twilight.nauticalDusk,
+      Colors.blue.withValues(alpha: 0.3),
+    );
+
+    // Astronomical twilight (evening): nautical dusk to astronomical dusk
+    addRegion(
+      twilight.nauticalDusk,
+      twilight.astronomicalDusk,
+      Colors.indigo.withValues(alpha: 0.4),
+    );
+
+    // Astronomical twilight (morning): astronomical dawn to nautical dawn
+    addRegion(
+      twilight.astronomicalDawn,
+      twilight.nauticalDawn,
+      Colors.indigo.withValues(alpha: 0.4),
+    );
+
+    // Nautical twilight (morning): nautical dawn to civil dawn
+    addRegion(
+      twilight.nauticalDawn,
+      twilight.civilDawn,
+      Colors.blue.withValues(alpha: 0.3),
+    );
+
+    // Civil twilight (morning): civil dawn to sunrise
+    addRegion(
+      twilight.civilDawn,
+      twilight.sunrise,
+      Colors.lightBlue.withValues(alpha: 0.2),
+    );
+
+    return Stack(
+      children: regions.map((region) {
+        return Positioned(
+          left: region.startFraction * totalWidth,
+          width: (region.endFraction - region.startFraction) * totalWidth,
+          top: 0,
+          bottom: 0,
+          child: Container(color: region.color),
+        );
+      }).toList(),
+    );
+  }
+
+  /// Build target rise/set markers as vertical lines with tooltips
+  List<Widget> _buildTargetMarkers(
+    Map<String, ObjectVisibility> targetWindows,
+    double totalWidth,
+  ) {
+    if (widget.totalDuration <= 0) {
+      return [];
+    }
+
+    final markers = <Widget>[];
+    final start = _effectiveStartTime;
+    final end = _estimatedEndTime;
+
+    for (final entry in targetWindows.entries) {
+      final targetNode = widget.sequence.nodes[entry.key];
+      if (targetNode is! TargetHeaderNode) continue;
+
+      final visibility = entry.value;
+      final targetName = targetNode.targetName;
+
+      // Rise marker
+      if (visibility.riseTime != null &&
+          visibility.riseTime!.isAfter(start) &&
+          visibility.riseTime!.isBefore(end)) {
+        final fraction =
+            visibility.riseTime!.difference(start).inSeconds / widget.totalDuration;
+        markers.add(_buildTargetMarker(
+          fraction: fraction,
+          totalWidth: totalWidth,
+          label: '$targetName rises',
+          color: Colors.green,
+          icon: LucideIcons.sunrise,
+        ));
+      }
+
+      // Set marker
+      if (visibility.setTime != null &&
+          visibility.setTime!.isAfter(start) &&
+          visibility.setTime!.isBefore(end)) {
+        final fraction =
+            visibility.setTime!.difference(start).inSeconds / widget.totalDuration;
+        markers.add(_buildTargetMarker(
+          fraction: fraction,
+          totalWidth: totalWidth,
+          label: '$targetName sets',
+          color: Colors.orange,
+          icon: LucideIcons.sunset,
+        ));
+      }
+
+      // Transit marker (optional - can add if desired)
+      if (visibility.transitTime != null &&
+          visibility.transitTime!.isAfter(start) &&
+          visibility.transitTime!.isBefore(end)) {
+        final fraction =
+            visibility.transitTime!.difference(start).inSeconds /
+                widget.totalDuration;
+        markers.add(_buildTargetMarker(
+          fraction: fraction,
+          totalWidth: totalWidth,
+          label: '$targetName transit',
+          color: Colors.cyan,
+          icon: LucideIcons.moveVertical,
+        ));
+      }
+    }
+
+    return markers;
+  }
+
+  Widget _buildTargetMarker({
+    required double fraction,
+    required double totalWidth,
+    required String label,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Positioned(
+      left: fraction * totalWidth - 6, // Center the 12px wide marker
+      top: 0,
+      bottom: 0,
+      child: Tooltip(
+        message: label,
+        child: Container(
+          width: 12,
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: color.withValues(alpha: 0.8),
+                width: 2,
+              ),
+            ),
+          ),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Container(
+              padding: const EdgeInsets.all(1),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Icon(icon, size: 8, color: Colors.white),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build the "now" indicator as a vertical red line
+  Widget _buildNowIndicator(double totalWidth) {
+    final fraction = _nowFraction;
+    if (fraction == null) return const SizedBox.shrink();
+
+    return Positioned(
+      left: fraction * totalWidth - 1, // Center the 2px wide line
+      top: 0,
+      bottom: 0,
+      child: Tooltip(
+        message: 'Now: ${_formatClockTime(_now)}',
+        child: Container(
+          width: 2,
+          decoration: BoxDecoration(
+            color: Colors.red,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.withValues(alpha: 0.5),
+                blurRadius: 4,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build estimated completion info
+  Widget _buildCompletionInfo() {
+    final remaining = _estimatedEndTime.difference(_now);
+    final isInPast = remaining.isNegative;
+
+    String completionText;
+    if (widget.startTime != null) {
+      completionText = 'Est. completion: ${_formatClockTime(_estimatedEndTime)}';
+      if (!isInPast && remaining.inMinutes > 0) {
+        completionText += ' (~${_formatRemainingDuration(remaining)} remaining)';
+      } else if (isInPast) {
+        completionText += ' (completed)';
+      }
+    } else {
+      completionText = 'Duration: ${_formatRemainingDuration(
+        Duration(seconds: widget.totalDuration.round()),
+      )}';
+    }
+
+    return Row(
+      children: [
+        Icon(
+          LucideIcons.clock,
+          size: 12,
+          color: widget.colors.textMuted,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          completionText,
+          style: TextStyle(
+            fontSize: 11,
+            color: widget.colors.textMuted,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
       ],
     );
@@ -383,6 +877,33 @@ class _FullTimeline extends StatelessWidget {
     }
     return '${minutes}m total';
   }
+
+  String _formatRemainingDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
+  }
+
+  String _formatClockTime(DateTime time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Helper class for twilight regions
+class _TwilightRegion {
+  final double startFraction;
+  final double endFraction;
+  final Color color;
+
+  const _TwilightRegion({
+    required this.startFraction,
+    required this.endFraction,
+    required this.color,
+  });
 }
 
 /// Individual block in the timeline

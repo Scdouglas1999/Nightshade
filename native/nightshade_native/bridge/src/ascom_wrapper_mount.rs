@@ -812,4 +812,3 @@ mod tests {
         assert_eq!(order.as_slice(), ["stop", "disconnect"]);
     }
 }
-

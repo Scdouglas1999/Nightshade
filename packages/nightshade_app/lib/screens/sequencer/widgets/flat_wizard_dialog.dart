@@ -133,18 +133,16 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
                     padding: const EdgeInsets.only(top: 16),
                     child: Row(
                       children: [
-                        ElevatedButton(
+                        NightshadeButton(
                           onPressed: details.onStepContinue,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: colors.primary,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: Text(_currentStep == 2 ? 'Generate' : 'Continue'),
+                          label: _currentStep == 2 ? 'Generate' : 'Continue',
+                          variant: ButtonVariant.primary,
                         ),
                         const SizedBox(width: 12),
-                        TextButton(
+                        NightshadeButton(
                           onPressed: details.onStepCancel,
-                          child: Text(_currentStep == 0 ? 'Cancel' : 'Back'),
+                          label: _currentStep == 0 ? 'Cancel' : 'Back',
+                          variant: ButtonVariant.ghost,
                         ),
                       ],
                     ),
@@ -186,24 +184,12 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
                                 style: theme.textTheme.bodyMedium,
                               ),
                               const SizedBox(height: 16),
-                              ElevatedButton.icon(
+                              NightshadeButton(
                                 onPressed: _isCalculating ? null : _calculateExposure,
-                                icon: _isCalculating
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Icon(Icons.calculate),
-                                label: Text(_isCalculating ? 'Calculating...' : 'Calculate'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: colors.primary,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 16,
-                                  ),
-                                ),
+                                icon: Icons.calculate,
+                                label: _isCalculating ? 'Calculating...' : 'Calculate',
+                                variant: ButtonVariant.primary,
+                                isLoading: _isCalculating,
                               ),
                             ],
                           )

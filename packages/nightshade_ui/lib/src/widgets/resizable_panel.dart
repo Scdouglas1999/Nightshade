@@ -10,6 +10,7 @@ class ResizablePanel extends StatefulWidget {
   final ResizeSide side;
   final Color? handleColor;
   final Color? handleHoverColor;
+  final void Function(double width)? onWidthChanged;
 
   const ResizablePanel({
     super.key,
@@ -20,6 +21,7 @@ class ResizablePanel extends StatefulWidget {
     this.side = ResizeSide.right,
     this.handleColor,
     this.handleHoverColor,
+    this.onWidthChanged,
   });
 
   @override
@@ -56,6 +58,7 @@ class _ResizablePanelState extends State<ResizablePanel> {
               _width -= details.delta.dx;
             }
             _width = _width.clamp(widget.minWidth, widget.maxWidth);
+            widget.onWidthChanged?.call(_width);
           });
         },
         child: Container(

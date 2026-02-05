@@ -696,11 +696,13 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
           style: TextStyle(color: widget.colors.textSecondary),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text('Cancel', style: TextStyle(color: widget.colors.textMuted)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
-          TextButton(
+          NightshadeButton(
             onPressed: () async {
               Navigator.of(dialogContext).pop();
 
@@ -719,7 +721,9 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                 }
               }
             },
-            child: Text('Delete', style: TextStyle(color: widget.colors.error)),
+            label: 'Delete',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -1112,18 +1116,18 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(
+                NightshadeButton(
                   onPressed: _isSaving ? null : () => Navigator.pop(context),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: widget.colors.textSecondary),
-                  ),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
                 ),
                 const SizedBox(width: 12),
                 NightshadeButton(
                   label: _isSaving ? 'Saving...' : 'Save',
                   icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
                   onPressed: _isSaving ? null : _saveSequence,
+                  size: ButtonSize.small,
                 ),
               ],
             ),

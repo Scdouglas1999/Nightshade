@@ -599,7 +599,8 @@ pub fn get_vendor_quirks(vendor: &NativeVendor) -> Vec<Quirk> {
         NativeVendor::IOptron => ioptron_quirks(),
         NativeVendor::Meade => lx200_quirks(), // Meade uses LX200 protocol
         // Vendors without specific quirks
-        NativeVendor::StarlightXpress
+        NativeVendor::Fujifilm
+        | NativeVendor::StarlightXpress
         | NativeVendor::Celestron
         | NativeVendor::Pegasus
         | NativeVendor::Other(_) => Vec::new(),

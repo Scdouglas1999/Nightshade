@@ -409,11 +409,13 @@ class _CenteringDialogWithResultState
             ],
             const SizedBox(height: 16),
             if (_isCentering)
-              TextButton(
+              NightshadeButton(
                 onPressed: () {
                   Navigator.of(context).pop(null);
                 },
-                child: Text('Cancel', style: TextStyle(color: colors.error)),
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
               ),
           ],
         ),

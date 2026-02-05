@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 
 import 'database_provider.dart';
 import '../services/session_service.dart';
+import '../services/logging_service.dart';
 import '../database/daos/sequence_checkpoints_dao.dart';
 
 // ============================================================================
@@ -360,6 +361,7 @@ final sessionServiceProvider = Provider<SessionService>((ref) {
   final service = SessionService(
     sessionsDao: ref.watch(sessionsDaoProvider),
     checkpointsDao: ref.watch(sequenceCheckpointsDaoProvider),
+    logger: ref.watch(loggingServiceProvider),
   );
 
   ref.onDispose(() => service.dispose());

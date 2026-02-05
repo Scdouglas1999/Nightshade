@@ -150,3 +150,17 @@ static MORAVIAN_MUTEX_CELL: OnceLock<Mutex<()>> = OnceLock::new();
 pub fn moravian_mutex() -> &'static Mutex<()> {
     MORAVIAN_MUTEX_CELL.get_or_init(|| Mutex::new(()))
 }
+
+// =============================================================================
+// FUJIFILM SDK MUTEX
+// =============================================================================
+
+/// Mutex for Fujifilm X Acquire SDK operations.
+/// Protects all XAPI.dll function calls.
+/// The Fujifilm SDK is strictly single-threaded and will crash on concurrent access.
+static FUJIFILM_MUTEX_CELL: OnceLock<Mutex<()>> = OnceLock::new();
+
+/// Get the Fujifilm SDK mutex.
+pub fn fujifilm_mutex() -> &'static Mutex<()> {
+    FUJIFILM_MUTEX_CELL.get_or_init(|| Mutex::new(()))
+}

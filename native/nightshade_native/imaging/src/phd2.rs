@@ -532,11 +532,14 @@ impl Phd2Client {
                                     }
                                 }
 
-                                // Call user callback
+                                        // Call user callback
                                 if let Some(ref cb) = callback {
+                                    tracing::trace!("PHD2: Calling event callback for {:?}", event);
                                     if let Ok(cb) = cb.lock() {
                                         cb(event);
                                     }
+                                } else {
+                                    tracing::warn!("PHD2: No event callback registered, dropping event");
                                 }
                             }
                         }

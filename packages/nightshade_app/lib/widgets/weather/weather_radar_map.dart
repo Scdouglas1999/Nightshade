@@ -33,6 +33,10 @@ class WeatherRadarMap extends ConsumerStatefulWidget {
   /// Radar tile opacity (0.0 - 1.0)
   final double radarOpacity;
 
+  /// Contrast enhancement level (0.0 = none, 1.0 = moderate, 2.0 = high)
+  /// Applied to radar/satellite tiles to improve visibility of cloud boundaries.
+  final double contrastLevel;
+
   /// Cloud motion direction (degrees, 0=N, for indicator arrow)
   final double? motionDirection;
 
@@ -47,6 +51,7 @@ class WeatherRadarMap extends ConsumerStatefulWidget {
     this.compact = false,
     this.alertRadiusKm = 30.0,
     this.radarOpacity = 0.7,
+    this.contrastLevel = 1.5,
     this.motionDirection,
     this.onTap,
   });
@@ -81,8 +86,66 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
     return 6.0;
   }
 
+  /// Creates a color matrix for contrast enhancement.
+  ///
+  /// The contrast parameter controls the intensity:
+  /// - 0.0 = no enhancement (identity matrix)
+  /// - 1.0 = moderate enhancement (good for most conditions)
+  /// - 2.0 = high enhancement (useful for subtle cloud features)
+  ///
+  /// This uses a standard contrast matrix formula that also slightly increases
+  /// brightness in dark areas while compressing bright areas, making the
+  /// distinction between clear sky and clouds more obvious.
+  ColorFilter _buildContrastFilter(double contrast) {
+    // Base contrast multiplier (1.0 = no change, higher = more contrast)
+    // Using a sigmoid-like curve for natural-looking enhancement
+    final contrastMultiplier = 1.0 + (contrast * 0.5);
+
+    // Offset to adjust midpoint (negative pulls dark colors darker,
+    // positive pulls bright colors brighter)
+    final offset = -0.5 * (contrastMultiplier - 1.0) * 255;
+
+    // Slight gamma-style boost to make clouds "pop" more
+    // by adding extra brightness to already-bright pixels
+    final brightBoost = contrast * 0.08;
+
+    return ColorFilter.matrix(<double>[
+      // Red channel: enhanced contrast + slight warm shift for clouds
+      contrastMultiplier + brightBoost, 0, 0, 0, offset,
+      // Green channel: enhanced contrast
+      0, contrastMultiplier + brightBoost, 0, 0, offset,
+      // Blue channel: enhanced contrast + cooler for clear sky depth
+      0, 0, contrastMultiplier + brightBoost * 0.5, 0, offset,
+      // Alpha channel: unchanged
+      0, 0, 0, 1, 0,
+    ]);
+  }
+
+  /// Wraps a tile widget with contrast enhancement and opacity.
+  Widget _buildEnhancedTile(Widget tileWidget, double opacity, double contrast) {
+    Widget result = tileWidget;
+
+    // Apply contrast enhancement if enabled
+    if (contrast > 0) {
+      result = ColorFiltered(
+        colorFilter: _buildContrastFilter(contrast),
+        child: result,
+      );
+    }
+
+    // Apply opacity
+    if (opacity < 1.0) {
+      result = Opacity(
+        opacity: opacity,
+        child: result,
+      );
+    }
+
+    return result;
+  }
+
   /// Builds the appropriate tile layer based on the frame's tile type
-  Widget _buildRadarTileLayer(RadarFrame frame, double opacity) {
+  Widget _buildRadarTileLayer(RadarFrame frame, double opacity, double contrast) {
     // Create tile bounds from frame coverage to prevent NaN errors
     // when requesting tiles outside the provider's coverage area
     final tileBounds = LatLngBounds(
@@ -105,10 +168,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
         tileBounds: tileBounds,
         evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
         tileBuilder: (context, tileWidget, tile) {
-          return Opacity(
-            opacity: opacity,
-            child: tileWidget,
-          );
+          return _buildEnhancedTile(tileWidget, opacity, contrast);
         },
       );
     } else {
@@ -118,10 +178,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
         tileBounds: tileBounds,
         evictErrorTileStrategy: EvictErrorTileStrategy.dispose,
         tileBuilder: (context, tileWidget, tile) {
-          return Opacity(
-            opacity: opacity,
-            child: tileWidget,
-          );
+          return _buildEnhancedTile(tileWidget, opacity, contrast);
         },
       );
     }
@@ -170,17 +227,11 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
 
         // Radar overlay layer - handles both XYZ and WMS tile types
         if (widget.currentFrame != null) ...[
-          Builder(builder: (context) {
-            final frame = widget.currentFrame!;
-            print('WeatherRadarMap: Tile type: ${frame.tileType}');
-            print('WeatherRadarMap: URL template: ${frame.tileUrlTemplate}');
-            if (frame.tileType == RadarTileType.wms) {
-              print('WeatherRadarMap: WMS layers: ${frame.wmsLayers}');
-              print('WeatherRadarMap: WMS options: ${frame.wmsAdditionalOptions}');
-            }
-            return const SizedBox.shrink();
-          }),
-          _buildRadarTileLayer(widget.currentFrame!, widget.radarOpacity),
+          _buildRadarTileLayer(
+            widget.currentFrame!,
+            widget.radarOpacity,
+            widget.contrastLevel,
+          ),
         ],
 
         // Alert radius circle

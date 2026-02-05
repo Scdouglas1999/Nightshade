@@ -52,7 +52,7 @@ class _SessionRecoveryCheckerState extends ConsumerState<SessionRecoveryChecker>
         }
       }
     } catch (e) {
-      debugPrint('Error checking for incomplete sessions: $e');
+      debugPrint('[SessionRecovery] Error checking for incomplete sessions: $e');
       // Don't show error to user - this is a background check
     }
   }

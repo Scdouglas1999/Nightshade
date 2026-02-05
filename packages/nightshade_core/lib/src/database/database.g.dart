@@ -8523,6 +8523,712 @@ class TutorialProgressCompanion extends UpdateCompanion<TutorialProgressEntry> {
   }
 }
 
+class $PolarAlignmentHistoryTable extends PolarAlignmentHistory
+    with TableInfo<$PolarAlignmentHistoryTable, PolarAlignmentHistoryEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PolarAlignmentHistoryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _equipmentProfileIdMeta =
+      const VerificationMeta('equipmentProfileId');
+  @override
+  late final GeneratedColumn<String> equipmentProfileId =
+      GeneratedColumn<String>('equipment_profile_id', aliasedName, true,
+          type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _initialAzimuthErrorMeta =
+      const VerificationMeta('initialAzimuthError');
+  @override
+  late final GeneratedColumn<double> initialAzimuthError =
+      GeneratedColumn<double>('initial_azimuth_error', aliasedName, false,
+          type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _initialAltitudeErrorMeta =
+      const VerificationMeta('initialAltitudeError');
+  @override
+  late final GeneratedColumn<double> initialAltitudeError =
+      GeneratedColumn<double>('initial_altitude_error', aliasedName, false,
+          type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _initialTotalErrorMeta =
+      const VerificationMeta('initialTotalError');
+  @override
+  late final GeneratedColumn<double> initialTotalError =
+      GeneratedColumn<double>('initial_total_error', aliasedName, false,
+          type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _finalAzimuthErrorMeta =
+      const VerificationMeta('finalAzimuthError');
+  @override
+  late final GeneratedColumn<double> finalAzimuthError =
+      GeneratedColumn<double>('final_azimuth_error', aliasedName, false,
+          type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _finalAltitudeErrorMeta =
+      const VerificationMeta('finalAltitudeError');
+  @override
+  late final GeneratedColumn<double> finalAltitudeError =
+      GeneratedColumn<double>('final_altitude_error', aliasedName, false,
+          type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _finalTotalErrorMeta =
+      const VerificationMeta('finalTotalError');
+  @override
+  late final GeneratedColumn<double> finalTotalError = GeneratedColumn<double>(
+      'final_total_error', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _startedAtMeta =
+      const VerificationMeta('startedAt');
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+      'started_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _completedAtMeta =
+      const VerificationMeta('completedAt');
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+      'completed_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _autoCompletedMeta =
+      const VerificationMeta('autoCompleted');
+  @override
+  late final GeneratedColumn<bool> autoCompleted = GeneratedColumn<bool>(
+      'auto_completed', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("auto_completed" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _isNorthMeta =
+      const VerificationMeta('isNorth');
+  @override
+  late final GeneratedColumn<bool> isNorth = GeneratedColumn<bool>(
+      'is_north', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("is_north" IN (0, 1))'),
+      defaultValue: const Constant(true));
+  static const VerificationMeta _configJsonMeta =
+      const VerificationMeta('configJson');
+  @override
+  late final GeneratedColumn<String> configJson = GeneratedColumn<String>(
+      'config_json', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        equipmentProfileId,
+        initialAzimuthError,
+        initialAltitudeError,
+        initialTotalError,
+        finalAzimuthError,
+        finalAltitudeError,
+        finalTotalError,
+        startedAt,
+        completedAt,
+        autoCompleted,
+        isNorth,
+        configJson
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'polar_alignment_history';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<PolarAlignmentHistoryEntry> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('equipment_profile_id')) {
+      context.handle(
+          _equipmentProfileIdMeta,
+          equipmentProfileId.isAcceptableOrUnknown(
+              data['equipment_profile_id']!, _equipmentProfileIdMeta));
+    }
+    if (data.containsKey('initial_azimuth_error')) {
+      context.handle(
+          _initialAzimuthErrorMeta,
+          initialAzimuthError.isAcceptableOrUnknown(
+              data['initial_azimuth_error']!, _initialAzimuthErrorMeta));
+    } else if (isInserting) {
+      context.missing(_initialAzimuthErrorMeta);
+    }
+    if (data.containsKey('initial_altitude_error')) {
+      context.handle(
+          _initialAltitudeErrorMeta,
+          initialAltitudeError.isAcceptableOrUnknown(
+              data['initial_altitude_error']!, _initialAltitudeErrorMeta));
+    } else if (isInserting) {
+      context.missing(_initialAltitudeErrorMeta);
+    }
+    if (data.containsKey('initial_total_error')) {
+      context.handle(
+          _initialTotalErrorMeta,
+          initialTotalError.isAcceptableOrUnknown(
+              data['initial_total_error']!, _initialTotalErrorMeta));
+    } else if (isInserting) {
+      context.missing(_initialTotalErrorMeta);
+    }
+    if (data.containsKey('final_azimuth_error')) {
+      context.handle(
+          _finalAzimuthErrorMeta,
+          finalAzimuthError.isAcceptableOrUnknown(
+              data['final_azimuth_error']!, _finalAzimuthErrorMeta));
+    } else if (isInserting) {
+      context.missing(_finalAzimuthErrorMeta);
+    }
+    if (data.containsKey('final_altitude_error')) {
+      context.handle(
+          _finalAltitudeErrorMeta,
+          finalAltitudeError.isAcceptableOrUnknown(
+              data['final_altitude_error']!, _finalAltitudeErrorMeta));
+    } else if (isInserting) {
+      context.missing(_finalAltitudeErrorMeta);
+    }
+    if (data.containsKey('final_total_error')) {
+      context.handle(
+          _finalTotalErrorMeta,
+          finalTotalError.isAcceptableOrUnknown(
+              data['final_total_error']!, _finalTotalErrorMeta));
+    } else if (isInserting) {
+      context.missing(_finalTotalErrorMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(_startedAtMeta,
+          startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta));
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+          _completedAtMeta,
+          completedAt.isAcceptableOrUnknown(
+              data['completed_at']!, _completedAtMeta));
+    } else if (isInserting) {
+      context.missing(_completedAtMeta);
+    }
+    if (data.containsKey('auto_completed')) {
+      context.handle(
+          _autoCompletedMeta,
+          autoCompleted.isAcceptableOrUnknown(
+              data['auto_completed']!, _autoCompletedMeta));
+    }
+    if (data.containsKey('is_north')) {
+      context.handle(_isNorthMeta,
+          isNorth.isAcceptableOrUnknown(data['is_north']!, _isNorthMeta));
+    }
+    if (data.containsKey('config_json')) {
+      context.handle(
+          _configJsonMeta,
+          configJson.isAcceptableOrUnknown(
+              data['config_json']!, _configJsonMeta));
+    } else if (isInserting) {
+      context.missing(_configJsonMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PolarAlignmentHistoryEntry map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PolarAlignmentHistoryEntry(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      equipmentProfileId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}equipment_profile_id']),
+      initialAzimuthError: attachedDatabase.typeMapping.read(
+          DriftSqlType.double,
+          data['${effectivePrefix}initial_azimuth_error'])!,
+      initialAltitudeError: attachedDatabase.typeMapping.read(
+          DriftSqlType.double,
+          data['${effectivePrefix}initial_altitude_error'])!,
+      initialTotalError: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}initial_total_error'])!,
+      finalAzimuthError: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}final_azimuth_error'])!,
+      finalAltitudeError: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}final_altitude_error'])!,
+      finalTotalError: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}final_total_error'])!,
+      startedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}started_at'])!,
+      completedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}completed_at'])!,
+      autoCompleted: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}auto_completed'])!,
+      isNorth: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_north'])!,
+      configJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}config_json'])!,
+    );
+  }
+
+  @override
+  $PolarAlignmentHistoryTable createAlias(String alias) {
+    return $PolarAlignmentHistoryTable(attachedDatabase, alias);
+  }
+}
+
+class PolarAlignmentHistoryEntry extends DataClass
+    implements Insertable<PolarAlignmentHistoryEntry> {
+  /// Primary key
+  final int id;
+
+  /// Reference to equipment profile used (nullable for unassociated sessions)
+  final String? equipmentProfileId;
+
+  /// Initial azimuth error in arcseconds
+  final double initialAzimuthError;
+
+  /// Initial altitude error in arcseconds
+  final double initialAltitudeError;
+
+  /// Initial total error in arcseconds
+  final double initialTotalError;
+
+  /// Final azimuth error in arcseconds
+  final double finalAzimuthError;
+
+  /// Final altitude error in arcseconds
+  final double finalAltitudeError;
+
+  /// Final total error in arcseconds
+  final double finalTotalError;
+
+  /// When alignment started
+  final DateTime startedAt;
+
+  /// When alignment completed
+  final DateTime completedAt;
+
+  /// Whether alignment was auto-completed (reached threshold)
+  final bool autoCompleted;
+
+  /// Whether observing from northern hemisphere
+  final bool isNorth;
+
+  /// Full configuration JSON for reference
+  final String configJson;
+  const PolarAlignmentHistoryEntry(
+      {required this.id,
+      this.equipmentProfileId,
+      required this.initialAzimuthError,
+      required this.initialAltitudeError,
+      required this.initialTotalError,
+      required this.finalAzimuthError,
+      required this.finalAltitudeError,
+      required this.finalTotalError,
+      required this.startedAt,
+      required this.completedAt,
+      required this.autoCompleted,
+      required this.isNorth,
+      required this.configJson});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || equipmentProfileId != null) {
+      map['equipment_profile_id'] = Variable<String>(equipmentProfileId);
+    }
+    map['initial_azimuth_error'] = Variable<double>(initialAzimuthError);
+    map['initial_altitude_error'] = Variable<double>(initialAltitudeError);
+    map['initial_total_error'] = Variable<double>(initialTotalError);
+    map['final_azimuth_error'] = Variable<double>(finalAzimuthError);
+    map['final_altitude_error'] = Variable<double>(finalAltitudeError);
+    map['final_total_error'] = Variable<double>(finalTotalError);
+    map['started_at'] = Variable<DateTime>(startedAt);
+    map['completed_at'] = Variable<DateTime>(completedAt);
+    map['auto_completed'] = Variable<bool>(autoCompleted);
+    map['is_north'] = Variable<bool>(isNorth);
+    map['config_json'] = Variable<String>(configJson);
+    return map;
+  }
+
+  PolarAlignmentHistoryCompanion toCompanion(bool nullToAbsent) {
+    return PolarAlignmentHistoryCompanion(
+      id: Value(id),
+      equipmentProfileId: equipmentProfileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(equipmentProfileId),
+      initialAzimuthError: Value(initialAzimuthError),
+      initialAltitudeError: Value(initialAltitudeError),
+      initialTotalError: Value(initialTotalError),
+      finalAzimuthError: Value(finalAzimuthError),
+      finalAltitudeError: Value(finalAltitudeError),
+      finalTotalError: Value(finalTotalError),
+      startedAt: Value(startedAt),
+      completedAt: Value(completedAt),
+      autoCompleted: Value(autoCompleted),
+      isNorth: Value(isNorth),
+      configJson: Value(configJson),
+    );
+  }
+
+  factory PolarAlignmentHistoryEntry.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PolarAlignmentHistoryEntry(
+      id: serializer.fromJson<int>(json['id']),
+      equipmentProfileId:
+          serializer.fromJson<String?>(json['equipmentProfileId']),
+      initialAzimuthError:
+          serializer.fromJson<double>(json['initialAzimuthError']),
+      initialAltitudeError:
+          serializer.fromJson<double>(json['initialAltitudeError']),
+      initialTotalError: serializer.fromJson<double>(json['initialTotalError']),
+      finalAzimuthError: serializer.fromJson<double>(json['finalAzimuthError']),
+      finalAltitudeError:
+          serializer.fromJson<double>(json['finalAltitudeError']),
+      finalTotalError: serializer.fromJson<double>(json['finalTotalError']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      completedAt: serializer.fromJson<DateTime>(json['completedAt']),
+      autoCompleted: serializer.fromJson<bool>(json['autoCompleted']),
+      isNorth: serializer.fromJson<bool>(json['isNorth']),
+      configJson: serializer.fromJson<String>(json['configJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'equipmentProfileId': serializer.toJson<String?>(equipmentProfileId),
+      'initialAzimuthError': serializer.toJson<double>(initialAzimuthError),
+      'initialAltitudeError': serializer.toJson<double>(initialAltitudeError),
+      'initialTotalError': serializer.toJson<double>(initialTotalError),
+      'finalAzimuthError': serializer.toJson<double>(finalAzimuthError),
+      'finalAltitudeError': serializer.toJson<double>(finalAltitudeError),
+      'finalTotalError': serializer.toJson<double>(finalTotalError),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'completedAt': serializer.toJson<DateTime>(completedAt),
+      'autoCompleted': serializer.toJson<bool>(autoCompleted),
+      'isNorth': serializer.toJson<bool>(isNorth),
+      'configJson': serializer.toJson<String>(configJson),
+    };
+  }
+
+  PolarAlignmentHistoryEntry copyWith(
+          {int? id,
+          Value<String?> equipmentProfileId = const Value.absent(),
+          double? initialAzimuthError,
+          double? initialAltitudeError,
+          double? initialTotalError,
+          double? finalAzimuthError,
+          double? finalAltitudeError,
+          double? finalTotalError,
+          DateTime? startedAt,
+          DateTime? completedAt,
+          bool? autoCompleted,
+          bool? isNorth,
+          String? configJson}) =>
+      PolarAlignmentHistoryEntry(
+        id: id ?? this.id,
+        equipmentProfileId: equipmentProfileId.present
+            ? equipmentProfileId.value
+            : this.equipmentProfileId,
+        initialAzimuthError: initialAzimuthError ?? this.initialAzimuthError,
+        initialAltitudeError: initialAltitudeError ?? this.initialAltitudeError,
+        initialTotalError: initialTotalError ?? this.initialTotalError,
+        finalAzimuthError: finalAzimuthError ?? this.finalAzimuthError,
+        finalAltitudeError: finalAltitudeError ?? this.finalAltitudeError,
+        finalTotalError: finalTotalError ?? this.finalTotalError,
+        startedAt: startedAt ?? this.startedAt,
+        completedAt: completedAt ?? this.completedAt,
+        autoCompleted: autoCompleted ?? this.autoCompleted,
+        isNorth: isNorth ?? this.isNorth,
+        configJson: configJson ?? this.configJson,
+      );
+  PolarAlignmentHistoryEntry copyWithCompanion(
+      PolarAlignmentHistoryCompanion data) {
+    return PolarAlignmentHistoryEntry(
+      id: data.id.present ? data.id.value : this.id,
+      equipmentProfileId: data.equipmentProfileId.present
+          ? data.equipmentProfileId.value
+          : this.equipmentProfileId,
+      initialAzimuthError: data.initialAzimuthError.present
+          ? data.initialAzimuthError.value
+          : this.initialAzimuthError,
+      initialAltitudeError: data.initialAltitudeError.present
+          ? data.initialAltitudeError.value
+          : this.initialAltitudeError,
+      initialTotalError: data.initialTotalError.present
+          ? data.initialTotalError.value
+          : this.initialTotalError,
+      finalAzimuthError: data.finalAzimuthError.present
+          ? data.finalAzimuthError.value
+          : this.finalAzimuthError,
+      finalAltitudeError: data.finalAltitudeError.present
+          ? data.finalAltitudeError.value
+          : this.finalAltitudeError,
+      finalTotalError: data.finalTotalError.present
+          ? data.finalTotalError.value
+          : this.finalTotalError,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      completedAt:
+          data.completedAt.present ? data.completedAt.value : this.completedAt,
+      autoCompleted: data.autoCompleted.present
+          ? data.autoCompleted.value
+          : this.autoCompleted,
+      isNorth: data.isNorth.present ? data.isNorth.value : this.isNorth,
+      configJson:
+          data.configJson.present ? data.configJson.value : this.configJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PolarAlignmentHistoryEntry(')
+          ..write('id: $id, ')
+          ..write('equipmentProfileId: $equipmentProfileId, ')
+          ..write('initialAzimuthError: $initialAzimuthError, ')
+          ..write('initialAltitudeError: $initialAltitudeError, ')
+          ..write('initialTotalError: $initialTotalError, ')
+          ..write('finalAzimuthError: $finalAzimuthError, ')
+          ..write('finalAltitudeError: $finalAltitudeError, ')
+          ..write('finalTotalError: $finalTotalError, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('autoCompleted: $autoCompleted, ')
+          ..write('isNorth: $isNorth, ')
+          ..write('configJson: $configJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      equipmentProfileId,
+      initialAzimuthError,
+      initialAltitudeError,
+      initialTotalError,
+      finalAzimuthError,
+      finalAltitudeError,
+      finalTotalError,
+      startedAt,
+      completedAt,
+      autoCompleted,
+      isNorth,
+      configJson);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PolarAlignmentHistoryEntry &&
+          other.id == this.id &&
+          other.equipmentProfileId == this.equipmentProfileId &&
+          other.initialAzimuthError == this.initialAzimuthError &&
+          other.initialAltitudeError == this.initialAltitudeError &&
+          other.initialTotalError == this.initialTotalError &&
+          other.finalAzimuthError == this.finalAzimuthError &&
+          other.finalAltitudeError == this.finalAltitudeError &&
+          other.finalTotalError == this.finalTotalError &&
+          other.startedAt == this.startedAt &&
+          other.completedAt == this.completedAt &&
+          other.autoCompleted == this.autoCompleted &&
+          other.isNorth == this.isNorth &&
+          other.configJson == this.configJson);
+}
+
+class PolarAlignmentHistoryCompanion
+    extends UpdateCompanion<PolarAlignmentHistoryEntry> {
+  final Value<int> id;
+  final Value<String?> equipmentProfileId;
+  final Value<double> initialAzimuthError;
+  final Value<double> initialAltitudeError;
+  final Value<double> initialTotalError;
+  final Value<double> finalAzimuthError;
+  final Value<double> finalAltitudeError;
+  final Value<double> finalTotalError;
+  final Value<DateTime> startedAt;
+  final Value<DateTime> completedAt;
+  final Value<bool> autoCompleted;
+  final Value<bool> isNorth;
+  final Value<String> configJson;
+  const PolarAlignmentHistoryCompanion({
+    this.id = const Value.absent(),
+    this.equipmentProfileId = const Value.absent(),
+    this.initialAzimuthError = const Value.absent(),
+    this.initialAltitudeError = const Value.absent(),
+    this.initialTotalError = const Value.absent(),
+    this.finalAzimuthError = const Value.absent(),
+    this.finalAltitudeError = const Value.absent(),
+    this.finalTotalError = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.autoCompleted = const Value.absent(),
+    this.isNorth = const Value.absent(),
+    this.configJson = const Value.absent(),
+  });
+  PolarAlignmentHistoryCompanion.insert({
+    this.id = const Value.absent(),
+    this.equipmentProfileId = const Value.absent(),
+    required double initialAzimuthError,
+    required double initialAltitudeError,
+    required double initialTotalError,
+    required double finalAzimuthError,
+    required double finalAltitudeError,
+    required double finalTotalError,
+    required DateTime startedAt,
+    required DateTime completedAt,
+    this.autoCompleted = const Value.absent(),
+    this.isNorth = const Value.absent(),
+    required String configJson,
+  })  : initialAzimuthError = Value(initialAzimuthError),
+        initialAltitudeError = Value(initialAltitudeError),
+        initialTotalError = Value(initialTotalError),
+        finalAzimuthError = Value(finalAzimuthError),
+        finalAltitudeError = Value(finalAltitudeError),
+        finalTotalError = Value(finalTotalError),
+        startedAt = Value(startedAt),
+        completedAt = Value(completedAt),
+        configJson = Value(configJson);
+  static Insertable<PolarAlignmentHistoryEntry> custom({
+    Expression<int>? id,
+    Expression<String>? equipmentProfileId,
+    Expression<double>? initialAzimuthError,
+    Expression<double>? initialAltitudeError,
+    Expression<double>? initialTotalError,
+    Expression<double>? finalAzimuthError,
+    Expression<double>? finalAltitudeError,
+    Expression<double>? finalTotalError,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? completedAt,
+    Expression<bool>? autoCompleted,
+    Expression<bool>? isNorth,
+    Expression<String>? configJson,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (equipmentProfileId != null)
+        'equipment_profile_id': equipmentProfileId,
+      if (initialAzimuthError != null)
+        'initial_azimuth_error': initialAzimuthError,
+      if (initialAltitudeError != null)
+        'initial_altitude_error': initialAltitudeError,
+      if (initialTotalError != null) 'initial_total_error': initialTotalError,
+      if (finalAzimuthError != null) 'final_azimuth_error': finalAzimuthError,
+      if (finalAltitudeError != null)
+        'final_altitude_error': finalAltitudeError,
+      if (finalTotalError != null) 'final_total_error': finalTotalError,
+      if (startedAt != null) 'started_at': startedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (autoCompleted != null) 'auto_completed': autoCompleted,
+      if (isNorth != null) 'is_north': isNorth,
+      if (configJson != null) 'config_json': configJson,
+    });
+  }
+
+  PolarAlignmentHistoryCompanion copyWith(
+      {Value<int>? id,
+      Value<String?>? equipmentProfileId,
+      Value<double>? initialAzimuthError,
+      Value<double>? initialAltitudeError,
+      Value<double>? initialTotalError,
+      Value<double>? finalAzimuthError,
+      Value<double>? finalAltitudeError,
+      Value<double>? finalTotalError,
+      Value<DateTime>? startedAt,
+      Value<DateTime>? completedAt,
+      Value<bool>? autoCompleted,
+      Value<bool>? isNorth,
+      Value<String>? configJson}) {
+    return PolarAlignmentHistoryCompanion(
+      id: id ?? this.id,
+      equipmentProfileId: equipmentProfileId ?? this.equipmentProfileId,
+      initialAzimuthError: initialAzimuthError ?? this.initialAzimuthError,
+      initialAltitudeError: initialAltitudeError ?? this.initialAltitudeError,
+      initialTotalError: initialTotalError ?? this.initialTotalError,
+      finalAzimuthError: finalAzimuthError ?? this.finalAzimuthError,
+      finalAltitudeError: finalAltitudeError ?? this.finalAltitudeError,
+      finalTotalError: finalTotalError ?? this.finalTotalError,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      autoCompleted: autoCompleted ?? this.autoCompleted,
+      isNorth: isNorth ?? this.isNorth,
+      configJson: configJson ?? this.configJson,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (equipmentProfileId.present) {
+      map['equipment_profile_id'] = Variable<String>(equipmentProfileId.value);
+    }
+    if (initialAzimuthError.present) {
+      map['initial_azimuth_error'] =
+          Variable<double>(initialAzimuthError.value);
+    }
+    if (initialAltitudeError.present) {
+      map['initial_altitude_error'] =
+          Variable<double>(initialAltitudeError.value);
+    }
+    if (initialTotalError.present) {
+      map['initial_total_error'] = Variable<double>(initialTotalError.value);
+    }
+    if (finalAzimuthError.present) {
+      map['final_azimuth_error'] = Variable<double>(finalAzimuthError.value);
+    }
+    if (finalAltitudeError.present) {
+      map['final_altitude_error'] = Variable<double>(finalAltitudeError.value);
+    }
+    if (finalTotalError.present) {
+      map['final_total_error'] = Variable<double>(finalTotalError.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    if (autoCompleted.present) {
+      map['auto_completed'] = Variable<bool>(autoCompleted.value);
+    }
+    if (isNorth.present) {
+      map['is_north'] = Variable<bool>(isNorth.value);
+    }
+    if (configJson.present) {
+      map['config_json'] = Variable<String>(configJson.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PolarAlignmentHistoryCompanion(')
+          ..write('id: $id, ')
+          ..write('equipmentProfileId: $equipmentProfileId, ')
+          ..write('initialAzimuthError: $initialAzimuthError, ')
+          ..write('initialAltitudeError: $initialAltitudeError, ')
+          ..write('initialTotalError: $initialTotalError, ')
+          ..write('finalAzimuthError: $finalAzimuthError, ')
+          ..write('finalAltitudeError: $finalAltitudeError, ')
+          ..write('finalTotalError: $finalTotalError, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('autoCompleted: $autoCompleted, ')
+          ..write('isNorth: $isNorth, ')
+          ..write('configJson: $configJson')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NightshadeDatabase extends GeneratedDatabase {
   _$NightshadeDatabase(QueryExecutor e) : super(e);
   $NightshadeDatabaseManager get managers => $NightshadeDatabaseManager(this);
@@ -8543,6 +9249,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final $FlatHistoryTable flatHistory = $FlatHistoryTable(this);
   late final $TutorialProgressTable tutorialProgress =
       $TutorialProgressTable(this);
+  late final $PolarAlignmentHistoryTable polarAlignmentHistory =
+      $PolarAlignmentHistoryTable(this);
   late final Index idxProfilesName = Index('idx_profiles_name',
       'CREATE INDEX idx_profiles_name ON equipment_profiles (name)');
   late final Index idxProfilesActive = Index('idx_profiles_active',
@@ -8611,6 +9319,13 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final Index idxTutorialProgressCategory = Index(
       'idx_tutorial_progress_category',
       'CREATE INDEX idx_tutorial_progress_category ON tutorial_progress (category)');
+  late final Index idxPolarHistoryProfile = Index('idx_polar_history_profile',
+      'CREATE INDEX idx_polar_history_profile ON polar_alignment_history (equipment_profile_id)');
+  late final Index idxPolarHistoryStarted = Index('idx_polar_history_started',
+      'CREATE INDEX idx_polar_history_started ON polar_alignment_history (started_at)');
+  late final Index idxPolarHistoryCompleted = Index(
+      'idx_polar_history_completed',
+      'CREATE INDEX idx_polar_history_completed ON polar_alignment_history (completed_at)');
   late final ImagesDao imagesDao = ImagesDao(this as NightshadeDatabase);
   late final EquipmentProfilesDao equipmentProfilesDao =
       EquipmentProfilesDao(this as NightshadeDatabase);
@@ -8627,6 +9342,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       FlatHistoryDao(this as NightshadeDatabase);
   late final TutorialProgressDao tutorialProgressDao =
       TutorialProgressDao(this as NightshadeDatabase);
+  late final PolarAlignmentHistoryDao polarAlignmentHistoryDao =
+      PolarAlignmentHistoryDao(this as NightshadeDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -8644,6 +9361,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         weatherSettings,
         flatHistory,
         tutorialProgress,
+        polarAlignmentHistory,
         idxProfilesName,
         idxProfilesActive,
         idxSessionsTarget,
@@ -8676,7 +9394,10 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         idxFlatHistoryProfile,
         idxFlatHistoryFilter,
         idxFlatHistoryTimestamp,
-        idxTutorialProgressCategory
+        idxTutorialProgressCategory,
+        idxPolarHistoryProfile,
+        idxPolarHistoryStarted,
+        idxPolarHistoryCompleted
       ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
@@ -14048,6 +14769,315 @@ typedef $$TutorialProgressTableProcessedTableManager = ProcessedTableManager<
     ),
     TutorialProgressEntry,
     PrefetchHooks Function()>;
+typedef $$PolarAlignmentHistoryTableCreateCompanionBuilder
+    = PolarAlignmentHistoryCompanion Function({
+  Value<int> id,
+  Value<String?> equipmentProfileId,
+  required double initialAzimuthError,
+  required double initialAltitudeError,
+  required double initialTotalError,
+  required double finalAzimuthError,
+  required double finalAltitudeError,
+  required double finalTotalError,
+  required DateTime startedAt,
+  required DateTime completedAt,
+  Value<bool> autoCompleted,
+  Value<bool> isNorth,
+  required String configJson,
+});
+typedef $$PolarAlignmentHistoryTableUpdateCompanionBuilder
+    = PolarAlignmentHistoryCompanion Function({
+  Value<int> id,
+  Value<String?> equipmentProfileId,
+  Value<double> initialAzimuthError,
+  Value<double> initialAltitudeError,
+  Value<double> initialTotalError,
+  Value<double> finalAzimuthError,
+  Value<double> finalAltitudeError,
+  Value<double> finalTotalError,
+  Value<DateTime> startedAt,
+  Value<DateTime> completedAt,
+  Value<bool> autoCompleted,
+  Value<bool> isNorth,
+  Value<String> configJson,
+});
+
+class $$PolarAlignmentHistoryTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $PolarAlignmentHistoryTable> {
+  $$PolarAlignmentHistoryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get equipmentProfileId => $composableBuilder(
+      column: $table.equipmentProfileId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get initialAzimuthError => $composableBuilder(
+      column: $table.initialAzimuthError,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get initialAltitudeError => $composableBuilder(
+      column: $table.initialAltitudeError,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get initialTotalError => $composableBuilder(
+      column: $table.initialTotalError,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get finalAzimuthError => $composableBuilder(
+      column: $table.finalAzimuthError,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get finalAltitudeError => $composableBuilder(
+      column: $table.finalAltitudeError,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get finalTotalError => $composableBuilder(
+      column: $table.finalTotalError,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+      column: $table.completedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get autoCompleted => $composableBuilder(
+      column: $table.autoCompleted, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isNorth => $composableBuilder(
+      column: $table.isNorth, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get configJson => $composableBuilder(
+      column: $table.configJson, builder: (column) => ColumnFilters(column));
+}
+
+class $$PolarAlignmentHistoryTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $PolarAlignmentHistoryTable> {
+  $$PolarAlignmentHistoryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get equipmentProfileId => $composableBuilder(
+      column: $table.equipmentProfileId,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get initialAzimuthError => $composableBuilder(
+      column: $table.initialAzimuthError,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get initialAltitudeError => $composableBuilder(
+      column: $table.initialAltitudeError,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get initialTotalError => $composableBuilder(
+      column: $table.initialTotalError,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get finalAzimuthError => $composableBuilder(
+      column: $table.finalAzimuthError,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get finalAltitudeError => $composableBuilder(
+      column: $table.finalAltitudeError,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get finalTotalError => $composableBuilder(
+      column: $table.finalTotalError,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+      column: $table.startedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+      column: $table.completedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get autoCompleted => $composableBuilder(
+      column: $table.autoCompleted,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isNorth => $composableBuilder(
+      column: $table.isNorth, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get configJson => $composableBuilder(
+      column: $table.configJson, builder: (column) => ColumnOrderings(column));
+}
+
+class $$PolarAlignmentHistoryTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $PolarAlignmentHistoryTable> {
+  $$PolarAlignmentHistoryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get equipmentProfileId => $composableBuilder(
+      column: $table.equipmentProfileId, builder: (column) => column);
+
+  GeneratedColumn<double> get initialAzimuthError => $composableBuilder(
+      column: $table.initialAzimuthError, builder: (column) => column);
+
+  GeneratedColumn<double> get initialAltitudeError => $composableBuilder(
+      column: $table.initialAltitudeError, builder: (column) => column);
+
+  GeneratedColumn<double> get initialTotalError => $composableBuilder(
+      column: $table.initialTotalError, builder: (column) => column);
+
+  GeneratedColumn<double> get finalAzimuthError => $composableBuilder(
+      column: $table.finalAzimuthError, builder: (column) => column);
+
+  GeneratedColumn<double> get finalAltitudeError => $composableBuilder(
+      column: $table.finalAltitudeError, builder: (column) => column);
+
+  GeneratedColumn<double> get finalTotalError => $composableBuilder(
+      column: $table.finalTotalError, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+      column: $table.completedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get autoCompleted => $composableBuilder(
+      column: $table.autoCompleted, builder: (column) => column);
+
+  GeneratedColumn<bool> get isNorth =>
+      $composableBuilder(column: $table.isNorth, builder: (column) => column);
+
+  GeneratedColumn<String> get configJson => $composableBuilder(
+      column: $table.configJson, builder: (column) => column);
+}
+
+class $$PolarAlignmentHistoryTableTableManager extends RootTableManager<
+    _$NightshadeDatabase,
+    $PolarAlignmentHistoryTable,
+    PolarAlignmentHistoryEntry,
+    $$PolarAlignmentHistoryTableFilterComposer,
+    $$PolarAlignmentHistoryTableOrderingComposer,
+    $$PolarAlignmentHistoryTableAnnotationComposer,
+    $$PolarAlignmentHistoryTableCreateCompanionBuilder,
+    $$PolarAlignmentHistoryTableUpdateCompanionBuilder,
+    (
+      PolarAlignmentHistoryEntry,
+      BaseReferences<_$NightshadeDatabase, $PolarAlignmentHistoryTable,
+          PolarAlignmentHistoryEntry>
+    ),
+    PolarAlignmentHistoryEntry,
+    PrefetchHooks Function()> {
+  $$PolarAlignmentHistoryTableTableManager(
+      _$NightshadeDatabase db, $PolarAlignmentHistoryTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PolarAlignmentHistoryTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PolarAlignmentHistoryTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PolarAlignmentHistoryTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String?> equipmentProfileId = const Value.absent(),
+            Value<double> initialAzimuthError = const Value.absent(),
+            Value<double> initialAltitudeError = const Value.absent(),
+            Value<double> initialTotalError = const Value.absent(),
+            Value<double> finalAzimuthError = const Value.absent(),
+            Value<double> finalAltitudeError = const Value.absent(),
+            Value<double> finalTotalError = const Value.absent(),
+            Value<DateTime> startedAt = const Value.absent(),
+            Value<DateTime> completedAt = const Value.absent(),
+            Value<bool> autoCompleted = const Value.absent(),
+            Value<bool> isNorth = const Value.absent(),
+            Value<String> configJson = const Value.absent(),
+          }) =>
+              PolarAlignmentHistoryCompanion(
+            id: id,
+            equipmentProfileId: equipmentProfileId,
+            initialAzimuthError: initialAzimuthError,
+            initialAltitudeError: initialAltitudeError,
+            initialTotalError: initialTotalError,
+            finalAzimuthError: finalAzimuthError,
+            finalAltitudeError: finalAltitudeError,
+            finalTotalError: finalTotalError,
+            startedAt: startedAt,
+            completedAt: completedAt,
+            autoCompleted: autoCompleted,
+            isNorth: isNorth,
+            configJson: configJson,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String?> equipmentProfileId = const Value.absent(),
+            required double initialAzimuthError,
+            required double initialAltitudeError,
+            required double initialTotalError,
+            required double finalAzimuthError,
+            required double finalAltitudeError,
+            required double finalTotalError,
+            required DateTime startedAt,
+            required DateTime completedAt,
+            Value<bool> autoCompleted = const Value.absent(),
+            Value<bool> isNorth = const Value.absent(),
+            required String configJson,
+          }) =>
+              PolarAlignmentHistoryCompanion.insert(
+            id: id,
+            equipmentProfileId: equipmentProfileId,
+            initialAzimuthError: initialAzimuthError,
+            initialAltitudeError: initialAltitudeError,
+            initialTotalError: initialTotalError,
+            finalAzimuthError: finalAzimuthError,
+            finalAltitudeError: finalAltitudeError,
+            finalTotalError: finalTotalError,
+            startedAt: startedAt,
+            completedAt: completedAt,
+            autoCompleted: autoCompleted,
+            isNorth: isNorth,
+            configJson: configJson,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$PolarAlignmentHistoryTableProcessedTableManager
+    = ProcessedTableManager<
+        _$NightshadeDatabase,
+        $PolarAlignmentHistoryTable,
+        PolarAlignmentHistoryEntry,
+        $$PolarAlignmentHistoryTableFilterComposer,
+        $$PolarAlignmentHistoryTableOrderingComposer,
+        $$PolarAlignmentHistoryTableAnnotationComposer,
+        $$PolarAlignmentHistoryTableCreateCompanionBuilder,
+        $$PolarAlignmentHistoryTableUpdateCompanionBuilder,
+        (
+          PolarAlignmentHistoryEntry,
+          BaseReferences<_$NightshadeDatabase, $PolarAlignmentHistoryTable,
+              PolarAlignmentHistoryEntry>
+        ),
+        PolarAlignmentHistoryEntry,
+        PrefetchHooks Function()>;
 
 class $NightshadeDatabaseManager {
   final _$NightshadeDatabase _db;
@@ -14076,4 +15106,6 @@ class $NightshadeDatabaseManager {
       $$FlatHistoryTableTableManager(_db, _db.flatHistory);
   $$TutorialProgressTableTableManager get tutorialProgress =>
       $$TutorialProgressTableTableManager(_db, _db.tutorialProgress);
+  $$PolarAlignmentHistoryTableTableManager get polarAlignmentHistory =>
+      $$PolarAlignmentHistoryTableTableManager(_db, _db.polarAlignmentHistory);
 }

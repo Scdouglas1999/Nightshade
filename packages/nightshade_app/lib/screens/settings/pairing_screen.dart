@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_webrtc/nightshade_webrtc.dart';
 
 import '../../utils/snackbar_helper.dart';
@@ -206,12 +207,13 @@ class PairingScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
+              NightshadeButton(
+                label: 'Start Pairing Mode',
+                icon: Icons.link,
+                variant: ButtonVariant.primary,
                 onPressed: state.isLoading
                     ? null
                     : () => ref.read(pairingProvider.notifier).startPairing(),
-                icon: const Icon(Icons.link),
-                label: const Text('Start Pairing Mode'),
               ),
             ] else ...[
               _buildPairingCodeDisplay(context, ref, state),
@@ -289,9 +291,10 @@ class PairingScreen extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 16),
-        OutlinedButton(
+        NightshadeButton(
+          label: 'Cancel Pairing',
+          variant: ButtonVariant.outline,
           onPressed: () => ref.read(pairingProvider.notifier).cancelPairing(),
-          child: const Text('Cancel Pairing'),
         ),
       ],
     );
@@ -458,16 +461,20 @@ class PairingScreen extends ConsumerWidget {
           'This device will no longer be able to connect until it is paired again.',
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
           ),
-          FilledButton(
+          NightshadeButton(
+            label: 'Revoke',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
             onPressed: () {
               ref.read(pairingProvider.notifier).revokeDevice(device.deviceId);
               Navigator.of(context).pop();
             },
-            child: const Text('Revoke'),
           ),
         ],
       ),
@@ -485,19 +492,20 @@ class PairingScreen extends ConsumerWidget {
           'This action cannot be undone.',
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
           ),
-          FilledButton(
+          NightshadeButton(
+            label: 'Delete',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
             onPressed: () {
               ref.read(pairingProvider.notifier).deleteDevice(device.deviceId);
               Navigator.of(context).pop();
             },
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Delete'),
           ),
         ],
       ),

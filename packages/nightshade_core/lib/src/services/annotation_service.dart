@@ -102,6 +102,27 @@ class AnnotationState {
 /// Provider for current annotation processing state
 final annotationStateProvider = StateProvider<AnnotationState>((ref) => const AnnotationState.idle());
 
+/// Constants for SNR-based progressive annotation reveal
+class _SnrAnnotationConstants {
+  /// Base SNR value (minimum detectable) - objects only shown if SNR >= this
+  static const double baseSnr = 3.0;
+
+  /// Base magnitude limit when SNR is at baseSnr
+  static const double baseMagnitude = 10.0;
+
+  /// Maximum magnitude limit regardless of SNR
+  static const double maxMagnitude = 16.0;
+
+  /// Minimum SNR improvement ratio before re-annotating (20% improvement)
+  static const double snrImprovementThreshold = 1.2;
+
+  /// Minimum time between re-annotations (5 seconds)
+  static const Duration reAnnotationDebounce = Duration(seconds: 5);
+
+  /// Minimum SNR to even attempt annotation
+  static const double minimumSnrThreshold = 2.0;
+}
+
 /// Service responsible for generating and managing image annotations
 class AnnotationService {
   final Ref _ref;
@@ -109,14 +130,21 @@ class AnnotationService {
   AnnotationCatalog? _annotationCatalog;
   String? _annotationCatalogPath;
   String? _dsoCatalogPath;
-  
+
   // External providers
   final _simbadProvider = SimbadProvider();
   final _exoplanetProvider = ExoplanetProvider();
   final _gaiaProvider = GaiaProvider();
-  
+
   // Keep track of processed images to avoid duplicates
   String? _lastProcessedImagePath;
+
+  // SNR-based progressive annotation state
+  double? _lastAnnotationSnr;
+  DateTime? _lastAnnotationTime;
+  double _currentSnrMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
+  PlateSolveData? _lastPlateSolve;
+  final Set<String> _revealedObjectIds = {};
 
   AnnotationService(this._ref, {CatalogManager? catalogManager})
       : _catalogManager = catalogManager ?? CatalogManager.instance {
@@ -128,9 +156,136 @@ class AnnotationService {
     _ref.listen<CapturedImageData?>(currentImageProvider, (previous, next) {
       if (next != null && next.filePath != null && next.filePath != _lastProcessedImagePath) {
         _lastProcessedImagePath = next.filePath;
+        // Reset SNR tracking for new image
+        _lastAnnotationSnr = null;
+        _lastAnnotationTime = null;
+        _currentSnrMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
+        _revealedObjectIds.clear();
         _processNewImage(next);
       }
     });
+
+    // Listen to image stats for SNR-based progressive re-annotation
+    _ref.listen<ImageStats?>(lastImageStatsProvider, (previous, next) {
+      if (next?.snr != null && _lastPlateSolve != null) {
+        _checkSnrForReAnnotation(next!.snr!);
+      }
+    });
+  }
+
+  /// Calculate magnitude limit based on current SNR
+  /// Formula: magnitudeLimit = baseMagnitude + log2(currentSNR / baseSNR) * 1.5
+  double _calculateSnrBasedMagnitudeLimit(double snr) {
+    if (snr <= _SnrAnnotationConstants.baseSnr) {
+      return _SnrAnnotationConstants.baseMagnitude;
+    }
+
+    final snrRatio = snr / _SnrAnnotationConstants.baseSnr;
+    final magnitudeBoost = (math.log(snrRatio) / math.ln2) * 1.5;
+    final limit = _SnrAnnotationConstants.baseMagnitude + magnitudeBoost;
+
+    return limit.clamp(
+      _SnrAnnotationConstants.baseMagnitude,
+      _SnrAnnotationConstants.maxMagnitude,
+    );
+  }
+
+  /// Check if SNR has improved enough to warrant re-annotation
+  void _checkSnrForReAnnotation(double currentSnr) {
+    // Skip if we're already processing
+    final state = _ref.read(annotationStateProvider);
+    if (state.isProcessing) return;
+
+    // Skip if SNR is too low
+    if (currentSnr < _SnrAnnotationConstants.minimumSnrThreshold) return;
+
+    // Skip if we don't have a previous annotation to build upon
+    final currentAnnotation = _ref.read(currentAnnotationProvider);
+    if (currentAnnotation == null || _lastPlateSolve == null) return;
+
+    // Check if enough time has passed since last annotation
+    if (_lastAnnotationTime != null) {
+      final elapsed = DateTime.now().difference(_lastAnnotationTime!);
+      if (elapsed < _SnrAnnotationConstants.reAnnotationDebounce) return;
+    }
+
+    // Calculate new magnitude limit
+    final newMagnitudeLimit = _calculateSnrBasedMagnitudeLimit(currentSnr);
+
+    // Check if SNR improved significantly
+    if (_lastAnnotationSnr != null) {
+      final snrRatio = currentSnr / _lastAnnotationSnr!;
+      if (snrRatio < _SnrAnnotationConstants.snrImprovementThreshold) return;
+
+      // Also check if the new magnitude limit is actually higher
+      if (newMagnitudeLimit <= _currentSnrMagnitudeLimit + 0.5) return;
+    }
+
+    // Trigger progressive re-annotation
+    print('[ANNOTATION] SNR improved from ${_lastAnnotationSnr?.toStringAsFixed(1) ?? "N/A"} to ${currentSnr.toStringAsFixed(1)}, '
+        'updating magnitude limit from ${_currentSnrMagnitudeLimit.toStringAsFixed(1)} to ${newMagnitudeLimit.toStringAsFixed(1)}');
+
+    _progressiveReAnnotate(currentSnr, newMagnitudeLimit);
+  }
+
+  /// Re-annotate with a higher magnitude limit, keeping existing objects
+  Future<void> _progressiveReAnnotate(double currentSnr, double newMagnitudeLimit) async {
+    final currentAnnotation = _ref.read(currentAnnotationProvider);
+    if (currentAnnotation == null || _lastPlateSolve == null) return;
+
+    try {
+      _ref.read(annotationStateProvider.notifier).state = const AnnotationState.searching();
+
+      final settings = _ref.read(annotationSettingsProvider).valueOrNull;
+      final includeStars = settings?.visibleTypes.contains(AnnotationObjectFilter.stars) ?? false;
+
+      // Search for additional objects with the new, higher magnitude limit
+      final additionalObjects = await findObjectsInFov(
+        plateSolve: _lastPlateSolve!,
+        includeStars: includeStars,
+        minMagnitude: newMagnitudeLimit,
+        snrBasedMagnitudeCutoff: newMagnitudeLimit,
+      );
+
+      // Filter to only new objects (not already revealed)
+      final newObjects = additionalObjects.where((obj) => !_revealedObjectIds.contains(obj.id)).toList();
+
+      if (newObjects.isEmpty) {
+        print('[ANNOTATION] No new objects found at magnitude ${newMagnitudeLimit.toStringAsFixed(1)}');
+        _ref.read(annotationStateProvider.notifier).state =
+            AnnotationState.complete(currentAnnotation.objects.length);
+        return;
+      }
+
+      // Add new object IDs to revealed set
+      for (final obj in newObjects) {
+        _revealedObjectIds.add(obj.id);
+      }
+
+      print('[ANNOTATION] Found ${newObjects.length} new objects (total: ${_revealedObjectIds.length})');
+
+      // Merge new objects with existing annotation
+      final mergedObjects = [...currentAnnotation.objects, ...newObjects];
+
+      final updatedAnnotation = currentAnnotation.copyWith(
+        objects: mergedObjects,
+        timestamp: DateTime.now(),
+      );
+
+      // Update state
+      _lastAnnotationSnr = currentSnr;
+      _lastAnnotationTime = DateTime.now();
+      _currentSnrMagnitudeLimit = newMagnitudeLimit;
+
+      _ref.read(currentAnnotationProvider.notifier).state = updatedAnnotation;
+      _ref.read(annotationStateProvider.notifier).state =
+          AnnotationState.complete(updatedAnnotation.objects.length);
+
+    } catch (e) {
+      print('[ANNOTATION] Error during progressive re-annotation: $e');
+      _ref.read(annotationStateProvider.notifier).state =
+          AnnotationState.error(e.toString());
+    }
   }
 
   Future<AnnotationCatalog?> _loadAnnotationCatalog() async {
@@ -310,26 +465,59 @@ class AnnotationService {
         imageHeight: image.height,
       );
 
+      // Store plate solve for progressive re-annotation
+      _lastPlateSolve = plateSolveData;
+
       // =====================================================================
-      // STEP 3: Search Catalogs
+      // STEP 3: Calculate initial SNR-based magnitude limit
+      // =====================================================================
+      final currentSnr = image.stats.snr;
+      double initialMagnitudeLimit;
+
+      if (currentSnr != null && currentSnr >= _SnrAnnotationConstants.minimumSnrThreshold) {
+        initialMagnitudeLimit = _calculateSnrBasedMagnitudeLimit(currentSnr);
+        _lastAnnotationSnr = currentSnr;
+        print('[ANNOTATION] Initial SNR: ${currentSnr.toStringAsFixed(2)}, magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}');
+      } else {
+        // If no SNR available or too low, use conservative base magnitude
+        initialMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
+        print('[ANNOTATION] SNR not available or too low, using base magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}');
+      }
+
+      _currentSnrMagnitudeLimit = initialMagnitudeLimit;
+      _lastAnnotationTime = DateTime.now();
+
+      // =====================================================================
+      // STEP 4: Search Catalogs
       // =====================================================================
       _ref.read(annotationStateProvider.notifier).state = const AnnotationState.searching();
 
       // Get annotation settings for filtering
       final includeStars = settings?.visibleTypes.contains(AnnotationObjectFilter.stars) ?? false;
-      final magnitudeCutoff = settings?.magnitudeCutoff ?? 15.0;
+      final userMagnitudeCutoff = settings?.magnitudeCutoff ?? 15.0;
 
-      print('[ANNOTATION] Searching catalogs with magnitude cutoff: $magnitudeCutoff, include stars: $includeStars');
+      // Use the minimum of SNR-based limit and user setting for initial search
+      final effectiveMagnitudeLimit = math.min(initialMagnitudeLimit, userMagnitudeCutoff);
+
+      print('[ANNOTATION] Searching catalogs with magnitude cutoff: ${effectiveMagnitudeLimit.toStringAsFixed(1)} '
+          '(SNR-based: ${initialMagnitudeLimit.toStringAsFixed(1)}, user: ${userMagnitudeCutoff.toStringAsFixed(1)}), '
+          'include stars: $includeStars');
 
       final annotation = await annotateImage(
         imagePath: image.filePath!,
         plateSolve: plateSolveData,
         includeStars: includeStars && hasStarCatalog,
-        minMagnitude: magnitudeCutoff,
+        minMagnitude: effectiveMagnitudeLimit,
+        snrBasedMagnitudeCutoff: effectiveMagnitudeLimit,
       );
 
+      // Track revealed object IDs for progressive updates
+      for (final obj in annotation.objects) {
+        _revealedObjectIds.add(obj.id);
+      }
+
       // =====================================================================
-      // STEP 4: Update providers with result
+      // STEP 5: Update providers with result
       // =====================================================================
       _ref.read(currentAnnotationProvider.notifier).state = annotation;
       _ref.read(annotationStateProvider.notifier).state =
@@ -389,20 +577,25 @@ class AnnotationService {
   }
 
   /// Generate annotations for an image given its plate solve result
+  ///
+  /// [snrBasedMagnitudeCutoff] - Optional magnitude cutoff based on current SNR.
+  /// If provided, this is used for progressive annotation reveal.
   Future<ImageAnnotation> annotateImage({
     required String imagePath,
     required PlateSolveData plateSolve,
     bool includeStars = true,
     double minMagnitude = 15.0,
     double minSize = 0.5,
+    double? snrBasedMagnitudeCutoff,
   }) async {
     print('[ANNOTATION] Starting annotation for $imagePath');
-    
+
     final objects = await findObjectsInFov(
       plateSolve: plateSolve,
       includeStars: includeStars,
       minMagnitude: minMagnitude,
       minSize: minSize,
+      snrBasedMagnitudeCutoff: snrBasedMagnitudeCutoff,
     );
 
     print('[ANNOTATION] Found ${objects.length} objects in FOV');
@@ -416,20 +609,28 @@ class AnnotationService {
   }
 
   /// Find all catalog objects within the field of view
+  ///
+  /// [snrBasedMagnitudeCutoff] - Optional magnitude cutoff based on current SNR.
+  /// If provided, this takes precedence over [minMagnitude] for filtering objects.
   Future<List<CelestialObjectAnnotation>> findObjectsInFov({
     required PlateSolveData plateSolve,
     bool includeStars = false,
     double minMagnitude = 15.0,
     double minSize = 0.5,
+    double? snrBasedMagnitudeCutoff,
    }) async {
     final annotations = <CelestialObjectAnnotation>[];
+
+    // Use SNR-based cutoff if provided, otherwise use minMagnitude
+    final effectiveMagnitudeCutoff = snrBasedMagnitudeCutoff ?? minMagnitude;
 
     // Calculate search radius (diagonal of FOV)
     final fovDiagonal = math.sqrt(plateSolve.fieldWidth * plateSolve.fieldWidth +
             plateSolve.fieldHeight * plateSolve.fieldHeight);
     final searchRadius = fovDiagonal / 2 * 1.1; // Add 10% margin
 
-    print('[ANNOTATION] Searching DSO catalog within $searchRadius degrees of RA=${plateSolve.ra}, Dec=${plateSolve.dec}');
+    print('[ANNOTATION] Searching DSO catalog within $searchRadius degrees of RA=${plateSolve.ra}, Dec=${plateSolve.dec}, '
+        'magnitude cutoff: ${effectiveMagnitudeCutoff.toStringAsFixed(1)}');
 
     final annotationCatalog = await _loadAnnotationCatalog();
     if (annotationCatalog != null && annotationCatalog.isAvailable) {
@@ -438,7 +639,7 @@ class AnnotationService {
           ra: plateSolve.ra,
           dec: plateSolve.dec,
           radiusDegrees: searchRadius,
-          maxMagnitude: minMagnitude,
+          maxMagnitude: effectiveMagnitudeCutoff,
         );
 
         print('[ANNOTATION] Found ${objects.length} annotation objects in search area');
@@ -484,7 +685,7 @@ class AnnotationService {
           ra: plateSolve.ra,
           dec: plateSolve.dec,
           radiusDegrees: searchRadius,
-          maxMagnitude: minMagnitude,
+          maxMagnitude: effectiveMagnitudeCutoff,
         );
 
         print('[ANNOTATION] Found ${dsos.length} DSOs in search area');
@@ -530,11 +731,13 @@ class AnnotationService {
     // Optionally include bright stars
     if (includeStars) {
       try {
+        // For stars, apply the SNR-based cutoff more aggressively
+        final starMagnitudeCutoff = effectiveMagnitudeCutoff.clamp(0.0, 10.0);
         final stars = await _catalogManager.searchStarsNearby(
           ra: plateSolve.ra,
           dec: plateSolve.dec,
           radiusDegrees: searchRadius,
-          maxMagnitude: minMagnitude.clamp(0.0, 10.0), // Limit to bright stars
+          maxMagnitude: starMagnitudeCutoff,
         );
 
         print('[ANNOTATION] Found ${stars.length} stars in search area');

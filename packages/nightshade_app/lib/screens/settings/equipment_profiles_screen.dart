@@ -220,17 +220,17 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
           ],
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
           ),
-          ElevatedButton(
+          NightshadeButton(
+            label: 'Create',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Create'),
           ),
         ],
       ),
@@ -277,17 +277,17 @@ class _EquipmentProfilesScreenState extends ConsumerState<EquipmentProfilesScree
           ),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
           ),
-          ElevatedButton(
+          NightshadeButton(
+            label: 'Duplicate',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Duplicate'),
           ),
         ],
       ),
@@ -443,15 +443,11 @@ class _ProfileList extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
+                child: NightshadeButton(
+                  label: 'New Profile',
+                  icon: LucideIcons.plus,
+                  variant: ButtonVariant.primary,
                   onPressed: onCreateProfile,
-                  icon: const Icon(LucideIcons.plus, size: 16),
-                  label: const Text('New Profile'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colors.primary,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 10),
-                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1018,12 +1014,18 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
 
               // Action buttons
               if (widget.isEditing) ...[
-                TextButton(
+                NightshadeButton(
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
                   onPressed: widget.onCancel,
-                  child: Text('Cancel', style: TextStyle(color: widget.colors.textSecondary)),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton.icon(
+                NightshadeButton(
+                  label: 'Save',
+                  icon: LucideIcons.check,
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.small,
                   onPressed: () async {
                     try {
                       await widget.onSave(_buildUpdatedProfile());
@@ -1036,22 +1038,15 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       }
                     }
                   },
-                  icon: const Icon(LucideIcons.check, size: 16),
-                  label: const Text('Save'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.colors.primary,
-                    foregroundColor: Colors.white,
-                  ),
                 ),
               ] else ...[
                 if (!widget.isActive)
-                  OutlinedButton.icon(
+                  NightshadeButton(
+                    label: 'Set Active',
+                    icon: LucideIcons.check,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
                     onPressed: widget.onSetActive,
-                    icon: Icon(LucideIcons.check, size: 16, color: widget.colors.primary),
-                    label: Text('Set Active', style: TextStyle(color: widget.colors.primary)),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: widget.colors.primary),
-                    ),
                   ),
                 const SizedBox(width: 8),
                 PopupMenuButton<String>(
@@ -1445,13 +1440,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             colors: widget.colors,
             isMobile: widget.isMobile,
             trailing: widget.isEditing
-                ? TextButton.icon(
+                ? NightshadeButton(
+                    label: 'Copy from Connected',
+                    icon: LucideIcons.copy,
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
                     onPressed: _copyFromConnectedDevices,
-                    icon: Icon(LucideIcons.copy, size: 14, color: widget.colors.primary),
-                    label: Text(
-                      'Copy from Connected',
-                      style: TextStyle(fontSize: 12, color: widget.colors.primary),
-                    ),
                   )
                 : null,
             children: [

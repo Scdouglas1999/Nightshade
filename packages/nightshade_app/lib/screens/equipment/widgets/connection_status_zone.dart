@@ -506,15 +506,11 @@ class _CompactStatusBar extends StatelessWidget {
 
               // Disconnect button (only when connected)
               if (overallState == _OverallState.connected)
-                TextButton(
+                NightshadeButton(
                   onPressed: onDisconnect,
-                  child: Text(
-                    'Disconnect',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                    ),
-                  ),
+                  label: 'Disconnect',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
                 ),
 
               Icon(
@@ -623,15 +619,11 @@ class _DisconnectedView extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: FilledButton.icon(
+                child: NightshadeButton(
+                  label: 'Connect All',
+                  icon: LucideIcons.plug,
+                  variant: ButtonVariant.primary,
                   onPressed: devices.isNotEmpty ? onConnect : null,
-                  icon: const Icon(LucideIcons.plug, size: 16),
-                  label: const Text('Connect All'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -752,12 +744,11 @@ class _ConnectingView extends StatelessWidget {
           // Cancel button
           Align(
             alignment: Alignment.centerLeft,
-            child: TextButton(
+            child: NightshadeButton(
               onPressed: onCancel,
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: colors.textSecondary),
-              ),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
             ),
           ),
         ],
@@ -854,15 +845,11 @@ class _ErrorView extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
               ],
-              FilledButton(
+              NightshadeButton(
+                label: 'Retry',
+                variant: ButtonVariant.primary,
+                size: ButtonSize.small,
                 onPressed: onRetry,
-                style: FilledButton.styleFrom(
-                  backgroundColor: colors.primary,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                ),
-                child: const Text('Retry'),
               ),
             ],
           ),
@@ -907,20 +894,17 @@ class _ErrorView extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      TextButton(
+                      NightshadeButton(
                         onPressed: onRetry,
-                        child: Text(
-                          'Retry',
-                          style: TextStyle(color: colors.primary, fontSize: 12),
-                        ),
+                        label: 'Retry',
+                        variant: ButtonVariant.ghost,
+                        size: ButtonSize.small,
                       ),
-                      TextButton(
+                      NightshadeButton(
                         onPressed: onSkip,
-                        child: Text(
-                          'Skip',
-                          style: TextStyle(
-                              color: colors.textSecondary, fontSize: 12),
-                        ),
+                        label: 'Skip',
+                        variant: ButtonVariant.ghost,
+                        size: ButtonSize.small,
                       ),
                     ],
                   ),

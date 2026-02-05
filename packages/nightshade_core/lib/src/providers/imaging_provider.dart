@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/imaging/imaging_models.dart';
+import '../models/imaging/auto_stretch_settings.dart';
+import 'database_provider.dart';
 import 'settings_provider.dart';
 
 /// Current exposure settings
@@ -24,6 +27,63 @@ final stretchParamsProvider = StateProvider<StretchParams>((ref) {
 
 /// Auto stretch enabled
 final autoStretchProvider = StateProvider<bool>((ref) => true);
+
+/// Auto-stretch settings with method selection and advanced parameters.
+///
+/// Settings are persisted to the database and loaded on startup.
+final autoStretchSettingsProvider =
+    StateNotifierProvider<AutoStretchSettingsNotifier, AutoStretchSettings>(
+  (ref) => AutoStretchSettingsNotifier(ref),
+);
+
+/// StateNotifier for auto-stretch settings with database persistence.
+class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
+  final Ref _ref;
+  bool _isLoaded = false;
+
+  AutoStretchSettingsNotifier(this._ref) : super(AutoStretchSettings.defaults()) {
+    _loadSettings();
+  }
+
+  /// Load settings from database on startup.
+  Future<void> _loadSettings() async {
+    if (_isLoaded) return;
+    _isLoaded = true;
+
+    try {
+      final db = _ref.read(databaseProvider);
+      final json = await db.settingsDao.getAutoStretchSettings();
+      if (json != null && json.isNotEmpty) {
+        final decoded = jsonDecode(json) as Map<String, dynamic>;
+        state = AutoStretchSettings.fromJson(decoded);
+      }
+    } catch (e) {
+      // Use default settings if loading fails
+    }
+  }
+
+  /// Update settings and persist to database.
+  void update(AutoStretchSettings newSettings) {
+    state = newSettings;
+    _persistSettings();
+  }
+
+  /// Persist current settings to database.
+  Future<void> _persistSettings() async {
+    try {
+      final db = _ref.read(databaseProvider);
+      final json = jsonEncode(state.toJson());
+      await db.settingsDao.setAutoStretchSettings(json);
+    } catch (e) {
+      // Silently fail persistence - settings will still work in-memory
+    }
+  }
+
+  /// Reset to default settings.
+  void reset() {
+    update(AutoStretchSettings.defaults());
+  }
+}
 
 /// Cooling settings
 final coolingSettingsProvider = StateProvider<CoolingSettings>((ref) {

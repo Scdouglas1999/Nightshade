@@ -76,26 +76,26 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
             onResumeProgress: () => _handleResumeProgress(quickStartContext),
             onSkip: () {
               // Just dismiss - user chose to skip
-              debugPrint('QuickStartChecker: User skipped quick start');
+              debugPrint('[QuickStart] User skipped quick start');
             },
           );
         }
       }
     } catch (e) {
-      debugPrint('QuickStartChecker: Error checking startup options: $e');
+      debugPrint('[QuickStart] Error checking startup options: $e');
       // Don't show error to user - this is a background check
     }
   }
 
   Future<void> _handleStartFresh(QuickStartContext context) async {
-    debugPrint('QuickStartChecker: Starting fresh with context: ${context.displayDescription}');
+    debugPrint('[QuickStart] Starting fresh with context: ${context.displayDescription}');
 
     try {
       // Load the equipment profile
       if (context.profileId != null) {
         final profilesNotifier = ref.read(equipmentProfilesProvider.notifier);
         await profilesNotifier.setActiveProfile(context.profileId!);
-        debugPrint('QuickStartChecker: Activated profile ${context.profileId}');
+        debugPrint('[QuickStart] Activated profile ${context.profileId}');
       }
 
       // Load the sequence (reset to beginning)
@@ -106,7 +106,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
           // Reset sequence checkpoint to start from beginning
           final checkpointsDao = ref.read(sequenceCheckpointsDaoProvider);
           await checkpointsDao.deleteCheckpoint(context.sequenceId!);
-          debugPrint('QuickStartChecker: Loaded sequence ${context.sequenceId}, reset to frame 1');
+          debugPrint('[QuickStart] Loaded sequence ${context.sequenceId}, reset to frame 1');
         }
       }
 
@@ -122,7 +122,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         );
       }
     } catch (e) {
-      debugPrint('QuickStartChecker: Error starting fresh: $e');
+      debugPrint('[QuickStart] Error starting fresh: $e');
       if (mounted) {
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
@@ -135,14 +135,14 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
   }
 
   Future<void> _handleResumeProgress(QuickStartContext context) async {
-    debugPrint('QuickStartChecker: Resuming progress with context: ${context.displayDescription}');
+    debugPrint('[QuickStart] Resuming progress with context: ${context.displayDescription}');
 
     try {
       // Load the equipment profile
       if (context.profileId != null) {
         final profilesNotifier = ref.read(equipmentProfilesProvider.notifier);
         await profilesNotifier.setActiveProfile(context.profileId!);
-        debugPrint('QuickStartChecker: Activated profile ${context.profileId}');
+        debugPrint('[QuickStart] Activated profile ${context.profileId}');
       }
 
       // Load the sequence (keep checkpoint for resumption)
@@ -150,7 +150,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         final sequencesDao = ref.read(sequencesDaoProvider);
         final sequence = await sequencesDao.getSequenceById(context.sequenceId!);
         if (sequence != null) {
-          debugPrint('QuickStartChecker: Loaded sequence ${context.sequenceId}, '
+          debugPrint('[QuickStart] Loaded sequence ${context.sequenceId}, '
               'resuming from frame ${context.completedFrames}');
         }
       }
@@ -168,7 +168,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         );
       }
     } catch (e) {
-      debugPrint('QuickStartChecker: Error resuming progress: $e');
+      debugPrint('[QuickStart] Error resuming progress: $e');
       if (mounted) {
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
@@ -182,17 +182,17 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
 
   Future<void> _applyEquipmentSnapshot(EquipmentSnapshot? snapshot) async {
     if (snapshot == null || !snapshot.hasEquipmentData) {
-      debugPrint('QuickStartChecker: No equipment snapshot to apply');
+      debugPrint('[QuickStart] No equipment snapshot to apply');
       return;
     }
 
-    debugPrint('QuickStartChecker: Applying equipment snapshot...');
+    debugPrint('[QuickStart] Applying equipment snapshot...');
 
     // Apply camera settings
     final cameraNotifier = ref.read(cameraStateProvider.notifier);
     if (snapshot.coolerTargetTemp != null) {
       cameraNotifier.setTargetTemp(snapshot.coolerTargetTemp!);
-      debugPrint('QuickStartChecker: Set cooler target temp to ${snapshot.coolerTargetTemp}');
+      debugPrint('[QuickStart] Set cooler target temp to ${snapshot.coolerTargetTemp}');
     }
 
     // Note: gain/offset/binning are typically applied when starting an exposure,
@@ -205,9 +205,9 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         final deviceService = ref.read(deviceServiceProvider);
         try {
           await deviceService.setFilterWheelPosition(snapshot.filterPosition!);
-          debugPrint('QuickStartChecker: Moved filter wheel to position ${snapshot.filterPosition}');
+          debugPrint('[QuickStart] Moved filter wheel to position ${snapshot.filterPosition}');
         } catch (e) {
-          debugPrint('QuickStartChecker: Failed to move filter wheel: $e');
+          debugPrint('[QuickStart] Failed to move filter wheel: $e');
         }
       }
     }
@@ -219,9 +219,9 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         final deviceService = ref.read(deviceServiceProvider);
         try {
           await deviceService.moveFocuserTo(snapshot.focuserPosition!);
-          debugPrint('QuickStartChecker: Moved focuser to position ${snapshot.focuserPosition}');
+          debugPrint('[QuickStart] Moved focuser to position ${snapshot.focuserPosition}');
         } catch (e) {
-          debugPrint('QuickStartChecker: Failed to move focuser: $e');
+          debugPrint('[QuickStart] Failed to move focuser: $e');
         }
       }
     }

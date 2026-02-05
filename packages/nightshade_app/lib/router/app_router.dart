@@ -14,6 +14,7 @@ import '../screens/flat_wizard/flat_wizard_screen.dart';
 import '../screens/weather/weather_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/polar_alignment/polar_alignment_screen.dart';
+import '../screens/suggestions/suggestions_screen.dart';
 import 'page_transitions.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -127,6 +128,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'polar-alignment',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: PolarAlignmentScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
+          ),
+          GoRoute(
+            path: '/suggestions',
+            name: 'suggestions',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: SuggestionsScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),

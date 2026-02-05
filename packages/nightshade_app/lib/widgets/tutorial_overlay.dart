@@ -1195,13 +1195,11 @@ class _TooltipWidget extends StatelessWidget {
                       button: true,
                       label: 'Skip tour',
                       hint: 'Press Escape to skip',
-                      child: TextButton(
+                      child: NightshadeButton(
                         onPressed: onSkip,
-                        child: Text(
-                          'Skip tour',
-                          style:
-                              TextStyle(color: colors.textMuted, fontSize: 12),
-                        ),
+                        label: 'Skip tour',
+                        variant: ButtonVariant.ghost,
+                        size: ButtonSize.small,
                       ),
                     ),
 
@@ -1213,24 +1211,12 @@ class _TooltipWidget extends StatelessWidget {
                         button: true,
                         label: 'Previous step',
                         hint: 'Press Backspace or Left Arrow',
-                        child: TextButton(
+                        child: NightshadeButton(
                           onPressed: onPrevious,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                LucideIcons.chevronLeft,
-                                size: 14,
-                                color: colors.textSecondary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Back',
-                                style: TextStyle(
-                                    color: colors.textSecondary, fontSize: 12),
-                              ),
-                            ],
-                          ),
+                          label: 'Back',
+                          icon: LucideIcons.chevronLeft,
+                          variant: ButtonVariant.ghost,
+                          size: ButtonSize.small,
                         ),
                       ),
 
@@ -1241,32 +1227,11 @@ class _TooltipWidget extends StatelessWidget {
                       button: true,
                       label: isLast ? 'Finish tutorial' : 'Next step',
                       hint: 'Press Enter, Space, or Right Arrow',
-                      child: ElevatedButton(
+                      child: NightshadeButton(
                         onPressed: onNext,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colors.primary,
-                          foregroundColor: colors.textPrimary,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              isLast ? 'Done' : 'Next',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            if (!isLast) ...[
-                              const SizedBox(width: 4),
-                              const Icon(LucideIcons.chevronRight, size: 14),
-                            ],
-                          ],
-                        ),
+                        label: isLast ? 'Done' : 'Next',
+                        icon: isLast ? null : LucideIcons.chevronRight,
+                        size: ButtonSize.small,
                       ),
                     ),
                   ],

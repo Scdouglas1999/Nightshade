@@ -11,6 +11,7 @@ import '../../widgets/weather/radar_timeline_scrubber.dart';
 import '../../widgets/weather/weather_status_card.dart';
 import '../../widgets/weather/satellite_legend.dart';
 import '../../widgets/tutorial_keys/weather_keys.dart';
+import '../../widgets/contextual_tour_prompt.dart';
 
 /// Full weather monitoring screen with radar map, timeline, and status display.
 ///
@@ -36,6 +37,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
   bool _isPlaying = false;
   double _playbackSpeed = 1.0;
   double _radarOpacity = 0.7;
+  double _radarContrast = 1.5; // Default to moderate contrast enhancement
   bool _statusCardExpanded = true;
 
   // Refresh timer
@@ -110,49 +112,57 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
     // Get current alert
     final alert = alertAsync.valueOrNull;
 
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth > NightshadeTokens.breakpointDesktopLg;
-          final isMedium = constraints.maxWidth > NightshadeTokens.breakpointTablet;
+    return ContextualTourPrompt(
+      screenId: 'weather',
+      tourCategory: TutorialCategory.weatherTour,
+      title: 'Weather Tour',
+      description: 'Learn how to monitor weather conditions for your imaging sessions.',
+      durationMinutes: 2,
+      alignment: Alignment.bottomRight,
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > NightshadeTokens.breakpointDesktopLg;
+            final isMedium = constraints.maxWidth > NightshadeTokens.breakpointTablet;
 
-          return Scaffold(
-            backgroundColor: colors.background,
-            body: Column(
-              children: [
-                // Header
-                _WeatherHeader(
-                  colors: colors,
-                  onRefresh: _refreshWeatherData,
-                  onSettingsTap: () => context.go('/settings'),
-                  isLoading: weatherStatus.isLoading,
-                ),
+            return Scaffold(
+              backgroundColor: colors.background,
+              body: Column(
+                children: [
+                  // Header
+                  _WeatherHeader(
+                    colors: colors,
+                    onRefresh: _refreshWeatherData,
+                    onSettingsTap: () => context.go('/settings'),
+                    isLoading: weatherStatus.isLoading,
+                  ),
 
-                // Main content
-                Expanded(
-                  child: hasLocation
-                      ? _buildMainContent(
-                          context,
-                          colors,
-                          isWide,
-                          isMedium,
-                          latitude,
-                          longitude,
-                          alertRadiusKm,
-                          radarFrames,
-                          motionDirection,
-                          motion,
-                          alert,
-                          weatherStatus,
-                          cloudCoverAsync.valueOrNull,
-                        )
-                      : _NoLocationContent(colors: colors),
-                ),
-              ],
-            ),
-          );
-        },
+                  // Main content
+                  Expanded(
+                    child: hasLocation
+                        ? _buildMainContent(
+                            context,
+                            colors,
+                            isWide,
+                            isMedium,
+                            latitude,
+                            longitude,
+                            alertRadiusKm,
+                            radarFrames,
+                            motionDirection,
+                            motion,
+                            alert,
+                            weatherStatus,
+                            cloudCoverAsync.valueOrNull,
+                          )
+                        : _NoLocationContent(colors: colors),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -205,6 +215,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                             longitude: longitude,
                             alertRadiusKm: alertRadiusKm,
                             radarOpacity: _radarOpacity,
+                            contrastLevel: _radarContrast,
                             motionDirection: motionDirection,
                           ),
                         ),
@@ -240,12 +251,16 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
 
                   const SizedBox(height: 16),
 
-                  // Opacity slider
-                  _OpacitySlider(
+                  // Opacity and contrast sliders
+                  _RadarControlsRow(
                     colors: colors,
                     opacity: _radarOpacity,
-                    onChanged: (value) {
+                    contrast: _radarContrast,
+                    onOpacityChanged: (value) {
                       setState(() => _radarOpacity = value);
+                    },
+                    onContrastChanged: (value) {
+                      setState(() => _radarContrast = value);
                     },
                   ),
                 ],
@@ -316,6 +331,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                       longitude: longitude,
                       alertRadiusKm: alertRadiusKm,
                       radarOpacity: _radarOpacity,
+                      contrastLevel: _radarContrast,
                       motionDirection: motionDirection,
                     ),
                   ),
@@ -351,12 +367,16 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
 
             const SizedBox(height: 16),
 
-            // Opacity slider
-            _OpacitySlider(
+            // Opacity and contrast sliders
+            _RadarControlsRow(
               colors: colors,
               opacity: _radarOpacity,
-              onChanged: (value) {
+              contrast: _radarContrast,
+              onOpacityChanged: (value) {
                 setState(() => _radarOpacity = value);
+              },
+              onContrastChanged: (value) {
+                setState(() => _radarContrast = value);
               },
             ),
 
@@ -503,75 +523,143 @@ class _WeatherHeader extends StatelessWidget {
   }
 }
 
-/// Opacity slider for radar overlay
-class _OpacitySlider extends StatelessWidget {
+/// Combined radar controls row with opacity and contrast sliders
+class _RadarControlsRow extends StatelessWidget {
   final NightshadeColors colors;
   final double opacity;
-  final ValueChanged<double> onChanged;
+  final double contrast;
+  final ValueChanged<double> onOpacityChanged;
+  final ValueChanged<double> onContrastChanged;
 
-  const _OpacitySlider({
+  const _RadarControlsRow({
     required this.colors,
     required this.opacity,
-    required this.onChanged,
+    required this.contrast,
+    required this.onOpacityChanged,
+    required this.onContrastChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Icon(
-            LucideIcons.layers,
-            size: 16,
-            color: colors.textSecondary,
+          // Opacity slider
+          _SliderRow(
+            colors: colors,
+            icon: LucideIcons.layers,
+            label: 'Opacity',
+            value: opacity,
+            min: 0.0,
+            max: 1.0,
+            displayValue: '${(opacity * 100).toInt()}%',
+            onChanged: onOpacityChanged,
           ),
-          const SizedBox(width: 12),
-          Text(
-            'Radar Opacity',
+          const SizedBox(height: 12),
+          // Contrast slider
+          _SliderRow(
+            colors: colors,
+            icon: LucideIcons.contrast,
+            label: 'Contrast',
+            value: contrast,
+            min: 0.0,
+            max: 2.5,
+            displayValue: _getContrastLabel(contrast),
+            onChanged: onContrastChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getContrastLabel(double value) {
+    if (value <= 0.2) return 'Off';
+    if (value <= 0.8) return 'Low';
+    if (value <= 1.3) return 'Medium';
+    if (value <= 1.8) return 'High';
+    return 'Max';
+  }
+}
+
+/// Individual slider row widget
+class _SliderRow extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final String displayValue;
+  final ValueChanged<double> onChanged;
+
+  const _SliderRow({
+    required this.colors,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.displayValue,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: colors.textSecondary,
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 70,
+          child: Text(
+            label,
             style: TextStyle(
               fontSize: 12,
               color: colors.textSecondary,
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: SliderTheme(
-              data: SliderThemeData(
-                activeTrackColor: colors.primary,
-                inactiveTrackColor: colors.surfaceAlt,
-                thumbColor: colors.primary,
-                overlayColor: colors.primary.withValues(alpha: 0.2),
-                trackHeight: 4,
-              ),
-              child: Slider(
-                value: opacity,
-                min: 0.0,
-                max: 1.0,
-                onChanged: onChanged,
-              ),
+        ),
+        Expanded(
+          child: SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: colors.primary,
+              inactiveTrackColor: colors.surfaceAlt,
+              thumbColor: colors.primary,
+              overlayColor: colors.primary.withValues(alpha: 0.2),
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              onChanged: onChanged,
             ),
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 40,
-            child: Text(
-              '${(opacity * 100).toInt()}%',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: colors.textPrimary,
-              ),
-              textAlign: TextAlign.end,
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 50,
+          child: Text(
+            displayValue,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: colors.textPrimary,
             ),
+            textAlign: TextAlign.end,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -628,18 +716,11 @@ class _NoLocationContent extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
+            NightshadeButton(
+              label: 'Open Settings',
+              icon: LucideIcons.settings,
+              variant: ButtonVariant.primary,
               onPressed: () => context.go('/settings'),
-              icon: const Icon(LucideIcons.settings, size: 18),
-              label: const Text('Open Settings'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-              ),
             ),
           ],
         ),
@@ -716,47 +797,40 @@ class _WeatherSafetyCard extends ConsumerWidget {
               status == WeatherSafetyStatus.snoozed) ...[
             const SizedBox(height: 16),
             if (status == WeatherSafetyStatus.snoozed)
-              OutlinedButton.icon(
+              NightshadeButton(
+                label: 'Cancel Snooze',
+                icon: LucideIcons.bellOff,
+                variant: ButtonVariant.outline,
                 onPressed: () {
                   ref.read(weatherSafetyProvider.notifier).cancelSnooze();
                 },
-                icon: const Icon(LucideIcons.bellOff, size: 16),
-                label: const Text('Cancel Snooze'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colors.warning,
-                  side: BorderSide(color: colors.warning),
-                ),
               )
             else
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: NightshadeButton(
+                      label: 'Snooze 15m',
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
                       onPressed: () {
                         ref
                             .read(weatherSafetyProvider.notifier)
                             .snooze(const Duration(minutes: 15));
                       },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: colors.textSecondary,
-                        side: BorderSide(color: colors.border),
-                      ),
-                      child: const Text('Snooze 15m'),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: OutlinedButton(
+                    child: NightshadeButton(
+                      label: 'Snooze 30m',
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
                       onPressed: () {
                         ref
                             .read(weatherSafetyProvider.notifier)
                             .snooze(const Duration(minutes: 30));
                       },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: colors.textSecondary,
-                        side: BorderSide(color: colors.border),
-                      ),
-                      child: const Text('Snooze 30m'),
                     ),
                   ),
                 ],

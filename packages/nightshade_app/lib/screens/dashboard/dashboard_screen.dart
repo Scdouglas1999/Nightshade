@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -14,6 +15,7 @@ import '../../widgets/focuser_controls.dart';
 import '../../widgets/operation_status_bar.dart';
 import '../../widgets/tutorial_keys/dashboard_keys.dart';
 import '../../widgets/weather/dashboard_weather_widget.dart';
+import '../../widgets/contextual_tour_prompt.dart';
 import 'dashboard_layout.dart';
 import 'dashboard_layout_provider.dart';
 
@@ -178,35 +180,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     ref.watch(phd2ControllerProvider);
     final layoutAsync = ref.watch(dashboardLayoutProvider);
 
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: layoutAsync.when(
-        data: (layout) => _ZoneBasedDashboard(
-          layout: layout,
-          colors: colors,
-          pulseController: _pulseController,
-          isEditing: _isEditing,
-          onToggleEdit: _toggleEdit,
-          onManageWidgets: _showWidgetPicker,
-          onResetLayout: _resetLayout,
-          onReorder: (dragged, target) {
-            ref.read(dashboardLayoutProvider.notifier).reorder(dragged, target);
-          },
-          onResize: (id) {
-            final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
-            ref.read(dashboardLayoutProvider.notifier).setTileSize(id, tile.size.next());
-          },
-          onToggleEnabled: (id, enabled) {
-            ref.read(dashboardLayoutProvider.notifier).setTileEnabled(id, enabled);
-          },
-          onSetZone: (id, zone) {
-            ref.read(dashboardLayoutProvider.notifier).setTileZone(id, zone);
-          },
-        ),
-        loading: () => const _DashboardLoading(),
-        error: (error, _) => _DashboardLayoutError(
-          error: error,
-          onReset: _resetLayout,
+    return ContextualTourPrompt(
+      screenId: 'dashboard',
+      tourCategory: TutorialCategory.dashboardTour,
+      title: 'Dashboard Tour',
+      description: 'Learn about the dashboard controls and status displays.',
+      durationMinutes: 3,
+      alignment: Alignment.bottomRight,
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: layoutAsync.when(
+          data: (layout) => _ZoneBasedDashboard(
+            layout: layout,
+            colors: colors,
+            pulseController: _pulseController,
+            isEditing: _isEditing,
+            onToggleEdit: _toggleEdit,
+            onManageWidgets: _showWidgetPicker,
+            onResetLayout: _resetLayout,
+            onReorder: (dragged, target) {
+              ref.read(dashboardLayoutProvider.notifier).reorder(dragged, target);
+            },
+            onResize: (id) {
+              final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
+              ref.read(dashboardLayoutProvider.notifier).setTileSize(id, tile.size.next());
+            },
+            onToggleEnabled: (id, enabled) {
+              ref.read(dashboardLayoutProvider.notifier).setTileEnabled(id, enabled);
+            },
+            onSetZone: (id, zone) {
+              ref.read(dashboardLayoutProvider.notifier).setTileZone(id, zone);
+            },
+          ),
+          loading: () => const _DashboardLoading(),
+          error: (error, _) => _DashboardLayoutError(
+            error: error,
+            onReset: _resetLayout,
+          ),
         ),
       ),
     );
@@ -2216,16 +2226,18 @@ class _WidgetPickerDialog extends ConsumerWidget {
               for (final tile in layout.tiles) tile.widgetId: tile,
             };
 
-            return ListView.separated(
-              shrinkWrap: true,
-              itemCount: dashboardWidgetRegistry.length,
-              separatorBuilder: (_, __) => Divider(color: colors.border),
-              itemBuilder: (context, index) {
-                final definition = dashboardWidgetRegistry[index];
-                final tile = tilesById[definition.id];
-                final enabled = tile?.enabled ?? false;
+            final children = <Widget>[];
+            for (var i = 0; i < dashboardWidgetRegistry.length; i++) {
+              final definition = dashboardWidgetRegistry[i];
+              final tile = tilesById[definition.id];
+              final enabled = tile?.enabled ?? false;
 
-                return CheckboxListTile(
+              if (i > 0) {
+                children.add(Divider(color: colors.border));
+              }
+
+              children.add(
+                CheckboxListTile(
                   value: enabled,
                   onChanged: (value) {
                     if (value == null) return;
@@ -2242,8 +2254,15 @@ class _WidgetPickerDialog extends ConsumerWidget {
                     definition.subtitle,
                     style: TextStyle(color: colors.textSecondary, fontSize: 12),
                   ),
-                );
-              },
+                ),
+              );
+            }
+
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: children,
+              ),
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -2254,9 +2273,11 @@ class _WidgetPickerDialog extends ConsumerWidget {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Close', style: TextStyle(color: colors.primary)),
+          label: 'Close',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
       ],
     );
@@ -3026,13 +3047,21 @@ class _SessionStat extends StatelessWidget {
   }
 }
 
-class _GuidingCard extends ConsumerWidget {
+class _GuidingCard extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
   const _GuidingCard({super.key, required this.colors});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_GuidingCard> createState() => _GuidingCardState();
+}
+
+class _GuidingCardState extends ConsumerState<_GuidingCard> {
+  bool _isStartingOrStopping = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
     final guiderState = ref.watch(guiderStateProvider);
     final guideGraphData = ref.watch(guideGraphProvider);
 
@@ -3045,9 +3074,11 @@ class _GuidingCard extends ConsumerWidget {
     // Guiding state text
     final stateText = !isConnected
         ? 'Disconnected'
-        : isGuiding
-            ? 'Guiding'
-            : 'Idle';
+        : _isStartingOrStopping
+            ? (isGuiding ? 'Stopping...' : 'Starting...')
+            : isGuiding
+                ? 'Guiding'
+                : 'Idle';
 
     return _GlassCard(
       colors: colors,
@@ -3118,32 +3149,69 @@ class _GuidingCard extends ConsumerWidget {
                   )
                 : Center(
                     child: Text(
-                      isConnected ? 'Start guiding' : 'Connect guider',
+                      isConnected ? 'Click Start to begin' : 'Connect guider',
                       style: TextStyle(fontSize: 10, color: colors.textMuted),
                     ),
                   ),
           ),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
 
-          // Compact stats row with legend
+          // Control button row
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Stats row with legend
               Container(width: 10, height: 2, color: Colors.redAccent),
               const SizedBox(width: 3),
               Text('$rmsRa"', style: TextStyle(fontSize: 10, color: colors.textSecondary)),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Container(width: 10, height: 2, color: Colors.blueAccent),
               const SizedBox(width: 3),
               Text('$rmsDec"', style: TextStyle(fontSize: 10, color: colors.textSecondary)),
-              const SizedBox(width: 10),
-              Text('±4"', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+              const Spacer(),
+              // Start/Stop button
+              SizedBox(
+                height: 24,
+                child: NightshadeButton(
+                  label: isGuiding ? 'Stop' : 'Start',
+                  icon: isGuiding ? LucideIcons.square : LucideIcons.play,
+                  variant: isGuiding ? ButtonVariant.outline : ButtonVariant.primary,
+                  size: ButtonSize.small,
+                  onPressed: (!isConnected || _isStartingOrStopping)
+                      ? null
+                      : () => _toggleGuiding(isGuiding),
+                ),
+              ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _toggleGuiding(bool isCurrentlyGuiding) async {
+    setState(() => _isStartingOrStopping = true);
+    try {
+      final phd2Controller = ref.read(phd2ControllerProvider);
+      if (isCurrentlyGuiding) {
+        await phd2Controller.stopGuiding();
+      } else {
+        await phd2Controller.startGuiding();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to ${isCurrentlyGuiding ? 'stop' : 'start'} guiding: $e'),
+            backgroundColor: widget.colors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isStartingOrStopping = false);
+      }
+    }
   }
 }
 
@@ -3225,6 +3293,7 @@ class _CaptureSettingsCard extends ConsumerStatefulWidget {
 
 class _CaptureSettingsCardState extends ConsumerState<_CaptureSettingsCard> {
   bool _isLooping = false;
+  bool _isChangingFilter = false;
 
   @override
   Widget build(BuildContext context) {
@@ -3232,11 +3301,31 @@ class _CaptureSettingsCardState extends ConsumerState<_CaptureSettingsCard> {
     final exposureSettings = ref.watch(exposureSettingsProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
     final cameraState = ref.watch(cameraStateProvider);
+    final filterWheelState = ref.watch(filterWheelStateProvider);
 
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
     final isCapturing =
         exposureProgress.percent > 0 || exposureProgress.isDownloading;
+    final isFilterWheelConnected =
+        filterWheelState.connectionState == DeviceConnectionState.connected;
+
+    // Get actual filter names from connected filter wheel, or use defaults
+    final filterNames = filterWheelState.filterNames.isNotEmpty
+        ? filterWheelState.filterNames
+        : const ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'];
+
+    // Current filter - use filter wheel position if connected, else from settings
+    final currentFilterIndex = filterWheelState.currentPosition;
+    final currentFilterName = isFilterWheelConnected &&
+            currentFilterIndex != null &&
+            currentFilterIndex >= 0 &&
+            currentFilterIndex < filterNames.length
+        ? filterNames[currentFilterIndex]
+        : (exposureSettings.filter != null &&
+                filterNames.contains(exposureSettings.filter)
+            ? exposureSettings.filter!
+            : filterNames.first);
 
     return _GlassCard(
       colors: colors,
@@ -3295,19 +3384,16 @@ class _CaptureSettingsCardState extends ConsumerState<_CaptureSettingsCard> {
                   }
                 },
               ),
-              // Filter dropdown
+              // Filter dropdown - uses actual filter names from connected filter wheel
               _CompactDropdown(
                 label: 'Filter',
-                value: exposureSettings.filter ?? 'L',
-                items: const ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
+                value: currentFilterName,
+                items: filterNames,
                 colors: colors,
                 highlight: true,
-                onChanged: (v) {
-                  if (v != null) {
-                    ref.read(exposureSettingsProvider.notifier).state =
-                        exposureSettings.copyWith(filter: v);
-                  }
-                },
+                onChanged: (_isChangingFilter || filterWheelState.isMoving)
+                    ? null
+                    : (v) => _onFilterChanged(v, filterNames),
               ),
               // Frame type dropdown
               _CompactDropdown(
@@ -3445,6 +3531,43 @@ class _CaptureSettingsCardState extends ConsumerState<_CaptureSettingsCard> {
     setState(() => _isLooping = false);
     ref.read(imagingServiceProvider).cancelExposure();
   }
+
+  /// Handle filter selection - updates settings AND moves the physical filter wheel
+  Future<void> _onFilterChanged(String? filterName, List<String> filterNames) async {
+    if (filterName == null) return;
+
+    // Find the position index for this filter name
+    final position = filterNames.indexOf(filterName);
+    if (position < 0) return;
+
+    // Always update exposure settings so filter is recorded in FITS headers
+    final exposureSettings = ref.read(exposureSettingsProvider);
+    ref.read(exposureSettingsProvider.notifier).state =
+        exposureSettings.copyWith(filter: filterName);
+
+    // If filter wheel is connected, actually move it
+    final filterWheelState = ref.read(filterWheelStateProvider);
+    if (filterWheelState.connectionState == DeviceConnectionState.connected) {
+      setState(() => _isChangingFilter = true);
+      try {
+        final deviceService = ref.read(deviceServiceProvider);
+        await deviceService.setFilterWheelPosition(position);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to change filter: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isChangingFilter = false);
+        }
+      }
+    }
+  }
 }
 
 /// Compact text field for inline settings editing
@@ -3545,19 +3668,20 @@ class _CompactDropdown extends StatelessWidget {
   final List<String> items;
   final NightshadeColors colors;
   final bool highlight;
-  final ValueChanged<String?> onChanged;
+  final ValueChanged<String?>? onChanged;
 
   const _CompactDropdown({
     required this.label,
     required this.value,
     required this.items,
     required this.colors,
-    required this.onChanged,
+    this.onChanged,
     this.highlight = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isEnabled = onChanged != null;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -3566,32 +3690,38 @@ class _CompactDropdown extends StatelessWidget {
           style: TextStyle(fontSize: 11, color: colors.textMuted),
         ),
         const SizedBox(width: 4),
-        Container(
-          height: 28,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: highlight ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: highlight ? colors.primary.withValues(alpha: 0.3) : colors.border.withValues(alpha: 0.5),
-            ),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: value,
-              isDense: true,
-              style: TextStyle(
-                fontSize: 12,
-                color: highlight ? colors.primary : colors.textPrimary,
-                fontWeight: highlight ? FontWeight.w600 : FontWeight.normal,
+        Opacity(
+          opacity: isEnabled ? 1.0 : 0.5,
+          child: Container(
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: highlight ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: highlight ? colors.primary.withValues(alpha: 0.3) : colors.border.withValues(alpha: 0.5),
               ),
-              dropdownColor: colors.surface,
-              icon: Icon(LucideIcons.chevronDown, size: 12, color: colors.textMuted),
-              items: items.map((item) => DropdownMenuItem(
-                value: item,
-                child: Text(item),
-              )).toList(),
-              onChanged: onChanged,
+            ),
+            child: DropdownButtonHideUnderline(
+              child: IgnorePointer(
+                ignoring: !isEnabled,
+                child: DropdownButton<String>(
+                  value: value,
+                  isDense: true,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: highlight ? colors.primary : colors.textPrimary,
+                    fontWeight: highlight ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                  dropdownColor: colors.surface,
+                  icon: Icon(LucideIcons.chevronDown, size: 12, color: colors.textMuted),
+                  items: items.map((item) => DropdownMenuItem(
+                    value: item,
+                    child: Text(item),
+                  )).toList(),
+                  onChanged: onChanged,
+                ),
+              ),
             ),
           ),
         ),
@@ -4477,19 +4607,13 @@ class _AlertsCard extends ConsumerWidget {
                 ),
               ),
               if (notifications.isNotEmpty)
-                TextButton(
+                NightshadeButton(
                   onPressed: () => ref
                       .read(uiNotificationProvider.notifier)
                       .clearAll(),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    'Clear',
-                    style: TextStyle(fontSize: 11, color: colors.textSecondary),
-                  ),
+                  label: 'Clear',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
                 ),
             ],
           ),
@@ -4576,6 +4700,18 @@ class _EquipmentStatusCard extends ConsumerWidget {
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                   color: connectedCount == 5 ? colors.success : colors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => context.go('/equipment'),
+                child: Text(
+                  'Manage',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: colors.accent,
+                  ),
                 ),
               ),
             ],
@@ -5160,7 +5296,7 @@ class _QuickActionsCard extends ConsumerWidget {
     }
   }
 
-  void _handleAutofocus(BuildContext context, WidgetRef ref) {
+  Future<void> _handleAutofocus(BuildContext context, WidgetRef ref) async {
     final cameraState = ref.read(cameraStateProvider);
     final focuserState = ref.read(focuserStateProvider);
 
@@ -5174,10 +5310,35 @@ class _QuickActionsCard extends ConsumerWidget {
       return;
     }
 
+    // Show progress notification - the device service will handle detailed progress
+    // via activeOperationsProvider, but we show a quick snackbar for immediate feedback
     context.showInfoSnackBar(
-      'Autofocus: Use Sequencer for full autofocus routine',
-      duration: const Duration(seconds: 3),
+      'Starting autofocus...',
+      duration: const Duration(seconds: 2),
     );
+
+    try {
+      final deviceService = ref.read(deviceServiceProvider);
+      final result = await deviceService.runAutofocus(
+        exposureTime: 3.0,
+        stepSize: 100,
+        stepsOut: 7,
+        method: 'VCurve',
+        binning: 1,
+      );
+
+      if (!context.mounted) return;
+
+      // Show success with key result metrics
+      final hfrText = result.bestHfr.toStringAsFixed(2);
+      final posText = result.bestPosition.toString();
+      context.showSuccessSnackBar(
+        'Autofocus complete: Position $posText, HFR $hfrText',
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      context.showErrorSnackBar('Autofocus failed: $e');
+    }
   }
 
   void _handleCenter(BuildContext context, WidgetRef ref) {
@@ -5569,16 +5730,20 @@ class _CenteringDialogState extends State<_CenteringDialog> {
       ),
       actions: [
         if (_isRunning)
-          TextButton(
+          NightshadeButton(
             onPressed: () {
               setState(() => _isRunning = false);
             },
-            child: Text('Cancel', style: TextStyle(color: widget.colors.error)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           )
         else
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close', style: TextStyle(color: widget.colors.primary)),
+            label: 'Close',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
       ],
     );

@@ -11,6 +11,7 @@ import 'widgets/connection_status_zone.dart';
 import '../../services/mount_command_service.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/tutorial_keys/equipment_keys.dart';
+import '../../widgets/contextual_tour_prompt.dart';
 
 // ============================================================================
 // Device ID Formatting Helpers
@@ -245,71 +246,79 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
       orElse: () => null,
     );
 
-    return Column(
-      children: [
-        // ZONE 1: Quick Connect Bar
-        QuickConnectBar(
-          selectedProfileId: selectedProfileId,
-          onProfileSelected: (profile) {
-            ref.read(selectedEquipmentProfileIdProvider.notifier).state = profile.id;
-          },
-          onCreateProfile: () => _showCreateProfileDialog(context),
-        ),
+    return ContextualTourPrompt(
+      screenId: 'equipment',
+      tourCategory: TutorialCategory.equipmentTour,
+      title: 'Equipment Tour',
+      description: 'Learn how to connect and manage your astrophotography equipment.',
+      durationMinutes: 3,
+      alignment: Alignment.bottomRight,
+      child: Column(
+        children: [
+          // ZONE 1: Quick Connect Bar
+          QuickConnectBar(
+            selectedProfileId: selectedProfileId,
+            onProfileSelected: (profile) {
+              ref.read(selectedEquipmentProfileIdProvider.notifier).state = profile.id;
+            },
+            onCreateProfile: () => _showCreateProfileDialog(context),
+          ),
 
-        // ZONE 2: Connection Status Zone
-        ConnectionStatusZone(
-          selectedProfile: selectedProfile,
-          onConnectAll: () => _connectAllDevices(selectedProfile),
-          onDisconnectAll: () => _disconnectAllDevices(),
-          onEditProfile: () => _showEditProfileDialog(context, selectedProfile),
-          onSaveSetup: () => _saveConnectedDevices(context, selectedProfile),
-        ),
+          // ZONE 2: Connection Status Zone
+          ConnectionStatusZone(
+            selectedProfile: selectedProfile,
+            onConnectAll: () => _connectAllDevices(selectedProfile),
+            onDisconnectAll: () => _disconnectAllDevices(),
+            onEditProfile: () => _showEditProfileDialog(context, selectedProfile),
+            onSaveSetup: () => _saveConnectedDevices(context, selectedProfile),
+          ),
 
-        // ZONE 3: Device Management Tabs
-        Expanded(
-          child: Column(
-            children: [
-              // Tab bar
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                decoration: BoxDecoration(
-                  color: colors.background,
-                  border: Border(
-                    bottom: BorderSide(color: colors.border),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    _SubTabBar(
-                      tabs: _subTabs,
-                      currentIndex: _currentSubTab,
-                      onTabSelected: _onTabSelected,
-                      colors: colors,
+          // ZONE 3: Device Management Tabs
+          Expanded(
+            child: Column(
+              children: [
+                // Tab bar
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  decoration: BoxDecoration(
+                    color: colors.background,
+                    border: Border(
+                      bottom: BorderSide(color: colors.border),
                     ),
-                    const Spacer(),
-                    _ConnectionBadge(colors: colors),
-                  ],
-                ),
-              ),
-
-              // Tab content
-              Expanded(
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: IndexedStack(
-                    index: _currentSubTab,
-                    children: const [
-                      ConnectionsTab(), // Discovery tab (renamed)
-                      _ConnectedDevicesTab(), // New connected devices tab
-                      EquipmentSettingsTab(),
+                  ),
+                  child: Row(
+                    children: [
+                      _SubTabBar(
+                        tabs: _subTabs,
+                        currentIndex: _currentSubTab,
+                        onTabSelected: _onTabSelected,
+                        colors: colors,
+                      ),
+                      const Spacer(),
+                      _ConnectionBadge(colors: colors),
                     ],
                   ),
                 ),
-              ),
-            ],
+
+                // Tab content
+                Expanded(
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: IndexedStack(
+                      index: _currentSubTab,
+                      children: const [
+                        ConnectionsTab(), // Discovery tab (renamed)
+                        _ConnectedDevicesTab(), // New connected devices tab
+                        EquipmentSettingsTab(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -459,11 +468,16 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
           ),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
-          FilledButton(
+          NightshadeButton(
+            label: 'Create',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
             onPressed: () async {
               Navigator.pop(context);
               try {
@@ -476,8 +490,6 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
                 }
               }
             },
-            style: FilledButton.styleFrom(backgroundColor: colors.primary),
-            child: const Text('Create'),
           ),
         ],
       ),
@@ -515,11 +527,16 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
           ],
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
-          FilledButton(
+          NightshadeButton(
+            label: 'Save',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
             onPressed: () async {
               final name = nameController.text.trim();
               if (name.isEmpty) return;
@@ -540,8 +557,6 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen>
                 }
               }
             },
-            style: FilledButton.styleFrom(backgroundColor: colors.primary),
-            child: const Text('Save'),
           ),
         ],
       ),
@@ -625,25 +640,23 @@ class _SaveSetupNoProfileDialog extends StatelessWidget {
         ],
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context, _SaveSetupAction.cancel),
-          child: Text(
-            'Cancel',
-            style: TextStyle(color: colors.textMuted),
-          ),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
-        OutlinedButton(
+        NightshadeButton(
+          label: 'Select Existing',
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
           onPressed: () => Navigator.pop(context, _SaveSetupAction.selectExisting),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.textSecondary,
-            side: BorderSide(color: colors.border),
-          ),
-          child: const Text('Select Existing'),
         ),
-        FilledButton(
+        NightshadeButton(
+          label: 'Create New',
+          variant: ButtonVariant.primary,
+          size: ButtonSize.small,
           onPressed: () => Navigator.pop(context, _SaveSetupAction.createNew),
-          style: FilledButton.styleFrom(backgroundColor: colors.primary),
-          child: const Text('Create New'),
         ),
       ],
     );
@@ -735,12 +748,11 @@ class _SaveSetupProfilePickerDialog extends ConsumerWidget {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(
-            'Cancel',
-            style: TextStyle(color: colors.textMuted),
-          ),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
       ],
     );
@@ -858,33 +870,22 @@ class _FirstTimeOnboarding extends StatelessWidget {
             // Action buttons
             SizedBox(
               width: double.infinity,
-              child: FilledButton.icon(
+              child: NightshadeButton(
+                label: 'Start Setup',
+                icon: LucideIcons.sparkles,
+                variant: ButtonVariant.primary,
+                size: ButtonSize.large,
                 onPressed: onStartSetup,
-                icon: const Icon(LucideIcons.sparkles, size: 18),
-                label: const Text('Start Setup'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: colors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
               ),
             ),
 
             const SizedBox(height: 12),
 
-            TextButton(
+            NightshadeButton(
               onPressed: onManualSetup,
-              child: Text(
-                "I'll do it manually",
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 14,
-                ),
-              ),
+              label: "I'll do it manually",
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
             ),
           ],
         ),

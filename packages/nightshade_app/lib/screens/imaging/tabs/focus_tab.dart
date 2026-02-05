@@ -127,9 +127,11 @@ class _FocusTabState extends ConsumerState<FocusTab> {
           ),
         ),
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Close', style: TextStyle(color: colors.accent)),
+            label: 'Close',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
         ],
       ),
@@ -1922,26 +1924,24 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
       ),
       actions: [
         if (!_isRunning)
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              _completedFilters == widget.filters.length ? 'Done' : 'Close',
-              style: TextStyle(color: widget.colors.textSecondary),
-            ),
+            label: _completedFilters == widget.filters.length ? 'Done' : 'Close',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
           ),
         if (_isRunning)
-          TextButton(
+          NightshadeButton(
             onPressed: _cancel,
-            child: Text('Cancel', style: TextStyle(color: widget.colors.error)),
+            label: 'Cancel',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
           ),
         if (!_isRunning && _completedFilters < widget.filters.length)
-          ElevatedButton(
+          NightshadeButton(
+            label: 'Start Measurement',
             onPressed: _startMeasurement,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.colors.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Start Measurement'),
+            variant: ButtonVariant.primary,
           ),
       ],
     );

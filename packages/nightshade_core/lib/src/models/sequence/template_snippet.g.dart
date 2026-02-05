@@ -1,0 +1,44 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'template_snippet.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_$TemplateSnippetImpl _$$TemplateSnippetImplFromJson(
+        Map<String, dynamic> json) =>
+    _$TemplateSnippetImpl(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      description: json['description'] as String,
+      category: $enumDecode(_$SnippetCategoryEnumMap, json['category']),
+      iconName: json['iconName'] as String,
+      nodeData: (json['nodeData'] as List<dynamic>)
+          .map((e) => e as Map<String, dynamic>)
+          .toList(),
+      isBuiltIn: json['isBuiltIn'] as bool? ?? false,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+
+Map<String, dynamic> _$$TemplateSnippetImplToJson(
+        _$TemplateSnippetImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'name': instance.name,
+      'description': instance.description,
+      'category': _$SnippetCategoryEnumMap[instance.category]!,
+      'iconName': instance.iconName,
+      'nodeData': instance.nodeData,
+      'isBuiltIn': instance.isBuiltIn,
+      'createdAt': instance.createdAt.toIso8601String(),
+    };
+
+const _$SnippetCategoryEnumMap = {
+  SnippetCategory.autofocus: 'autofocus',
+  SnippetCategory.dithering: 'dithering',
+  SnippetCategory.filterSequence: 'filterSequence',
+  SnippetCategory.calibration: 'calibration',
+  SnippetCategory.safety: 'safety',
+  SnippetCategory.custom: 'custom',
+};

@@ -53,10 +53,14 @@ final lastEventProvider = StateNotifierProvider<LastEventNotifier, NightshadeEve
   return notifier;
 });
 
+// Note: All async callbacks and stream listeners check `mounted`
+// before updating state to prevent updates after disposal.
+
 class LastEventNotifier extends StateNotifier<NightshadeEvent?> {
   LastEventNotifier() : super(null);
 
   void updateEvent(NightshadeEvent event) {
+    if (!mounted) return;
     state = event;
   }
 }
@@ -86,6 +90,7 @@ class EventHistoryNotifier extends StateNotifier<List<NightshadeEvent>> {
 
   /// Add a new event to the history
   void addEvent(NightshadeEvent event) {
+    if (!mounted) return;
     state = [
       event,
       ...state,

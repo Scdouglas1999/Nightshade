@@ -62,7 +62,7 @@ class _SkyViewState extends State<SkyView> {
         });
       }
     } catch (e) {
-      debugPrint('Error loading catalogs: $e');
+      debugPrint('[SkyView] Error loading catalogs: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }

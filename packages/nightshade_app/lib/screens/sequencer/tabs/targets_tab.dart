@@ -1025,23 +1025,19 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(
+                NightshadeButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
                 ),
                 const SizedBox(width: 12),
-                ElevatedButton.icon(
+                NightshadeButton(
                   onPressed: _applyOptimization,
-                  icon: const Icon(LucideIcons.check),
-                  label: const Text('Apply Order'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                  ),
+                  icon: LucideIcons.check,
+                  label: 'Apply Order',
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.small,
                 ),
               ],
             ),

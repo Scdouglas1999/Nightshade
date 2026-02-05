@@ -176,6 +176,52 @@ Write-Ok "DLL copied to Flutter app directories"
 $SourceHash = (Get-FileHash $SourceDll -Algorithm MD5).Hash.Substring(0, 8)
 Write-Ok ("DLL hash: " + $SourceHash)
 
+# ---------------------------
+# Step 4b: Copy Fujifilm SDK DLLs (if available)
+# ---------------------------
+$FujiSearchPaths = @(
+    "C:\Users\scdou\Downloads\SDK13200\SDK13200\REDISTRIBUTABLES\Windows\64bit",
+    "C:\Program Files\Fujifilm\X Acquire",
+    "C:\Program Files (x86)\Fujifilm\X Acquire"
+)
+
+$FujiSourcePath = $null
+foreach ($path in $FujiSearchPaths) {
+    $testFile = Join-Path $path "XAPI.dll"
+    if (Test-Path $testFile) {
+        $FujiSourcePath = $path
+        break
+    }
+}
+
+if ($FujiSourcePath) {
+    Write-Step "Copying Fujifilm X Acquire SDK DLLs..."
+
+    # Build list of DLLs
+    $fujiDlls = @("XAPI.dll")
+    for ($i = 0; $i -le 20; $i++) {
+        $fujiDlls += ("FF{0:D4}API.dll" -f $i)
+    }
+
+    $copiedFuji = 0
+    foreach ($dll in $fujiDlls) {
+        $sourceFile = Join-Path $FujiSourcePath $dll
+        if (Test-Path $sourceFile) {
+            foreach ($dest in $Destinations) {
+                $destDir = Split-Path -Parent $dest
+                if (Test-Path $destDir) {
+                    $fujiDest = Join-Path $destDir $dll
+                    Copy-Item -Path $sourceFile -Destination $fujiDest -Force
+                }
+            }
+            $copiedFuji++
+        }
+    }
+    Write-Ok "Copied $copiedFuji Fujifilm SDK DLLs"
+} else {
+    Write-Warn "Fujifilm SDK not found (optional - only needed for Fujifilm cameras)"
+}
+
 # Copy 64-bit libraw.dll (required dependency)
 # Use the known 64-bit source from windows/runner/Release
 $LibRawDll = Join-Path $ProjectRoot "apps/desktop/windows/runner/Release/libraw.dll"

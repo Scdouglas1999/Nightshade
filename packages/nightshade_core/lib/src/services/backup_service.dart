@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:file_selector/file_selector.dart' as file_selector;
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -13,6 +12,7 @@ import '../database/daos/targets_dao.dart';
 import '../providers/database_provider.dart';
 import '../models/sequence/sequence_models.dart';
 import '../models/imaging/imaging_models.dart';
+import 'logging_service.dart';
 import 'sequence_repository.dart';
 
 /// Result of a backup operation
@@ -102,6 +102,7 @@ class BackupMetadata {
 class BackupService {
   final NightshadeDatabase database;
   final SequenceRepository sequenceRepository;
+  final LoggingService _logger;
 
   static const String backupVersion = '2.0';
   static const String appVersion = '2.2.0'; // Should be from package info
@@ -109,7 +110,8 @@ class BackupService {
   BackupService({
     required this.database,
     required this.sequenceRepository,
-  });
+    required LoggingService logger,
+  }) : _logger = logger;
 
   /// Create a full backup of all application data
   ///
@@ -122,7 +124,7 @@ class BackupService {
   /// Returns [BackupResult] with backup file path if successful
   Future<BackupResult> createBackup({String? customPath}) async {
     try {
-      debugPrint('BackupService: Starting full backup...');
+      _logger.debug('Starting full backup...', source: 'BackupService');
 
       // Export all data
       final settings = await _exportSettings();
@@ -167,14 +169,15 @@ class BackupService {
       final totalItems = settings.length + profiles.length +
                         sequences.length + targets.length;
 
-      debugPrint(
-        'BackupService: Backup completed successfully\n'
+      _logger.info(
+        'Backup completed successfully\n'
         '  File: $filePath\n'
         '  Settings: ${settings.length}\n'
         '  Profiles: ${profiles.length}\n'
         '  Sequences: ${sequences.length}\n'
         '  Targets: ${targets.length}\n'
         '  Total items: $totalItems',
+        source: 'BackupService',
       );
 
       return BackupResult(
@@ -184,7 +187,7 @@ class BackupService {
         itemsBackedUp: totalItems,
       );
     } catch (e, stackTrace) {
-      debugPrint('BackupService: Backup failed: $e\n$stackTrace');
+      _logger.debug('Backup failed: $e\n$stackTrace');
       return BackupResult(
         success: false,
         errorMessage: e.toString(),
@@ -202,7 +205,7 @@ class BackupService {
     bool replaceExisting = false,
   }) async {
     try {
-      debugPrint('BackupService: Starting restore from: $filePath');
+      _logger.debug('Starting restore from: $filePath');
 
       // Read and parse backup file
       final file = File(filePath);
@@ -227,11 +230,11 @@ class BackupService {
         );
       }
 
-      debugPrint('BackupService: Restoring backup version: $version');
+      _logger.debug('Restoring backup version: $version');
 
       // Clear existing data if requested
       if (replaceExisting) {
-        debugPrint('BackupService: Clearing existing data...');
+        _logger.debug('Clearing existing data...');
         await _clearAllData();
       }
 
@@ -245,7 +248,7 @@ class BackupService {
           replace: replaceExisting,
         );
         categoryCounts['settings'] = count;
-        debugPrint('BackupService: Restored $count settings');
+        _logger.debug('Restored $count settings');
       }
 
       // Restore equipment profiles
@@ -255,7 +258,7 @@ class BackupService {
           replace: replaceExisting,
         );
         categoryCounts['profiles'] = count;
-        debugPrint('BackupService: Restored $count profiles');
+        _logger.debug('Restored $count profiles');
       }
 
       // Restore sequences
@@ -265,7 +268,7 @@ class BackupService {
           replace: replaceExisting,
         );
         categoryCounts['sequences'] = count;
-        debugPrint('BackupService: Restored $count sequences');
+        _logger.debug('Restored $count sequences');
       }
 
       // Restore targets
@@ -275,14 +278,15 @@ class BackupService {
           replace: replaceExisting,
         );
         categoryCounts['targets'] = count;
-        debugPrint('BackupService: Restored $count targets');
+        _logger.debug('Restored $count targets');
       }
 
       final totalItems = categoryCounts.values.fold<int>(0, (sum, count) => sum + count);
 
-      debugPrint(
-        'BackupService: Restore completed successfully\n'
+      _logger.info(
+        'Restore completed successfully\n'
         '  Total items restored: $totalItems',
+        source: 'BackupService',
       );
 
       return RestoreResult(
@@ -292,7 +296,7 @@ class BackupService {
         categoryCounts: categoryCounts,
       );
     } catch (e, stackTrace) {
-      debugPrint('BackupService: Restore failed: $e\n$stackTrace');
+      _logger.debug('Restore failed: $e\n$stackTrace');
       return RestoreResult(
         success: false,
         errorMessage: e.toString(),
@@ -312,7 +316,7 @@ class BackupService {
 
       return BackupMetadata.fromJson(backup);
     } catch (e) {
-      debugPrint('BackupService: Failed to read backup metadata: $e');
+      _logger.debug('Failed to read backup metadata: $e');
       return null;
     }
   }
@@ -340,7 +344,7 @@ class BackupService {
 
       return files;
     } catch (e) {
-      debugPrint('BackupService: Failed to list backups: $e');
+      _logger.debug('Failed to list backups: $e');
       return [];
     }
   }
@@ -622,7 +626,7 @@ class BackupService {
             : DateTime.now(),
       );
     } catch (e) {
-      debugPrint('BackupService: Failed to parse sequence: $e');
+      _logger.debug('Failed to parse sequence: $e');
       return null;
     }
   }
@@ -701,11 +705,11 @@ class BackupService {
           );
 
         default:
-          debugPrint('BackupService: Unknown node type: $nodeType');
+          _logger.debug('Unknown node type: $nodeType');
           return null;
       }
     } catch (e) {
-      debugPrint('BackupService: Failed to parse node: $e');
+      _logger.debug('Failed to parse node: $e');
       return null;
     }
   }
@@ -742,7 +746,7 @@ class BackupService {
     await database.delete(database.sequenceNodes).go();
     await database.delete(database.targets).go();
     // Note: Not clearing imaging_sessions and captured_images to preserve historical data
-    debugPrint('BackupService: Cleared existing data');
+    _logger.debug('Cleared existing data');
   }
 }
 
@@ -750,9 +754,11 @@ class BackupService {
 final backupServiceProvider = Provider<BackupService>((ref) {
   final database = ref.watch(databaseProvider);
   final sequenceRepo = ref.watch(sequenceRepositoryProvider);
+  final logger = ref.watch(loggingServiceProvider);
 
   return BackupService(
     database: database,
     sequenceRepository: sequenceRepo,
+    logger: logger,
   );
 });

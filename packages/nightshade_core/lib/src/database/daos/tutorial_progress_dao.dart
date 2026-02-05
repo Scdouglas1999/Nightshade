@@ -131,4 +131,48 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
   Future<void> resetAllProgress() async {
     await delete(tutorialProgress).go();
   }
+
+  /// Get all dismissed screen IDs for contextual tour prompts.
+  /// Returns a set of screen IDs that have been dismissed.
+  Future<Set<String>> getDismissedPromptScreenIds() async {
+    final entries = await (select(tutorialProgress)
+          ..where((t) => t.dismissed.equals(true)))
+        .get();
+    return entries.map((e) => e.category).toSet();
+  }
+
+  /// Mark a screen's contextual tour prompt as dismissed.
+  /// Uses the category field to store the screen ID for prompt tracking.
+  Future<void> dismissPromptForScreen(String screenId) async {
+    final existing = await getProgress(screenId);
+
+    if (existing != null) {
+      await (update(tutorialProgress)
+            ..where((t) => t.category.equals(screenId)))
+          .write(const TutorialProgressCompanion(
+        dismissed: Value(true),
+      ));
+    } else {
+      // Create entry for the screen prompt dismissal
+      await into(tutorialProgress).insert(TutorialProgressCompanion.insert(
+        category: screenId,
+        startedAt: DateTime.now(),
+        dismissed: const Value(true),
+      ));
+    }
+  }
+
+  /// Check if a screen's contextual tour prompt has been dismissed.
+  Future<bool> isPromptDismissedForScreen(String screenId) async {
+    final progress = await getProgress(screenId);
+    return progress?.dismissed ?? false;
+  }
+
+  /// Watch dismissed prompt screen IDs for reactive updates.
+  Stream<Set<String>> watchDismissedPromptScreenIds() {
+    return (select(tutorialProgress)
+          ..where((t) => t.dismissed.equals(true)))
+        .watch()
+        .map((entries) => entries.map((e) => e.category).toSet());
+  }
 }

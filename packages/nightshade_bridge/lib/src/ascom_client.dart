@@ -6,6 +6,7 @@
 /// Reference: https://ascom-standards.org/
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 // Only compile on Windows
 // ignore: unused_import
@@ -69,7 +70,7 @@ Future<List<AscomDriver>> discoverAscomDrivers(String deviceType) async {
       ));
     }
   } catch (e) {
-    print('Error discovering ASCOM $deviceType drivers: $e');
+    debugPrint('[ASCOM] Error discovering $deviceType drivers: $e');
   }
 
   return drivers;
@@ -116,7 +117,7 @@ Future<dynamic> _getWin32() async {
     _win32Module ??= true; // Just flag that we've tried
     return _win32Module;
   } catch (e) {
-    print('Failed to load win32: $e');
+    debugPrint('[ASCOM] Failed to load win32: $e');
     return null;
   }
 }
@@ -133,7 +134,7 @@ Future<List<String>> _queryAscomRegistry(String registryPath) async {
     final result = await _executeRegistryQuery(registryPath);
     drivers.addAll(result);
   } catch (e) {
-    print('Registry query failed: $e');
+    debugPrint('[ASCOM] Registry query failed: $e');
   }
 
   return drivers;
@@ -145,7 +146,7 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
   final drivers = <String>[];
 
   try {
-    print('[ASCOM Registry] Querying: HKLM\\$registryPath');
+    debugPrint('[ASCOM] Querying: HKLM\\$registryPath');
 
     // Use reg.exe to query the registry (works on all Windows)
     final result = await Process.run(
@@ -154,13 +155,13 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
       runInShell: true,
     );
 
-    print('[ASCOM Registry] Exit code: ${result.exitCode}');
+    debugPrint('[ASCOM] Exit code: ${result.exitCode}');
 
     if (result.exitCode == 0) {
       final output = result.stdout as String;
       final lines = output.split('\n');
 
-      print('[ASCOM Registry] Registry output has ${lines.length} lines');
+      debugPrint('[ASCOM] Registry output has ${lines.length} lines');
 
       for (final line in lines) {
         final trimmed = line.trim();
@@ -176,14 +177,14 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
             !trimmed.contains(' ') &&
             !trimmed.contains('REG_')) {
           drivers.add(trimmed);
-          print('[ASCOM Registry] Found driver: $trimmed');
+          debugPrint('[ASCOM] Found driver: $trimmed');
         }
       }
 
       // Also check WOW6432Node for 32-bit drivers on 64-bit Windows
       final wowPath = registryPath.replaceFirst(
           'SOFTWARE\\ASCOM', 'SOFTWARE\\WOW6432Node\\ASCOM');
-      print('[ASCOM Registry] Also checking: HKLM\\$wowPath');
+      debugPrint('[ASCOM] Also checking: HKLM\\$wowPath');
 
       try {
         final wowResult = await Process.run(
@@ -209,23 +210,23 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
                 !trimmed.contains('REG_')) {
               if (!drivers.contains(trimmed)) {
                 drivers.add(trimmed);
-                print('[ASCOM Registry] Found WOW64 driver: $trimmed');
+                debugPrint('[ASCOM] Found WOW64 driver: $trimmed');
               }
             }
           }
         }
       } catch (e) {
-        print('[ASCOM Registry] WOW64 query failed (non-fatal): $e');
+        debugPrint('[ASCOM] WOW64 query failed (non-fatal): $e');
       }
     } else {
-      print('[ASCOM Registry] Registry query failed. Stderr: ${result.stderr}');
+      debugPrint('[ASCOM] Registry query failed. Stderr: ${result.stderr}');
     }
   } catch (e, stackTrace) {
-    print('[ASCOM Registry] Failed to query registry: $e');
-    print('[ASCOM Registry] Stack trace: $stackTrace');
+    debugPrint('[ASCOM] Failed to query registry: $e');
+    debugPrint('[ASCOM] Stack trace: $stackTrace');
   }
 
-  print('[ASCOM Registry] Total drivers found: ${drivers.length}');
+  debugPrint('[ASCOM] Total drivers found: ${drivers.length}');
   return drivers.toSet().toList(); // Remove duplicates
 }
 
@@ -306,7 +307,7 @@ class AscomDeviceClient {
 
       if (result.stdout.toString().contains('SUCCESS')) {
         _connected = true;
-        print('Connected to ASCOM device: $progId');
+        debugPrint('[ASCOM] Connected to device: $progId');
       } else {
         throw Exception('Failed to connect: ${result.stdout}');
       }
@@ -339,9 +340,9 @@ class AscomDeviceClient {
       );
 
       _connected = false;
-      print('Disconnected from ASCOM device: $progId');
+      debugPrint('[ASCOM] Disconnected from device: $progId');
     } catch (e) {
-      print('Error disconnecting: $e');
+      debugPrint('[ASCOM] Error disconnecting: $e');
     }
   }
 
@@ -493,7 +494,7 @@ Future<String?> showAscomChooser(String deviceType) async {
       }
     }
   } catch (e) {
-    print('Failed to show ASCOM chooser: $e');
+    debugPrint('[ASCOM] Failed to show chooser: $e');
   }
 
   return null;

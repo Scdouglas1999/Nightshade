@@ -564,61 +564,12 @@ class _ActionButton extends StatelessWidget {
         break;
     }
 
-    // Ensure minimum touch target of 48px
-    return SizedBox(
-      height: 48,
-      child: isPrimary
-          ? ElevatedButton(
-              onPressed: onPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                elevation: 0,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    text,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(LucideIcons.arrowRight, size: 14),
-                ],
-              ),
-            )
-          : OutlinedButton(
-              onPressed: onPressed,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: colors.textSecondary,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                side: BorderSide(color: colors.border),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    text,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(LucideIcons.arrowRight, size: 14),
-                ],
-              ),
-            ),
+    return NightshadeButton(
+      onPressed: onPressed,
+      label: text,
+      icon: LucideIcons.arrowRight,
+      variant: isPrimary ? ButtonVariant.primary : ButtonVariant.outline,
+      size: ButtonSize.small,
     );
   }
 }

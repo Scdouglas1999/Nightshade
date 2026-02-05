@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 
 import '../database/daos/sessions_dao.dart';
 import '../database/daos/sequence_checkpoints_dao.dart';
+import 'logging_service.dart';
 
 /// Configuration for session checkpointing
 class SessionCheckpointConfig {
@@ -111,6 +111,7 @@ class SessionRecoveryInfo {
 class SessionService {
   final SessionsDao sessionsDao;
   final SequenceCheckpointsDao? checkpointsDao; // Optional, for sequence integration
+  final LoggingService _logger;
 
   SessionCheckpointConfig _config = const SessionCheckpointConfig();
   Timer? _checkpointTimer;
@@ -127,7 +128,8 @@ class SessionService {
   SessionService({
     required this.sessionsDao,
     this.checkpointsDao,
-  });
+    required LoggingService logger,
+  }) : _logger = logger;
 
   /// Stream of status updates
   Stream<String> get statusStream => _statusController.stream;
@@ -152,10 +154,10 @@ class SessionService {
       throw Exception('Session already active. End current session before starting a new one.');
     }
 
-    debugPrint('SessionService: Starting new session...');
-    debugPrint('  Name: $name');
-    debugPrint('  Target ID: $targetId');
-    debugPrint('  Profile ID: $profileId');
+    _logger.debug('Starting new session...', source: 'SessionService');
+    _logger.debug('  Name: $name', source: 'SessionService');
+    _logger.debug('  Target ID: $targetId', source: 'SessionService');
+    _logger.debug('  Profile ID: $profileId', source: 'SessionService');
 
     // Create database session record with 'active' status
     final sessionId = await sessionsDao.startSession(
@@ -176,7 +178,7 @@ class SessionService {
     }
 
     _statusController.add('Session started: ID $sessionId');
-    debugPrint('SessionService: Session started with ID: $sessionId');
+    _logger.info('Session started with ID: $sessionId', source: 'SessionService');
 
     return sessionId;
   }
@@ -185,7 +187,7 @@ class SessionService {
   /// Automatically triggers checkpoint if threshold reached
   Future<void> updateSessionProgress(SessionStats stats) async {
     if (_currentSessionId == null) {
-      debugPrint('SessionService: No active session to update');
+      _logger.debug('No active session to update', source: 'SessionService');
       return;
     }
 
@@ -205,7 +207,7 @@ class SessionService {
   /// Manually trigger a checkpoint save
   Future<void> checkpoint() async {
     if (_currentSessionId == null || _currentStats == null) {
-      debugPrint('SessionService: No active session to checkpoint');
+      _logger.debug('No active session to checkpoint', source: 'SessionService');
       return;
     }
 
@@ -215,11 +217,11 @@ class SessionService {
   /// End the current session with finalization
   Future<void> endSession({String status = 'completed'}) async {
     if (_currentSessionId == null) {
-      debugPrint('SessionService: No active session to end');
+      _logger.debug('No active session to end', source: 'SessionService');
       return;
     }
 
-    debugPrint('SessionService: Ending session $_currentSessionId with status: $status');
+    _logger.info('Ending session $_currentSessionId with status: $status', source: 'SessionService');
 
     try {
       // Perform final checkpoint to save latest stats
@@ -246,13 +248,13 @@ class SessionService {
       await sessionsDao.endSession(_currentSessionId!, status: status);
 
       _statusController.add('Session ended: $_currentSessionId ($status)');
-      debugPrint('SessionService: Session finalized');
-      debugPrint('  Completed: ${stats.completedExposures}');
-      debugPrint('  Failed: ${stats.failedExposures}');
-      debugPrint('  Integration: ${stats.totalIntegrationSecs}s');
-      debugPrint('  Success rate: ${(stats.successRate * 100).toStringAsFixed(1)}%');
+      _logger.info('Session finalized', source: 'SessionService');
+      _logger.debug('  Completed: ${stats.completedExposures}', source: 'SessionService');
+      _logger.debug('  Failed: ${stats.failedExposures}', source: 'SessionService');
+      _logger.debug('  Integration: ${stats.totalIntegrationSecs}s', source: 'SessionService');
+      _logger.debug('  Success rate: ${(stats.successRate * 100).toStringAsFixed(1)}%', source: 'SessionService');
     } catch (e) {
-      debugPrint('SessionService: Error ending session: $e');
+      _logger.error('Error ending session: $e', source: 'SessionService');
       rethrow;
     } finally {
       // Clean up
@@ -286,7 +288,7 @@ class SessionService {
   /// Check for incomplete sessions (crashed/interrupted sessions)
   /// Returns list of sessions that can be recovered
   Future<List<SessionRecoveryInfo>> findIncompleteSessionsForRecovery() async {
-    debugPrint('SessionService: Checking for incomplete sessions...');
+    _logger.debug('Checking for incomplete sessions...', source: 'SessionService');
 
     try {
       final allSessions = await sessionsDao.getAllSessions();
@@ -295,11 +297,11 @@ class SessionService {
       final incompleteSessions = allSessions.where((s) => s.status == 'active').toList();
 
       if (incompleteSessions.isEmpty) {
-        debugPrint('SessionService: No incomplete sessions found');
+        _logger.debug('No incomplete sessions found', source: 'SessionService');
         return [];
       }
 
-      debugPrint('SessionService: Found ${incompleteSessions.length} incomplete session(s)');
+      _logger.info('Found ${incompleteSessions.length} incomplete session(s)', source: 'SessionService');
 
       // Convert to recovery info
       final recoveryInfoList = <SessionRecoveryInfo>[];
@@ -325,7 +327,7 @@ class SessionService {
 
       return recoveryInfoList;
     } catch (e) {
-      debugPrint('SessionService: Error finding incomplete sessions: $e');
+      _logger.error('Error finding incomplete sessions: $e', source: 'SessionService');
       return [];
     }
   }
@@ -336,7 +338,7 @@ class SessionService {
       throw Exception('Cannot recover session while another session is active');
     }
 
-    debugPrint('SessionService: Recovering session $sessionId...');
+    _logger.info('Recovering session $sessionId...', source: 'SessionService');
 
     // Verify session exists and is in 'active' state
     final session = await sessionsDao.getSessionById(sessionId);
@@ -368,14 +370,14 @@ class SessionService {
     }
 
     _statusController.add('Session recovered: $sessionId');
-    debugPrint('SessionService: Session $sessionId recovered successfully');
-    debugPrint('  Exposures completed: ${session.successfulExposures}');
-    debugPrint('  Integration time: ${session.totalIntegrationSecs}s');
+    _logger.info('Session $sessionId recovered successfully', source: 'SessionService');
+    _logger.debug('  Exposures completed: ${session.successfulExposures}', source: 'SessionService');
+    _logger.debug('  Integration time: ${session.totalIntegrationSecs}s', source: 'SessionService');
   }
 
   /// Mark a session as aborted (for recovery dialog when user chooses not to resume)
   Future<void> markSessionAborted(int sessionId) async {
-    debugPrint('SessionService: Marking session $sessionId as aborted');
+    _logger.info('Marking session $sessionId as aborted', source: 'SessionService');
     await sessionsDao.endSession(sessionId, status: 'aborted');
   }
 
@@ -396,7 +398,7 @@ class SessionService {
       _startCheckpointTimer();
     }
 
-    debugPrint('SessionService: Configuration updated');
+    _logger.debug('Configuration updated', source: 'SessionService');
   }
 
   /// Get current configuration
@@ -411,7 +413,7 @@ class SessionService {
         _performCheckpoint();
       }
     });
-    debugPrint('SessionService: Checkpoint timer started (interval: ${_config.checkpointTimeInterval.inMinutes} min)');
+    _logger.debug('Checkpoint timer started (interval: ${_config.checkpointTimeInterval.inMinutes} min)', source: 'SessionService');
   }
 
   void _stopCheckpointTimer() {
@@ -422,7 +424,7 @@ class SessionService {
   Future<void> _performCheckpoint() async {
     if (_currentSessionId == null || _currentStats == null) return;
 
-    debugPrint('SessionService: Performing checkpoint for session $_currentSessionId...');
+    _logger.debug('Performing checkpoint for session $_currentSessionId...', source: 'SessionService');
 
     try {
       // Save current statistics to database
@@ -441,9 +443,9 @@ class SessionService {
       _imagesSinceCheckpoint = 0;
 
       _statusController.add('Checkpoint saved');
-      debugPrint('SessionService: Checkpoint saved successfully');
+      _logger.debug('Checkpoint saved successfully', source: 'SessionService');
     } catch (e) {
-      debugPrint('SessionService: Error performing checkpoint: $e');
+      _logger.error('Error performing checkpoint: $e', source: 'SessionService');
       _statusController.add('Checkpoint failed: $e');
     }
   }
@@ -452,6 +454,6 @@ class SessionService {
   void dispose() {
     _stopCheckpointTimer();
     _statusController.close();
-    debugPrint('SessionService: Disposed');
+    _logger.debug('Disposed', source: 'SessionService');
   }
 }

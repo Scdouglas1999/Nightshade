@@ -7,6 +7,9 @@ import '../models/backend/autofocus_result.dart';
 import '../models/equipment/equipment_models.dart';
 import 'profiles_provider.dart';
 
+// Note: All async callbacks and stream listeners check `mounted`
+// before updating state to prevent updates after disposal.
+
 /// Default retry configuration for device operations
 const int _defaultMaxRetries = 3;
 const Duration _defaultRetryDelay = Duration(seconds: 1);
@@ -32,9 +35,11 @@ class CameraStateNotifier extends StateNotifier<CameraState> {
       setConnecting(deviceId, deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectCamera(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -45,6 +50,7 @@ class CameraStateNotifier extends StateNotifier<CameraState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(
@@ -165,9 +171,11 @@ class MountStateNotifier extends StateNotifier<MountState> {
       setConnecting(deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectMount(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -178,6 +186,7 @@ class MountStateNotifier extends StateNotifier<MountState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(
@@ -284,9 +293,11 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
       setConnecting(deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectFocuser(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -297,6 +308,7 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(
@@ -436,6 +448,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       setConnecting(deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectFilterWheel(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
 
@@ -443,6 +456,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       // This ensures user-defined filter names (Ha, OIII, SII) work in sequences
       await _syncProfileFilterNamesToDriver(deviceId);
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -453,6 +467,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(
@@ -639,9 +654,11 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
       setConnecting(deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectGuider(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -652,6 +669,7 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(
@@ -742,9 +760,11 @@ class RotatorStateNotifier extends StateNotifier<RotatorState> {
       setConnecting(deviceId, deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectRotator(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -755,6 +775,7 @@ class RotatorStateNotifier extends StateNotifier<RotatorState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(
@@ -852,9 +873,11 @@ class DomeStateNotifier extends StateNotifier<DomeState> {
       setConnecting(deviceId, deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectDome(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -865,6 +888,7 @@ class DomeStateNotifier extends StateNotifier<DomeState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(
@@ -967,9 +991,11 @@ class WeatherStateNotifier extends StateNotifier<WeatherState> {
       setConnecting(deviceId, deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectWeather(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -980,6 +1006,7 @@ class WeatherStateNotifier extends StateNotifier<WeatherState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(
@@ -1089,9 +1116,11 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
       setConnecting(deviceId, deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectSafetyMonitor(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -1102,6 +1131,7 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(
@@ -1195,9 +1225,11 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
       setConnecting(deviceId, deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectCoverCalibrator(deviceId);
+      if (!mounted) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
+      if (!mounted) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -1208,6 +1240,7 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(_defaultRetryDelay * _retryAttempts);
+        if (!mounted) return;
         await _connectWithRetry(deviceId, maxRetries);
       } else {
         state = state.copyWith(

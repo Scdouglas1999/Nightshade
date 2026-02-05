@@ -16,6 +16,7 @@ export 'src/database/daos/settings_dao.dart';
 export 'src/database/daos/weather_settings_dao.dart';
 export 'src/database/daos/flat_history_dao.dart';
 export 'src/database/daos/tutorial_progress_dao.dart';
+export 'src/database/daos/polar_alignment_history_dao.dart';
 
 // Data models (domain models, distinct from DB entities)
 // TrackingRate is re-exported from equipment_models.dart (canonical source: device_capabilities.dart)
@@ -26,7 +27,9 @@ export 'src/models/equipment_profile.dart';
 export 'src/models/settings/app_settings.dart' hide AppSettings;
 export 'src/models/imaging/imaging_models.dart';
 export 'src/models/imaging/camera_preset.dart';
+export 'src/models/imaging/auto_stretch_settings.dart';
 export 'src/models/sequence/sequence_models.dart';
+export 'src/models/sequence/template_snippet.dart';
 export 'src/models/target/target_models.dart';
 export 'src/models/annotation_data.dart';
 export 'src/models/annotation_settings.dart';
@@ -38,6 +41,9 @@ export 'src/models/meridian_flip_settings.dart';
 export 'src/models/meridian_flip_event.dart';
 export 'src/models/flat_wizard/flat_wizard_settings.dart';
 export 'src/models/flat_wizard/flat_wizard_state.dart';
+export 'src/models/polar_alignment_config.dart';
+export 'src/models/alerts/transient_alert.dart';
+export 'src/models/planning/target_suggestion.dart';
 
 // Providers
 export 'src/providers/database_provider.dart';
@@ -67,6 +73,11 @@ export 'src/providers/flat_wizard_provider.dart';
 export 'src/providers/ui_notification_provider.dart';
 export 'src/providers/operation_progress_provider.dart';
 export 'src/providers/current_screen_provider.dart';
+export 'src/providers/polar_alignment_provider.dart';
+export 'src/providers/template_snippet_provider.dart';
+export 'src/providers/target_suggestion_provider.dart';
+export 'src/providers/transient_alert_provider.dart';
+export 'src/providers/auto_stretch_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;
@@ -106,6 +117,9 @@ export 'src/services/weather/weather_radar_service.dart';
 export 'src/services/weather/cloud_motion_analyzer.dart';
 export 'src/services/weather/weather_alert_service.dart';
 export 'src/services/smart_notification_service.dart';
+export 'src/services/target_suggestion_service.dart';
+export 'src/services/transient_alert_service.dart';
+export 'src/services/sequence_time_estimator.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';

@@ -429,6 +429,38 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
     }
     tracing::info!("Moravian discovery complete.");
 
+    // Discover Fujifilm cameras (Windows only - X Acquire SDK)
+    #[cfg(target_os = "windows")]
+    {
+        tracing::info!("Discovering Fujifilm cameras...");
+        match crate::vendor::fujifilm::discover_devices().await {
+            Ok(fuji_devices) => {
+                tracing::info!("Found {} Fujifilm cameras", fuji_devices.len());
+                devices.extend(fuji_devices.into_iter().map(|info| {
+                    let display_name = NativeDeviceInfo::generate_display_name(
+                        &info.name,
+                        info.serial_number.as_deref(),
+                        None,
+                    );
+                    NativeDeviceInfo {
+                        id: format!("native:fujifilm:{}", info.serial_number.as_deref().unwrap_or(&info.name)),
+                        name: info.name,
+                        vendor: NativeVendor::Fujifilm,
+                        device_type: DeviceType::Camera,
+                        serial_number: info.serial_number,
+                        sdk_version: info.firmware_version,
+                        display_name,
+                    }
+                }));
+            }
+            Err(e) => {
+                // Log the error but continue - this is expected if X Acquire SDK is not installed
+                tracing::debug!("Fujifilm camera discovery skipped: {}", e);
+            }
+        }
+        tracing::info!("Fujifilm camera discovery complete.");
+    }
+
     // =========================================================================
     // MOUNT DISCOVERY (Serial Protocol Mounts)
     // =========================================================================

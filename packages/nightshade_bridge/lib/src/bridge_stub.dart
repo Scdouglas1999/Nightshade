@@ -19,6 +19,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 import 'package:xml/xml.dart' as xml;
 import 'alpaca_client.dart' as alpaca;
@@ -327,34 +328,34 @@ class NativeBridge {
     // This enables native ZWO discovery and proper ASCOM discovery
     // Note: If manual load succeeded, RustLib should also be able to find it
     try {
-      print(
-          '[NativeBridge] Initializing RustLib for native device discovery...');
-      print(
-          '[NativeBridge] RustLib will attempt to load the native library automatically');
+      debugPrint(
+          '[Bridge] Initializing RustLib for native device discovery...');
+      debugPrint(
+          '[Bridge] RustLib will attempt to load the native library automatically');
       await frb.RustLib.init();
 
       // Initialize the native bridge API
       if (logDirectory != null) {
         gen_api.apiInitWithLogging(logDirectory: logDirectory);
-        print(
-            '[NativeBridge] Native bridge API initialized with logging to: $logDirectory');
+        debugPrint(
+            '[Bridge] Native bridge API initialized with logging to: $logDirectory');
       } else {
         gen_api.apiInit();
-        print(
-            '[NativeBridge] Native bridge API initialized (console logging only)');
+        debugPrint(
+            '[Bridge] Native bridge API initialized (console logging only)');
       }
 
       // Verify it's working
       final version = gen_api.apiGetVersion();
-      print('[NativeBridge] Native bridge version: $version');
-      print(
-          '[NativeBridge] ✓ Native bridge ready - will discover native ZWO, ASCOM, and Alpaca devices');
+      debugPrint('[Bridge] Native bridge version: $version');
+      debugPrint(
+          '[Bridge] ✓ Native bridge ready - will discover native ZWO, ASCOM, and Alpaca devices');
 
       // Mark as available for native discovery
       _nativeAvailable = true;
     } catch (e) {
-      print('[NativeBridge] RustLib initialization failed: $e');
-      print('[NativeBridge] Will fall back to stub discovery methods');
+      debugPrint('[Bridge] RustLib initialization failed: $e');
+      debugPrint('[Bridge] Will fall back to stub discovery methods');
       // Mark as unavailable since RustLib couldn't initialize
       _nativeAvailable = false;
     }
@@ -374,9 +375,9 @@ class NativeBridge {
     ));
 
     if (_nativeAvailable) {
-      print('Nightshade Native Bridge: Loaded native library');
+      debugPrint('[Bridge] Loaded native library');
     } else {
-      print('Nightshade Native Bridge: Using simulator mode');
+      debugPrint('[Bridge] Using simulator mode');
     }
   }
 
@@ -575,19 +576,21 @@ class NativeBridge {
         try {
           final file = File(libPath);
           if (await file.exists()) {
-            print('Attempting to load native library from: $libPath');
+            debugPrint(
+                '[Bridge] Attempting to load native library from: $libPath');
 
             // Try to load the library
             _nativeLib = DynamicLibrary.open(libPath);
 
             // Verify the library loaded by checking for a known symbol
             // For now, just check if it loaded successfully
-            print('Successfully loaded native library from: $libPath');
+            debugPrint(
+                '[Bridge] Successfully loaded native library from: $libPath');
             return true;
           }
         } catch (e) {
           // Continue trying other paths
-          print('Failed to load library from $libPath: $e');
+          debugPrint('[Bridge] Failed to load library from $libPath: $e');
         }
       }
 
@@ -600,28 +603,31 @@ class NativeBridge {
         } else if (Platform.isMacOS) {
           _nativeLib = DynamicLibrary.open(libName);
         }
-        print('Successfully loaded native library by name: $libName');
+        debugPrint(
+            '[Bridge] Successfully loaded native library by name: $libName');
         return true;
       } catch (e) {
-        print('Failed to load library by name: $e');
+        debugPrint('[Bridge] Failed to load library by name: $e');
       }
 
-      print('Native library not found. Falling back to simulator mode.');
-      print('');
-      print('To enable native device discovery:');
-      print(
+      debugPrint(
+          '[Bridge] Native library not found. Falling back to simulator mode.');
+      debugPrint('');
+      debugPrint('To enable native device discovery:');
+      debugPrint(
           '1. Build the native library: cd native/nightshade_native && cargo build --release --manifest-path bridge/Cargo.toml');
       if (Platform.isWindows) {
-        print('2. Copy nightshade_bridge.dll to: $executableDir');
-        print('   Or build the Flutter app which should copy it automatically');
+        debugPrint('2. Copy nightshade_bridge.dll to: $executableDir');
+        debugPrint(
+            '   Or build the Flutter app which should copy it automatically');
       } else if (Platform.isLinux) {
-        print('2. Copy $libName to: $executableDir/lib/');
+        debugPrint('2. Copy $libName to: $executableDir/lib/');
       } else if (Platform.isMacOS) {
-        print('2. Copy $libName to: Frameworks/ in the app bundle');
+        debugPrint('2. Copy $libName to: Frameworks/ in the app bundle');
       }
       return false;
     } catch (e) {
-      print('Error loading native library: $e');
+      debugPrint('[Bridge] Error loading native library: $e');
       return false;
     }
   }
@@ -644,7 +650,7 @@ class NativeBridge {
           return version;
         }
       } catch (e) {
-        print('Failed to get native version: $e');
+        debugPrint('[Bridge] Failed to get native version: $e');
       }
       return '0.1.0';
     }
@@ -667,8 +673,8 @@ class NativeBridge {
       try {
         return gen_api.apiEventStream();
       } catch (e) {
-        print('[NativeBridge] Failed to get native event stream: $e');
-        print('[NativeBridge] Falling back to local event controller');
+        debugPrint('[Bridge] Failed to get native event stream: $e');
+        debugPrint('[Bridge] Falling back to local event controller');
       }
     }
 
@@ -703,7 +709,7 @@ class NativeBridge {
     required int port,
   }) async {
     try {
-      print('[Bridge] Connecting to INDI server at $host:$port...');
+      debugPrint('[Bridge] Connecting to INDI server at $host:$port...');
 
       // Connect to INDI server via TCP
       final socket =
@@ -766,14 +772,14 @@ class NativeBridge {
         // Parse XML response
         final devices = _parseIndiDevices(response, host, port);
 
-        print(
+        debugPrint(
             '[Bridge] Discovered ${devices.length} INDI devices at $host:$port');
         return devices;
       } finally {
         await socket.close();
       }
     } catch (e) {
-      print('[Bridge] Failed to discover INDI devices at $host:$port: $e');
+      debugPrint('[Bridge] Failed to discover INDI devices at $host:$port: $e');
       return [];
     }
   }
@@ -862,7 +868,7 @@ class NativeBridge {
         }
       }
     } catch (e) {
-      print('[Bridge] Error parsing INDI XML response: $e');
+      debugPrint('[Bridge] Error parsing INDI XML response: $e');
       // Try to extract device names even if full parsing fails
       final deviceNameRegex = RegExp(r'device="([^"]+)"');
       final matches = deviceNameRegex.allMatches(xmlResponse);
@@ -926,14 +932,14 @@ class NativeBridge {
         }
 
         if (nativeDevices.isNotEmpty) {
-          print(
-              '[NativeBridge] Found ${nativeDevices.length} native ${deviceType.displayName}(s)');
+          debugPrint(
+              '[Bridge] Found ${nativeDevices.length} native ${deviceType.displayName}(s)');
         }
       } catch (e) {
         // Only log errors, not expected RustLib issues
         if (!e.toString().contains('RustLib') &&
             !e.toString().contains('not initialized')) {
-          print('[NativeBridge] Native discovery error: $e');
+          debugPrint('[Bridge] Native discovery error: $e');
         }
         // Continue to fallback discovery methods
       }
@@ -948,9 +954,9 @@ class NativeBridge {
       try {
         final ascomType = _deviceTypeToAscomType(deviceType);
         if (ascomType != null) {
-          print('[ASCOM] Discovering ASCOM $ascomType drivers...');
+          debugPrint('[ASCOM] Discovering ASCOM $ascomType drivers...');
           final ascomDrivers = await ascom.discoverAscomDrivers(ascomType);
-          print(
+          debugPrint(
               '[ASCOM] Found ${ascomDrivers.length} ASCOM $ascomType driver(s)');
 
           for (final driver in ascomDrivers) {
@@ -963,18 +969,19 @@ class NativeBridge {
               driverVersion: 'ASCOM',
               displayName: driver.name,
             ));
-            print(
+            debugPrint(
                 '[ASCOM] Found ASCOM ${deviceType.displayName}: ${driver.name} (${driver.progId})');
           }
         } else {
-          print('[ASCOM] No ASCOM type mapping for ${deviceType.displayName}');
+          debugPrint(
+              '[ASCOM] No ASCOM type mapping for ${deviceType.displayName}');
         }
       } catch (e, stackTrace) {
-        print('[ASCOM] Discovery failed: $e');
-        print('[ASCOM] Stack trace: $stackTrace');
+        debugPrint('[ASCOM] Discovery failed: $e');
+        debugPrint('[ASCOM] Stack trace: $stackTrace');
       }
     } else {
-      print('[ASCOM] Not on Windows, skipping ASCOM discovery');
+      debugPrint('[ASCOM] Not on Windows, skipping ASCOM discovery');
     }
 
     // =========================================================================
@@ -994,11 +1001,11 @@ class NativeBridge {
         alpacaDevices = _alpacaDiscoveryCache!;
       } else if (_alpacaDiscoveryInProgress != null) {
         // Another discovery is in progress - wait for it instead of starting a new one
-        print('Alpaca discovery already in progress, waiting...');
+        debugPrint('[Alpaca] discovery already in progress, waiting...');
         alpacaDevices = await _alpacaDiscoveryInProgress!;
       } else {
         // Start fresh discovery with lock to prevent parallel discoveries
-        print('Discovering Alpaca devices (UDP broadcast)...');
+        debugPrint('[Alpaca] Discovering devices (UDP broadcast)...');
         final discoveryFuture = alpaca.discoverAllAlpacaDevices(
           timeout: const Duration(seconds: 2),
         );
@@ -1025,11 +1032,12 @@ class NativeBridge {
             driverVersion: 'Alpaca',
             displayName: device.deviceName,
           ));
-          print('Found Alpaca ${deviceType.displayName}: ${device.deviceName}');
+          debugPrint(
+              '[Alpaca] Found ${deviceType.displayName}: ${device.deviceName}');
         }
       }
     } catch (e) {
-      print('Alpaca discovery failed: $e');
+      debugPrint('[Alpaca] discovery failed: $e');
     }
 
     // =========================================================================
@@ -1037,7 +1045,7 @@ class NativeBridge {
     // =========================================================================
     if (deviceType == DeviceType.guider) {
       try {
-        print('Discovering PHD2 instances...');
+        debugPrint('[PHD2] Discovering instances...');
         final phd2Instances = await _discoverPhd2Instances();
 
         for (final instance in phd2Instances) {
@@ -1055,10 +1063,10 @@ class NativeBridge {
             driverVersion: '2.6+',
             displayName: phd2Name,
           ));
-          print('Found PHD2 at ${instance['host']}:${instance['port']}');
+          debugPrint('[PHD2] Found at ${instance['host']}:${instance['port']}');
         }
       } catch (e) {
-        print('PHD2 discovery failed: $e');
+        debugPrint('[PHD2] discovery failed: $e');
       }
     }
 
@@ -1122,11 +1130,11 @@ class NativeBridge {
 
     // Network subnet scanning for remote PHD2 instances
     try {
-      print('Scanning local network for PHD2 instances...');
+      debugPrint('[Bridge] Scanning local network for PHD2 instances...');
       final localIps = await _getLocalNetworkAddresses();
 
       for (final subnet in localIps) {
-        print('Scanning subnet: $subnet');
+        debugPrint('[Bridge] Scanning subnet: $subnet');
         final remoteInstances = await _scanSubnetForPhd2(subnet, defaultPort);
 
         for (final host in remoteInstances) {
@@ -1134,12 +1142,12 @@ class NativeBridge {
           if (!discoveredHosts.contains(host)) {
             instances.add({'host': host, 'port': defaultPort});
             discoveredHosts.add(host);
-            print('Found remote PHD2 at $host:$defaultPort');
+            debugPrint('[PHD2] Found remote at $host:$defaultPort');
           }
         }
       }
     } catch (e) {
-      print('Network scan failed: $e');
+      debugPrint('[Bridge] Network scan failed: $e');
       // Continue with local instance if we found one
     }
 
@@ -1170,7 +1178,7 @@ class NativeBridge {
         }
       }
     } catch (e) {
-      print('Failed to get network interfaces: $e');
+      debugPrint('[Bridge] Failed to get network interfaces: $e');
     }
 
     return subnets;
@@ -1305,7 +1313,7 @@ class NativeBridge {
         }
       }
     } catch (e) {
-      print('Failed to check for running PHD2 process: $e');
+      debugPrint('[PHD2] Failed to check for running process: $e');
     }
 
     return false;
@@ -1334,7 +1342,7 @@ class NativeBridge {
         return true;
       }
     } catch (e) {
-      print('Failed to check for phd2 in PATH: $e');
+      debugPrint('[PHD2] Failed to check for phd2 in PATH: $e');
     }
 
     // Check if phd2 process is running
@@ -1344,7 +1352,7 @@ class NativeBridge {
         return true;
       }
     } catch (e) {
-      print('Failed to check for running PHD2 process: $e');
+      debugPrint('[PHD2] Failed to check for running process: $e');
     }
 
     return false;
@@ -1373,7 +1381,7 @@ class NativeBridge {
         return true;
       }
     } catch (e) {
-      print('Failed to check for phd2 in PATH: $e');
+      debugPrint('[PHD2] Failed to check for phd2 in PATH: $e');
     }
 
     // Check if phd2 process is running
@@ -1383,7 +1391,7 @@ class NativeBridge {
         return true;
       }
     } catch (e) {
-      print('Failed to check for running PHD2 process: $e');
+      debugPrint('[PHD2] Failed to check for running process: $e');
     }
 
     // Check common package manager installations
@@ -1551,12 +1559,12 @@ class NativeBridge {
 
     if (_nativeAvailable) {
       try {
-        print('[NativeBridge] Attempting native connection for $deviceId...');
+        debugPrint('[Bridge] Attempting native connection for $deviceId...');
         final genDeviceType = _toGenDeviceType(deviceType);
         await gen_api.apiConnectDevice(
             deviceType: genDeviceType, deviceId: deviceId);
-        print(
-            '[NativeBridge] ✓ Successfully connected to $deviceId via native bridge');
+        debugPrint(
+            '[Bridge] ✓ Successfully connected to $deviceId via native bridge');
 
         // Mark as connected in stub state
         _connectedDevices[deviceId] = true;
@@ -1572,9 +1580,9 @@ class NativeBridge {
 
         return; // Success - native bridge handled it
       } catch (e, stackTrace) {
-        print('[NativeBridge] ✗ Native connection failed for $deviceId');
-        print('[NativeBridge] Error: $e');
-        print('[NativeBridge] Stack trace: $stackTrace');
+        debugPrint('[Bridge] ✗ Native connection failed for $deviceId');
+        debugPrint('[Bridge] Error: $e');
+        debugPrint('[Bridge] Stack trace: $stackTrace');
 
         // If this device must use native bridge (was discovered by it),
         // don't fall back - throw the error
@@ -1583,8 +1591,8 @@ class NativeBridge {
               'Failed to connect to $deviceId via native bridge: $e');
         }
 
-        print(
-            '[NativeBridge] Device supports fallback - trying stub methods...');
+        debugPrint(
+            '[Bridge] Device supports fallback - trying stub methods...');
         // Continue to fallback stub methods below
       }
     } else if (shouldUseNativeOnly) {
@@ -1635,7 +1643,7 @@ class NativeBridge {
     );
 
     try {
-      print('Connecting to ASCOM device: $progId');
+      debugPrint('[ASCOM] Connecting to device: $progId');
       await client.connect();
 
       _ascomClients[deviceId] = client;
@@ -1649,7 +1657,7 @@ class NativeBridge {
         data: {'deviceType': deviceType.name, 'deviceId': deviceId},
       ));
 
-      print('Connected to ASCOM device: $progId');
+      debugPrint('[ASCOM] Connected to device: $progId');
     } catch (e) {
       client.dispose();
       throw Exception('Failed to connect to ASCOM device: $e');
@@ -1705,7 +1713,7 @@ class NativeBridge {
     }
 
     try {
-      print('Connecting to Alpaca device: $deviceId');
+      debugPrint('[Alpaca] Connecting to device: $deviceId');
       await client.connect();
 
       _alpacaClients[deviceId] = client;
@@ -1720,7 +1728,7 @@ class NativeBridge {
         data: {'deviceType': deviceType.name, 'deviceId': deviceId},
       ));
 
-      print('Connected to Alpaca device: $deviceId');
+      debugPrint('[Alpaca] Connected to device: $deviceId');
     } catch (e) {
       client.dispose();
       throw Exception('Failed to connect to Alpaca device: $e');
@@ -1742,7 +1750,7 @@ class NativeBridge {
         try {
           await client.disconnect();
         } catch (e) {
-          print('Error disconnecting Alpaca device: $e');
+          debugPrint('[Alpaca] Error disconnecting device: $e');
         }
         client.dispose();
         _alpacaClients.remove(deviceId);
@@ -1757,7 +1765,7 @@ class NativeBridge {
         try {
           await client.disconnect();
         } catch (e) {
-          print('Error disconnecting ASCOM device: $e');
+          debugPrint('[ASCOM] Error disconnecting device: $e');
         }
         client.dispose();
         _ascomClients.remove(deviceId);
@@ -1784,8 +1792,8 @@ class NativeBridge {
         return await gen_api.apiIsDeviceConnected(
             deviceType: _toGenDeviceType(deviceType), deviceId: deviceId);
       } catch (e) {
-        print(
-            '[NativeBridge] Warning: Failed to check device connection from native API: $e');
+        debugPrint(
+            '[Bridge] Warning: Failed to check device connection from native API: $e');
         // Fall through to local tracking
       }
     }
@@ -1805,8 +1813,8 @@ class NativeBridge {
         }
         return nativeDevices;
       } catch (e) {
-        print(
-            '[NativeBridge] Warning: Failed to get connected devices from native API: $e');
+        debugPrint(
+            '[Bridge] Warning: Failed to get connected devices from native API: $e');
         // Fall through to stub implementation
       }
     }
@@ -1860,7 +1868,7 @@ class NativeBridge {
       try {
         return await gen_api.getCameraStatus(deviceId: deviceId);
       } catch (e) {
-        print('[NativeBridge] Error getting camera status from native: $e');
+        debugPrint('[Bridge] Error getting camera status from native: $e');
         // Fall through to stub
       }
     }
@@ -1881,7 +1889,7 @@ class NativeBridge {
         );
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting camera cooler from native: $e');
+        debugPrint('[Bridge] Error setting camera cooler from native: $e');
         // Fall through to stub
       }
     }
@@ -1897,7 +1905,7 @@ class NativeBridge {
         await gen_api.setCameraGain(deviceId: deviceId, gain: gain);
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting camera gain from native: $e');
+        debugPrint('[Bridge] Error setting camera gain from native: $e');
       }
     }
     await Future.delayed(const Duration(milliseconds: 50));
@@ -1911,7 +1919,7 @@ class NativeBridge {
         await gen_api.setCameraOffset(deviceId: deviceId, offset: offset);
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting camera offset from native: $e');
+        debugPrint('[Bridge] Error setting camera offset from native: $e');
       }
     }
     await Future.delayed(const Duration(milliseconds: 50));
@@ -1927,7 +1935,7 @@ class NativeBridge {
             deviceId: deviceId, binX: binX, binY: binY);
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting camera binning from native: $e');
+        debugPrint('[Bridge] Error setting camera binning from native: $e');
       }
     }
     await Future.delayed(const Duration(milliseconds: 50));
@@ -1956,13 +1964,13 @@ class NativeBridge {
         );
         return;
       } catch (e) {
-        print('[NativeBridge] Error calling native startExposure: $e');
+        debugPrint('[Bridge] Error calling native startExposure: $e');
         // Fall through to simulation
       }
     }
 
     // Fallback stub implementation when native isn't available
-    print('[NativeBridge] Using simulated exposure');
+    debugPrint('[Bridge] Using simulated exposure');
     // Emit exposure started event
     _eventController.add(_StubNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
@@ -2008,7 +2016,7 @@ class NativeBridge {
             .crateApiApiCameraCancelExposure(deviceId: deviceId);
         return;
       } catch (e) {
-        print('[NativeBridge] Error calling native cancelExposure: $e');
+        debugPrint('[Bridge] Error calling native cancelExposure: $e');
       }
     }
 
@@ -2024,26 +2032,26 @@ class NativeBridge {
   /// Get last captured image
   static Future<CapturedImageResult?> getLastImage(
       {required String deviceId}) async {
-    print(
-        '[NativeBridge] getLastImage called for device $deviceId, nativeAvailable=$_nativeAvailable');
+    debugPrint(
+        '[Bridge] getLastImage called for device $deviceId, nativeAvailable=$_nativeAvailable');
     if (_nativeAvailable) {
       try {
         // Call the Rust API - returns generated CapturedImageResult (with Uint8List)
-        print('[NativeBridge] Calling crateApiApiGetLastImage...');
+        debugPrint('[Bridge] Calling crateApiApiGetLastImage...');
         final rustResult = await frb.RustLib.instance.api
             .crateApiApiGetLastImage(deviceId: deviceId);
-        print(
-            '[NativeBridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}');
+        debugPrint(
+            '[Bridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}');
 
         // Return the FRB-generated CapturedImageResult directly (already has Uint8List/Uint32List)
         return rustResult;
       } catch (e) {
-        print('[NativeBridge] Error calling native getLastImage: $e');
+        debugPrint('[Bridge] Error calling native getLastImage: $e');
       }
     }
 
     // Return simulated image as fallback
-    print('[NativeBridge] Returning simulated fallback image');
+    debugPrint('[Bridge] Returning simulated fallback image');
     return CapturedImageResult(
       width: 4144,
       height: 2822,
@@ -2074,7 +2082,7 @@ class NativeBridge {
       try {
         return await gen_api.apiGetMountStatus(deviceId: deviceId);
       } catch (e) {
-        print('[NativeBridge] Error getting mount status from native: $e');
+        debugPrint('[Bridge] Error getting mount status from native: $e');
       }
     }
     return _mountStatus!;
@@ -2089,7 +2097,7 @@ class NativeBridge {
             deviceId: deviceId, ra: ra, dec: dec);
         return;
       } catch (e) {
-        print('[NativeBridge] Error slewing mount via native: $e');
+        debugPrint('[Bridge] Error slewing mount via native: $e');
       }
     }
     _eventController.add(_StubNightshadeEvent(
@@ -2133,7 +2141,7 @@ class NativeBridge {
             deviceId: deviceId, ra: ra, dec: dec);
         return;
       } catch (e) {
-        print('[NativeBridge] Error syncing mount via native: $e');
+        debugPrint('[Bridge] Error syncing mount via native: $e');
       }
     }
     _updateMountStatus(
@@ -2157,7 +2165,7 @@ class NativeBridge {
         await gen_api.apiMountPark(deviceId: deviceId);
         return;
       } catch (e) {
-        print('[NativeBridge] Error parking mount via native: $e');
+        debugPrint('[Bridge] Error parking mount via native: $e');
       }
     }
     _eventController.add(_StubNightshadeEvent(
@@ -2197,7 +2205,7 @@ class NativeBridge {
         await gen_api.apiMountUnpark(deviceId: deviceId);
         return;
       } catch (e) {
-        print('[NativeBridge] Error unparking mount via native: $e');
+        debugPrint('[Bridge] Error unparking mount via native: $e');
       }
     }
     await Future.delayed(const Duration(milliseconds: 200));
@@ -2221,7 +2229,7 @@ class NativeBridge {
             deviceId: deviceId, enabled: enabled ? 1 : 0);
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting mount tracking via native: $e');
+        debugPrint('[Bridge] Error setting mount tracking via native: $e');
       }
     }
     await Future.delayed(const Duration(milliseconds: 100));
@@ -2247,7 +2255,7 @@ class NativeBridge {
         );
         return;
       } catch (e) {
-        print('[NativeBridge] Error pulse guiding mount via native: $e');
+        debugPrint('[Bridge] Error pulse guiding mount via native: $e');
       }
     }
     // Simulate pulse guide duration
@@ -2272,7 +2280,7 @@ class NativeBridge {
         await gen_api.mountSetTrackingRate(deviceId: deviceId, rate: rate);
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting tracking rate from native: $e');
+        debugPrint('[Bridge] Error setting tracking rate from native: $e');
       }
     }
     await Future.delayed(const Duration(milliseconds: 100));
@@ -2292,7 +2300,7 @@ class NativeBridge {
       try {
         return await gen_api.mountGetTrackingRate(deviceId: deviceId);
       } catch (e) {
-        print('[NativeBridge] Error getting tracking rate from native: $e');
+        debugPrint('[Bridge] Error getting tracking rate from native: $e');
       }
     }
     return _mountStatus?.trackingRate.index ?? 0;
@@ -2308,7 +2316,7 @@ class NativeBridge {
         await gen_api.mountMoveAxis(deviceId: deviceId, axis: axis, rate: rate);
         return;
       } catch (e) {
-        print('[NativeBridge] Error moving axis from native: $e');
+        debugPrint('[Bridge] Error moving axis from native: $e');
       }
     }
     // Stub: just log the event
@@ -2331,7 +2339,7 @@ class NativeBridge {
       try {
         return await gen_api.apiGetFocuserStatus(deviceId: deviceId);
       } catch (e) {
-        print('[NativeBridge] Error getting focuser status from native: $e');
+        debugPrint('[Bridge] Error getting focuser status from native: $e');
       }
     }
     return _focuserStatus!;
@@ -2344,7 +2352,7 @@ class NativeBridge {
         await gen_api.apiFocuserMoveTo(deviceId: deviceId, position: position);
         return;
       } catch (e) {
-        print('[NativeBridge] Error moving focuser via native: $e');
+        debugPrint('[Bridge] Error moving focuser via native: $e');
       }
     }
     final current = _focuserStatus!;
@@ -2380,7 +2388,7 @@ class NativeBridge {
         await gen_api.apiFocuserMoveRelative(deviceId: deviceId, delta: delta);
         return;
       } catch (e) {
-        print('[NativeBridge] Error moving focuser relative via native: $e');
+        debugPrint('[Bridge] Error moving focuser relative via native: $e');
       }
     }
     final target = (_focuserStatus?.position ?? 0) + delta;
@@ -2394,7 +2402,7 @@ class NativeBridge {
         await gen_api.apiFocuserHalt(deviceId: deviceId);
         return;
       } catch (e) {
-        print('[NativeBridge] Error halting focuser via native: $e');
+        debugPrint('[Bridge] Error halting focuser via native: $e');
       }
     }
     if (_focuserStatus != null) {
@@ -2568,8 +2576,8 @@ class NativeBridge {
     required String cameraId,
     required AutofocusConfigApi config,
   }) async {
-    print('Starting autofocus on $deviceId using camera $cameraId...');
-    print(
+    debugPrint('[Autofocus] Starting on $deviceId using camera $cameraId...');
+    debugPrint(
         'Config: exposure=${config.exposureTime}s, step=${config.stepSize}, steps=${config.stepsOut}');
 
     // Simulate autofocus process
@@ -2578,13 +2586,13 @@ class NativeBridge {
       // In a real implementation, we'd be emitting progress events here
     }
 
-    print('Autofocus complete. Best HFR: 1.5');
+    debugPrint('[Autofocus] Complete. Best HFR: 1.5');
     return 1.5;
   }
 
   /// Cancel autofocus
   static Future<void> apiCancelAutofocus() async {
-    print('Cancelling autofocus...');
+    debugPrint('[Autofocus] Cancelling...');
   }
 
   // =========================================================================
@@ -2609,10 +2617,10 @@ class NativeBridge {
     // If PHD2 is not running and we're on localhost, try to launch it
     if (!phd2Running &&
         (targetHost == 'localhost' || targetHost == '127.0.0.1')) {
-      print(
+      debugPrint(
           'DEBUG: PHD2 not running on localhost. Platform.isWindows: ${Platform.isWindows}');
       if (Platform.isWindows) {
-        print('PHD2 not running, attempting to launch...');
+        debugPrint('[PHD2] not running, attempting to launch...');
         try {
           // Common PHD2 installation paths on Windows
           final phd2Paths = [
@@ -2632,7 +2640,7 @@ class NativeBridge {
 
           if (phd2Path != null) {
             await Process.start(phd2Path, [], mode: ProcessStartMode.detached);
-            print('PHD2 launched from: $phd2Path');
+            debugPrint('[PHD2] launched from: $phd2Path');
 
             // Wait for PHD2 to start and open its server
             for (int i = 0; i < 30; i++) {
@@ -2640,7 +2648,7 @@ class NativeBridge {
               if (await phd2.checkPhd2Running(
                   host: targetHost, port: targetPort)) {
                 phd2Running = true;
-                print('PHD2 is now running');
+                debugPrint('[PHD2] is now running');
                 break;
               }
             }
@@ -2654,11 +2662,11 @@ class NativeBridge {
                 'PHD2 not found. Please install PHD2 from https://openphdguiding.org/');
           }
         } catch (e) {
-          print('Failed to launch PHD2: $e');
+          debugPrint('[PHD2] Failed to launch: $e');
           throw Exception('Could not launch PHD2: $e');
         }
       } else {
-        print(
+        debugPrint(
             'DEBUG: Not on Windows, cannot auto-launch PHD2. Platform: ${Platform.operatingSystem}');
         throw Exception(
             'PHD2 is not running. Platform: ${Platform.operatingSystem}. Please start PHD2 manually.');
@@ -2889,7 +2897,7 @@ class NativeBridge {
     required double value,
   }) async {
     // No-op in simulation mode
-    print('[NativeBridge Stub] phd2SetAlgoParam: $axis.$name = $value');
+    debugPrint('[NativeBridge Stub] phd2SetAlgoParam: $axis.$name = $value');
   }
 
   /// Set PHD2 paused state
@@ -2911,7 +2919,7 @@ class NativeBridge {
     }
     // Note: The Dart PHD2 client doesn't have this method yet
     // For now, just log it
-    print(
+    debugPrint(
         '[NativeBridge Stub] phd2ClearCalibration($which) - not implemented in Dart client');
   }
 
@@ -2920,7 +2928,7 @@ class NativeBridge {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
-    print(
+    debugPrint(
         '[NativeBridge Stub] phd2FlipCalibration() - not implemented in Dart client');
   }
 
@@ -2980,7 +2988,7 @@ class NativeBridge {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
-    print(
+    debugPrint(
         '[NativeBridge Stub] phd2SetLockPosition($x, $y, exact=$exact) - not implemented in Dart client');
   }
 
@@ -2998,7 +3006,7 @@ class NativeBridge {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
-    print(
+    debugPrint(
         '[NativeBridge Stub] phd2DeselectStar() - not implemented in Dart client');
   }
 
@@ -3021,17 +3029,17 @@ class NativeBridge {
       try {
         await frb.RustLib.instance.api.crateApiApiSequencerSubscribeEvents();
         _sequencerEventsSubscribed = true;
-        print('[NativeBridge] Subscribed to sequencer events via native');
+        debugPrint('[Bridge] Subscribed to sequencer events via native');
         return;
       } catch (e) {
-        print('[NativeBridge] Error subscribing to sequencer events: $e');
+        debugPrint('[Bridge] Error subscribing to sequencer events: $e');
         // Continue with stub - events will be local only
       }
     }
 
     // Stub: no-op, stub events are added directly to the controller
     _sequencerEventsSubscribed = true;
-    print('[NativeBridge Stub] Sequencer event subscription initialized');
+    debugPrint('[NativeBridge Stub] Sequencer event subscription initialized');
   }
 
   /// Load a sequence from JSON
@@ -3043,7 +3051,7 @@ class NativeBridge {
         _loadedSequenceJson = json;
         return;
       } catch (e) {
-        print('[NativeBridge] Error loading sequence via native: $e');
+        debugPrint('[Bridge] Error loading sequence via native: $e');
         rethrow;
       }
     }
@@ -3078,15 +3086,16 @@ class NativeBridge {
           rotatorId: rotatorId,
           filterNames: filterNames,
         );
-        print(
-            '[NativeBridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames');
+        debugPrint(
+            '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames');
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting sequencer devices: $e');
+        debugPrint('[Bridge] Error setting sequencer devices: $e');
         rethrow;
       }
     }
-    print('[NativeBridge Stub] Sequencer devices would be set (stub mode)');
+    debugPrint(
+        '[NativeBridge Stub] Sequencer devices would be set (stub mode)');
   }
 
   /// Set the safety fail mode for the sequencer
@@ -3095,14 +3104,14 @@ class NativeBridge {
       try {
         await frb.RustLib.instance.api
             .crateApiApiSequencerSetSafetyFailMode(mode: mode);
-        print('[NativeBridge] Set sequencer safety fail mode: $mode');
+        debugPrint('[Bridge] Set sequencer safety fail mode: $mode');
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting sequencer safety fail mode: $e');
+        debugPrint('[Bridge] Error setting sequencer safety fail mode: $e');
         rethrow;
       }
     }
-    print(
+    debugPrint(
         '[NativeBridge Stub] Sequencer safety fail mode would be set to $mode (stub mode)');
   }
 
@@ -3112,14 +3121,14 @@ class NativeBridge {
       try {
         await frb.RustLib.instance.api
             .crateApiApiSequencerSetSavePath(path: path);
-        print('[NativeBridge] Set sequencer save path: ${path ?? "<none>"}');
+        debugPrint('[Bridge] Set sequencer save path: ${path ?? "<none>"}');
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting sequencer save path: $e');
+        debugPrint('[Bridge] Error setting sequencer save path: $e');
         rethrow;
       }
     }
-    print(
+    debugPrint(
         '[NativeBridge Stub] Sequencer save path would be set to ${path ?? "<none>"} (stub mode)');
   }
 
@@ -3135,7 +3144,7 @@ class NativeBridge {
         _sequencerState = SequencerState.running;
         return;
       } catch (e) {
-        print('[NativeBridge] Error starting sequence via native: $e');
+        debugPrint('[Bridge] Error starting sequence via native: $e');
         rethrow;
       }
     }
@@ -3164,7 +3173,7 @@ class NativeBridge {
         _sequencerState = SequencerState.paused;
         return;
       } catch (e) {
-        print('[NativeBridge] Error pausing sequence via native: $e');
+        debugPrint('[Bridge] Error pausing sequence via native: $e');
         rethrow;
       }
     }
@@ -3189,7 +3198,7 @@ class NativeBridge {
         _sequencerState = SequencerState.running;
         return;
       } catch (e) {
-        print('[NativeBridge] Error resuming sequence via native: $e');
+        debugPrint('[Bridge] Error resuming sequence via native: $e');
         rethrow;
       }
     }
@@ -3215,7 +3224,7 @@ class NativeBridge {
         _loadedSequenceJson = null;
         return;
       } catch (e) {
-        print('[NativeBridge] Error stopping sequence via native: $e');
+        debugPrint('[Bridge] Error stopping sequence via native: $e');
         rethrow;
       }
     }
@@ -3240,7 +3249,7 @@ class NativeBridge {
         await frb.RustLib.instance.api.crateApiApiSequencerSkip();
         return;
       } catch (e) {
-        print('[NativeBridge] Error skipping node via native: $e');
+        debugPrint('[Bridge] Error skipping node via native: $e');
         rethrow;
       }
     }
@@ -3265,7 +3274,7 @@ class NativeBridge {
         _loadedSequenceJson = null;
         return;
       } catch (e) {
-        print('[NativeBridge] Error resetting sequencer via native: $e');
+        debugPrint('[Bridge] Error resetting sequencer via native: $e');
         rethrow;
       }
     }
@@ -3288,8 +3297,8 @@ class NativeBridge {
         return gen_api.apiEventStream().where(
             (event) => event.category == gen_event.EventCategory.sequencer);
       } catch (e) {
-        print('[NativeBridge] Failed to get native sequencer event stream: $e');
-        print('[NativeBridge] Falling back to local event controller');
+        debugPrint('[Bridge] Failed to get native sequencer event stream: $e');
+        debugPrint('[Bridge] Falling back to local event controller');
       }
     }
 
@@ -3325,18 +3334,18 @@ class NativeBridge {
         await frb.RustLib.instance.api
             .crateApiApiSequencerSetSimulationMode(enabled: enabled);
         _simulationMode = enabled;
-        print(
-            '[NativeBridge] Simulation mode via native: ${enabled ? "enabled" : "disabled"}');
+        debugPrint(
+            '[Bridge] Simulation mode via native: ${enabled ? "enabled" : "disabled"}');
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting simulation mode via native: $e');
+        debugPrint('[Bridge] Error setting simulation mode via native: $e');
         rethrow;
       }
     }
 
     // Stub fallback
     _simulationMode = enabled;
-    print(
+    debugPrint(
         '[NativeBridge Stub] Simulation mode: ${enabled ? "enabled" : "disabled"}');
   }
 
@@ -3362,7 +3371,7 @@ class NativeBridge {
           message: nativeState.message,
         );
       } catch (e) {
-        print('[NativeBridge] Error getting sequencer status via native: $e');
+        debugPrint('[Bridge] Error getting sequencer status via native: $e');
         rethrow;
       }
     }
@@ -3393,13 +3402,13 @@ class NativeBridge {
             .crateApiApiSequencerSetCheckpointDir(path: path);
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting checkpoint dir via native: $e');
+        debugPrint('[Bridge] Error setting checkpoint dir via native: $e');
         rethrow;
       }
     }
 
     // Stub: No-op since stub doesn't support checkpoints
-    print(
+    debugPrint(
         '[NativeBridge Stub] sequencerSetCheckpointDir called (no-op in stub mode)');
   }
 
@@ -3411,7 +3420,7 @@ class NativeBridge {
         return await frb.RustLib.instance.api
             .crateApiApiSequencerHasCheckpoint();
       } catch (e) {
-        print('[NativeBridge] Error checking checkpoint via native: $e');
+        debugPrint('[Bridge] Error checking checkpoint via native: $e');
         rethrow;
       }
     }
@@ -3438,7 +3447,7 @@ class NativeBridge {
           ageSeconds: nativeInfo.ageSeconds.toInt(),
         );
       } catch (e) {
-        print('[NativeBridge] Error getting checkpoint info via native: $e');
+        debugPrint('[Bridge] Error getting checkpoint info via native: $e');
         rethrow;
       }
     }
@@ -3457,13 +3466,13 @@ class NativeBridge {
         _sequencerState = SequencerState.running;
         return;
       } catch (e) {
-        print('[NativeBridge] Error resuming from checkpoint via native: $e');
+        debugPrint('[Bridge] Error resuming from checkpoint via native: $e');
         rethrow;
       }
     }
 
     // Stub: No-op
-    print(
+    debugPrint(
         '[NativeBridge Stub] sequencerResumeFromCheckpoint called (no-op in stub mode)');
   }
 
@@ -3475,13 +3484,13 @@ class NativeBridge {
         await frb.RustLib.instance.api.crateApiApiSequencerClearCheckpoint();
         return;
       } catch (e) {
-        print('[NativeBridge] Error discarding checkpoint via native: $e');
+        debugPrint('[Bridge] Error discarding checkpoint via native: $e');
         rethrow;
       }
     }
 
     // Stub: No-op
-    print(
+    debugPrint(
         '[NativeBridge Stub] sequencerDiscardCheckpoint called (no-op in stub mode)');
   }
 
@@ -3493,13 +3502,13 @@ class NativeBridge {
         await frb.RustLib.instance.api.crateApiApiSequencerSaveCheckpoint();
         return;
       } catch (e) {
-        print('[NativeBridge] Error saving checkpoint via native: $e');
+        debugPrint('[Bridge] Error saving checkpoint via native: $e');
         rethrow;
       }
     }
 
     // Stub: No-op
-    print(
+    debugPrint(
         '[NativeBridge Stub] sequencerSaveCheckpoint called (no-op in stub mode)');
   }
 
@@ -3655,7 +3664,7 @@ class NativeBridge {
       }
     } catch (e) {
       // Log error but don't throw - allow app to continue
-      print('Warning: Failed to initialize profile storage: $e');
+      debugPrint('[Bridge] Warning: Failed to initialize profile storage: $e');
     }
   }
 
@@ -3684,7 +3693,7 @@ class NativeBridge {
       }
     } catch (e) {
       // Log error but don't throw - allow app to continue
-      print('Warning: Failed to initialize settings storage: $e');
+      debugPrint('[Bridge] Warning: Failed to initialize settings storage: $e');
     }
   }
 
@@ -3711,7 +3720,7 @@ class NativeBridge {
       try {
         return frb.RustLib.instance.api.crateApiApiGetLocation();
       } catch (e) {
-        print('[NativeBridge] Error getting location via native: $e');
+        debugPrint('[Bridge] Error getting location via native: $e');
         // Fall through to stub
       }
     }
@@ -3725,10 +3734,10 @@ class NativeBridge {
     // If native bridge is available, use real native function
     if (_nativeAvailable) {
       try {
-        print(
-            '[NativeBridge] Setting location via native: lat=${location?.latitude}, lon=${location?.longitude}');
+        debugPrint(
+            '[Bridge] Setting location via native: lat=${location?.latitude}, lon=${location?.longitude}');
         frb.RustLib.instance.api.crateApiApiSetLocation(location: location);
-        print('[NativeBridge] Location set via native successfully');
+        debugPrint('[Bridge] Location set via native successfully');
         // Also update local cache for consistency
         _appSettings = AppSettings(
           location: location,
@@ -3738,7 +3747,7 @@ class NativeBridge {
         );
         return;
       } catch (e) {
-        print('[NativeBridge] Error setting location via native: $e');
+        debugPrint('[Bridge] Error setting location via native: $e');
         // Fall through to stub
       }
     }

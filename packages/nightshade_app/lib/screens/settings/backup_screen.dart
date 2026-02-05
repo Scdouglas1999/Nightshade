@@ -44,7 +44,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error loading backups: $e');
+      debugPrint('[Backup] Error loading backups: $e');
       if (mounted) {
         setState(() => _isLoadingBackups = false);
       }
@@ -388,40 +388,22 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             Row(
               children: [
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: NightshadeButton(
+                    label: _isCreatingBackup ? 'Creating...' : 'Create Backup',
+                    icon: LucideIcons.download,
+                    variant: ButtonVariant.primary,
+                    isLoading: _isCreatingBackup,
                     onPressed: _isCreatingBackup ? null : _createBackup,
-                    icon: _isCreatingBackup
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(LucideIcons.download, size: 18),
-                    label: Text(_isCreatingBackup ? 'Creating...' : 'Create Backup'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton.icon(
+                  child: NightshadeButton(
+                    label: _isRestoring ? 'Restoring...' : 'Import Backup',
+                    icon: LucideIcons.upload,
+                    variant: ButtonVariant.outline,
+                    isLoading: _isRestoring,
                     onPressed: _isRestoring ? null : _importBackup,
-                    icon: _isRestoring
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(LucideIcons.upload, size: 18),
-                    label: Text(_isRestoring ? 'Restoring...' : 'Import Backup'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colors.textPrimary,
-                      side: BorderSide(color: colors.border),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
                   ),
                 ),
               ],

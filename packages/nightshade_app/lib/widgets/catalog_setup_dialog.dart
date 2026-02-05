@@ -259,25 +259,17 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 if (!_isDownloading)
-                  TextButton(
+                  NightshadeButton(
                     onPressed: widget.onSkip,
-                    child: Text(
-                      'Skip for now',
-                      style: TextStyle(color: colors.textSecondary),
-                    ),
+                    label: 'Skip for now',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
                   ),
                 const SizedBox(width: 12),
-                ElevatedButton(
+                NightshadeButton(
                   onPressed: _isDownloading ? null : _downloadCatalogs,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: colors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                  ),
-                  child: Text(_isDownloading ? 'Downloading...' : 'Download Now'),
+                  label: _isDownloading ? 'Downloading...' : 'Download Now',
+                  isLoading: _isDownloading,
                 ),
               ],
             ),
@@ -424,13 +416,9 @@ class CatalogRequiredBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          ElevatedButton(
+          NightshadeButton(
             onPressed: onSetup,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Setup'),
+            label: 'Setup',
           ),
         ],
       ),
