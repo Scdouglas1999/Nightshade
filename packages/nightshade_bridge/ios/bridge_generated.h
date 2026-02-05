@@ -864,6 +864,16 @@ typedef struct wire_cst_list_prim_u_32_strict {
   int32_t len;
 } wire_cst_list_prim_u_32_strict;
 
+typedef struct wire_cst_quirk_info {
+  struct wire_cst_list_prim_u_8_strict *category;
+  struct wire_cst_list_prim_u_8_strict *description;
+} wire_cst_quirk_info;
+
+typedef struct wire_cst_list_quirk_info {
+  struct wire_cst_quirk_info *ptr;
+  int32_t len;
+} wire_cst_list_quirk_info;
+
 typedef struct wire_cst_star_crop_api {
   struct wire_cst_list_prim_u_8_strict *pixels_base64;
   uint32_t width;
@@ -1879,6 +1889,8 @@ void frbgen_nightshade_bridge_wire__crate__api__api_get_device_health(int64_t po
 void frbgen_nightshade_bridge_wire__crate__api__api_get_device_heartbeat_info(int64_t port_,
                                                                               struct wire_cst_list_prim_u_8_strict *device_id);
 
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__api_get_device_quirks(struct wire_cst_list_prim_u_8_strict *device_id);
+
 void frbgen_nightshade_bridge_wire__crate__api__api_get_dome_capabilities(int64_t port_,
                                                                           struct wire_cst_list_prim_u_8_strict *device_id);
 
@@ -2594,6 +2606,8 @@ struct wire_cst_list_prim_u_32_strict *frbgen_nightshade_bridge_cst_new_list_pri
 
 struct wire_cst_list_prim_u_8_strict *frbgen_nightshade_bridge_cst_new_list_prim_u_8_strict(int32_t len);
 
+struct wire_cst_list_quirk_info *frbgen_nightshade_bridge_cst_new_list_quirk_info(int32_t len);
+
 struct wire_cst_list_record_string_string *frbgen_nightshade_bridge_cst_new_list_record_string_string(int32_t len);
 
 struct wire_cst_list_star_crop_api *frbgen_nightshade_bridge_cst_new_list_star_crop_api(int32_t len);
@@ -2659,6 +2673,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_16_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_32_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_8_strict);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quirk_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_string);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_star_crop_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_switch_info);
@@ -2755,6 +2770,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_health);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_heartbeat_info);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_quirks);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_dome_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_dome_status);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_dropped_event_count);

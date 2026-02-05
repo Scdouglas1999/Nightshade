@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1955720529;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1838608827;
 
 // Section: executor
 
@@ -2444,6 +2444,25 @@ fn wire__crate__api__api_get_device_heartbeat_info_impl(
                     .await,
                 )
             }
+        },
+    )
+}
+fn wire__crate__api__api_get_device_quirks_impl(
+    device_id: impl CstDecode<String>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_device_quirks",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            transform_result_dco::<_, _, ()>((move || {
+                let output_ok =
+                    Result::<_, ()>::Ok(crate::api::api_get_device_quirks(api_device_id))?;
+                Ok(output_ok)
+            })())
         },
     )
 }
@@ -8940,6 +8959,18 @@ impl SseDecode for Vec<u8> {
     }
 }
 
+impl SseDecode for Vec<crate::api::QuirkInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::QuirkInfo>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<(String, String)> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9785,6 +9816,18 @@ impl SseDecode for crate::api::QhyDiscoveryStatus {
             sdk_available: var_sdkAvailable,
             discovery_enabled: var_discoveryEnabled,
             timeout_ms: var_timeoutMs,
+        };
+    }
+}
+
+impl SseDecode for crate::api::QuirkInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_category = <String>::sse_decode(deserializer);
+        let mut var_description = <String>::sse_decode(deserializer);
+        return crate::api::QuirkInfo {
+            category: var_category,
+            description: var_description,
         };
     }
 }
@@ -12553,6 +12596,22 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::QhyDiscoveryStatus>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::QuirkInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.category.into_into_dart().into_dart(),
+            self.description.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::QuirkInfo {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::QuirkInfo> for crate::api::QuirkInfo {
+    fn into_into_dart(self) -> crate::api::QuirkInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::device_capabilities::RotatorCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14551,6 +14610,16 @@ impl SseEncode for Vec<u8> {
     }
 }
 
+impl SseEncode for Vec<crate::api::QuirkInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::QuirkInfo>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<(String, String)> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15202,6 +15271,14 @@ impl SseEncode for crate::api::QhyDiscoveryStatus {
         <bool>::sse_encode(self.sdk_available, serializer);
         <bool>::sse_encode(self.discovery_enabled, serializer);
         <u64>::sse_encode(self.timeout_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::QuirkInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.category, serializer);
+        <String>::sse_encode(self.description, serializer);
     }
 }
 
@@ -17135,6 +17212,16 @@ mod io {
             }
         }
     }
+    impl CstDecode<Vec<crate::api::QuirkInfo>> for *mut wire_cst_list_quirk_info {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<crate::api::QuirkInfo> {
+            let vec = unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            };
+            vec.into_iter().map(CstDecode::cst_decode).collect()
+        }
+    }
     impl CstDecode<Vec<(String, String)>> for *mut wire_cst_list_record_string_string {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> Vec<(String, String)> {
@@ -17591,6 +17678,15 @@ mod io {
                 sdk_available: self.sdk_available.cst_decode(),
                 discovery_enabled: self.discovery_enabled.cst_decode(),
                 timeout_ms: self.timeout_ms.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::QuirkInfo> for wire_cst_quirk_info {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::QuirkInfo {
+            crate::api::QuirkInfo {
+                category: self.category.cst_decode(),
+                description: self.description.cst_decode(),
             }
         }
     }
@@ -18945,6 +19041,19 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_quirk_info {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                category: core::ptr::null_mut(),
+                description: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_quirk_info {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_record_f_64_f_64 {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -20290,6 +20399,13 @@ mod io {
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__api_get_device_heartbeat_info_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_device_quirks(
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__api_get_device_quirks_impl(device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -22328,6 +22444,20 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_quirk_info(
+        len: i32,
+    ) -> *mut wire_cst_list_quirk_info {
+        let wrap = wire_cst_list_quirk_info {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
+                <wire_cst_quirk_info>::new_with_null_ptr(),
+                len,
+            ),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(wrap)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_record_string_string(
         len: i32,
     ) -> *mut wire_cst_list_record_string_string {
@@ -23289,6 +23419,12 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_list_quirk_info {
+        ptr: *mut wire_cst_quirk_info,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_list_record_string_string {
         ptr: *mut wire_cst_record_string_string,
         len: i32,
@@ -23712,6 +23848,12 @@ mod io {
         sdk_available: bool,
         discovery_enabled: bool,
         timeout_ms: u64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_quirk_info {
+        category: *mut wire_cst_list_prim_u_8_strict,
+        description: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

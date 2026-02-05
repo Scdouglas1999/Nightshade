@@ -1789,6 +1789,20 @@ Future<SwitchCapabilities> apiGetSwitchCapabilities(
         {required String deviceId}) =>
     RustLib.instance.api.crateApiApiGetSwitchCapabilities(deviceId: deviceId);
 
+/// Get known quirks for a connected device.
+///
+/// Returns a list of known device characteristics and workarounds that are
+/// automatically applied. This information can be displayed in the equipment
+/// screen to inform users about device-specific behaviors.
+///
+/// # Arguments
+/// * `device_id` - The device identifier (e.g., "native:zwo:ASI294MC Pro")
+///
+/// # Returns
+/// * `Vec<QuirkInfo>` - List of quirks with categories and descriptions
+List<QuirkInfo> apiGetDeviceQuirks({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGetDeviceQuirks(deviceId: deviceId);
+
 /// Check if QHY camera discovery is enabled.
 ///
 /// QHY discovery can be disabled if the QHY SDK causes crashes or hangs on the
@@ -2878,6 +2892,31 @@ class QhyDiscoveryStatus {
           sdkAvailable == other.sdkAvailable &&
           discoveryEnabled == other.discoveryEnabled &&
           timeoutMs == other.timeoutMs;
+}
+
+/// Information about a known device quirk, suitable for UI display.
+class QuirkInfo {
+  /// Quirk category (e.g. "Temperature", "Timing", "Discovery")
+  final String category;
+
+  /// Human-readable description of the quirk
+  final String description;
+
+  const QuirkInfo({
+    required this.category,
+    required this.description,
+  });
+
+  @override
+  int get hashCode => category.hashCode ^ description.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QuirkInfo &&
+          runtimeType == other.runtimeType &&
+          category == other.category &&
+          description == other.description;
 }
 
 /// Sequence definition for Flutter

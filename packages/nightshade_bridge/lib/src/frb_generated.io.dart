@@ -377,6 +377,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<QuirkInfo> dco_decode_list_quirk_info(dynamic raw);
+
+  @protected
   List<(String, String)> dco_decode_list_record_string_string(dynamic raw);
 
   @protected
@@ -496,6 +499,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   QhyDiscoveryStatus dco_decode_qhy_discovery_status(dynamic raw);
+
+  @protected
+  QuirkInfo dco_decode_quirk_info(dynamic raw);
 
   @protected
   (double, double) dco_decode_record_f_64_f_64(dynamic raw);
@@ -1000,6 +1006,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<QuirkInfo> sse_decode_list_quirk_info(SseDeserializer deserializer);
+
+  @protected
   List<(String, String)> sse_decode_list_record_string_string(
       SseDeserializer deserializer);
 
@@ -1134,6 +1143,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   QhyDiscoveryStatus sse_decode_qhy_discovery_status(
       SseDeserializer deserializer);
+
+  @protected
+  QuirkInfo sse_decode_quirk_info(SseDeserializer deserializer);
 
   @protected
   (double, double) sse_decode_record_f_64_f_64(SseDeserializer deserializer);
@@ -1789,6 +1801,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ans = wire.cst_new_list_prim_u_8_strict(raw.length);
     ans.ref.ptr.asTypedList(raw.length).setAll(0, raw);
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_quirk_info> cst_encode_list_quirk_info(
+      List<QuirkInfo> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_quirk_info(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_quirk_info(raw[i], ans.ref.ptr[i]);
+    }
     return ans;
   }
 
@@ -3627,6 +3650,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_quirk_info(
+      QuirkInfo apiObj, wire_cst_quirk_info wireObj) {
+    wireObj.category = cst_encode_String(apiObj.category);
+    wireObj.description = cst_encode_String(apiObj.description);
+  }
+
+  @protected
   void cst_api_fill_to_wire_record_f_64_f_64(
       (double, double) apiObj, wire_cst_record_f_64_f_64 wireObj) {
     wireObj.field0 = cst_encode_f_64(apiObj.$1);
@@ -4555,6 +4585,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       Uint8List self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_quirk_info(
+      List<QuirkInfo> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_record_string_string(
       List<(String, String)> self, SseSerializer serializer);
 
@@ -4699,6 +4733,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_qhy_discovery_status(
       QhyDiscoveryStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_quirk_info(QuirkInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_record_f_64_f_64(
@@ -7067,6 +7104,24 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__api_get_device_heartbeat_info =
       _wire__crate__api__api_get_device_heartbeat_infoPtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  WireSyncRust2DartDco wire__crate__api__api_get_device_quirks(
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__api_get_device_quirks(device_id);
+  }
+
+  late final _wire__crate__api__api_get_device_quirksPtr = _lookup<
+          ffi.NativeFunction<
+              WireSyncRust2DartDco Function(
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_get_device_quirks');
+  late final _wire__crate__api__api_get_device_quirks =
+      _wire__crate__api__api_get_device_quirksPtr.asFunction<
+          WireSyncRust2DartDco Function(
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>();
 
   void wire__crate__api__api_get_dome_capabilities(
     int port_,
@@ -11381,6 +11436,17 @@ class RustLibWire implements BaseWire {
   late final _cst_new_list_prim_u_8_strict = _cst_new_list_prim_u_8_strictPtr
       .asFunction<ffi.Pointer<wire_cst_list_prim_u_8_strict> Function(int)>();
 
+  ffi.Pointer<wire_cst_list_quirk_info> cst_new_list_quirk_info(int len) {
+    return _cst_new_list_quirk_info(len);
+  }
+
+  late final _cst_new_list_quirk_infoPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Pointer<wire_cst_list_quirk_info> Function(
+              ffi.Int32)>>('frbgen_nightshade_bridge_cst_new_list_quirk_info');
+  late final _cst_new_list_quirk_info = _cst_new_list_quirk_infoPtr
+      .asFunction<ffi.Pointer<wire_cst_list_quirk_info> Function(int)>();
+
   ffi.Pointer<wire_cst_list_record_string_string>
       cst_new_list_record_string_string(int len) {
     return _cst_new_list_record_string_string(len);
@@ -12897,6 +12963,19 @@ final class wire_cst_list_prim_u_16_strict extends ffi.Struct {
 
 final class wire_cst_list_prim_u_32_strict extends ffi.Struct {
   external ffi.Pointer<ffi.Uint32> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
+final class wire_cst_quirk_info extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> category;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> description;
+}
+
+final class wire_cst_list_quirk_info extends ffi.Struct {
+  external ffi.Pointer<wire_cst_quirk_info> ptr;
 
   @ffi.Int32()
   external int len;
