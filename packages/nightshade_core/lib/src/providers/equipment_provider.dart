@@ -15,7 +15,8 @@ const int _defaultMaxRetries = 3;
 const Duration _defaultRetryDelay = Duration(seconds: 1);
 
 /// Camera state provider
-final cameraStateProvider = StateNotifierProvider<CameraStateNotifier, CameraState>((ref) {
+final cameraStateProvider =
+    StateNotifierProvider<CameraStateNotifier, CameraState>((ref) {
   return CameraStateNotifier(ref);
 });
 
@@ -25,7 +26,8 @@ class CameraStateNotifier extends StateNotifier<CameraState> {
 
   CameraStateNotifier(this._ref) : super(const CameraState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -151,7 +153,8 @@ class CameraStateNotifier extends StateNotifier<CameraState> {
 }
 
 /// Mount state provider
-final mountStateProvider = StateNotifierProvider<MountStateNotifier, MountState>((ref) {
+final mountStateProvider =
+    StateNotifierProvider<MountStateNotifier, MountState>((ref) {
   return MountStateNotifier(ref);
 });
 
@@ -161,7 +164,8 @@ class MountStateNotifier extends StateNotifier<MountState> {
 
   MountStateNotifier(this._ref) : super(const MountState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -273,7 +277,8 @@ class MountStateNotifier extends StateNotifier<MountState> {
 }
 
 /// Focuser state provider
-final focuserStateProvider = StateNotifierProvider<FocuserStateNotifier, FocuserState>((ref) {
+final focuserStateProvider =
+    StateNotifierProvider<FocuserStateNotifier, FocuserState>((ref) {
   return FocuserStateNotifier(ref);
 });
 
@@ -283,7 +288,8 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
 
   FocuserStateNotifier(this._ref) : super(const FocuserState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -351,10 +357,18 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
     );
   }
 
-  void setConnected({int? maxPosition}) {
+  void setConnected({
+    int? maxPosition,
+    double? stepSize,
+    bool? isAbsolute,
+    bool? hasTemperature,
+  }) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.connected,
       maxPosition: maxPosition,
+      stepSize: stepSize,
+      isAbsolute: isAbsolute,
+      hasTemperature: hasTemperature,
       clearError: true,
     );
   }
@@ -385,7 +399,8 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
 
 /// Focus position history provider - tracks the last N focus positions for sparkline display.
 /// This allows the dashboard to show a visual history of focus position changes.
-final focusPositionHistoryProvider = StateNotifierProvider<FocusPositionHistoryNotifier, List<int>>((ref) {
+final focusPositionHistoryProvider =
+    StateNotifierProvider<FocusPositionHistoryNotifier, List<int>>((ref) {
   return FocusPositionHistoryNotifier(ref);
 });
 
@@ -428,7 +443,8 @@ class FocusPositionHistoryNotifier extends StateNotifier<List<int>> {
 }
 
 /// Filter wheel state provider
-final filterWheelStateProvider = StateNotifierProvider<FilterWheelStateNotifier, FilterWheelState>((ref) {
+final filterWheelStateProvider =
+    StateNotifierProvider<FilterWheelStateNotifier, FilterWheelState>((ref) {
   return FilterWheelStateNotifier(ref);
 });
 
@@ -438,7 +454,8 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
 
   FilterWheelStateNotifier(this._ref) : super(const FilterWheelState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -493,7 +510,8 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       if (activeProfile != null && activeProfile.filterNames.isNotEmpty) {
         final profileFilterNames = activeProfile.filterNames;
         final driverNames = state.filterNames;
-        debugPrint('FilterWheelStateNotifier: Profile has ${profileFilterNames.length} names, driver has ${driverNames.length} slots');
+        debugPrint(
+            'FilterWheelStateNotifier: Profile has ${profileFilterNames.length} names, driver has ${driverNames.length} slots');
 
         // Pad profile names to match the wheel's actual slot count so no slots are lost
         final List<String> syncedNames;
@@ -502,7 +520,8 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
             ...profileFilterNames,
             ...driverNames.sublist(profileFilterNames.length),
           ];
-          debugPrint('FilterWheelStateNotifier: Padded profile names to ${syncedNames.length}: $syncedNames');
+          debugPrint(
+              'FilterWheelStateNotifier: Padded profile names to ${syncedNames.length}: $syncedNames');
         } else {
           syncedNames = profileFilterNames.length > driverNames.length
               ? profileFilterNames.sublist(0, driverNames.length)
@@ -515,7 +534,8 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
         );
 
         state = state.copyWith(filterNames: syncedNames);
-        debugPrint('FilterWheelStateNotifier: Profile filter names synced successfully');
+        debugPrint(
+            'FilterWheelStateNotifier: Profile filter names synced successfully');
         return;
       }
 
@@ -523,7 +543,8 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       final sessionFilterNames = _ref.read(sessionFilterNamesProvider);
       if (sessionFilterNames != null && sessionFilterNames.isNotEmpty) {
         final driverNames = state.filterNames;
-        debugPrint('FilterWheelStateNotifier: Session has ${sessionFilterNames.length} names, driver has ${driverNames.length} slots');
+        debugPrint(
+            'FilterWheelStateNotifier: Session has ${sessionFilterNames.length} names, driver has ${driverNames.length} slots');
 
         // Pad session names to match the wheel's actual slot count
         final List<String> syncedNames;
@@ -544,12 +565,14 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
         );
 
         state = state.copyWith(filterNames: syncedNames);
-        debugPrint('FilterWheelStateNotifier: Session filter names synced successfully');
+        debugPrint(
+            'FilterWheelStateNotifier: Session filter names synced successfully');
         return;
       }
 
       // Priority 3: Use driver-reported names (no sync needed, they're already there)
-      debugPrint('FilterWheelStateNotifier: No profile or session filter names - using driver-reported names');
+      debugPrint(
+          'FilterWheelStateNotifier: No profile or session filter names - using driver-reported names');
     } catch (e) {
       // Don't fail connection if filter name sync fails - log and continue
       debugPrint('FilterWheelStateNotifier: Failed to sync filter names: $e');
@@ -640,14 +663,17 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
         state.connectionState == DeviceConnectionState.connected &&
         state.deviceId != null) {
       try {
-        debugPrint('FilterWheelStateNotifier: Syncing session filter names to driver: $names');
+        debugPrint(
+            'FilterWheelStateNotifier: Syncing session filter names to driver: $names');
         await bridge_api.apiFilterwheelSetFilterNames(
           deviceId: state.deviceId!,
           names: names,
         );
-        debugPrint('FilterWheelStateNotifier: Session filter names synced to driver');
+        debugPrint(
+            'FilterWheelStateNotifier: Session filter names synced to driver');
       } catch (e) {
-        debugPrint('FilterWheelStateNotifier: Failed to sync session filter names to driver: $e');
+        debugPrint(
+            'FilterWheelStateNotifier: Failed to sync session filter names to driver: $e');
         // Don't throw - the names are still stored locally
       }
     }
@@ -663,7 +689,8 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
 }
 
 /// Guider state provider
-final guiderStateProvider = StateNotifierProvider<GuiderStateNotifier, GuiderState>((ref) {
+final guiderStateProvider =
+    StateNotifierProvider<GuiderStateNotifier, GuiderState>((ref) {
   return GuiderStateNotifier(ref);
 });
 
@@ -673,7 +700,8 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
 
   GuiderStateNotifier(this._ref) : super(const GuiderState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -769,7 +797,8 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
 }
 
 /// Rotator state provider
-final rotatorStateProvider = StateNotifierProvider<RotatorStateNotifier, RotatorState>((ref) {
+final rotatorStateProvider =
+    StateNotifierProvider<RotatorStateNotifier, RotatorState>((ref) {
   return RotatorStateNotifier(ref);
 });
 
@@ -779,7 +808,8 @@ class RotatorStateNotifier extends StateNotifier<RotatorState> {
 
   RotatorStateNotifier(this._ref) : super(const RotatorState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -882,7 +912,8 @@ class RotatorStateNotifier extends StateNotifier<RotatorState> {
 }
 
 /// Dome state provider
-final domeStateProvider = StateNotifierProvider<DomeStateNotifier, DomeState>((ref) {
+final domeStateProvider =
+    StateNotifierProvider<DomeStateNotifier, DomeState>((ref) {
   return DomeStateNotifier(ref);
 });
 
@@ -892,7 +923,8 @@ class DomeStateNotifier extends StateNotifier<DomeState> {
 
   DomeStateNotifier(this._ref) : super(const DomeState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -1000,7 +1032,8 @@ class DomeStateNotifier extends StateNotifier<DomeState> {
 }
 
 /// Weather state provider
-final weatherStateProvider = StateNotifierProvider<WeatherStateNotifier, WeatherState>((ref) {
+final weatherStateProvider =
+    StateNotifierProvider<WeatherStateNotifier, WeatherState>((ref) {
   return WeatherStateNotifier(ref);
 });
 
@@ -1010,7 +1043,8 @@ class WeatherStateNotifier extends StateNotifier<WeatherState> {
 
   WeatherStateNotifier(this._ref) : super(const WeatherState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -1125,7 +1159,9 @@ class WeatherStateNotifier extends StateNotifier<WeatherState> {
 }
 
 /// Safety monitor state provider
-final safetyMonitorStateProvider = StateNotifierProvider<SafetyMonitorStateNotifier, SafetyMonitorState>((ref) {
+final safetyMonitorStateProvider =
+    StateNotifierProvider<SafetyMonitorStateNotifier, SafetyMonitorState>(
+        (ref) {
   return SafetyMonitorStateNotifier(ref);
 });
 
@@ -1135,7 +1171,8 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
 
   SafetyMonitorStateNotifier(this._ref) : super(const SafetyMonitorState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }
@@ -1234,7 +1271,9 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
 // =============================================================================
 
 /// Cover calibrator state provider
-final coverCalibratorStateProvider = StateNotifierProvider<CoverCalibratorStateNotifier, CoverCalibratorState>((ref) {
+final coverCalibratorStateProvider =
+    StateNotifierProvider<CoverCalibratorStateNotifier, CoverCalibratorState>(
+        (ref) {
   return CoverCalibratorStateNotifier(ref);
 });
 
@@ -1244,7 +1283,8 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
 
   CoverCalibratorStateNotifier(this._ref) : super(const CoverCalibratorState());
 
-  Future<void> connect(String deviceId, {int maxRetries = _defaultMaxRetries}) async {
+  Future<void> connect(String deviceId,
+      {int maxRetries = _defaultMaxRetries}) async {
     _retryAttempts = 0;
     await _connectWithRetry(deviceId, maxRetries);
   }

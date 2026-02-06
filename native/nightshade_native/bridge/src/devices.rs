@@ -4289,7 +4289,10 @@ impl DeviceManager {
             DriverType::Alpaca => {
                 let alpaca_focusers = self.alpaca_focusers.read().await;
                 if let Some(focuser) = alpaca_focusers.get(device_id) {
-                    return focuser.move_to(position).await;
+                    return focuser
+                        .move_to_typed(position)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("Alpaca focuser not connected".to_string())
             }
@@ -4350,7 +4353,10 @@ impl DeviceManager {
                 if let Some(focuser) = alpaca_focusers.get(device_id) {
                     let current_position = focuser.position().await?;
                     let target_position = current_position + steps;
-                    return focuser.move_to(target_position).await;
+                    return focuser
+                        .move_to_typed(target_position)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("Alpaca focuser not connected".to_string())
             }
@@ -4556,6 +4562,61 @@ impl DeviceManager {
         }
     }
 
+    pub async fn focuser_is_absolute(&self, device_id: &str) -> Result<bool, String> {
+        let devices = self.devices.read().await;
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
+            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+        drop(devices);
+
+        match info.driver_type {
+            DriverType::Ascom => {
+                #[cfg(windows)]
+                {
+                    let focusers = self.ascom_focusers.read().await;
+                    if let Some(focuser) = focusers.get(device_id) {
+                        let focuser = focuser.read().await;
+                        return focuser.is_absolute().await.map_err(|e| e.to_string());
+                    }
+                }
+                Err("ASCOM focuser not connected".to_string())
+            }
+            DriverType::Native => Ok(true),
+            DriverType::Alpaca => {
+                let alpaca_focusers = self.alpaca_focusers.read().await;
+                if let Some(focuser) = alpaca_focusers.get(device_id) {
+                    return focuser.absolute().await;
+                }
+                Err("Alpaca focuser not connected".to_string())
+            }
+            DriverType::Indi => {
+                // Parse INDI device ID: indi:host:port:device_name
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() >= 4 {
+                    let host = parts[1];
+                    let port: u16 = parts[2].parse().map_err(|_| "Invalid port")?;
+                    let device_name = parts[3..].join(":");
+                    let server_key = format!("{}:{}", host, port);
+
+                    let clients = self.indi_clients.read().await;
+                    if let Some(client) = clients.get(&server_key) {
+                        let client = client.read().await;
+                        return Ok(client
+                            .get_property_state(&device_name, "ABS_FOCUS_POSITION")
+                            .await
+                            .is_some());
+                    }
+                    return Err(format!("INDI client not connected for {}", server_key));
+                }
+                Err("Invalid INDI device ID format".to_string())
+            }
+            DriverType::Simulator => {
+                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+            }
+        }
+    }
+
     pub async fn focuser_get_temp(&self, device_id: &str) -> Result<Option<f64>, String> {
         let devices = self.devices.read().await;
         let info = devices
@@ -4673,22 +4734,28 @@ impl DeviceManager {
                         let client = client.read().await;
 
                         // Try to get max position from FOCUS_MAX property (common INDI standard)
-                        // Fall back to reasonable default if not available
+                        // If unavailable, report unknown (0) instead of inventing a fake limit.
                         let max_position = match client.get_number(&device_name, "FOCUS_MAX", "FOCUS_MAX_VALUE").await {
                             Some(v) => v as i32,
                             None => {
-                                warn!("Failed to read INDI focuser max position for {}: property not available. Using default 100000.", device_id);
-                                100000
+                                warn!(
+                                    "Failed to read INDI focuser max position for {}: property not available. Reporting unknown max position.",
+                                    device_id
+                                );
+                                0
                             }
                         };
 
                         // Step size is not universally standardized in INDI
-                        // Most focusers use discrete steps, default to 1.0 micron step
+                        // Report unknown (0.0) when unavailable rather than assuming 1.0.
                         let step_size = match client.get_number(&device_name, "FOCUS_STEP", "FOCUS_STEP_VALUE").await {
                             Some(s) => s,
                             None => {
-                                warn!("Failed to read INDI focuser step size for {}: property not available. Using default 1.0.", device_id);
-                                1.0
+                                warn!(
+                                    "Failed to read INDI focuser step size for {}: property not available. Reporting unknown step size.",
+                                    device_id
+                                );
+                                0.0
                             }
                         };
 

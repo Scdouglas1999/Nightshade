@@ -18,6 +18,7 @@ class _FocusTabState extends ConsumerState<FocusTab> {
   // UI-only local state (transient, doesn't need to persist)
   bool _isRunningAf = false;
   String? _afStatus;
+  double? _pendingSliderPosition;
 
   Future<void> _moveTo(int position) async {
     try {
@@ -36,12 +37,12 @@ class _FocusTabState extends ConsumerState<FocusTab> {
     try {
       final settings = ref.read(focusSettingsProvider);
       final result = await ref.read(deviceServiceProvider).runAutofocus(
-        exposureTime: settings.exposureTime,
-        stepSize: settings.afStepSize,
-        stepsOut: settings.stepsOut,
-        method: settings.method,
-        binning: 1,
-      );
+            exposureTime: settings.exposureTime,
+            stepSize: settings.afStepSize,
+            stepsOut: settings.stepsOut,
+            method: settings.method,
+            binning: 1,
+          );
 
       // Store result in provider for display
       ref.read(autofocusResultProvider.notifier).state = result;
@@ -50,7 +51,8 @@ class _FocusTabState extends ConsumerState<FocusTab> {
         setState(() {
           _afStatus = 'Complete. HFR: ${result.bestHfr.toStringAsFixed(2)}';
         });
-        context.showSuccessSnackBar('Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}');
+        context.showSuccessSnackBar(
+            'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}');
       }
     } catch (e) {
       if (mounted) {
@@ -81,7 +83,8 @@ class _FocusTabState extends ConsumerState<FocusTab> {
           children: [
             Icon(LucideIcons.focus, color: colors.accent),
             const SizedBox(width: 8),
-            Text('Autofocus Results', style: TextStyle(color: colors.textPrimary)),
+            Text('Autofocus Results',
+                style: TextStyle(color: colors.textPrimary)),
           ],
         ),
         content: SizedBox(
@@ -91,13 +94,19 @@ class _FocusTabState extends ConsumerState<FocusTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildDetailRow('Best Position', '${afResult.bestPosition} steps', colors),
-                _buildDetailRow('Best HFR', '${afResult.bestHfr.toStringAsFixed(3)} px', colors),
+                _buildDetailRow(
+                    'Best Position', '${afResult.bestPosition} steps', colors),
+                _buildDetailRow('Best HFR',
+                    '${afResult.bestHfr.toStringAsFixed(3)} px', colors),
                 _buildDetailRow('Data Points', '${focusData.length}', colors),
                 _buildDetailRow('Method', settings.method, colors),
-                _buildDetailRow('Step Size', '${settings.afStepSize} steps', colors),
+                _buildDetailRow(
+                    'Step Size', '${settings.afStepSize} steps', colors),
                 const SizedBox(height: 16),
-                Text('Focus Curve Data', style: TextStyle(color: colors.textSecondary, fontWeight: FontWeight.bold)),
+                Text('Focus Curve Data',
+                    style: TextStyle(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Container(
                   height: 150,
@@ -110,12 +119,17 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                     itemBuilder: (context, index) {
                       final point = focusData[index];
                       return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Pos: ${point.position}', style: TextStyle(color: colors.textMuted, fontSize: 12)),
-                            Text('HFR: ${point.hfr.toStringAsFixed(3)}', style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+                            Text('Pos: ${point.position}',
+                                style: TextStyle(
+                                    color: colors.textMuted, fontSize: 12)),
+                            Text('HFR: ${point.hfr.toStringAsFixed(3)}',
+                                style: TextStyle(
+                                    color: colors.textSecondary, fontSize: 12)),
                           ],
                         ),
                       );
@@ -145,27 +159,31 @@ class _FocusTabState extends ConsumerState<FocusTab> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: TextStyle(color: colors.textMuted)),
-          Text(value, style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w500)),
+          Text(value,
+              style: TextStyle(
+                  color: colors.textPrimary, fontWeight: FontWeight.w500)),
         ],
       ),
     );
   }
 
-  Future<void> _showMeasureOffsetsDialog(BuildContext context) async {
+  Future<void> _showMeasureOffsetsDialog() async {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final filterWheelState = ref.read(filterWheelStateProvider);
     final filterOffsetState = ref.read(filterOffsetProvider);
 
     // Check if filter wheel is connected
     if (filterWheelState.connectionState != DeviceConnectionState.connected) {
-      context.showWarningSnackBar('Filter wheel must be connected to measure offsets.');
+      context.showWarningSnackBar(
+          'Filter wheel must be connected to measure offsets.');
       return;
     }
 
     // Check if focuser is connected
     final focuserState = ref.read(focuserStateProvider);
     if (focuserState.connectionState != DeviceConnectionState.connected) {
-      context.showWarningSnackBar('Focuser must be connected to measure offsets.');
+      context
+          .showWarningSnackBar('Focuser must be connected to measure offsets.');
       return;
     }
 
@@ -206,7 +224,8 @@ class _FocusTabState extends ConsumerState<FocusTab> {
           }
 
           if (!mounted) return;
-          context.showSuccessSnackBar('Filter offsets measured and saved for ${offsets.length} filters.');
+          context.showSuccessSnackBar(
+              'Filter offsets measured and saved for ${offsets.length} filters.');
         },
       ),
     );
@@ -239,12 +258,16 @@ class _FocusTabState extends ConsumerState<FocusTab> {
     final focuserState = ref.watch(focuserStateProvider);
     // Watch focus settings from provider (persists across navigation)
     final focusSettings = ref.watch(focusSettingsProvider);
-    final isConnected = focuserState.connectionState == DeviceConnectionState.connected;
+    final isConnected =
+        focuserState.connectionState == DeviceConnectionState.connected;
     final position = focuserState.position ?? 0;
-    final maxPosition = (focuserState.maxPosition != null && focuserState.maxPosition! > 0)
-        ? focuserState.maxPosition!
-        : 50000;
-    final temperature = focuserState.temperature ?? 0.0;
+    final maxPosition =
+        (focuserState.maxPosition != null && focuserState.maxPosition! > 0)
+            ? focuserState.maxPosition!
+            : 50000;
+    final temperature = focuserState.temperature;
+    final temperatureText =
+        temperature != null ? '${temperature.toStringAsFixed(1)}°C' : '---';
     final isMoving = focuserState.isMoving;
     final isMobile = Responsive.isMobile(context);
 
@@ -314,7 +337,7 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                                   ),
                                 ),
                                 AnimatedValue(
-                                  value: '${temperature.toStringAsFixed(1)}°C',
+                                  value: temperatureText,
                                   style: ValueAnimationStyle.directional,
                                   textStyle: TextStyle(
                                     fontSize: 12,
@@ -353,7 +376,7 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                               ),
                             ),
                             AnimatedValue(
-                              value: '${temperature.toStringAsFixed(1)}°C',
+                              value: temperatureText,
                               style: ValueAnimationStyle.directional,
                               textStyle: TextStyle(
                                 fontSize: 12,
@@ -388,10 +411,26 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       thumbColor: colors.primary,
                     ),
                     child: Slider(
-                      value: position.toDouble().clamp(0.0, maxPosition.toDouble()),
+                      value: (_pendingSliderPosition ?? position.toDouble())
+                          .clamp(0.0, maxPosition.toDouble()),
                       min: 0,
                       max: maxPosition.toDouble(),
-                      onChanged: isConnected ? (value) => _moveTo(value.toInt()) : null,
+                      onChanged: isConnected
+                          ? (value) {
+                              setState(() {
+                                _pendingSliderPosition = value;
+                              });
+                            }
+                          : null,
+                      onChangeEnd: isConnected
+                          ? (value) async {
+                              await _moveTo(value.toInt());
+                              if (!mounted) return;
+                              setState(() {
+                                _pendingSliderPosition = null;
+                              });
+                            }
+                          : null,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -403,25 +442,29 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                     children: [
                       Text(
                         'Step Size:',
-                        style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                        style: TextStyle(
+                            fontSize: 12, color: colors.textSecondary),
                       ),
                       _StepChip(
                         label: '10',
                         isSelected: focusSettings.stepSize == 10,
-                        onTap: () => ref.read(focusSettingsProvider.notifier).state =
-                            focusSettings.copyWith(stepSize: 10),
+                        onTap: () => ref
+                            .read(focusSettingsProvider.notifier)
+                            .state = focusSettings.copyWith(stepSize: 10),
                       ),
                       _StepChip(
                         label: '100',
                         isSelected: focusSettings.stepSize == 100,
-                        onTap: () => ref.read(focusSettingsProvider.notifier).state =
-                            focusSettings.copyWith(stepSize: 100),
+                        onTap: () => ref
+                            .read(focusSettingsProvider.notifier)
+                            .state = focusSettings.copyWith(stepSize: 100),
                       ),
                       _StepChip(
                         label: '1000',
                         isSelected: focusSettings.stepSize == 1000,
-                        onTap: () => ref.read(focusSettingsProvider.notifier).state =
-                            focusSettings.copyWith(stepSize: 1000),
+                        onTap: () => ref
+                            .read(focusSettingsProvider.notifier)
+                            .state = focusSettings.copyWith(stepSize: 1000),
                       ),
                     ],
                   ),
@@ -435,7 +478,8 @@ class _FocusTabState extends ConsumerState<FocusTab> {
           // Autofocus and graph - responsive layout
           isMobile
               ? _buildMobileAutofocusSection(colors, focusSettings, isConnected)
-              : _buildDesktopAutofocusSection(colors, focusSettings, isConnected),
+              : _buildDesktopAutofocusSection(
+                  colors, focusSettings, isConnected),
 
           SizedBox(height: isMobile ? 16 : 24),
 
@@ -538,22 +582,6 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _MobileSettingRow(
-                        label: 'Exp/Point',
-                        child: NightshadeTextField(
-                          initialValue: focusSettings.exposuresPerPoint.toString(),
-                          onChanged: (value) {
-                            final v = int.tryParse(value);
-                            if (v != null) {
-                              ref.read(focusSettingsProvider.notifier).state =
-                                  focusSettings.copyWith(exposuresPerPoint: v);
-                            }
-                          },
-                        ),
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -564,7 +592,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       _afStatus!,
                       style: TextStyle(
                         fontSize: 11,
-                        color: _afStatus!.contains('Failed') ? colors.error : colors.success,
+                        color: _afStatus!.contains('Failed')
+                            ? colors.error
+                            : colors.success,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -574,7 +604,8 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                   child: NightshadeButton(
                     label: _isRunningAf ? 'Running...' : 'Run Autofocus',
                     icon: _isRunningAf ? LucideIcons.loader : LucideIcons.play,
-                    onPressed: (isConnected && !_isRunningAf) ? _runAutofocus : null,
+                    onPressed:
+                        (isConnected && !_isRunningAf) ? _runAutofocus : null,
                   ),
                 ),
               ],
@@ -613,8 +644,11 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                           ? _buildFocusCurve(afResult, colors)
                           : Center(
                               child: Text(
-                                hasResult ? 'No curve data' : 'No autofocus run yet',
-                                style: TextStyle(fontSize: 10, color: colors.textMuted),
+                                hasResult
+                                    ? 'No curve data'
+                                    : 'No autofocus run yet',
+                                style: TextStyle(
+                                    fontSize: 10, color: colors.textMuted),
                               ),
                             ),
                     ),
@@ -627,11 +661,15 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                             children: [
                               _InfoRow(
                                 label: 'Best Position',
-                                value: hasResult ? afResult.bestPosition.toString() : '---',
+                                value: hasResult
+                                    ? afResult.bestPosition.toString()
+                                    : '---',
                               ),
                               _InfoRow(
                                 label: 'Best HFR',
-                                value: hasResult ? afResult.bestHfr.toStringAsFixed(2) : '---',
+                                value: hasResult
+                                    ? afResult.bestHfr.toStringAsFixed(2)
+                                    : '---',
                               ),
                             ],
                           ),
@@ -646,7 +684,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                               ),
                               _InfoRow(
                                 label: 'Data Points',
-                                value: hasResult ? afResult.focusData.length.toString() : '---',
+                                value: hasResult
+                                    ? afResult.focusData.length.toString()
+                                    : '---',
                               ),
                             ],
                           ),
@@ -658,7 +698,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       label: 'View Details',
                       variant: ButtonVariant.outline,
                       size: ButtonSize.small,
-                      onPressed: hasResult ? () => _showAutofocusDetails(context, afResult) : null,
+                      onPressed: hasResult
+                          ? () => _showAutofocusDetails(context, afResult)
+                          : null,
                     ),
                   ],
                 );
@@ -753,42 +795,6 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       },
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  _SettingRow(
-                    label: 'Exposures/Point',
-                    child: NightshadeTextField(
-                      initialValue: focusSettings.exposuresPerPoint.toString(),
-                      onChanged: (value) {
-                        final v = int.tryParse(value);
-                        if (v != null) {
-                          ref.read(focusSettingsProvider.notifier).state =
-                              focusSettings.copyWith(exposuresPerPoint: v);
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      NightshadeCheckbox(value: true, onChanged: (v) {}),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Use filter offsets',
-                        style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      NightshadeCheckbox(value: true, onChanged: (v) {}),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Auto-select star',
-                        style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
                   const SizedBox(height: 16),
                   if (_afStatus != null)
                     Padding(
@@ -796,7 +802,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       child: Text(
                         _afStatus!,
                         style: TextStyle(
-                          color: _afStatus!.contains('Failed') ? colors.error : colors.success,
+                          color: _afStatus!.contains('Failed')
+                              ? colors.error
+                              : colors.success,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -805,9 +813,11 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                     width: double.infinity,
                     child: NightshadeButton(
                       label: _isRunningAf ? 'Running...' : 'Run Autofocus',
-                      icon: _isRunningAf ? LucideIcons.loader : LucideIcons.play,
+                      icon:
+                          _isRunningAf ? LucideIcons.loader : LucideIcons.play,
                       size: ButtonSize.large,
-                      onPressed: (isConnected && !_isRunningAf) ? _runAutofocus : null,
+                      onPressed:
+                          (isConnected && !_isRunningAf) ? _runAutofocus : null,
                     ),
                   ),
                 ],
@@ -850,19 +860,26 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                             ? _buildFocusCurve(afResult, colors)
                             : Center(
                                 child: Text(
-                                  hasResult ? 'No curve data' : 'No autofocus run yet',
-                                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                                  hasResult
+                                      ? 'No curve data'
+                                      : 'No autofocus run yet',
+                                  style: TextStyle(
+                                      fontSize: 10, color: colors.textMuted),
                                 ),
                               ),
                       ),
                       const SizedBox(height: 16),
                       _InfoRow(
                         label: 'Best Position',
-                        value: hasResult ? afResult.bestPosition.toString() : '---',
+                        value: hasResult
+                            ? afResult.bestPosition.toString()
+                            : '---',
                       ),
                       _InfoRow(
                         label: 'Best HFR',
-                        value: hasResult ? afResult.bestHfr.toStringAsFixed(2) : '---',
+                        value: hasResult
+                            ? afResult.bestHfr.toStringAsFixed(2)
+                            : '---',
                       ),
                       _InfoRow(
                         label: 'Temp at Focus',
@@ -876,14 +893,18 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                       ),
                       _InfoRow(
                         label: 'Data Points',
-                        value: hasResult ? afResult.focusData.length.toString() : '---',
+                        value: hasResult
+                            ? afResult.focusData.length.toString()
+                            : '---',
                       ),
                       const SizedBox(height: 12),
                       NightshadeButton(
                         label: 'View Details',
                         variant: ButtonVariant.outline,
                         size: ButtonSize.small,
-                        onPressed: hasResult ? () => _showAutofocusDetails(context, afResult) : null,
+                        onPressed: hasResult
+                            ? () => _showAutofocusDetails(context, afResult)
+                            : null,
                       ),
                     ],
                   );
@@ -902,7 +923,8 @@ class _FocusTabState extends ConsumerState<FocusTab> {
     final filterOffsetState = ref.watch(filterOffsetProvider);
     final availableFilters = ref.watch(availableFiltersProvider);
     final filterWheelState = ref.watch(filterWheelStateProvider);
-    final isFilterWheelConnected = filterWheelState.connectionState == DeviceConnectionState.connected;
+    final isFilterWheelConnected =
+        filterWheelState.connectionState == DeviceConnectionState.connected;
 
     return NightshadeCard(
       child: Padding(
@@ -944,7 +966,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                               variant: ButtonVariant.outline,
                               onPressed: isFilterWheelConnected
                                   ? () async {
-                                      await ref.read(filterOffsetProvider.notifier).clearAllOffsets();
+                                      await ref
+                                          .read(filterOffsetProvider.notifier)
+                                          .clearAllOffsets();
                                     }
                                   : null,
                             ),
@@ -955,7 +979,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                               label: 'Measure',
                               size: ButtonSize.small,
                               variant: ButtonVariant.outline,
-                              onPressed: isFilterWheelConnected ? () => _showMeasureOffsetsDialog(context) : null,
+                              onPressed: isFilterWheelConnected
+                                  ? _showMeasureOffsetsDialog
+                                  : null,
                             ),
                           ),
                         ],
@@ -992,7 +1018,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                             variant: ButtonVariant.outline,
                             onPressed: isFilterWheelConnected
                                 ? () async {
-                                    await ref.read(filterOffsetProvider.notifier).clearAllOffsets();
+                                    await ref
+                                        .read(filterOffsetProvider.notifier)
+                                        .clearAllOffsets();
                                   }
                                 : null,
                           ),
@@ -1001,7 +1029,9 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                             label: 'Measure Offsets',
                             size: ButtonSize.small,
                             variant: ButtonVariant.outline,
-                            onPressed: isFilterWheelConnected ? () => _showMeasureOffsetsDialog(context) : null,
+                            onPressed: isFilterWheelConnected
+                                ? _showMeasureOffsetsDialog
+                                : null,
                           ),
                         ],
                       ),
@@ -1035,20 +1065,27 @@ class _FocusTabState extends ConsumerState<FocusTab> {
                 runSpacing: isMobile ? 8 : 12,
                 children: availableFilters.map((filterName) {
                   final offset = filterOffsetState.offsets[filterName] ?? 0;
-                  final isReference = filterName == filterOffsetState.referenceFilter;
+                  final isReference =
+                      filterName == filterOffsetState.referenceFilter;
 
                   return _FilterOffsetControl(
                     name: filterName,
                     offset: offset,
                     isReference: isReference,
                     onIncrease: () async {
-                      await ref.read(filterOffsetProvider.notifier).adjustFilterOffset(filterName, 10);
+                      await ref
+                          .read(filterOffsetProvider.notifier)
+                          .adjustFilterOffset(filterName, 10);
                     },
                     onDecrease: () async {
-                      await ref.read(filterOffsetProvider.notifier).adjustFilterOffset(filterName, -10);
+                      await ref
+                          .read(filterOffsetProvider.notifier)
+                          .adjustFilterOffset(filterName, -10);
                     },
                     onSetReference: () async {
-                      await ref.read(filterOffsetProvider.notifier).setReferenceFilter(filterName);
+                      await ref
+                          .read(filterOffsetProvider.notifier)
+                          .setReferenceFilter(filterName);
                     },
                   );
                 }).toList(),
@@ -1065,7 +1102,8 @@ class _StepChip extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _StepChip({required this.label, required this.isSelected, required this.onTap});
+  const _StepChip(
+      {required this.label, required this.isSelected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1076,7 +1114,9 @@ class _StepChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt,
+          color: isSelected
+              ? colors.primary.withValues(alpha: 0.1)
+              : colors.surfaceAlt,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
@@ -1130,7 +1170,7 @@ class _SettingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    
+
     return Row(
       children: [
         SizedBox(
@@ -1199,13 +1239,16 @@ class _FilterOffsetControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final offsetText = offset == 0 ? '0' : (offset > 0 ? '+$offset' : '$offset');
+    final offsetText =
+        offset == 0 ? '0' : (offset > 0 ? '+$offset' : '$offset');
 
     return Container(
       width: 120,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: isReference ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt,
+        color: isReference
+            ? colors.primary.withValues(alpha: 0.1)
+            : colors.surfaceAlt,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isReference ? colors.primary : colors.border,
@@ -1228,7 +1271,8 @@ class _FilterOffsetControl extends StatelessWidget {
               ),
               if (isReference)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   decoration: BoxDecoration(
                     color: colors.primary,
                     borderRadius: BorderRadius.circular(3),
@@ -1353,8 +1397,10 @@ class _FocusCurvePainter extends CustomPainter {
     }).toList();
 
     // Find min/max for scaling
-    final minPos = points.map((p) => p.position).reduce((a, b) => a < b ? a : b);
-    final maxPos = points.map((p) => p.position).reduce((a, b) => a > b ? a : b);
+    final minPos =
+        points.map((p) => p.position).reduce((a, b) => a < b ? a : b);
+    final maxPos =
+        points.map((p) => p.position).reduce((a, b) => a > b ? a : b);
     final minHfr = points.map((p) => p.hfr).reduce((a, b) => a < b ? a : b);
     final maxHfr = points.map((p) => p.hfr).reduce((a, b) => a > b ? a : b);
 
@@ -1391,7 +1437,9 @@ class _FocusCurvePainter extends CustomPainter {
         final x = chartArea.left +
             (p.position - minPos) / (maxPos - minPos) * chartArea.width;
         final y = chartArea.bottom -
-            (p.hfr - displayMinHfr) / (displayMaxHfr - displayMinHfr) * chartArea.height;
+            (p.hfr - displayMinHfr) /
+                (displayMaxHfr - displayMinHfr) *
+                chartArea.height;
 
         if (i == 0) {
           path.moveTo(x, y);
@@ -1411,7 +1459,9 @@ class _FocusCurvePainter extends CustomPainter {
       final x = chartArea.left +
           (p.position - minPos) / (maxPos - minPos) * chartArea.width;
       final y = chartArea.bottom -
-          (p.hfr - displayMinHfr) / (displayMaxHfr - displayMinHfr) * chartArea.height;
+          (p.hfr - displayMinHfr) /
+              (displayMaxHfr - displayMinHfr) *
+              chartArea.height;
 
       final isMinimum = p.position == bestPosition;
       canvas.drawCircle(Offset(x, y), isMinimum ? 5 : 3, pointPaint);
@@ -1479,10 +1529,12 @@ class _FilterOffsetMeasurementDialog extends StatefulWidget {
   });
 
   @override
-  State<_FilterOffsetMeasurementDialog> createState() => _FilterOffsetMeasurementDialogState();
+  State<_FilterOffsetMeasurementDialog> createState() =>
+      _FilterOffsetMeasurementDialogState();
 }
 
-class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurementDialog> {
+class _FilterOffsetMeasurementDialogState
+    extends State<_FilterOffsetMeasurementDialog> {
   bool _isRunning = false;
   bool _isCancelled = false;
   String _status = 'Ready to measure';
@@ -1518,7 +1570,8 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
       });
 
       // Change to reference filter
-      await widget.backend.filterWheelSetPosition(widget.filterWheelDeviceId, refIndex);
+      await widget.backend
+          .filterWheelSetPosition(widget.filterWheelDeviceId, refIndex);
 
       // Wait for filter change to complete
       await _waitForFilterChange();
@@ -1526,7 +1579,8 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
       if (_isCancelled) return;
 
       setState(() {
-        _status = 'Running autofocus on reference filter: ${widget.referenceFilter}';
+        _status =
+            'Running autofocus on reference filter: ${widget.referenceFilter}';
       });
 
       // Run autofocus on reference filter
@@ -1562,7 +1616,8 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
         });
 
         // Change filter
-        await widget.backend.filterWheelSetPosition(widget.filterWheelDeviceId, i);
+        await widget.backend
+            .filterWheelSetPosition(widget.filterWheelDeviceId, i);
 
         // Wait for filter change
         await _waitForFilterChange();
@@ -1589,7 +1644,8 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
 
         setState(() {
           _completedFilters++;
-          _status = '$filterName: position ${result.bestPosition} (offset: ${offset > 0 ? '+$offset' : offset})';
+          _status =
+              '$filterName: position ${result.bestPosition} (offset: ${offset > 0 ? '+$offset' : offset})';
         });
       }
 
@@ -1610,11 +1666,21 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
   }
 
   Future<void> _waitForFilterChange() async {
-    // Wait up to 30 seconds for filter to settle
-    for (var i = 0; i < 30; i++) {
-      await Future<void>.delayed(const Duration(seconds: 1));
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+    while (DateTime.now().isBefore(deadline)) {
       if (_isCancelled) return;
+      try {
+        final status = await widget.backend
+            .getFilterWheelStatus(widget.filterWheelDeviceId);
+        if (!status.moving && status.position >= 0) {
+          return;
+        }
+      } catch (_) {
+        // Continue polling through transient read errors.
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
     }
+    throw Exception('Timed out waiting for filter wheel to finish changing.');
   }
 
   void _cancel() {
@@ -1658,7 +1724,8 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
               ),
               child: Row(
                 children: [
-                  Icon(LucideIcons.star, size: 16, color: widget.colors.primary),
+                  Icon(LucideIcons.star,
+                      size: 16, color: widget.colors.primary),
                   const SizedBox(width: 8),
                   Text(
                     'Reference Filter: ',
@@ -1694,7 +1761,8 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
                 final isCurrent = filter == _currentFilter && _isRunning;
 
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: isCurrent
                         ? widget.colors.primary.withValues(alpha: 0.2)
@@ -1724,7 +1792,8 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
                             height: 12,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation(widget.colors.primary),
+                              valueColor:
+                                  AlwaysStoppedAnimation(widget.colors.primary),
                             ),
                           ),
                         )
@@ -1740,8 +1809,11 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
                       Text(
                         filter,
                         style: TextStyle(
-                          color: isReference ? widget.colors.primary : widget.colors.textPrimary,
-                          fontWeight: isReference ? FontWeight.bold : FontWeight.normal,
+                          color: isReference
+                              ? widget.colors.primary
+                              : widget.colors.textPrimary,
+                          fontWeight:
+                              isReference ? FontWeight.bold : FontWeight.normal,
                           fontSize: 12,
                         ),
                       ),
@@ -1808,7 +1880,8 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(widget.colors.primary),
+                          valueColor:
+                              AlwaysStoppedAnimation(widget.colors.primary),
                         ),
                       ),
                     ),
@@ -1851,10 +1924,13 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
                     final offset = _measuredOffsets[entry.key] ?? 0;
                     final isRef = entry.key == widget.referenceFilter;
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         border: Border(
-                          bottom: BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
+                          bottom: BorderSide(
+                              color:
+                                  widget.colors.border.withValues(alpha: 0.5)),
                         ),
                       ),
                       child: Row(
@@ -1866,14 +1942,19 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
                                 Text(
                                   entry.key,
                                   style: TextStyle(
-                                    color: isRef ? widget.colors.primary : widget.colors.textPrimary,
-                                    fontWeight: isRef ? FontWeight.bold : FontWeight.normal,
+                                    color: isRef
+                                        ? widget.colors.primary
+                                        : widget.colors.textPrimary,
+                                    fontWeight: isRef
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
                                   ),
                                 ),
                                 if (isRef) ...[
                                   const SizedBox(width: 4),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 4, vertical: 1),
                                     decoration: BoxDecoration(
                                       color: widget.colors.primary,
                                       borderRadius: BorderRadius.circular(3),
@@ -1903,9 +1984,13 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
                           SizedBox(
                             width: 80,
                             child: Text(
-                              isRef ? '--' : (offset > 0 ? '+$offset' : '$offset'),
+                              isRef
+                                  ? '--'
+                                  : (offset > 0 ? '+$offset' : '$offset'),
                               style: TextStyle(
-                                color: isRef ? widget.colors.textMuted : widget.colors.textPrimary,
+                                color: isRef
+                                    ? widget.colors.textMuted
+                                    : widget.colors.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
@@ -1926,7 +2011,8 @@ class _FilterOffsetMeasurementDialogState extends State<_FilterOffsetMeasurement
         if (!_isRunning)
           NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),
-            label: _completedFilters == widget.filters.length ? 'Done' : 'Close',
+            label:
+                _completedFilters == widget.filters.length ? 'Done' : 'Close',
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
           ),
