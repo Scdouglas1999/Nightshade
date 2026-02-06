@@ -1,6 +1,11 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api.dart' show apiEventStream;
 import 'package:nightshade_bridge/src/event.dart' show NightshadeEvent, EventCategory, EventSeverity;
+import '../models/backend/event_types.dart' as core;
+import 'backend_provider.dart';
+import 'ui_notification_provider.dart';
 
 /// Provider for the global event stream from the Rust native layer
 ///
@@ -111,4 +116,85 @@ class EventHistoryNotifier extends StateNotifier<List<NightshadeEvent>> {
   List<NightshadeEvent> getBySeverity(EventSeverity severity) {
     return state.where((e) => e.severity == severity).toList();
   }
+}
+
+/// Bridges backend events with error/warning/critical severity to UI toast notifications.
+///
+/// This provider must be watched by the AppShell to stay active.
+/// It subscribes to [backend.eventStream] and forwards error-severity
+/// events to [uiNotificationProvider] for display as toast notifications.
+final errorNotificationBridgeProvider = Provider<void>((ref) {
+  final backend = ref.watch(backendProvider);
+  final notifier = ref.read(uiNotificationProvider.notifier);
+
+  StreamSubscription<core.NightshadeEvent>? subscription;
+
+  subscription = backend.eventStream.listen((event) {
+    if (event.severity == core.EventSeverity.info) return;
+
+    final message = _extractEventMessage(event);
+    final title = _eventTitle(event);
+
+    switch (event.severity) {
+      case core.EventSeverity.critical:
+        notifier.showError(
+          message,
+          title: 'Critical: $title',
+          duration: const Duration(seconds: 15),
+        );
+        break;
+      case core.EventSeverity.error:
+        notifier.showError(message, title: title);
+        break;
+      case core.EventSeverity.warning:
+        notifier.showWarning(message, title: title);
+        break;
+      case core.EventSeverity.info:
+        break;
+    }
+  }, onError: (error) {
+    debugPrint('[ErrorNotificationBridge] Event stream error: $error');
+  });
+
+  ref.onDispose(() {
+    subscription?.cancel();
+  });
+});
+
+/// Extract a human-readable message from a NightshadeEvent's data map.
+String _extractEventMessage(core.NightshadeEvent event) {
+  final data = event.data;
+
+  // Try common message keys in order of specificity
+  if (data.containsKey('message') && data['message'] is String && (data['message'] as String).isNotEmpty) {
+    return data['message'] as String;
+  }
+  if (data.containsKey('error') && data['error'] is String && (data['error'] as String).isNotEmpty) {
+    return data['error'] as String;
+  }
+  if (data.containsKey('reason') && data['reason'] is String && (data['reason'] as String).isNotEmpty) {
+    return data['reason'] as String;
+  }
+
+  // Fall back to event type
+  return event.eventType;
+}
+
+/// Build a title string from the event's category and device type.
+String _eventTitle(core.NightshadeEvent event) {
+  final deviceType = event.data['device_type'] as String?;
+  final categoryLabel = switch (event.category) {
+    core.EventCategory.equipment => 'Device',
+    core.EventCategory.imaging => 'Imaging',
+    core.EventCategory.guiding => 'Guiding',
+    core.EventCategory.sequencer => 'Sequence',
+    core.EventCategory.safety => 'Safety',
+    core.EventCategory.system => 'System',
+    core.EventCategory.polarAlignment => 'Polar Alignment',
+  };
+
+  if (deviceType != null && deviceType.isNotEmpty) {
+    return '$deviceType Error';
+  }
+  return '$categoryLabel ${event.severity == core.EventSeverity.warning ? "Warning" : "Error"}';
 }
