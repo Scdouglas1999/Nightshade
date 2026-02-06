@@ -207,6 +207,7 @@ impl CheckpointManager {
     pub fn load(&self) -> Result<Option<SessionCheckpoint>, String> {
         let path = self.checkpoint_path();
         let backup = self.backup_path();
+        let mut primary_error: Option<String> = None;
 
         if !path.exists() && !backup.exists() {
             return Ok(None);
@@ -220,6 +221,7 @@ impl CheckpointManager {
                         "Primary checkpoint load failed ({}), attempting backup",
                         primary_err
                     );
+                    primary_error = Some(primary_err);
                 }
             }
         }
@@ -237,6 +239,10 @@ impl CheckpointManager {
             }
 
             return Ok(Some(checkpoint));
+        }
+
+        if let Some(primary_err) = primary_error {
+            return Err(primary_err);
         }
 
         Ok(None)
@@ -327,6 +333,19 @@ pub struct CheckpointInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "nightshade_checkpoint_test_{}_{}",
+            name,
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
 
     #[test]
     fn test_checkpoint_serialization() {
@@ -337,5 +356,41 @@ mod tests {
         let loaded: SessionCheckpoint = serde_json::from_str(&json).unwrap();
 
         assert_eq!(loaded.sequence.name, "Test Sequence");
+    }
+
+    #[test]
+    fn test_load_corrupt_primary_without_backup_returns_error() {
+        let dir = test_dir("corrupt_primary_no_backup");
+        let manager = CheckpointManager::new(&dir);
+        let primary = manager.checkpoint_path();
+        fs::write(&primary, "{not valid json").unwrap();
+
+        let result = manager.load();
+        assert!(result.is_err(), "Expected error for corrupt primary checkpoint");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_falls_back_to_backup_when_primary_corrupt() {
+        let dir = test_dir("primary_corrupt_backup_ok");
+        let manager = CheckpointManager::new(&dir);
+
+        let seq = SequenceDefinition::new("Backup Sequence".to_string());
+        let checkpoint = SessionCheckpoint::new(seq);
+        manager.save(&checkpoint).unwrap();
+
+        let primary = manager.checkpoint_path();
+        let backup = manager.backup_path();
+        fs::copy(&primary, &backup).unwrap();
+        fs::write(&primary, "{not valid json").unwrap();
+
+        let loaded = manager
+            .load()
+            .unwrap()
+            .expect("Expected checkpoint from backup");
+        assert_eq!(loaded.sequence.name, "Backup Sequence");
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

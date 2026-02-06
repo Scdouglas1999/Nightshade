@@ -995,16 +995,30 @@ impl SequenceExecutor {
                         }
                     }
 
-                    // Check all triggers
-                    let mut manager = trigger_manager.write().await;
-                    let fired = manager.check_all().await;
+                    // Check all triggers and capture names while holding the manager lock.
+                    // Drop the lock before running recovery actions so actions can safely
+                    // read/write trigger state without deadlocking on trigger_manager.
+                    let fired_with_names: Vec<(String, String, RecoveryAction)> = {
+                        let mut manager = trigger_manager.write().await;
+                        let fired = manager.check_all().await;
+                        fired
+                            .into_iter()
+                            .map(|(trigger_id, action)| {
+                                let trigger_name = manager
+                                    .get_trigger(&trigger_id)
+                                    .map(|t| t.name.clone())
+                                    .unwrap_or_else(|| trigger_id.clone());
+                                (trigger_id, trigger_name, action)
+                            })
+                            .collect()
+                    };
 
-                    for (trigger_id, action) in fired {
-                        // Get trigger name for better logging
-                        let trigger_name = manager
-                            .get_trigger(&trigger_id)
-                            .map(|t| t.name.clone())
-                            .unwrap_or_else(|| trigger_id.clone());
+                    let trigger_state_for_actions = {
+                        let manager = trigger_manager.read().await;
+                        manager.state()
+                    };
+
+                    for (trigger_id, trigger_name, action) in fired_with_names {
 
                         let action_str = format!("{:?}", action);
 
@@ -1064,7 +1078,7 @@ impl SequenceExecutor {
                                             longitude: None,
                                             device_ops: device_ops_for_triggers.clone(),
                                             trigger_state: Some(
-                                                trigger_manager.read().await.state(),
+                                                trigger_state_for_actions.clone(),
                                             ),
                                         };
 
@@ -1077,9 +1091,7 @@ impl SequenceExecutor {
 
                                         if af_result.status == NodeStatus::Success {
                                             if let Some(best_hfr) = af_result.hfr_values.first() {
-                                                let manager = trigger_manager.read().await;
-                                                let state = manager.state();
-                                                let mut ts = state.write().await;
+                                                let mut ts = trigger_state_for_actions.write().await;
                                                 ts.update_hfr(*best_hfr);
                                                 ts.reset_baseline_hfr();
                                                 ts.mark_autofocus_performed();
@@ -1118,9 +1130,7 @@ impl SequenceExecutor {
 
                                 // Get target info from trigger state
                                 let (target_name, target_ra, target_dec) = {
-                                    let manager = trigger_manager.read().await;
-                                    let state = manager.state();
-                                    let ts = state.read().await;
+                                    let ts = trigger_state_for_actions.read().await;
                                     (
                                         ts.current_target_name
                                             .clone()
@@ -1159,9 +1169,7 @@ impl SequenceExecutor {
                                             );
 
                                             // Mark flip as performed in trigger state
-                                            let manager = trigger_manager.read().await;
-                                            let state = manager.state();
-                                            let mut ts = state.write().await;
+                                            let mut ts = trigger_state_for_actions.write().await;
                                             ts.mark_flip_performed();
                                         }
                                         crate::meridian_flip_executor::FlipResult::Failed {
