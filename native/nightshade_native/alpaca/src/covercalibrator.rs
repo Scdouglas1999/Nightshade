@@ -1,6 +1,9 @@
 //! Alpaca Cover Calibrator API implementation
 
-use crate::{AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, TimeoutConfig, RetryConfig};
+use crate::{
+    AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, RetryConfig,
+    TimeoutConfig,
+};
 use std::time::Duration;
 
 /// Cover state enum
@@ -222,7 +225,9 @@ impl AlpacaCoverCalibrator {
     // Calibrator control
 
     pub async fn calibrator_on(&self, brightness: i32) -> Result<(), String> {
-        self.client.put("calibratoron", &[("Brightness", &brightness.to_string())]).await
+        self.client
+            .put("calibratoron", &[("Brightness", &brightness.to_string())])
+            .await
     }
 
     pub async fn calibrator_off(&self) -> Result<(), String> {
@@ -247,7 +252,9 @@ impl AlpacaCoverCalibrator {
                         return Ok(true);
                     }
                     if state == CoverStatus::Error {
-                        return Err(AlpacaError::OperationFailed("Cover in error state".to_string()));
+                        return Err(AlpacaError::OperationFailed(
+                            "Cover in error state".to_string(),
+                        ));
                     }
                     if std::time::Instant::now() >= deadline {
                         return Ok(false);
@@ -271,7 +278,9 @@ impl AlpacaCoverCalibrator {
             match self.calibrator_state().await {
                 Ok(CalibratorStatus::Ready) => return Ok(true),
                 Ok(CalibratorStatus::Error) => {
-                    return Err(AlpacaError::OperationFailed("Calibrator in error state".to_string()));
+                    return Err(AlpacaError::OperationFailed(
+                        "Calibrator in error state".to_string(),
+                    ));
                 }
                 Ok(_) => {
                     if std::time::Instant::now() >= deadline {
@@ -291,7 +300,8 @@ impl AlpacaCoverCalibrator {
         timeout: Duration,
     ) -> Result<bool, AlpacaError> {
         self.open_cover_typed().await?;
-        self.wait_for_cover_state(CoverStatus::Open, poll_interval, timeout).await
+        self.wait_for_cover_state(CoverStatus::Open, poll_interval, timeout)
+            .await
     }
 
     /// Close cover and wait for completion
@@ -301,7 +311,8 @@ impl AlpacaCoverCalibrator {
         timeout: Duration,
     ) -> Result<bool, AlpacaError> {
         self.close_cover_typed().await?;
-        self.wait_for_cover_state(CoverStatus::Closed, poll_interval, timeout).await
+        self.wait_for_cover_state(CoverStatus::Closed, poll_interval, timeout)
+            .await
     }
 
     /// Get comprehensive cover calibrator status

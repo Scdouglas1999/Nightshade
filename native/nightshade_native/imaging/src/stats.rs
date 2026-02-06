@@ -11,7 +11,7 @@ pub struct ImageStats {
     pub mean: f64,
     pub median: f64,
     pub std_dev: f64,
-    pub mad: f64,  // Median Absolute Deviation
+    pub mad: f64, // Median Absolute Deviation
 }
 
 /// Calculate statistics for a 16-bit image
@@ -21,7 +21,8 @@ pub fn calculate_stats_u16(image: &ImageData) -> ImageStats {
     }
 
     // Parallel conversion to u16
-    let mut pixels: Vec<u16> = image.data
+    let mut pixels: Vec<u16> = image
+        .data
         .par_chunks_exact(2)
         .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
         .collect();
@@ -31,26 +32,29 @@ pub fn calculate_stats_u16(image: &ImageData) -> ImageStats {
     }
 
     // Parallel calculation of min, max, sum
-    let (min, max, sum) = pixels.par_iter()
+    let (min, max, sum) = pixels
+        .par_iter()
         .fold(
             || (u16::MAX, u16::MIN, 0.0f64),
-            |(min, max, sum), &val| (min.min(val), max.max(val), sum + val as f64)
+            |(min, max, sum), &val| (min.min(val), max.max(val), sum + val as f64),
         )
         .reduce(
             || (u16::MAX, u16::MIN, 0.0f64),
-            |(min1, max1, sum1), (min2, max2, sum2)| (min1.min(min2), max1.max(max2), sum1 + sum2)
+            |(min1, max1, sum1), (min2, max2, sum2)| (min1.min(min2), max1.max(max2), sum1 + sum2),
         );
 
     let count = pixels.len() as f64;
     let mean = sum / count;
 
     // Parallel variance calculation
-    let variance: f64 = pixels.par_iter()
+    let variance: f64 = pixels
+        .par_iter()
         .map(|&p| {
             let diff = p as f64 - mean;
             diff * diff
         })
-        .sum::<f64>() / count;
+        .sum::<f64>()
+        / count;
     let std_dev = variance.sqrt();
 
     // Parallel sort for median
@@ -63,12 +67,13 @@ pub fn calculate_stats_u16(image: &ImageData) -> ImageStats {
     };
 
     // Parallel MAD calculation
-    let mut deviations: Vec<f64> = pixels.par_iter()
+    let mut deviations: Vec<f64> = pixels
+        .par_iter()
         .map(|&p| (p as f64 - median).abs())
         .collect();
-    
+
     deviations.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-    
+
     let mad = if deviations.len() % 2 == 0 {
         let mid = deviations.len() / 2;
         (deviations[mid - 1] + deviations[mid]) / 2.0
@@ -131,15 +136,15 @@ pub struct StarDetectionConfig {
 impl Default for StarDetectionConfig {
     fn default() -> Self {
         Self {
-            detection_sigma: 5.0,   // Increased from 3.0 - more conservative
-            min_area: 9,            // Increased from 5 - hot pixels rarely exceed this
+            detection_sigma: 5.0, // Increased from 3.0 - more conservative
+            min_area: 9,          // Increased from 5 - hot pixels rarely exceed this
             max_area: 10000,
-            max_eccentricity: 0.7,  // Slightly tighter - real stars are round
+            max_eccentricity: 0.7, // Slightly tighter - real stars are round
             saturation_limit: 60000,
             hfr_radius: 20,
-            min_hfr: 1.2,           // NEW: Real stars have HFR > 1.2 typically
-            min_snr: 10.0,          // NEW: Require decent signal-to-noise
-            max_sharpness: 0.7,     // NEW: Hot pixels have sharpness > 0.8
+            min_hfr: 1.2,       // NEW: Real stars have HFR > 1.2 typically
+            min_snr: 10.0,      // NEW: Require decent signal-to-noise
+            max_sharpness: 0.7, // NEW: Hot pixels have sharpness > 0.8
         }
     }
 }
@@ -148,58 +153,58 @@ impl Default for StarDetectionConfig {
 pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<DetectedStar> {
     let width = image.width as usize;
     let height = image.height as usize;
-    
+
     if width == 0 || height == 0 || image.data.len() < width * height * 2 {
         return Vec::new();
     }
 
     // Parallel convert to f64 array
-    let pixels: Vec<f64> = image.data
+    let pixels: Vec<f64> = image
+        .data
         .par_chunks_exact(2)
         .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]) as f64)
         .collect();
 
     // Estimate background using sigma-clipped median (partially parallelized)
     let (background, noise) = estimate_background(&pixels, width, height);
-    
+
     // Detection threshold
     let threshold = background + config.detection_sigma * noise;
-    
+
     // Find candidate pixels above threshold
     // Note: Full star detection is hard to parallelize due to 'visited' state
     // We keep the main loop sequential for correctness but use the parallelized setup
     let mut visited = vec![false; pixels.len()];
     let mut stars = Vec::new();
-    
+
     for y in 2..height - 2 {
         for x in 2..width - 2 {
             let idx = y * width + x;
-            
+
             if visited[idx] || pixels[idx] < threshold {
                 continue;
             }
-            
+
             // Check if this is a local maximum (8-connected)
             let val = pixels[idx];
-            let is_max = 
-                val >= pixels[idx - 1] &&
-                val >= pixels[idx + 1] &&
-                val >= pixels[idx - width] &&
-                val >= pixels[idx + width] &&
-                val >= pixels[idx - width - 1] &&
-                val >= pixels[idx - width + 1] &&
-                val >= pixels[idx + width - 1] &&
-                val >= pixels[idx + width + 1];
-            
+            let is_max = val >= pixels[idx - 1]
+                && val >= pixels[idx + 1]
+                && val >= pixels[idx - width]
+                && val >= pixels[idx + width]
+                && val >= pixels[idx - width - 1]
+                && val >= pixels[idx - width + 1]
+                && val >= pixels[idx + width - 1]
+                && val >= pixels[idx + width + 1];
+
             if !is_max {
                 continue;
             }
-            
+
             // Skip saturated stars
             if val > config.saturation_limit as f64 {
                 continue;
             }
-            
+
             // Extract star region and measure
             let mut ctx = StarMeasurementContext {
                 pixels: &pixels,
@@ -213,14 +218,20 @@ pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<Dete
             if let Some(star) = measure_star(&mut ctx, x, y) {
                 // Comprehensive star validation to filter hot pixels and noise
                 // Track rejection reasons for diagnostics (only log first few)
-                static LOGGED_REJECTIONS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+                static LOGGED_REJECTIONS: std::sync::atomic::AtomicU32 =
+                    std::sync::atomic::AtomicU32::new(0);
                 let should_log = LOGGED_REJECTIONS.load(std::sync::atomic::Ordering::Relaxed) < 5;
 
                 // 1. HFR check - hot pixels have very small HFR
                 if star.hfr < config.min_hfr {
                     if should_log {
-                        tracing::debug!("Star rejected: HFR {:.2} < min {:.2} (pos: {:.1},{:.1})",
-                            star.hfr, config.min_hfr, star.x, star.y);
+                        tracing::debug!(
+                            "Star rejected: HFR {:.2} < min {:.2} (pos: {:.1},{:.1})",
+                            star.hfr,
+                            config.min_hfr,
+                            star.x,
+                            star.y
+                        );
                         LOGGED_REJECTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                     continue;
@@ -229,8 +240,14 @@ pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<Dete
                 // 2. SNR check - require good signal-to-noise
                 if star.snr < config.min_snr {
                     if should_log {
-                        tracing::debug!("Star rejected: SNR {:.2} < min {:.2} (pos: {:.1},{:.1}, HFR: {:.2})",
-                            star.snr, config.min_snr, star.x, star.y, star.hfr);
+                        tracing::debug!(
+                            "Star rejected: SNR {:.2} < min {:.2} (pos: {:.1},{:.1}, HFR: {:.2})",
+                            star.snr,
+                            config.min_snr,
+                            star.x,
+                            star.y,
+                            star.hfr
+                        );
                         LOGGED_REJECTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                     continue;
@@ -239,8 +256,13 @@ pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<Dete
                 // 3. Eccentricity check - reject elongated objects (cosmic rays, tracking errors)
                 if star.eccentricity > config.max_eccentricity {
                     if should_log {
-                        tracing::debug!("Star rejected: eccentricity {:.2} > max {:.2} (pos: {:.1},{:.1})",
-                            star.eccentricity, config.max_eccentricity, star.x, star.y);
+                        tracing::debug!(
+                            "Star rejected: eccentricity {:.2} > max {:.2} (pos: {:.1},{:.1})",
+                            star.eccentricity,
+                            config.max_eccentricity,
+                            star.x,
+                            star.y
+                        );
                         LOGGED_REJECTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                     continue;
@@ -249,8 +271,13 @@ pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<Dete
                 // 4. Sharpness check - hot pixels have very high sharpness
                 if star.sharpness > config.max_sharpness {
                     if should_log {
-                        tracing::debug!("Star rejected: sharpness {:.2} > max {:.2} (pos: {:.1},{:.1})",
-                            star.sharpness, config.max_sharpness, star.x, star.y);
+                        tracing::debug!(
+                            "Star rejected: sharpness {:.2} > max {:.2} (pos: {:.1},{:.1})",
+                            star.sharpness,
+                            config.max_sharpness,
+                            star.x,
+                            star.y
+                        );
                         LOGGED_REJECTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                     continue;
@@ -260,8 +287,14 @@ pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<Dete
                 let area = star.flux / (star.peak - background).max(1.0);
                 if area < config.min_area as f64 || area > config.max_area as f64 {
                     if should_log {
-                        tracing::debug!("Star rejected: area {:.1} outside range [{}, {}] (pos: {:.1},{:.1})",
-                            area, config.min_area, config.max_area, star.x, star.y);
+                        tracing::debug!(
+                            "Star rejected: area {:.1} outside range [{}, {}] (pos: {:.1},{:.1})",
+                            area,
+                            config.min_area,
+                            config.max_area,
+                            star.x,
+                            star.y
+                        );
                         LOGGED_REJECTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                     continue;
@@ -282,48 +315,46 @@ pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<Dete
 fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f64) {
     // Sample every 4th pixel for speed
     // Parallelize sampling
-    let mut samples: Vec<f64> = pixels.par_iter()
-        .step_by(4)
-        .copied()
-        .collect();
-    
+    let mut samples: Vec<f64> = pixels.par_iter().step_by(4).copied().collect();
+
     if samples.is_empty() {
         return (0.0, 1.0);
     }
-    
+
     // Sigma clipping iterations
     for _ in 0..3 {
         samples.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         let median = samples[samples.len() / 2];
-        
+
         // Parallel MAD calculation
-        let mad: f64 = samples.par_iter()
-            .map(|&v| (v - median).abs())
-            .sum::<f64>() / samples.len() as f64;
+        let mad: f64 =
+            samples.par_iter().map(|&v| (v - median).abs()).sum::<f64>() / samples.len() as f64;
         let sigma = mad * 1.4826;
-        
+
         let lower = median - 3.0 * sigma;
         let upper = median + 3.0 * sigma;
-        
+
         // Parallel retain is not available directly on Vec, but we can filter and collect
         // However, retain is in-place and might be faster than allocating new vec
         // For now, keep sequential retain as it iterates already reduced set
         samples.retain(|&v| v >= lower && v <= upper);
-        
+
         if samples.is_empty() {
             return (median, sigma);
         }
     }
-    
+
     samples.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     let background = samples[samples.len() / 2];
-    
+
     // Estimate noise from remaining samples
-    let variance: f64 = samples.par_iter()
+    let variance: f64 = samples
+        .par_iter()
         .map(|&v| (v - background).powi(2))
-        .sum::<f64>() / samples.len() as f64;
+        .sum::<f64>()
+        / samples.len() as f64;
     let noise = variance.sqrt();
-    
+
     (background, noise.max(1.0))
 }
 
@@ -430,12 +461,20 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
     };
 
     // Calculate HFR (Half Flux Radius)
-    let hfr = calculate_hfr_at_point(ctx.pixels, ctx.width, ctx.height, centroid_x, centroid_y, ctx.background, radius);
+    let hfr = calculate_hfr_at_point(
+        ctx.pixels,
+        ctx.width,
+        ctx.height,
+        centroid_x,
+        centroid_y,
+        ctx.background,
+        radius,
+    );
 
     // Calculate FWHM from HFR
     // For Gaussian profile: FWHM = 2 * sqrt(2 * ln(2)) * σ
     // where HFR ≈ σ, giving FWHM ≈ 2.355 * HFR
-    const FWHM_TO_HFR_RATIO: f64 = 2.3548200450309493;  // 2 * sqrt(2 * ln(2))
+    const FWHM_TO_HFR_RATIO: f64 = 2.3548200450309493; // 2 * sqrt(2 * ln(2))
     let fwhm = hfr * FWHM_TO_HFR_RATIO;
 
     // Calculate SNR
@@ -453,7 +492,7 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
     let sharpness = if avg_flux_per_pixel > 0.0 {
         (peak_above_bg / avg_flux_per_pixel).min(1.0)
     } else {
-        1.0  // Default to high sharpness (reject) if can't calculate
+        1.0 // Default to high sharpness (reject) if can't calculate
     };
 
     Some(DetectedStar {
@@ -482,20 +521,20 @@ fn calculate_hfr_at_point(
 ) -> f64 {
     let mut total_flux = 0.0;
     let mut weighted_radius_sum = 0.0;
-    
+
     for dy in -radius..=radius {
         for dx in -radius..=radius {
             let x = (cx as i32 + dx).max(0).min(width as i32 - 1) as usize;
             let y = (cy as i32 + dy).max(0).min(height as i32 - 1) as usize;
-            
+
             let val = (pixels[y * width + x] - background).max(0.0);
             let dist = ((dx as f64).powi(2) + (dy as f64).powi(2)).sqrt();
-            
+
             total_flux += val;
             weighted_radius_sum += val * dist;
         }
     }
-    
+
     if total_flux > 0.0 {
         weighted_radius_sum / total_flux
     } else {
@@ -507,23 +546,24 @@ fn calculate_hfr_at_point(
 pub fn calculate_median_hfr(image: &ImageData) -> Option<f64> {
     let config = StarDetectionConfig::default();
     let stars = detect_stars(image, &config);
-    
+
     if stars.is_empty() {
         return None;
     }
-    
+
     // Use top 50% brightest stars for HFR
     let count = (stars.len() / 2).clamp(1, 50);
-    let mut hfrs: Vec<f64> = stars.iter()
+    let mut hfrs: Vec<f64> = stars
+        .iter()
         .take(count)
         .map(|s| s.hfr)
-        .filter(|&h| h > 0.0 && h < 20.0)  // Filter outliers
+        .filter(|&h| h > 0.0 && h < 20.0) // Filter outliers
         .collect();
-    
+
     if hfrs.is_empty() {
         return None;
     }
-    
+
     hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap());
     Some(hfrs[hfrs.len() / 2])
 }
@@ -531,10 +571,12 @@ pub fn calculate_median_hfr(image: &ImageData) -> Option<f64> {
 /// Calculate histogram for a 16-bit image
 pub fn calculate_histogram(image: &ImageData, bins: usize) -> Vec<u32> {
     let bin_size = 65536 / bins;
-    
+
     // Parallel histogram calculation
     // Each thread calculates a local histogram, then they are reduced
-    image.data.par_chunks_exact(2)
+    image
+        .data
+        .par_chunks_exact(2)
         .fold(
             || vec![0u32; bins],
             |mut hist, chunk| {
@@ -542,7 +584,7 @@ pub fn calculate_histogram(image: &ImageData, bins: usize) -> Vec<u32> {
                 let bin = (val / bin_size).min(bins - 1);
                 hist[bin] += 1;
                 hist
-            }
+            },
         )
         .reduce(
             || vec![0u32; bins],
@@ -551,22 +593,24 @@ pub fn calculate_histogram(image: &ImageData, bins: usize) -> Vec<u32> {
                     *h1 += h2;
                 }
                 hist1
-            }
+            },
         )
 }
 
 /// Calculate histogram for display (256 bins, logarithmic scale option)
 pub fn calculate_display_histogram(image: &ImageData, logarithmic: bool) -> Vec<f32> {
     let histogram = calculate_histogram(image, 256);
-    
+
     // Parallel processing for display conversion
     if logarithmic {
-        histogram.par_iter()
+        histogram
+            .par_iter()
             .map(|&count| if count > 0 { (count as f32).ln() } else { 0.0 })
             .collect()
     } else {
         let max_val = *histogram.iter().max().unwrap_or(&1) as f32;
-        histogram.par_iter()
+        histogram
+            .par_iter()
             .map(|&count| count as f32 / max_val)
             .collect()
     }
@@ -585,17 +629,21 @@ pub struct StarDetectionResult {
 }
 
 /// Run full star detection with summary statistics
-pub fn detect_stars_with_stats(image: &ImageData, config: &StarDetectionConfig) -> StarDetectionResult {
+pub fn detect_stars_with_stats(
+    image: &ImageData,
+    config: &StarDetectionConfig,
+) -> StarDetectionResult {
     let width = image.width as usize;
     let height = image.height as usize;
-    
+
     // Estimate background first
     // Parallel conversion
-    let pixels: Vec<f64> = image.data
+    let pixels: Vec<f64> = image
+        .data
         .par_chunks_exact(2)
         .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]) as f64)
         .collect();
-    
+
     let (background, noise) = if !pixels.is_empty() {
         estimate_background(&pixels, width, height)
     } else {
@@ -613,27 +661,41 @@ pub fn detect_stars_with_stats(image: &ImageData, config: &StarDetectionConfig) 
     } else {
         (0.0, 0.0, 0.0)
     };
-    tracing::info!("[STAR_DETECT] Image {}x{}, pixel range: {:.0}-{:.0}, avg: {:.1}",
-        width, height, pixel_stats.0, pixel_stats.1, pixel_stats.2);
-    tracing::info!("[STAR_DETECT] Background: {:.1}, Noise: {:.1}, Threshold: {:.1} (sigma={})",
-        background, noise, threshold, config.detection_sigma);
+    tracing::info!(
+        "[STAR_DETECT] Image {}x{}, pixel range: {:.0}-{:.0}, avg: {:.1}",
+        width,
+        height,
+        pixel_stats.0,
+        pixel_stats.1,
+        pixel_stats.2
+    );
+    tracing::info!(
+        "[STAR_DETECT] Background: {:.1}, Noise: {:.1}, Threshold: {:.1} (sigma={})",
+        background,
+        noise,
+        threshold,
+        config.detection_sigma
+    );
 
     let stars = detect_stars(image, config);
     let star_count = stars.len() as u32;
-    tracing::info!("[STAR_DETECT] Detected {} stars after filtering", star_count);
-    
+    tracing::info!(
+        "[STAR_DETECT] Detected {} stars after filtering",
+        star_count
+    );
+
     // Calculate median statistics
     let (median_hfr, median_fwhm, median_snr) = if !stars.is_empty() {
         let count = (stars.len() / 2).clamp(1, 50);
-        
+
         let mut hfrs: Vec<f64> = stars.iter().take(count).map(|s| s.hfr).collect();
         let mut fwhms: Vec<f64> = stars.iter().take(count).map(|s| s.fwhm).collect();
         let mut snrs: Vec<f64> = stars.iter().take(count).map(|s| s.snr).collect();
-        
+
         hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap());
         fwhms.sort_by(|a, b| a.partial_cmp(b).unwrap());
         snrs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        
+
         (
             hfrs[hfrs.len() / 2],
             fwhms[fwhms.len() / 2],
@@ -642,7 +704,7 @@ pub fn detect_stars_with_stats(image: &ImageData, config: &StarDetectionConfig) 
     } else {
         (0.0, 0.0, 0.0)
     };
-    
+
     StarDetectionResult {
         stars,
         star_count,
@@ -677,11 +739,7 @@ pub struct StarCropData {
 ///
 /// Returns an 80x80 (or smaller near edges) crop centered on the star,
 /// with pixel values auto-stretched to 0-255 range for display.
-pub fn extract_star_crop(
-    image: &ImageData,
-    star: &DetectedStar,
-    crop_size: u32,
-) -> StarCropData {
+pub fn extract_star_crop(image: &ImageData, star: &DetectedStar, crop_size: u32) -> StarCropData {
     let width = image.width as i32;
     let height = image.height as i32;
     let half_size = crop_size as i32 / 2;
@@ -705,7 +763,7 @@ pub fn extract_star_crop(
 
     for y in y_start..y_end {
         for x in x_start..x_end {
-            let idx = ((y * width + x) * 2) as usize;  // 2 bytes per pixel
+            let idx = ((y * width + x) * 2) as usize; // 2 bytes per pixel
             if idx + 1 < image.data.len() {
                 let val = u16::from_le_bytes([image.data[idx], image.data[idx + 1]]);
                 crop_pixels.push(val);
@@ -748,7 +806,11 @@ pub fn extract_top_star_crops(
 ) -> Vec<StarCropData> {
     // Sort stars by SNR (brightness) descending
     let mut sorted_stars: Vec<&DetectedStar> = stars.iter().collect();
-    sorted_stars.sort_by(|a, b| b.snr.partial_cmp(&a.snr).unwrap_or(std::cmp::Ordering::Equal));
+    sorted_stars.sort_by(|a, b| {
+        b.snr
+            .partial_cmp(&a.snr)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     // Extract crops for top N
     sorted_stars

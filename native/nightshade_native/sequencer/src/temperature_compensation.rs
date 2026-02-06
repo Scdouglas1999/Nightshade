@@ -3,7 +3,9 @@
 //! Monitors focuser temperature and adjusts focus position based on thermal coefficient
 //! to compensate for focus drift during long imaging sessions.
 
-use crate::instructions::{InstructionContext, InstructionResult, wait_for_focuser_stop_after_halt};
+use crate::instructions::{
+    wait_for_focuser_stop_after_halt, InstructionContext, InstructionResult,
+};
 use std::time::Duration;
 
 /// Execute temperature compensation
@@ -46,7 +48,10 @@ pub async fn execute_temperature_compensation(
             );
         }
         Err(e) => {
-            return InstructionResult::failure(format!("Failed to read focuser temperature: {}", e));
+            return InstructionResult::failure(format!(
+                "Failed to read focuser temperature: {}",
+                e
+            ));
         }
     };
 
@@ -54,7 +59,10 @@ pub async fn execute_temperature_compensation(
 
     // Emit progress with temperature reading
     if let Some(cb) = progress_callback {
-        cb(20.0, format!("Reading focuser temperature: {:.1}°C", current_temp));
+        cb(
+            20.0,
+            format!("Reading focuser temperature: {:.1}°C", current_temp),
+        );
     }
 
     // Check if we have trigger state with baseline temperature
@@ -62,7 +70,7 @@ pub async fn execute_temperature_compensation(
         Some(lock) => lock,
         None => {
             return InstructionResult::failure(
-                "Temperature compensation requires trigger state for baseline tracking"
+                "Temperature compensation requires trigger state for baseline tracking",
             );
         }
     };
@@ -101,7 +109,10 @@ pub async fn execute_temperature_compensation(
 
     // Emit progress for calculating compensation
     if let Some(cb) = progress_callback {
-        cb(40.0, format!("Calculating compensation: delta temp = {:.2}°C", temp_delta));
+        cb(
+            40.0,
+            format!("Calculating compensation: delta temp = {:.2}°C", temp_delta),
+        );
     }
 
     // Check if temperature change exceeds threshold
@@ -169,12 +180,19 @@ pub async fn execute_temperature_compensation(
         }
     };
 
-    tracing::info!("Moving focuser from {} to {} ({:+} steps)",
-        current_position, new_position, position_delta);
+    tracing::info!(
+        "Moving focuser from {} to {} ({:+} steps)",
+        current_position,
+        new_position,
+        position_delta
+    );
 
     // Emit progress for moving focuser
     if let Some(cb) = progress_callback {
-        cb(60.0, format!("Moving focuser by {:+} steps", position_delta));
+        cb(
+            60.0,
+            format!("Moving focuser by {:+} steps", position_delta),
+        );
     }
 
     // Drop the write lock before device operation
@@ -186,7 +204,11 @@ pub async fn execute_temperature_compensation(
     }
 
     // Move focuser
-    if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, new_position).await {
+    if let Err(e) = ctx
+        .device_ops
+        .focuser_move_to(&focuser_id, new_position)
+        .await
+    {
         return InstructionResult::failure(format!("Failed to move focuser: {}", e));
     }
 
@@ -202,11 +224,15 @@ pub async fn execute_temperature_compensation(
 
     loop {
         // Check cancellation
-        if ctx.cancellation_token.load(std::sync::atomic::Ordering::Relaxed) {
+        if ctx
+            .cancellation_token
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
             tracing::warn!("Temperature compensation cancelled, halting focuser");
             let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
             // Wait for focuser to actually stop before returning
-            wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10)).await;
+            wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
+                .await;
             return InstructionResult::cancelled("Temperature compensation cancelled");
         }
 
@@ -225,7 +251,10 @@ pub async fn execute_temperature_compensation(
                     // Progress from 70-90% during movement based on time (assume ~30s typical move)
                     let move_progress = 70.0 + ((elapsed_secs as f64 / 30.0) * 20.0).min(20.0);
                     if let Some(cb) = progress_callback {
-                        cb(move_progress, format!("Focuser moving... ({:.0}s)", elapsed_secs));
+                        cb(
+                            move_progress,
+                            format!("Focuser moving... ({:.0}s)", elapsed_secs),
+                        );
                     }
                 }
             }
@@ -239,7 +268,8 @@ pub async fn execute_temperature_compensation(
         if move_start.elapsed() > timeout {
             let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
             // Wait for focuser to actually stop before returning
-            wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10)).await;
+            wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
+                .await;
             return InstructionResult::failure(format!(
                 "Focuser move timed out after {} seconds",
                 config.timeout_secs
@@ -278,13 +308,18 @@ pub async fn execute_temperature_compensation(
 
     // Emit final progress
     if let Some(cb) = progress_callback {
-        cb(100.0, format!("Temperature compensation complete: {:+} steps", position_delta));
+        cb(
+            100.0,
+            format!(
+                "Temperature compensation complete: {:+} steps",
+                position_delta
+            ),
+        );
     }
 
     InstructionResult::success_with_message(format!(
         "Temperature compensation complete: moved {:+} steps ({:.2}°C change)",
-        position_delta,
-        temp_delta
+        position_delta, temp_delta
     ))
 }
 
@@ -326,8 +361,8 @@ impl Default for TemperatureCompensationConfig {
     fn default() -> Self {
         Self {
             thermal_coefficient: -20.0, // Typical value for many systems
-            min_temp_change: 0.5,        // 0.5°C minimum change
-            min_step_change: 5,          // 5 steps minimum move
+            min_temp_change: 0.5,       // 0.5°C minimum change
+            min_step_change: 5,         // 5 steps minimum move
             mode: CompensationMode::Relative,
             reset_baseline_after_move: true,
             timeout_secs: 120,

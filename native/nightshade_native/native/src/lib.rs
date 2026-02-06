@@ -13,18 +13,18 @@
 
 pub mod camera;
 pub mod discovery;
+pub mod quirks;
 pub mod sync;
 pub mod traits;
 pub mod utils;
-pub mod quirks;
 pub mod vendor;
 
 pub use camera::*;
 pub use discovery::*;
+pub use quirks::*;
 pub use sync::*;
 pub use traits::*;
 pub use utils::*;
-pub use quirks::*;
 pub use vendor::*;
 
 /// Native driver vendor types
@@ -81,8 +81,3 @@ pub fn is_available() -> bool {
     // Native drivers are available on all platforms that have vendor SDKs
     true
 }
-
-
-
-
-

@@ -225,12 +225,10 @@ fn atik_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
         // Atik One series
         (
             QuirkMatcher::ModelContains("One"),
-            vec![
-                Quirk::Camera(CameraQuirk::CoolerRange {
-                    min_temp: -40.0,
-                    max_temp: 20.0,
-                }),
-            ],
+            vec![Quirk::Camera(CameraQuirk::CoolerRange {
+                min_temp: -40.0,
+                max_temp: 20.0,
+            })],
         ),
     ]
 }
@@ -300,7 +298,9 @@ fn fli_quirks() -> Vec<(QuirkMatcher, Vec<Quirk>)> {
         // ML series
         (
             QuirkMatcher::ModelContains("ML"),
-            vec![Quirk::Exposure(ExposureQuirk::ExtendedDownloadTimeoutSecs(60))],
+            vec![Quirk::Exposure(ExposureQuirk::ExtendedDownloadTimeoutSecs(
+                60,
+            ))],
         ),
     ]
 }
@@ -492,9 +492,7 @@ impl QuirkMatcher {
     pub fn matches(&self, device_id: &str, model_name: &str) -> bool {
         match self {
             QuirkMatcher::VendorWide => true,
-            QuirkMatcher::ModelContains(s) => {
-                model_name.to_lowercase().contains(&s.to_lowercase())
-            }
+            QuirkMatcher::ModelContains(s) => model_name.to_lowercase().contains(&s.to_lowercase()),
             QuirkMatcher::ModelExact(s) => model_name == *s,
             QuirkMatcher::IdContains(s) => device_id.to_lowercase().contains(&s.to_lowercase()),
         }
@@ -708,7 +706,8 @@ mod tests {
         assert!(!all.is_empty());
 
         // Should have quirks for multiple vendors
-        let vendors: std::collections::HashSet<_> = all.iter().map(|(v, _, _)| v.as_str()).collect();
+        let vendors: std::collections::HashSet<_> =
+            all.iter().map(|(v, _, _)| v.as_str()).collect();
         assert!(vendors.len() > 5);
     }
 }

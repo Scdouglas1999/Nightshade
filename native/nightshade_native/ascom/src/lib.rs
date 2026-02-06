@@ -72,66 +72,67 @@ pub fn is_available() -> bool {
 // Re-export Windows-specific types when on Windows
 #[cfg(windows)]
 pub use windows_impl::{
+    get_timeout_config,
     // COM initialization
-    init_com, uninit_com,
+    init_com,
     // Device discovery
     probe_device_name,
-    // Device connection wrapper
-    AscomDeviceConnection,
+    set_timeout_config,
+    uninit_com,
     // Device types
     AscomCamera,
-    AscomMount,
-    AscomFocuser,
-    AscomFilterWheel,
-    AscomRotator,
-    AscomDome,
-    AscomSafetyMonitor,
-    AscomObservingConditions,
-    AscomSwitch,
+    AscomCleanupGuard,
     AscomCoverCalibrator,
+    // Device connection wrapper
+    AscomDeviceConnection,
+    AscomDisconnectable,
+    AscomDome,
     // Error types
     AscomError,
+    AscomFilterWheel,
+    AscomFocuser,
+    AscomMount,
+    AscomObservingConditions,
+    // RAII guards for resource cleanup
+    AscomOperationGuard,
     AscomResult,
-    // Configuration types
-    TimeoutConfig,
-    get_timeout_config,
-    set_timeout_config,
-    // Health monitoring
-    ConnectionHealth,
-    HealthMonitor,
-    // Batch status types - Camera
-    CameraThermalStatus,
-    CameraSensorConfig,
+    AscomRotator,
+    AscomSafetyMonitor,
+    AscomSwitch,
     CameraExposureSettings,
     CameraFullStatus,
-    // Batch status types - Mount
-    MountPositionStatus,
-    MountMotionStatus,
-    MountGuideRates,
-    MountCapabilities,
-    MountFullStatus,
+    CameraSensorConfig,
+    // Batch status types - Camera
+    CameraThermalStatus,
+    // Health monitoring
+    ConnectionHealth,
+    // Batch status types - Cover Calibrator
+    CoverCalibratorFullStatus,
+    // Batch status types - Dome
+    DomeFullStatus,
+    // Batch status types - Filter Wheel
+    FilterWheelFullStatus,
     // Batch status types - Focuser
     FocuserCapabilities,
     FocuserFullStatus,
-    // Batch status types - Filter Wheel
-    FilterWheelFullStatus,
+    HealthMonitor,
+    MountCapabilities,
+    MountFullStatus,
+    MountGuideRates,
+    MountMotionStatus,
+    // Batch status types - Mount
+    MountPositionStatus,
+    ObservingConditionsFullStatus,
     // Batch status types - Rotator
     RotatorFullStatus,
-    // Batch status types - Dome
-    DomeFullStatus,
     // Batch status types - Safety Monitor
     SafetyMonitorFullStatus,
+    SkyStatus,
+    // Batch status types - Switch
+    SwitchFullStatus,
+    // Configuration types
+    TimeoutConfig,
     // Batch status types - Observing Conditions
     WeatherStatus,
     WindStatus,
-    SkyStatus,
-    ObservingConditionsFullStatus,
-    // Batch status types - Switch
-    SwitchFullStatus,
-    // Batch status types - Cover Calibrator
-    CoverCalibratorFullStatus,
-    // RAII guards for resource cleanup
-    AscomOperationGuard,
-    AscomCleanupGuard,
-    AscomDisconnectable,
 };

@@ -64,12 +64,12 @@ impl Default for BufferPoolConfig {
             max_capacity: 8,
             // Common sensor sizes in pixels (for u16 buffers, multiply by 2 for bytes)
             size_buckets: vec![
-                1936 * 1096,     // Small sensors (ASI120)
-                2048 * 2048,     // 4MP square sensors
-                4144 * 2822,     // ASI2600 (11.7MP)
-                4656 * 3520,     // ASI6200 (16.4MP)
-                6248 * 4176,     // ASI2400 (26MP)
-                9576 * 6388,     // ASI128 (61MP)
+                1936 * 1096, // Small sensors (ASI120)
+                2048 * 2048, // 4MP square sensors
+                4144 * 2822, // ASI2600 (11.7MP)
+                4656 * 3520, // ASI6200 (16.4MP)
+                6248 * 4176, // ASI2400 (26MP)
+                9576 * 6388, // ASI128 (61MP)
             ],
         }
     }
@@ -305,7 +305,9 @@ where
             self.metrics.pool_size.fetch_sub(1, Ordering::Relaxed);
         } else {
             self.metrics.misses.fetch_add(1, Ordering::Relaxed);
-            self.metrics.total_allocations.fetch_add(1, Ordering::Relaxed);
+            self.metrics
+                .total_allocations
+                .fetch_add(1, Ordering::Relaxed);
         }
         self.metrics.active_buffers.fetch_add(1, Ordering::Relaxed);
 
@@ -335,7 +337,9 @@ where
         let mut inner = self.inner.lock().unwrap();
         let pool_size: usize = inner.buckets.values().map(|b| b.len()).sum();
         inner.buckets.values_mut().for_each(|b| b.clear());
-        self.metrics.pool_size.fetch_sub(pool_size, Ordering::Relaxed);
+        self.metrics
+            .pool_size
+            .fetch_sub(pool_size, Ordering::Relaxed);
     }
 
     /// Get the current number of buffers in the pool
@@ -376,12 +380,18 @@ where
 {
     /// Get the buffer as a slice
     pub fn as_slice(&self) -> &[T] {
-        self.buffer.as_ref().expect("buffer already taken").as_slice()
+        self.buffer
+            .as_ref()
+            .expect("buffer already taken")
+            .as_slice()
     }
 
     /// Get the buffer as a mutable slice
     pub fn as_slice_mut(&mut self) -> &mut [T] {
-        self.buffer.as_mut().expect("buffer already taken").as_mut_slice()
+        self.buffer
+            .as_mut()
+            .expect("buffer already taken")
+            .as_mut_slice()
     }
 
     /// Get the length of the buffer
@@ -391,7 +401,10 @@ where
 
     /// Check if the buffer is empty
     pub fn is_empty(&self) -> bool {
-        self.buffer.as_ref().expect("buffer already taken").is_empty()
+        self.buffer
+            .as_ref()
+            .expect("buffer already taken")
+            .is_empty()
     }
 
     /// Consume the PooledBuffer and return the inner Vec
@@ -409,12 +422,18 @@ where
     /// If the new size is larger than the current capacity, this may
     /// reallocate. The buffer will still return to the pool on drop.
     pub fn resize(&mut self, new_len: usize) {
-        self.buffer.as_mut().expect("buffer already taken").resize(new_len, T::default());
+        self.buffer
+            .as_mut()
+            .expect("buffer already taken")
+            .resize(new_len, T::default());
     }
 
     /// Truncate the buffer to a smaller length
     pub fn truncate(&mut self, len: usize) {
-        self.buffer.as_mut().expect("buffer already taken").truncate(len);
+        self.buffer
+            .as_mut()
+            .expect("buffer already taken")
+            .truncate(len);
     }
 
     /// Get an iterator over the buffer
@@ -424,7 +443,10 @@ where
 
     /// Get a mutable iterator over the buffer
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, T> {
-        self.buffer.as_mut().expect("buffer already taken").iter_mut()
+        self.buffer
+            .as_mut()
+            .expect("buffer already taken")
+            .iter_mut()
     }
 }
 
@@ -432,13 +454,19 @@ impl<T: Default + Clone> Deref for PooledBuffer<T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        self.buffer.as_ref().expect("buffer already taken").as_slice()
+        self.buffer
+            .as_ref()
+            .expect("buffer already taken")
+            .as_slice()
     }
 }
 
 impl<T: Default + Clone> DerefMut for PooledBuffer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.buffer.as_mut().expect("buffer already taken").as_mut_slice()
+        self.buffer
+            .as_mut()
+            .expect("buffer already taken")
+            .as_mut_slice()
     }
 }
 
@@ -485,12 +513,12 @@ pub fn global_u8_pool() -> &'static BufferPool<u8> {
             max_capacity: 6,
             // Byte sizes for common sensors (assuming 2 bytes per pixel for 16-bit)
             size_buckets: vec![
-                1936 * 1096 * 2,     // Small sensors
-                2048 * 2048 * 2,     // 4MP square sensors
-                4144 * 2822 * 2,     // ASI2600 (11.7MP) - 23.4MB
-                4656 * 3520 * 2,     // ASI6200 (16.4MP) - 32.8MB
-                6248 * 4176 * 2,     // ASI2400 (26MP) - 52MB
-                9576 * 6388 * 2,     // ASI128 (61MP) - 122MB
+                1936 * 1096 * 2, // Small sensors
+                2048 * 2048 * 2, // 4MP square sensors
+                4144 * 2822 * 2, // ASI2600 (11.7MP) - 23.4MB
+                4656 * 3520 * 2, // ASI6200 (16.4MP) - 32.8MB
+                6248 * 4176 * 2, // ASI2400 (26MP) - 52MB
+                9576 * 6388 * 2, // ASI128 (61MP) - 122MB
             ],
         };
         BufferPool::new(config)
@@ -505,12 +533,12 @@ pub fn global_u16_pool() -> &'static BufferPool<u16> {
             max_capacity: 6,
             // Pixel counts for common sensors
             size_buckets: vec![
-                1936 * 1096,         // Small sensors (~2MP)
-                2048 * 2048,         // 4MP square sensors
-                4144 * 2822,         // ASI2600 (11.7MP)
-                4656 * 3520,         // ASI6200 (16.4MP)
-                6248 * 4176,         // ASI2400 (26MP)
-                9576 * 6388,         // ASI128 (61MP)
+                1936 * 1096, // Small sensors (~2MP)
+                2048 * 2048, // 4MP square sensors
+                4144 * 2822, // ASI2600 (11.7MP)
+                4656 * 3520, // ASI6200 (16.4MP)
+                6248 * 4176, // ASI2400 (26MP)
+                9576 * 6388, // ASI128 (61MP)
             ],
         };
         BufferPool::new(config)
@@ -522,7 +550,10 @@ pub fn global_u16_pool() -> &'static BufferPool<u16> {
 /// This should be called early in application startup if custom
 /// configurations are needed. If not called, default configurations
 /// are used on first access.
-pub fn init_global_pools(u8_config: Option<BufferPoolConfig>, u16_config: Option<BufferPoolConfig>) {
+pub fn init_global_pools(
+    u8_config: Option<BufferPoolConfig>,
+    u16_config: Option<BufferPoolConfig>,
+) {
     if let Some(config) = u8_config {
         let _ = GLOBAL_U8_POOL.set(BufferPool::new(config));
     }

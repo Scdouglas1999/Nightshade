@@ -10,9 +10,9 @@
 //! 4. Optionally takes flat frames
 //! 5. Turns off flat panel and closes cover
 
-use crate::{FlatWizardConfig, PanelLocation};
 use crate::instructions::{InstructionContext, InstructionResult};
 use crate::NodeStatus;
+use crate::{FlatWizardConfig, PanelLocation};
 
 /// Execute the flat wizard to determine optimal flat exposure
 pub async fn execute_flat_wizard(
@@ -39,7 +39,10 @@ pub async fn execute_flat_wizard(
     );
 
     // Check cancellation
-    if ctx.cancellation_token.load(std::sync::atomic::Ordering::Relaxed) {
+    if ctx
+        .cancellation_token
+        .load(std::sync::atomic::Ordering::Relaxed)
+    {
         return InstructionResult::failure("Operation cancelled");
     }
 
@@ -53,14 +56,22 @@ pub async fn execute_flat_wizard(
         if let Some(fw_id) = &ctx.filterwheel_id {
             // If filter_index is specified, use it directly (most reliable)
             if let Some(index) = config.filter_index {
-                tracing::info!("Changing to filter position: {} (name: {:?})", index, config.filter);
+                tracing::info!(
+                    "Changing to filter position: {} (name: {:?})",
+                    index,
+                    config.filter
+                );
                 if let Err(e) = ctx.device_ops.filterwheel_set_position(fw_id, index).await {
                     return InstructionResult::failure(format!("Failed to change filter: {}", e));
                 }
             } else if let Some(filter_name) = &config.filter {
                 // Fall back to name-based lookup
                 tracing::info!("Changing to filter by name: {}", filter_name);
-                if let Err(e) = ctx.device_ops.filterwheel_set_filter_by_name(fw_id, filter_name).await {
+                if let Err(e) = ctx
+                    .device_ops
+                    .filterwheel_set_filter_by_name(fw_id, filter_name)
+                    .await
+                {
                     return InstructionResult::failure(format!("Failed to change filter: {}", e));
                 }
             }
@@ -105,7 +116,8 @@ pub async fn execute_flat_wizard(
         camera_id,
         &mut current_brightness,
         progress_callback,
-    ).await;
+    )
+    .await;
 
     // Clean up flat panel if we're using one
     if matches!(config.panel_location, PanelLocation::FlatPanel) {
@@ -169,7 +181,10 @@ async fn setup_flat_panel(
 
     let device_id = cc_id.unwrap();
 
-    tracing::info!("Setting up flat panel: opening cover and turning on light at brightness {}", brightness);
+    tracing::info!(
+        "Setting up flat panel: opening cover and turning on light at brightness {}",
+        brightness
+    );
 
     // Emit progress for opening cover
     if let Some(cb) = progress_callback {
@@ -186,11 +201,17 @@ async fn setup_flat_panel(
     let timeout = std::time::Duration::from_secs(60);
     let start = std::time::Instant::now();
     loop {
-        if ctx.cancellation_token.load(std::sync::atomic::Ordering::Relaxed) {
+        if ctx
+            .cancellation_token
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
             return Err("Operation cancelled".to_string());
         }
 
-        let state = ctx.device_ops.cover_calibrator_get_cover_state(device_id).await
+        let state = ctx
+            .device_ops
+            .cover_calibrator_get_cover_state(device_id)
+            .await
             .unwrap_or(4); // Default to Unknown
 
         if state == 3 {
@@ -216,18 +237,28 @@ async fn setup_flat_panel(
 
     // Turn on the calibrator (flat light)
     tracing::info!("Turning on calibrator at brightness {}...", brightness);
-    if let Err(e) = ctx.device_ops.cover_calibrator_calibrator_on(device_id, brightness).await {
+    if let Err(e) = ctx
+        .device_ops
+        .cover_calibrator_calibrator_on(device_id, brightness)
+        .await
+    {
         return Err(format!("Failed to turn on calibrator: {}", e));
     }
 
     // Wait for calibrator to be ready
     let start = std::time::Instant::now();
     loop {
-        if ctx.cancellation_token.load(std::sync::atomic::Ordering::Relaxed) {
+        if ctx
+            .cancellation_token
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
             return Err("Operation cancelled".to_string());
         }
 
-        let state = ctx.device_ops.cover_calibrator_get_calibrator_state(device_id).await
+        let state = ctx
+            .device_ops
+            .cover_calibrator_get_calibrator_state(device_id)
+            .await
             .unwrap_or(4); // Default to Unknown
 
         if state == 3 {
@@ -271,7 +302,10 @@ async fn cleanup_flat_panel(ctx: &InstructionContext) -> Result<(), String> {
     // Wait for cover to close (with short timeout)
     let start = std::time::Instant::now();
     while start.elapsed() < std::time::Duration::from_secs(30) {
-        let state = ctx.device_ops.cover_calibrator_get_cover_state(cc_id).await
+        let state = ctx
+            .device_ops
+            .cover_calibrator_get_cover_state(cc_id)
+            .await
             .unwrap_or(4);
         if state == 1 {
             // Closed
@@ -294,12 +328,17 @@ async fn set_panel_brightness(ctx: &InstructionContext, brightness: i32) -> Resu
     tracing::info!("Adjusting flat panel brightness to {}", brightness);
 
     // Turn on calibrator at new brightness
-    ctx.device_ops.cover_calibrator_calibrator_on(cc_id, brightness).await?;
+    ctx.device_ops
+        .cover_calibrator_calibrator_on(cc_id, brightness)
+        .await?;
 
     // Wait for calibrator to stabilize
     let start = std::time::Instant::now();
     while start.elapsed() < std::time::Duration::from_secs(10) {
-        let state = ctx.device_ops.cover_calibrator_get_calibrator_state(cc_id).await
+        let state = ctx
+            .device_ops
+            .cover_calibrator_get_calibrator_state(cc_id)
+            .await
             .unwrap_or(4);
         if state == 3 {
             // Ready
@@ -341,7 +380,11 @@ async fn position_for_flats(
                 let zenith_ra = lst;
                 let zenith_dec = lat;
 
-                tracing::info!("Slewing to zenith: RA={:.4}h, Dec={:.4}", zenith_ra, zenith_dec);
+                tracing::info!(
+                    "Slewing to zenith: RA={:.4}h, Dec={:.4}",
+                    zenith_ra,
+                    zenith_dec
+                );
 
                 ctx.device_ops
                     .mount_slew_to_coordinates(mount_id, zenith_ra, zenith_dec)
@@ -368,7 +411,10 @@ async fn position_for_flats(
 
                 // Emit progress for slew
                 if let Some(cb) = progress_callback {
-                    cb(12.0, format!("Slewing for {:?} sky flats", config.panel_location));
+                    cb(
+                        12.0,
+                        format!("Slewing for {:?} sky flats", config.panel_location),
+                    );
                 }
 
                 // Sky flats are typically taken at ~60-70 altitude
@@ -427,15 +473,13 @@ fn altaz_to_radec(altitude_deg: f64, azimuth_deg: f64, longitude_deg: f64) -> (f
     let lat_rad = latitude_deg.to_radians();
 
     // Convert alt/az to dec
-    let dec_rad = (alt_rad.sin() * lat_rad.sin()
-        + alt_rad.cos() * lat_rad.cos() * az_rad.cos())
-    .asin();
+    let dec_rad =
+        (alt_rad.sin() * lat_rad.sin() + alt_rad.cos() * lat_rad.cos() * az_rad.cos()).asin();
     let dec_deg = dec_rad.to_degrees();
 
     // Convert alt/az to hour angle
-    let ha_rad = (az_rad.sin() * alt_rad.cos()
-        / (lat_rad.cos() * dec_rad.cos()))
-    .atan2(alt_rad.sin() - lat_rad.sin() * dec_rad.sin());
+    let ha_rad = (az_rad.sin() * alt_rad.cos() / (lat_rad.cos() * dec_rad.cos()))
+        .atan2(alt_rad.sin() - lat_rad.sin() * dec_rad.sin());
     let ha_hours = ha_rad.to_degrees() / 15.0;
 
     // RA = LST - HA
@@ -472,7 +516,10 @@ async fn find_optimal_exposure_with_brightness(
 
     for iteration in 1..=max_iterations {
         // Check cancellation
-        if ctx.cancellation_token.load(std::sync::atomic::Ordering::Relaxed) {
+        if ctx
+            .cancellation_token
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
             return Err("Operation cancelled".to_string());
         }
 
@@ -483,7 +530,10 @@ async fn find_optimal_exposure_with_brightness(
         // Each iteration takes us further through the search
         let progress = 30.0 + (iteration as f64 / max_iterations as f64) * 55.0;
         if let Some(cb) = progress_callback {
-            cb(progress, format!("Capturing flat frame {}/{}", iteration, max_iterations));
+            cb(
+                progress,
+                format!("Capturing flat frame {}/{}", iteration, max_iterations),
+            );
         }
 
         tracing::info!(

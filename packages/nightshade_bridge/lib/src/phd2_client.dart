@@ -604,8 +604,10 @@ class Phd2Client {
   }
 
   /// Send a JSON-RPC request to PHD2
-  Future<dynamic> _sendRequest(String method,
-      [Map<String, dynamic>? params]) async {
+  ///
+  /// [params] can be a Map (named params), List (positional params),
+  /// or a scalar value - matching PHD2's JSON-RPC 2.0 protocol.
+  Future<dynamic> _sendRequest(String method, [dynamic params]) async {
     if (!_connected || _socket == null) {
       throw StateError('Not connected to PHD2');
     }
@@ -663,13 +665,15 @@ class Phd2Client {
   }
 
   /// Pause guiding
+  /// PHD2 expects positional params: [paused, "full"]
   Future<void> pauseGuiding() async {
-    await _sendRequest('set_paused', {'paused': true});
+    await _sendRequest('set_paused', [true, 'full']);
   }
 
   /// Resume guiding
+  /// PHD2 expects positional params: [paused, "full"]
   Future<void> resumeGuiding() async {
-    await _sendRequest('set_paused', {'paused': false});
+    await _sendRequest('set_paused', [false, 'full']);
   }
 
   /// Dither
@@ -716,8 +720,9 @@ class Phd2Client {
   }
 
   /// Set exposure time
+  /// PHD2 expects a raw scalar value in milliseconds
   Future<void> setExposure(double seconds) async {
-    await _sendRequest('set_exposure', {'exposure': (seconds * 1000).round()});
+    await _sendRequest('set_exposure', [(seconds * 1000).round()]);
   }
 
   /// Get camera connection status
@@ -742,6 +747,118 @@ class Phd2Client {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Clear PHD2 calibration data
+  ///
+  /// [which] can be 'mount', 'ao', or 'both' (default)
+  /// PHD2 expects a raw string parameter, not a named map.
+  Future<void> clearCalibration({String which = 'both'}) async {
+    await _sendRequest('clear_calibration', [which]);
+  }
+
+  /// Flip PHD2 calibration (after meridian flip)
+  Future<void> flipCalibration() async {
+    await _sendRequest('flip_calibration');
+  }
+
+  /// Set lock position for guiding
+  ///
+  /// [x] and [y] are pixel coordinates on the guide camera
+  /// [exact] if true, uses exact position; if false, PHD2 will find nearest star
+  /// PHD2 expects positional array params: [x, y, exact]
+  Future<void> setLockPosition({
+    required double x,
+    required double y,
+    bool exact = false,
+  }) async {
+    await _sendRequest('set_lock_position', [x, y, exact]);
+  }
+
+  /// Get the current lock position
+  ///
+  /// Returns (x, y) pixel coordinates of the lock position
+  Future<(double, double)> getLockPosition() async {
+    final result = await _sendRequest('get_lock_position');
+    if (result is List && result.length >= 2) {
+      return ((result[0] as num).toDouble(), (result[1] as num).toDouble());
+    }
+    throw StateError('Invalid lock position response from PHD2: $result');
+  }
+
+  /// Deselect the current guide star
+  Future<void> deselectStar() async {
+    await _sendRequest('deselect_star');
+  }
+
+  /// Set a guiding algorithm parameter
+  ///
+  /// [axis] is 'x' (RA) or 'y' (Dec)
+  /// [name] is the parameter name (e.g., 'Aggressiveness', 'MinMove')
+  /// [value] is the new parameter value
+  Future<void> setAlgoParam({
+    required String axis,
+    required String name,
+    required double value,
+  }) async {
+    await _sendRequest('set_algo_param', {
+      'axis': axis,
+      'name': name,
+      'value': value,
+    });
+  }
+
+  /// Get a guiding algorithm parameter value
+  ///
+  /// [axis] is 'x' (RA) or 'y' (Dec)
+  /// [name] is the parameter name
+  Future<double> getAlgoParam({
+    required String axis,
+    required String name,
+  }) async {
+    final result = await _sendRequest('get_algo_param', {
+      'axis': axis,
+      'name': name,
+    });
+    return (result as num).toDouble();
+  }
+
+  /// Get algorithm parameter names for an axis
+  ///
+  /// [axis] is 'x' (RA) or 'y' (Dec)
+  Future<List<String>> getAlgoParamNames({required String axis}) async {
+    final result = await _sendRequest('get_algo_param_names', {'axis': axis});
+    if (result is List) {
+      return result.cast<String>();
+    }
+    return [];
+  }
+
+  /// Find a guide star and return its position
+  ///
+  /// Returns (x, y) pixel coordinates of the found star.
+  /// Throws if no star could be found.
+  Future<(double, double)> findStar() async {
+    final result = await _sendRequest('find_star');
+    if (result is List && result.length >= 2) {
+      return ((result[0] as num).toDouble(), (result[1] as num).toDouble());
+    }
+    throw StateError('PHD2 find_star returned invalid response: $result');
+  }
+
+  /// Get star image data from PHD2
+  ///
+  /// Returns a map with top-level fields:
+  /// - 'frame': frame number (int)
+  /// - 'width', 'height': image dimensions
+  /// - 'pixels': base64-encoded pixel data
+  /// - 'star_pos': [x, y] array if a star is selected
+  Future<Map<String, dynamic>> getStarImage({int size = 15}) async {
+    final result = await _sendRequest('get_star_image', {'size': size});
+    if (result is Map) {
+      return Map<String, dynamic>.from(result);
+    }
+    throw StateError('PHD2 get_star_image returned invalid response: $result');
   }
 
   /// Dispose resources

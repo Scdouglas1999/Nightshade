@@ -34,10 +34,10 @@ use crate::utils::wait_for_exposure;
 use crate::NativeVendor;
 use async_trait::async_trait;
 use nightshade_imaging::buffer_pool::global_u8_pool;
-use std::ffi::{c_char, c_int, c_uint, c_double, c_void, CStr, CString};
+use std::ffi::{c_char, c_double, c_int, c_uint, c_void, CStr, CString};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 // =============================================================================
@@ -135,7 +135,7 @@ pub enum QhyControl {
 struct QhySdk {
     #[allow(dead_code)]
     lib: libloading::Library,
-    
+
     // Function pointers - Core
     init_sdk: unsafe extern "C" fn() -> c_uint,
     release_sdk: unsafe extern "C" fn() -> c_uint,
@@ -143,36 +143,59 @@ struct QhySdk {
     get_qhyccd_id: unsafe extern "C" fn(c_uint, *mut c_char) -> c_uint,
     open_qhyccd: unsafe extern "C" fn(*const c_char) -> QhyCamHandle,
     close_qhyccd: unsafe extern "C" fn(QhyCamHandle) -> c_uint,
-    
+
     // Camera initialization
     set_qhyccd_stream_mode: unsafe extern "C" fn(QhyCamHandle, c_uint) -> c_uint,
     init_qhyccd: unsafe extern "C" fn(QhyCamHandle) -> c_uint,
-    
+
     // Camera info
     get_qhyccd_chip_info: unsafe extern "C" fn(
         QhyCamHandle,
-        *mut c_double, *mut c_double, // chip_w, chip_h
-        *mut c_uint, *mut c_uint,     // image_w, image_h
-        *mut c_double, *mut c_double, // pixel_w, pixel_h
-        *mut c_uint                    // bpp
+        *mut c_double,
+        *mut c_double, // chip_w, chip_h
+        *mut c_uint,
+        *mut c_uint, // image_w, image_h
+        *mut c_double,
+        *mut c_double, // pixel_w, pixel_h
+        *mut c_uint,   // bpp
     ) -> c_uint,
     is_qhyccd_control_available: unsafe extern "C" fn(QhyCamHandle, c_int) -> c_uint,
-    get_qhyccd_effective_area: unsafe extern "C" fn(QhyCamHandle, *mut c_uint, *mut c_uint, *mut c_uint, *mut c_uint) -> c_uint,
-    
+    get_qhyccd_effective_area: unsafe extern "C" fn(
+        QhyCamHandle,
+        *mut c_uint,
+        *mut c_uint,
+        *mut c_uint,
+        *mut c_uint,
+    ) -> c_uint,
+
     // Camera control
     set_qhyccd_param: unsafe extern "C" fn(QhyCamHandle, c_int, c_double) -> c_uint,
     get_qhyccd_param: unsafe extern "C" fn(QhyCamHandle, c_int) -> c_double,
-    get_qhyccd_param_min_max_step: unsafe extern "C" fn(QhyCamHandle, c_int, *mut c_double, *mut c_double, *mut c_double) -> c_uint,
-    set_qhyccd_resolution: unsafe extern "C" fn(QhyCamHandle, c_uint, c_uint, c_uint, c_uint) -> c_uint,
+    get_qhyccd_param_min_max_step: unsafe extern "C" fn(
+        QhyCamHandle,
+        c_int,
+        *mut c_double,
+        *mut c_double,
+        *mut c_double,
+    ) -> c_uint,
+    set_qhyccd_resolution:
+        unsafe extern "C" fn(QhyCamHandle, c_uint, c_uint, c_uint, c_uint) -> c_uint,
     set_qhyccd_binmode: unsafe extern "C" fn(QhyCamHandle, c_uint, c_uint) -> c_uint,
     set_qhyccd_bits_mode: unsafe extern "C" fn(QhyCamHandle, c_uint) -> c_uint,
-    
+
     // Exposure control
     exp_single_frame: unsafe extern "C" fn(QhyCamHandle) -> c_uint,
-    get_qhyccd_single_frame: unsafe extern "C" fn(QhyCamHandle, *mut c_uint, *mut c_uint, *mut c_uint, *mut c_uint, *mut u8) -> c_uint,
+    get_qhyccd_single_frame: unsafe extern "C" fn(
+        QhyCamHandle,
+        *mut c_uint,
+        *mut c_uint,
+        *mut c_uint,
+        *mut c_uint,
+        *mut u8,
+    ) -> c_uint,
     cancel_qhyccd_exposing_and_readout: unsafe extern "C" fn(QhyCamHandle) -> c_uint,
     get_qhyccd_memory_length: unsafe extern "C" fn(QhyCamHandle) -> c_uint,
-    
+
     // Readout modes
     get_qhyccd_read_mode_name: unsafe extern "C" fn(QhyCamHandle, c_uint, *mut c_char) -> c_uint,
     get_qhyccd_number_of_read_modes: unsafe extern "C" fn(QhyCamHandle, *mut c_uint) -> c_uint,
@@ -255,9 +278,9 @@ fn get_discovery_config() -> QhyDiscoveryConfig {
     // Check quirks database for QHY-specific discovery settings
     let vendor_quirks = crate::quirks::get_quirks_for_vendor(&crate::NativeVendor::Qhy);
     for quirk in vendor_quirks {
-        if let crate::quirks::Quirk::Discovery(
-            crate::quirks::DiscoveryQuirk::DiscoveryTimeoutMs(timeout),
-        ) = quirk
+        if let crate::quirks::Quirk::Discovery(crate::quirks::DiscoveryQuirk::DiscoveryTimeoutMs(
+            timeout,
+        )) = quirk
         {
             timeout_ms = timeout;
         }
@@ -298,7 +321,7 @@ impl QhySdk {
             unsafe {
                 if let Ok(lib) = libloading::Library::new(path) {
                     tracing::info!("Loaded QHY SDK from: {}", path);
-                    
+
                     // Load all function pointers
                     let sdk = Self {
                         init_sdk: *lib.get(b"InitQHYCCDResource\0").ok()?,
@@ -310,46 +333,55 @@ impl QhySdk {
                         set_qhyccd_stream_mode: *lib.get(b"SetQHYCCDStreamMode\0").ok()?,
                         init_qhyccd: *lib.get(b"InitQHYCCD\0").ok()?,
                         get_qhyccd_chip_info: *lib.get(b"GetQHYCCDChipInfo\0").ok()?,
-                        is_qhyccd_control_available: *lib.get(b"IsQHYCCDControlAvailable\0").ok()?,
+                        is_qhyccd_control_available: *lib
+                            .get(b"IsQHYCCDControlAvailable\0")
+                            .ok()?,
                         get_qhyccd_effective_area: *lib.get(b"GetQHYCCDEffectiveArea\0").ok()?,
                         set_qhyccd_param: *lib.get(b"SetQHYCCDParam\0").ok()?,
                         get_qhyccd_param: *lib.get(b"GetQHYCCDParam\0").ok()?,
-                        get_qhyccd_param_min_max_step: *lib.get(b"GetQHYCCDParamMinMaxStep\0").ok()?,
+                        get_qhyccd_param_min_max_step: *lib
+                            .get(b"GetQHYCCDParamMinMaxStep\0")
+                            .ok()?,
                         set_qhyccd_resolution: *lib.get(b"SetQHYCCDResolution\0").ok()?,
                         set_qhyccd_binmode: *lib.get(b"SetQHYCCDBinMode\0").ok()?,
                         set_qhyccd_bits_mode: *lib.get(b"SetQHYCCDBitsMode\0").ok()?,
                         exp_single_frame: *lib.get(b"ExpQHYCCDSingleFrame\0").ok()?,
                         get_qhyccd_single_frame: *lib.get(b"GetQHYCCDSingleFrame\0").ok()?,
-                        cancel_qhyccd_exposing_and_readout: *lib.get(b"CancelQHYCCDExposingAndReadout\0").ok()?,
+                        cancel_qhyccd_exposing_and_readout: *lib
+                            .get(b"CancelQHYCCDExposingAndReadout\0")
+                            .ok()?,
                         get_qhyccd_memory_length: *lib.get(b"GetQHYCCDMemLength\0").ok()?,
                         get_qhyccd_read_mode_name: *lib.get(b"GetQHYCCDReadModeName\0").ok()?,
-                        get_qhyccd_number_of_read_modes: *lib.get(b"GetQHYCCDNumberOfReadModes\0").ok()?,
+                        get_qhyccd_number_of_read_modes: *lib
+                            .get(b"GetQHYCCDNumberOfReadModes\0")
+                            .ok()?,
                         set_qhyccd_read_mode: *lib.get(b"SetQHYCCDReadMode\0").ok()?,
                         get_qhyccd_read_mode: *lib.get(b"GetQHYCCDReadMode\0").ok()?,
                         is_qhyccd_cfw_plugged: *lib.get(b"IsQHYCCDCFWPlugged\0").ok()?,
                         lib,
                     };
-                    
+
                     return Some(sdk);
                 }
             }
         }
-        
+
         tracing::warn!("QHY SDK not found");
         None
     }
-    
+
     /// Get the global SDK instance
     fn get() -> Option<&'static QhySdk> {
         QHY_SDK.get_or_init(|| Self::load()).as_ref()
     }
-    
+
     /// Initialize the SDK (must be called once before use)
     fn ensure_initialized() -> Result<(), NativeError> {
         if *SDK_INITIALIZED.get_or_init(|| {
             if let Some(sdk) = Self::get() {
                 let result = unsafe { (sdk.init_sdk)() };
-                if result == 0 { // QHYCCD_SUCCESS
+                if result == 0 {
+                    // QHYCCD_SUCCESS
                     tracing::info!("QHY SDK initialized successfully");
                     true
                 } else {
@@ -522,12 +554,12 @@ impl QhyCamera {
             bayer_pattern: None,
         }
     }
-    
+
     /// Load camera chip info from SDK
     fn load_camera_info(&mut self) -> Result<(), NativeError> {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
-        
+
         let mut chip_w: c_double = 0.0;
         let mut chip_h: c_double = 0.0;
         let mut img_w: c_uint = 0;
@@ -535,18 +567,21 @@ impl QhyCamera {
         let mut pixel_w: c_double = 0.0;
         let mut pixel_h: c_double = 0.0;
         let mut bpp: c_uint = 0;
-        
+
         let result = unsafe {
             (sdk.get_qhyccd_chip_info)(
                 handle,
-                &mut chip_w, &mut chip_h,
-                &mut img_w, &mut img_h,
-                &mut pixel_w, &mut pixel_h,
-                &mut bpp
+                &mut chip_w,
+                &mut chip_h,
+                &mut img_w,
+                &mut img_h,
+                &mut pixel_w,
+                &mut pixel_h,
+                &mut bpp,
             )
         };
         check_qhy_error(result, "GetQHYCCDChipInfo")?;
-        
+
         self.chip_width = chip_w;
         self.chip_height = chip_h;
         self.image_width = img_w;
@@ -554,15 +589,22 @@ impl QhyCamera {
         self.pixel_width = pixel_w;
         self.pixel_height = pixel_h;
         self.bits_per_pixel = bpp;
-        
+
         // Check capabilities
-        self.has_cooler = unsafe { (sdk.is_qhyccd_control_available)(handle, QhyControl::CONTROL_COOLER as c_int) } == 0;
-        self.has_st4_port = unsafe { (sdk.is_qhyccd_control_available)(handle, QhyControl::CONTROL_ST4PORT as c_int) } == 0;
-        self.is_color = unsafe { (sdk.is_qhyccd_control_available)(handle, QhyControl::CAM_IS_COLOR as c_int) } == 0;
-        
+        self.has_cooler = unsafe {
+            (sdk.is_qhyccd_control_available)(handle, QhyControl::CONTROL_COOLER as c_int)
+        } == 0;
+        self.has_st4_port = unsafe {
+            (sdk.is_qhyccd_control_available)(handle, QhyControl::CONTROL_ST4PORT as c_int)
+        } == 0;
+        self.is_color =
+            unsafe { (sdk.is_qhyccd_control_available)(handle, QhyControl::CAM_IS_COLOR as c_int) }
+                == 0;
+
         // Detect bayer pattern for color cameras
         if self.is_color {
-            let bayer_val = unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CAM_COLOR as c_int) } as i32;
+            let bayer_val =
+                unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CAM_COLOR as c_int) } as i32;
             self.bayer_pattern = match bayer_val {
                 1 => Some(BayerPattern::Rggb),
                 2 => Some(BayerPattern::Grbg),
@@ -571,10 +613,10 @@ impl QhyCamera {
                 _ => None,
             };
         }
-        
+
         Ok(())
     }
-    
+
     /// Get a control value (mutex protected)
     async fn get_control_async(&self, control: QhyControl) -> Result<f64, NativeError> {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
@@ -592,7 +634,11 @@ impl QhyCamera {
     }
 
     /// Set a control value (mutex protected)
-    async fn set_control_async(&mut self, control: QhyControl, value: f64) -> Result<(), NativeError> {
+    async fn set_control_async(
+        &mut self,
+        control: QhyControl,
+        value: f64,
+    ) -> Result<(), NativeError> {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
         // Acquire mutex before extracting handle to avoid Send issues
         let _lock = qhy_mutex().lock().await;
@@ -610,7 +656,10 @@ impl QhyCamera {
     }
 
     /// Get the min/max/step range for a control (mutex protected)
-    async fn get_control_range_async(&self, control: QhyControl) -> Result<(f64, f64, f64), NativeError> {
+    async fn get_control_range_async(
+        &self,
+        control: QhyControl,
+    ) -> Result<(f64, f64, f64), NativeError> {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
         // Acquire mutex before extracting handle to avoid Send issues
         let _lock = qhy_mutex().lock().await;
@@ -702,10 +751,7 @@ impl QhyCamera {
         match tokio::time::timeout(timeout_duration, self.download_image()).await {
             Ok(result) => result,
             Err(_elapsed) => {
-                tracing::error!(
-                    "QHY image download timed out after {:?}",
-                    timeout_duration
-                );
+                tracing::error!("QHY image download timed out after {:?}", timeout_duration);
                 Err(NativeError::download_timeout(
                     timeout_duration,
                     self.image_width,
@@ -721,19 +767,19 @@ impl NativeDevice for QhyCamera {
     fn id(&self) -> &str {
         &self.device_id
     }
-    
+
     fn name(&self) -> &str {
         &self.camera_id
     }
-    
+
     fn vendor(&self) -> NativeVendor {
         NativeVendor::Qhy
     }
-    
+
     fn is_connected(&self) -> bool {
         self.connected
     }
-    
+
     async fn connect(&mut self) -> Result<(), NativeError> {
         // Ensure SDK is initialized
         QhySdk::ensure_initialized()?;
@@ -749,21 +795,29 @@ impl NativeDevice for QhyCamera {
 
         let handle = unsafe { (sdk.open_qhyccd)(id_cstring.as_ptr()) };
         if handle.is_null() {
-            return Err(NativeError::InvalidDevice("Failed to open QHY camera".to_string()));
+            return Err(NativeError::InvalidDevice(
+                "Failed to open QHY camera".to_string(),
+            ));
         }
 
         // Set single frame mode
         let result = unsafe { (sdk.set_qhyccd_stream_mode)(handle, 0) }; // 0 = single frame
         if result != 0 {
             unsafe { (sdk.close_qhyccd)(handle) };
-            return Err(NativeError::SdkError(format!("Failed to set stream mode: {}", result)));
+            return Err(NativeError::SdkError(format!(
+                "Failed to set stream mode: {}",
+                result
+            )));
         }
 
         // Initialize the camera
         let result = unsafe { (sdk.init_qhyccd)(handle) };
         if result != 0 {
             unsafe { (sdk.close_qhyccd)(handle) };
-            return Err(NativeError::SdkError(format!("Failed to init camera: {}", result)));
+            return Err(NativeError::SdkError(format!(
+                "Failed to init camera: {}",
+                result
+            )));
         }
 
         self.handle = Some(handle);
@@ -774,7 +828,9 @@ impl NativeDevice for QhyCamera {
         // Set default settings
         let _ = unsafe { (sdk.set_qhyccd_bits_mode)(handle, 16) }; // 16-bit mode
         let _ = unsafe { (sdk.set_qhyccd_binmode)(handle, 1, 1) }; // 1x1 binning
-        let _ = unsafe { (sdk.set_qhyccd_resolution)(handle, 0, 0, self.image_width, self.image_height) };
+        let _ = unsafe {
+            (sdk.set_qhyccd_resolution)(handle, 0, 0, self.image_width, self.image_height)
+        };
 
         self.connected = true;
         tracing::info!("Connected to QHY camera: {}", self.camera_id);
@@ -812,16 +868,21 @@ impl NativeCamera for QhyCamera {
             supports_readout_modes: true, // QHY supports readout modes
         }
     }
-    
+
     async fn get_status(&self) -> Result<CameraStatus, NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
 
         // Use async versions with mutex protection
-        let temp = self.get_control_async(QhyControl::CONTROL_CURTEMP).await.ok();
+        let temp = self
+            .get_control_async(QhyControl::CONTROL_CURTEMP)
+            .await
+            .ok();
         let cooler_power = if self.has_cooler {
-            self.get_control_async(QhyControl::CONTROL_CURPWM).await.ok()
+            self.get_control_async(QhyControl::CONTROL_CURPWM)
+                .await
+                .ok()
         } else {
             None
         };
@@ -830,7 +891,7 @@ impl NativeCamera for QhyCamera {
             state: CameraState::Idle, // QHY doesn't have a simple exposure status query
             sensor_temp: temp,
             target_temp: None, // We don't track this currently
-            cooler_on: false, // We don't track this currently
+            cooler_on: false,  // We don't track this currently
             cooler_power,
             gain: self.current_gain,
             offset: self.current_offset,
@@ -931,7 +992,7 @@ impl NativeCamera for QhyCamera {
                 &mut height,
                 &mut bpp,
                 &mut channels,
-                pooled_buffer.as_mut_ptr()
+                pooled_buffer.as_mut_ptr(),
             )
         };
         check_qhy_error(result, "GetQHYCCDSingleFrame")?;
@@ -971,7 +1032,13 @@ impl NativeCamera for QhyCamera {
             features
         };
 
-        tracing::info!("Downloaded {}x{} image ({} bytes, {} bpp)", width, height, actual_size, bpp);
+        tracing::info!(
+            "Downloaded {}x{} image ({} bytes, {} bpp)",
+            width,
+            height,
+            actual_size,
+            bpp
+        );
 
         Ok(ImageData {
             width,
@@ -993,7 +1060,7 @@ impl NativeCamera for QhyCamera {
             },
         })
     }
-    
+
     async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -1005,11 +1072,15 @@ impl NativeCamera for QhyCamera {
 
         // Use async versions with mutex protection
         if enabled {
-            self.set_control_async(QhyControl::CONTROL_MANULPWM, 0.0).await?;
-            self.set_control_async(QhyControl::CONTROL_COOLER, target_temp).await?;
+            self.set_control_async(QhyControl::CONTROL_MANULPWM, 0.0)
+                .await?;
+            self.set_control_async(QhyControl::CONTROL_COOLER, target_temp)
+                .await?;
         } else {
-            self.set_control_async(QhyControl::CONTROL_MANULPWM, 0.0).await?;
-            self.set_control_async(QhyControl::CONTROL_CURPWM, 0.0).await?;
+            self.set_control_async(QhyControl::CONTROL_MANULPWM, 0.0)
+                .await?;
+            self.set_control_async(QhyControl::CONTROL_CURPWM, 0.0)
+                .await?;
         }
 
         Ok(())
@@ -1027,7 +1098,8 @@ impl NativeCamera for QhyCamera {
     }
 
     async fn set_gain(&mut self, gain: i32) -> Result<(), NativeError> {
-        self.set_control_async(QhyControl::CONTROL_GAIN, gain as f64).await?;
+        self.set_control_async(QhyControl::CONTROL_GAIN, gain as f64)
+            .await?;
         self.current_gain = gain;
         Ok(())
     }
@@ -1037,7 +1109,8 @@ impl NativeCamera for QhyCamera {
     }
 
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
-        self.set_control_async(QhyControl::CONTROL_OFFSET, offset as f64).await?;
+        self.set_control_async(QhyControl::CONTROL_OFFSET, offset as f64)
+            .await?;
         self.current_offset = offset;
         Ok(())
     }
@@ -1089,7 +1162,12 @@ impl NativeCamera for QhyCamera {
         let (x, y, width, height) = if let Some(sf) = subframe {
             (sf.start_x, sf.start_y, sf.width, sf.height)
         } else {
-            (0, 0, self.image_width / self.current_bin as u32, self.image_height / self.current_bin as u32)
+            (
+                0,
+                0,
+                self.image_width / self.current_bin as u32,
+                self.image_height / self.current_bin as u32,
+            )
         };
 
         let result = unsafe { (sdk.set_qhyccd_resolution)(handle, x, y, width, height) };
@@ -1127,7 +1205,8 @@ impl NativeCamera for QhyCamera {
         let mut modes = Vec::new();
         for i in 0..num_modes {
             let mut name_buf = [0i8; 256];
-            let result = unsafe { (sdk.get_qhyccd_read_mode_name)(handle, i, name_buf.as_mut_ptr()) };
+            let result =
+                unsafe { (sdk.get_qhyccd_read_mode_name)(handle, i, name_buf.as_mut_ptr()) };
             if result == 0 {
                 let name = unsafe { CStr::from_ptr(name_buf.as_ptr()) }
                     .to_string_lossy()
@@ -1191,7 +1270,9 @@ impl NativeCamera for QhyCamera {
             return Err(NativeError::NotConnected);
         }
 
-        let (min, max, _step) = self.get_control_range_async(QhyControl::CONTROL_GAIN).await?;
+        let (min, max, _step) = self
+            .get_control_range_async(QhyControl::CONTROL_GAIN)
+            .await?;
         Ok((min as i32, max as i32))
     }
 
@@ -1200,7 +1281,9 @@ impl NativeCamera for QhyCamera {
             return Err(NativeError::NotConnected);
         }
 
-        let (min, max, _step) = self.get_control_range_async(QhyControl::CONTROL_OFFSET).await?;
+        let (min, max, _step) = self
+            .get_control_range_async(QhyControl::CONTROL_OFFSET)
+            .await?;
         Ok((min as i32, max as i32))
     }
 }
@@ -1358,7 +1441,10 @@ pub async fn discover_devices() -> Result<Vec<QhyCameraInfo>, NativeError> {
         Ok(result) => {
             match &result {
                 Ok(cameras) => {
-                    tracing::debug!("QHY discovery completed successfully, found {} cameras", cameras.len());
+                    tracing::debug!(
+                        "QHY discovery completed successfully, found {} cameras",
+                        cameras.len()
+                    );
                 }
                 Err(e) => {
                     tracing::warn!("QHY discovery failed: {}", e);
@@ -1445,9 +1531,8 @@ impl QhyFilterWheel {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
-        let count = unsafe {
-            (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWSLOTSNUM as c_int)
-        };
+        let count =
+            unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWSLOTSNUM as c_int) };
 
         Ok(count as i32)
     }
@@ -1458,9 +1543,7 @@ impl QhyFilterWheel {
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
         // QHY returns position as ASCII value (48 = '0', 49 = '1', etc.)
-        let pos = unsafe {
-            (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWPORT as c_int)
-        };
+        let pos = unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWPORT as c_int) };
 
         // Convert from ASCII to 0-indexed position
         let position = (pos as i32) - 48;
@@ -1518,7 +1601,9 @@ impl NativeDevice for QhyFilterWheel {
 
         let handle = unsafe { (sdk.open_qhyccd)(camera_id_cstr.as_ptr()) };
         if handle.is_null() {
-            return Err(NativeError::SdkError("Failed to open QHY camera for CFW".into()));
+            return Err(NativeError::SdkError(
+                "Failed to open QHY camera for CFW".into(),
+            ));
         }
 
         self.handle = Some(handle);
@@ -1530,7 +1615,9 @@ impl NativeDevice for QhyFilterWheel {
             if init_result != 0 {
                 (sdk.close_qhyccd)(handle);
                 self.handle = None;
-                return Err(NativeError::SdkError("Failed to initialize QHY camera for CFW".into()));
+                return Err(NativeError::SdkError(
+                    "Failed to initialize QHY camera for CFW".into(),
+                ));
             }
         }
 
@@ -1538,7 +1625,9 @@ impl NativeDevice for QhyFilterWheel {
         if !self.check_cfw_available()? {
             unsafe { (sdk.close_qhyccd)(handle) };
             self.handle = None;
-            return Err(NativeError::DeviceNotFound("No CFW detected on this QHY camera".into()));
+            return Err(NativeError::DeviceNotFound(
+                "No CFW detected on this QHY camera".into(),
+            ));
         }
 
         // Get slot count (mutex already held)
@@ -1598,9 +1687,11 @@ impl NativeFilterWheel for QhyFilterWheel {
         }
 
         if position < 0 || position >= self.slot_count {
-            return Err(NativeError::InvalidParameter(
-                format!("Position {} out of range (0-{})", position, self.slot_count - 1)
-            ));
+            return Err(NativeError::InvalidParameter(format!(
+                "Position {} out of range (0-{})",
+                position,
+                self.slot_count - 1
+            )));
         }
 
         tracing::info!("Moving QHY CFW to position {}", position);
@@ -1627,9 +1718,11 @@ impl NativeFilterWheel for QhyFilterWheel {
 
     async fn set_filter_name(&mut self, position: i32, name: String) -> Result<(), NativeError> {
         if position < 0 || position >= self.slot_count {
-            return Err(NativeError::InvalidParameter(
-                format!("Position {} out of range (0-{})", position, self.slot_count - 1)
-            ));
+            return Err(NativeError::InvalidParameter(format!(
+                "Position {} out of range (0-{})",
+                position,
+                self.slot_count - 1
+            )));
         }
         self.filter_names[position as usize] = name;
         Ok(())
@@ -1694,7 +1787,11 @@ fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInf
                 slot_count,
             });
 
-            tracing::info!("Found QHY CFW on camera {} with {} slots", camera_id, slot_count);
+            tracing::info!(
+                "Found QHY CFW on camera {} with {} slots",
+                camera_id,
+                slot_count
+            );
         }
 
         // Close camera
@@ -1746,8 +1843,8 @@ pub async fn discover_filter_wheels() -> Result<Vec<QhyFilterWheelInfo>, NativeE
                     Some(s) => s,
                     None => return Err(NativeError::SdkNotLoaded),
                 };
-                catch_unwind(AssertUnwindSafe(|| discover_filter_wheels_internal(sdk)))
-                    .map_err(|panic_info| {
+                catch_unwind(AssertUnwindSafe(|| discover_filter_wheels_internal(sdk))).map_err(
+                    |panic_info| {
                         let panic_msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
                             s.to_string()
                         } else if let Some(s) = panic_info.downcast_ref::<String>() {
@@ -1760,12 +1857,11 @@ pub async fn discover_filter_wheels() -> Result<Vec<QhyFilterWheelInfo>, NativeE
                             "QHY SDK crashed during CFW discovery: {}",
                             panic_msg
                         ))
-                    })?
+                    },
+                )?
             })
             .await
-            .map_err(|e| {
-                NativeError::SdkError(format!("QHY CFW discovery task failed: {:?}", e))
-            })?
+            .map_err(|e| NativeError::SdkError(format!("QHY CFW discovery task failed: {:?}", e)))?
         } else {
             // No panic protection, just call directly (SDK is 'static, so we can get it again)
             let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
@@ -1777,10 +1873,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<QhyFilterWheelInfo>, NativeE
     match tokio::time::timeout(timeout_duration, discovery_future).await {
         Ok(result) => result,
         Err(_) => {
-            tracing::error!(
-                "QHY CFW discovery timed out after {}ms",
-                config.timeout_ms
-            );
+            tracing::error!("QHY CFW discovery timed out after {}ms", config.timeout_ms);
             Err(NativeError::Timeout(format!(
                 "QHY CFW discovery timed out after {}ms",
                 config.timeout_ms

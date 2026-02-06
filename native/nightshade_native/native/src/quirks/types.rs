@@ -115,7 +115,10 @@ pub enum TimingQuirk {
     DelayBetweenCommands(u64),
 
     /// Delay required after a specific operation
-    DelayAfterOperation { operation_name: String, delay_ms: u64 },
+    DelayAfterOperation {
+        operation_name: String,
+        delay_ms: u64,
+    },
 
     /// Connection timeout should be extended
     ExtendedConnectionTimeout(u64),
@@ -261,7 +264,10 @@ pub enum MountQuirk {
     GotoPrecisionArcsec(f64),
 
     /// Park command doesn't work - use goto instead
-    ParkUsingGoto { alt: f64, az: f64 },
+    ParkUsingGoto {
+        alt: f64,
+        az: f64,
+    },
 
     /// Home command requires specific sequence
     HomeSequence(Vec<String>),
@@ -337,9 +343,7 @@ impl Quirk {
                 }
                 TemperatureQuirk::Offset(o) => format!("Temperature offset by {}", o),
                 TemperatureQuirk::Inverted => "Temperature sign inverted".to_string(),
-                TemperatureQuirk::SkipFirstRead => {
-                    "First temperature read unreliable".to_string()
-                }
+                TemperatureQuirk::SkipFirstRead => "First temperature read unreliable".to_string(),
                 TemperatureQuirk::RequiresDelayMs(ms) => {
                     format!("Temperature read requires {}ms delay", ms)
                 }
@@ -364,7 +368,10 @@ impl Quirk {
                 TimingQuirk::DelayBetweenCommands(ms) => {
                     format!("{}ms between commands", ms)
                 }
-                TimingQuirk::DelayAfterOperation { operation_name, delay_ms } => {
+                TimingQuirk::DelayAfterOperation {
+                    operation_name,
+                    delay_ms,
+                } => {
                     format!("{}ms delay after {}", delay_ms, operation_name)
                 }
                 TimingQuirk::ExtendedConnectionTimeout(ms) => {
@@ -421,7 +428,11 @@ impl Quirk {
                 CommunicationQuirk::RequiredBaudRate(b) => {
                     format!("Required baud rate: {}", b)
                 }
-                CommunicationQuirk::SerialConfig { data_bits, stop_bits, parity } => {
+                CommunicationQuirk::SerialConfig {
+                    data_bits,
+                    stop_bits,
+                    parity,
+                } => {
                     format!("Serial config: {}{}N{}", data_bits, parity, stop_bits)
                 }
                 CommunicationQuirk::LineEnding(e) => {
@@ -464,9 +475,7 @@ impl Quirk {
                 MountQuirk::MeridianFlipOffset(o) => {
                     format!("Meridian flip offset: {}", o)
                 }
-                MountQuirk::SyncRequiresAlignment => {
-                    "Sync requires prior alignment".to_string()
-                }
+                MountQuirk::SyncRequiresAlignment => "Sync requires prior alignment".to_string(),
                 MountQuirk::GuideRateScale(s) => format!("Guide rate scale: {}", s),
             },
             Quirk::Camera(c) => match c {
@@ -481,7 +490,10 @@ impl Quirk {
                 CameraQuirk::UsbBandwidthLimit(l) => {
                     format!("USB bandwidth limit: {}", l)
                 }
-                CameraQuirk::HighSpeedModeConfig { usb_limit, ddr_enable } => {
+                CameraQuirk::HighSpeedModeConfig {
+                    usb_limit,
+                    ddr_enable,
+                } => {
                     format!("High-speed: usb={}, ddr={}", usb_limit, ddr_enable)
                 }
                 CameraQuirk::CoolerRange { min_temp, max_temp } => {

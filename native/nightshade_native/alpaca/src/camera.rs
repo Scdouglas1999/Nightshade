@@ -1,6 +1,9 @@
 //! Alpaca Camera API implementation
 
-use crate::{AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, TimeoutConfig, RetryConfig};
+use crate::{
+    AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, RetryConfig,
+    TimeoutConfig,
+};
 use std::time::Duration;
 
 /// Camera state enum matching ASCOM CameraState
@@ -305,11 +308,15 @@ impl AlpacaCamera {
     }
 
     pub async fn set_bin_x(&self, value: i32) -> Result<(), String> {
-        self.client.put("binx", &[("BinX", &value.to_string())]).await
+        self.client
+            .put("binx", &[("BinX", &value.to_string())])
+            .await
     }
 
     pub async fn set_bin_y(&self, value: i32) -> Result<(), String> {
-        self.client.put("biny", &[("BinY", &value.to_string())]).await
+        self.client
+            .put("biny", &[("BinY", &value.to_string())])
+            .await
     }
 
     // Cooling
@@ -323,7 +330,12 @@ impl AlpacaCamera {
     }
 
     pub async fn set_ccd_temperature(&self, temp: f64) -> Result<(), String> {
-        self.client.put("setccdtemperature", &[("SetCCDTemperature", &temp.to_string())]).await
+        self.client
+            .put(
+                "setccdtemperature",
+                &[("SetCCDTemperature", &temp.to_string())],
+            )
+            .await
     }
 
     pub async fn cooler_on(&self) -> Result<bool, String> {
@@ -331,7 +343,9 @@ impl AlpacaCamera {
     }
 
     pub async fn set_cooler_on(&self, on: bool) -> Result<(), String> {
-        self.client.put("cooleron", &[("CoolerOn", &on.to_string())]).await
+        self.client
+            .put("cooleron", &[("CoolerOn", &on.to_string())])
+            .await
     }
 
     pub async fn cooler_power(&self) -> Result<f64, String> {
@@ -353,7 +367,9 @@ impl AlpacaCamera {
     }
 
     pub async fn set_gain(&self, gain: i32) -> Result<(), String> {
-        self.client.put("gain", &[("Gain", &gain.to_string())]).await
+        self.client
+            .put("gain", &[("Gain", &gain.to_string())])
+            .await
     }
 
     pub async fn gain_min(&self) -> Result<i32, String> {
@@ -369,7 +385,9 @@ impl AlpacaCamera {
     }
 
     pub async fn set_offset(&self, offset: i32) -> Result<(), String> {
-        self.client.put("offset", &[("Offset", &offset.to_string())]).await
+        self.client
+            .put("offset", &[("Offset", &offset.to_string())])
+            .await
     }
 
     pub async fn offset_min(&self) -> Result<i32, String> {
@@ -410,10 +428,15 @@ impl AlpacaCamera {
     // Exposure control
 
     pub async fn start_exposure(&self, duration: f64, light: bool) -> Result<(), String> {
-        self.client.put("startexposure", &[
-            ("Duration", &duration.to_string()),
-            ("Light", &light.to_string()),
-        ]).await
+        self.client
+            .put(
+                "startexposure",
+                &[
+                    ("Duration", &duration.to_string()),
+                    ("Light", &light.to_string()),
+                ],
+            )
+            .await
     }
 
     pub async fn abort_exposure(&self) -> Result<(), String> {
@@ -443,19 +466,27 @@ impl AlpacaCamera {
     }
 
     pub async fn set_start_x(&self, value: i32) -> Result<(), String> {
-        self.client.put("startx", &[("StartX", &value.to_string())]).await
+        self.client
+            .put("startx", &[("StartX", &value.to_string())])
+            .await
     }
 
     pub async fn set_start_y(&self, value: i32) -> Result<(), String> {
-        self.client.put("starty", &[("StartY", &value.to_string())]).await
+        self.client
+            .put("starty", &[("StartY", &value.to_string())])
+            .await
     }
 
     pub async fn set_num_x(&self, value: i32) -> Result<(), String> {
-        self.client.put("numx", &[("NumX", &value.to_string())]).await
+        self.client
+            .put("numx", &[("NumX", &value.to_string())])
+            .await
     }
 
     pub async fn set_num_y(&self, value: i32) -> Result<(), String> {
-        self.client.put("numy", &[("NumY", &value.to_string())]).await
+        self.client
+            .put("numy", &[("NumY", &value.to_string())])
+            .await
     }
 
     // Last exposure info
@@ -507,7 +538,9 @@ impl AlpacaCamera {
     /// Returns (width, height, data as u16 vec)
     /// Uses very long timeout (configurable, defaults to 15 minutes for large images)
     pub async fn download_image_data(&self) -> Result<(u32, u32, Vec<u16>), String> {
-        self.download_image_data_typed().await.map_err(|e| e.to_string())
+        self.download_image_data_typed()
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Download image with typed error handling
@@ -540,19 +573,21 @@ impl AlpacaCamera {
             .build()
             .map_err(|e| AlpacaError::RequestFailed(e.to_string()))?;
 
-        let response = http_client.get(&url)
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    AlpacaError::timeout(
-                        format!("imagearray download ({}x{}, ~{} MB)", width, height, estimated_bytes / 1_000_000),
-                        timeout_ms
-                    )
-                } else {
-                    AlpacaError::from(e)
-                }
-            })?;
+        let response = http_client.get(&url).send().await.map_err(|e| {
+            if e.is_timeout() {
+                AlpacaError::timeout(
+                    format!(
+                        "imagearray download ({}x{}, ~{} MB)",
+                        width,
+                        height,
+                        estimated_bytes / 1_000_000
+                    ),
+                    timeout_ms,
+                )
+            } else {
+                AlpacaError::from(e)
+            }
+        })?;
 
         let status = response.status();
         if !status.is_success() {
@@ -563,17 +598,20 @@ impl AlpacaCamera {
             });
         }
 
-        let response_text = response.text().await
-            .map_err(|e| AlpacaError::RequestFailed(format!("Failed to read image array response: {}", e)))?;
+        let response_text = response.text().await.map_err(|e| {
+            AlpacaError::RequestFailed(format!("Failed to read image array response: {}", e))
+        })?;
 
         // Parse the JSON response
-        let json_value: serde_json::Value = serde_json::from_str(&response_text)
-            .map_err(|e| AlpacaError::ParseError(format!("Failed to parse image array JSON: {}", e)))?;
+        let json_value: serde_json::Value = serde_json::from_str(&response_text).map_err(|e| {
+            AlpacaError::ParseError(format!("Failed to parse image array JSON: {}", e))
+        })?;
 
         // Check for errors
         if let Some(error_num) = json_value.get("ErrorNumber").and_then(|v| v.as_i64()) {
             if error_num != 0 {
-                let error_msg = json_value.get("ErrorMessage")
+                let error_msg = json_value
+                    .get("ErrorMessage")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Unknown error");
                 return Err(AlpacaError::DeviceError {
@@ -584,8 +622,9 @@ impl AlpacaCamera {
         }
 
         // Get the Value array
-        let value = json_value.get("Value")
-            .ok_or_else(|| AlpacaError::ParseError("Missing Value field in image array response".to_string()))?;
+        let value = json_value.get("Value").ok_or_else(|| {
+            AlpacaError::ParseError("Missing Value field in image array response".to_string())
+        })?;
 
         // Parse the 2D array into a flat vector of u16
         // Alpaca returns [NumX][NumY] (column-major) but we iterate row-by-row
@@ -605,15 +644,21 @@ impl AlpacaCamera {
                             0
                         };
                         // Clamp to u16 range
-                        let u16_val = if pixel_val < 0 { 0 }
-                            else if pixel_val > 65535 { 65535 }
-                            else { pixel_val as u16 };
+                        let u16_val = if pixel_val < 0 {
+                            0
+                        } else if pixel_val > 65535 {
+                            65535
+                        } else {
+                            pixel_val as u16
+                        };
                         pixels.push(u16_val);
                     }
                 }
             }
         } else {
-            return Err(AlpacaError::ParseError("Image array Value is not an array".to_string()));
+            return Err(AlpacaError::ParseError(
+                "Image array Value is not an array".to_string(),
+            ));
         }
 
         // Verify we got the expected number of pixels
@@ -621,7 +666,10 @@ impl AlpacaCamera {
         if pixels.len() != expected {
             return Err(AlpacaError::ParseError(format!(
                 "Image size mismatch: expected {} pixels ({}x{}), got {}",
-                expected, width, height, pixels.len()
+                expected,
+                width,
+                height,
+                pixels.len()
             )));
         }
 
@@ -662,7 +710,11 @@ impl AlpacaCamera {
         loop {
             match self.camera_state().await {
                 Ok(CameraState::Idle) => return Ok(true),
-                Ok(CameraState::Error) => return Err(AlpacaError::OperationFailed("Camera in error state".to_string())),
+                Ok(CameraState::Error) => {
+                    return Err(AlpacaError::OperationFailed(
+                        "Camera in error state".to_string(),
+                    ))
+                }
                 Ok(_) => {
                     if std::time::Instant::now() >= deadline {
                         return Ok(false);
@@ -676,10 +728,15 @@ impl AlpacaCamera {
 
     /// Pulse guide in a direction
     pub async fn pulse_guide(&self, direction: i32, duration_ms: i32) -> Result<(), String> {
-        self.client.put("pulseguide", &[
-            ("Direction", &direction.to_string()),
-            ("Duration", &duration_ms.to_string()),
-        ]).await
+        self.client
+            .put(
+                "pulseguide",
+                &[
+                    ("Direction", &direction.to_string()),
+                    ("Duration", &duration_ms.to_string()),
+                ],
+            )
+            .await
     }
 
     // Parallel status methods
@@ -800,12 +857,8 @@ impl AlpacaCamera {
 
     /// Get camera subframe settings in a single parallel query
     pub async fn get_subframe(&self) -> Result<CameraSubframe, String> {
-        let (start_x, start_y, num_x, num_y) = tokio::join!(
-            self.start_x(),
-            self.start_y(),
-            self.num_x(),
-            self.num_y(),
-        );
+        let (start_x, start_y, num_x, num_y) =
+            tokio::join!(self.start_x(), self.start_y(), self.num_x(), self.num_y(),);
 
         Ok(CameraSubframe {
             start_x: start_x?,

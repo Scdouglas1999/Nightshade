@@ -188,15 +188,6 @@ void _startBackgroundServices() {
       );
       print('[MAIN] Broadcasting on UDP port 45679');
 
-      // Start mDNS/Bonjour advertising for iOS discovery
-      try {
-        await _startMdnsAdvertising(webServer.actualPort);
-        print('[MAIN] mDNS service advertised as _nightshade._tcp');
-      } catch (e) {
-        debugPrint(
-            '[MAIN] mDNS advertising failed (expected on some platforms): $e');
-      }
-
       // Start LAN push update receiver
       try {
         var isReceivingLanPush = false;
@@ -391,14 +382,6 @@ Future<void> _startHeadlessServices() async {
       print('  ✓ Discovery broadcasting started');
     } catch (e) {
       print('  ⚠ Discovery broadcasting failed: $e');
-    }
-
-    // Start mDNS/Bonjour advertising for iOS discovery
-    try {
-      await _startMdnsAdvertising(webServer.actualPort);
-      print('  ✓ mDNS service advertised as _nightshade._tcp');
-    } catch (e) {
-      print('  ⚠ mDNS advertising failed: $e');
     }
 
     // Print QR connection data for mobile scanning
@@ -1385,28 +1368,6 @@ Future<void> _polarAlignmentStopHandler() async {
   print('[API] Stopping polar alignment');
   await bridge.apiStopPolarAlignment();
   print('[API] Polar alignment stopped');
-}
-
-// ============================================================================
-// mDNS/Bonjour Advertising
-// ============================================================================
-
-/// Start mDNS/Bonjour service advertising for iOS discovery
-/// Note: nsd package works best on mobile platforms (iOS/Android)
-/// On desktop, this may fail gracefully - that's expected
-Future<void> _startMdnsAdvertising(int port) async {
-  // The nsd package is primarily designed for mobile platforms
-  // On Windows/Linux/macOS desktop, mDNS advertising may not be fully supported
-  // The UDP broadcast discovery is the primary method for desktop-to-mobile
-  // This is a placeholder for future mobile-to-mobile discovery enhancement
-
-  // For now, we rely on UDP broadcast which works cross-platform
-  // Full mDNS implementation would require platform-specific setup:
-  // - iOS: Requires NSBonjourServices in Info.plist
-  // - Android: Requires NSD permissions
-  // - Windows: Limited support via Bonjour for Windows
-
-  debugPrint('[mDNS] mDNS advertising skipped - using UDP broadcast instead');
 }
 
 /// Get the local IP address for display

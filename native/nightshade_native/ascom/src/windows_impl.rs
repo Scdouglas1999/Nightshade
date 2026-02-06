@@ -17,15 +17,18 @@ use windows::{
         Foundation::VARIANT_BOOL,
         System::{
             Com::{
-                CoCreateInstance, CoInitializeEx, CoUninitialize, CLSIDFromProgID, IDispatch,
+                CLSIDFromProgID, CoCreateInstance, CoInitializeEx, CoUninitialize, IDispatch,
                 CLSCTX_ALL, COINIT_APARTMENTTHREADED, DISPATCH_METHOD, DISPATCH_PROPERTYGET,
                 DISPATCH_PROPERTYPUT, DISPPARAMS, EXCEPINFO, SAFEARRAY,
             },
             Registry::{
-                RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW,
-                HKEY, HKEY_LOCAL_MACHINE, KEY_READ, REG_SZ, REG_VALUE_TYPE,
+                RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW, HKEY,
+                HKEY_LOCAL_MACHINE, KEY_READ, REG_SZ, REG_VALUE_TYPE,
             },
-            Variant::{VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_I2, VT_I4, VT_R8, VT_UI2, VT_VARIANT, VARIANT},
+            Variant::{
+                VARIANT, VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_I2, VT_I4, VT_R8, VT_UI2,
+                VT_VARIANT,
+            },
         },
     },
 };
@@ -38,27 +41,15 @@ use windows::{
 #[derive(Debug, Clone)]
 pub enum AscomError {
     /// COM error with HRESULT code
-    ComError {
-        hresult: i32,
-        message: String,
-    },
+    ComError { hresult: i32, message: String },
     /// Operation timed out
-    Timeout {
-        operation: String,
-        duration_ms: u64,
-    },
+    Timeout { operation: String, duration_ms: u64 },
     /// Device is not connected
     NotConnected,
     /// Property is not available on this device
-    PropertyNotAvailable {
-        property: String,
-        reason: String,
-    },
+    PropertyNotAvailable { property: String, reason: String },
     /// Invalid value provided
-    InvalidValue {
-        value: String,
-        reason: String,
-    },
+    InvalidValue { value: String, reason: String },
     /// ASCOM exception from driver
     AscomException {
         code: i32,
@@ -66,13 +57,9 @@ pub enum AscomError {
         description: String,
     },
     /// Device communication error
-    CommunicationError {
-        message: String,
-    },
+    CommunicationError { message: String },
     /// Resource allocation error
-    ResourceError {
-        message: String,
-    },
+    ResourceError { message: String },
     /// Generic error
     Other(String),
 }
@@ -83,8 +70,15 @@ impl std::fmt::Display for AscomError {
             AscomError::ComError { hresult, message } => {
                 write!(f, "COM error (HRESULT {:#X}): {}", hresult, message)
             }
-            AscomError::Timeout { operation, duration_ms } => {
-                write!(f, "Operation '{}' timed out after {}ms", operation, duration_ms)
+            AscomError::Timeout {
+                operation,
+                duration_ms,
+            } => {
+                write!(
+                    f,
+                    "Operation '{}' timed out after {}ms",
+                    operation, duration_ms
+                )
             }
             AscomError::NotConnected => {
                 write!(f, "Device is not connected")
@@ -95,8 +89,16 @@ impl std::fmt::Display for AscomError {
             AscomError::InvalidValue { value, reason } => {
                 write!(f, "Invalid value '{}': {}", value, reason)
             }
-            AscomError::AscomException { code, source, description } => {
-                write!(f, "ASCOM exception (code {}): {} - {}", code, source, description)
+            AscomError::AscomException {
+                code,
+                source,
+                description,
+            } => {
+                write!(
+                    f,
+                    "ASCOM exception (code {}): {} - {}",
+                    code, source, description
+                )
             }
             AscomError::CommunicationError { message } => {
                 write!(f, "Communication error: {}", message)
@@ -156,17 +158,18 @@ pub struct TimeoutConfig {
 impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
-            property_get_ms: 5_000,      // 5 seconds
-            property_set_ms: 10_000,     // 10 seconds
-            method_call_ms: 30_000,      // 30 seconds
-            long_operation_ms: 300_000,  // 5 minutes
-            connect_ms: 60_000,          // 1 minute
+            property_get_ms: 5_000,     // 5 seconds
+            property_set_ms: 10_000,    // 10 seconds
+            method_call_ms: 30_000,     // 30 seconds
+            long_operation_ms: 300_000, // 5 minutes
+            connect_ms: 60_000,         // 1 minute
         }
     }
 }
 
 /// Global timeout configuration - can be modified at runtime
-static TIMEOUT_CONFIG: std::sync::OnceLock<std::sync::RwLock<TimeoutConfig>> = std::sync::OnceLock::new();
+static TIMEOUT_CONFIG: std::sync::OnceLock<std::sync::RwLock<TimeoutConfig>> =
+    std::sync::OnceLock::new();
 
 /// Get the current timeout configuration
 pub fn get_timeout_config() -> TimeoutConfig {
@@ -319,9 +322,20 @@ impl HealthMonitor {
 #[link(name = "oleaut32")]
 extern "system" {
     fn SafeArrayGetDim(psa: *const SAFEARRAY) -> u32;
-    fn SafeArrayGetLBound(psa: *const SAFEARRAY, nDim: u32, plLbound: *mut i32) -> windows::core::HRESULT;
-    fn SafeArrayGetUBound(psa: *const SAFEARRAY, nDim: u32, plUbound: *mut i32) -> windows::core::HRESULT;
-    fn SafeArrayAccessData(psa: *const SAFEARRAY, ppvData: *mut *mut std::ffi::c_void) -> windows::core::HRESULT;
+    fn SafeArrayGetLBound(
+        psa: *const SAFEARRAY,
+        nDim: u32,
+        plLbound: *mut i32,
+    ) -> windows::core::HRESULT;
+    fn SafeArrayGetUBound(
+        psa: *const SAFEARRAY,
+        nDim: u32,
+        plUbound: *mut i32,
+    ) -> windows::core::HRESULT;
+    fn SafeArrayAccessData(
+        psa: *const SAFEARRAY,
+        ppvData: *mut *mut std::ffi::c_void,
+    ) -> windows::core::HRESULT;
     fn SafeArrayUnaccessData(psa: *const SAFEARRAY) -> windows::core::HRESULT;
 }
 
@@ -345,14 +359,14 @@ pub fn uninit_com() {
 /// Discover ASCOM devices by reading the Windows Registry
 pub fn discover_devices(device_type: &str) -> Vec<AscomDevice> {
     let mut devices = Vec::new();
-    
+
     let reg_path = format!("SOFTWARE\\ASCOM\\{} Drivers", device_type);
     tracing::info!("Scanning ASCOM registry: {}", reg_path);
-    
+
     if let Some(found) = scan_registry_path(&reg_path) {
         devices.extend(found);
     }
-    
+
     // Also try WOW6432Node for 32-bit drivers on 64-bit Windows
     let reg_path_wow = format!("SOFTWARE\\WOW6432Node\\ASCOM\\{} Drivers", device_type);
     if let Some(found) = scan_registry_path(&reg_path_wow) {
@@ -362,18 +376,18 @@ pub fn discover_devices(device_type: &str) -> Vec<AscomDevice> {
             }
         }
     }
-    
+
     tracing::info!("Found {} ASCOM {} drivers", devices.len(), device_type);
     devices
 }
 
 fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
     let mut devices = Vec::new();
-    
+
     unsafe {
         let mut key: HKEY = HKEY::default();
         let reg_path_wide: Vec<u16> = reg_path.encode_utf16().chain(std::iter::once(0)).collect();
-        
+
         let result = RegOpenKeyExW(
             HKEY_LOCAL_MACHINE,
             PCWSTR::from_raw(reg_path_wide.as_ptr()),
@@ -381,17 +395,17 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
             KEY_READ,
             &mut key,
         );
-        
+
         if result.is_err() {
             return None;
         }
-        
+
         let mut index: u32 = 0;
         let mut name_buffer: [u16; 256] = [0; 256];
-        
+
         loop {
             let mut name_len = name_buffer.len() as u32;
-            
+
             let result = RegEnumKeyExW(
                 key,
                 index,
@@ -402,11 +416,11 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
                 None,
                 None,
             );
-            
+
             if result.is_err() {
                 break;
             }
-            
+
             let prog_id = String::from_utf16_lossy(&name_buffer[..name_len as usize]);
             let registry_description = get_driver_description(&key, &prog_id).unwrap_or_default();
 
@@ -433,20 +447,20 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
                     description: registry_description,
                 });
             }
-            
+
             index += 1;
         }
-        
+
         let _ = RegCloseKey(key);
     }
-    
+
     Some(devices)
 }
 
 unsafe fn get_driver_description(parent_key: &HKEY, prog_id: &str) -> Option<String> {
     let mut subkey: HKEY = HKEY::default();
     let prog_id_wide: Vec<u16> = prog_id.encode_utf16().chain(std::iter::once(0)).collect();
-    
+
     let result = RegOpenKeyExW(
         *parent_key,
         PCWSTR::from_raw(prog_id_wide.as_ptr()),
@@ -454,15 +468,15 @@ unsafe fn get_driver_description(parent_key: &HKEY, prog_id: &str) -> Option<Str
         KEY_READ,
         &mut subkey,
     );
-    
+
     if result.is_err() {
         return None;
     }
-    
+
     let mut data_type: REG_VALUE_TYPE = REG_VALUE_TYPE(0);
     let mut data_buffer: [u8; 512] = [0; 512];
     let mut data_len = data_buffer.len() as u32;
-    
+
     let result = RegQueryValueExW(
         subkey,
         PCWSTR::null(),
@@ -471,9 +485,9 @@ unsafe fn get_driver_description(parent_key: &HKEY, prog_id: &str) -> Option<Str
         Some(data_buffer.as_mut_ptr()),
         Some(&mut data_len),
     );
-    
+
     let _ = RegCloseKey(subkey);
-    
+
     if result.is_ok() && data_type == REG_SZ {
         let wide_slice: &[u16] = std::slice::from_raw_parts(
             data_buffer.as_ptr() as *const u16,
@@ -481,7 +495,7 @@ unsafe fn get_driver_description(parent_key: &HKEY, prog_id: &str) -> Option<Str
         );
         return Some(String::from_utf16_lossy(wide_slice));
     }
-    
+
     None
 }
 
@@ -510,7 +524,7 @@ pub fn probe_device_name(prog_id: &str) -> Option<String> {
                             tracing::debug!("Probed device description: {} -> {}", prog_id, desc);
                             Some(desc)
                         }
-                        _ => None
+                        _ => None,
                     }
                 }
                 Err(e) => {
@@ -533,7 +547,11 @@ fn variant_bool(value: bool) -> VARIANT {
     unsafe {
         let mut var = VARIANT::default();
         (*var.Anonymous.Anonymous).vt = VT_BOOL;
-        (*var.Anonymous.Anonymous).Anonymous.boolVal = if value { VARIANT_BOOL(-1) } else { VARIANT_BOOL(0) };
+        (*var.Anonymous.Anonymous).Anonymous.boolVal = if value {
+            VARIANT_BOOL(-1)
+        } else {
+            VARIANT_BOOL(0)
+        };
         var
     }
 }
@@ -655,27 +673,30 @@ fn excepinfo_to_string(excep: &EXCEPINFO) -> String {
 /// Handles both 1D and 2D SAFEARRAYs (some ASCOM drivers use different layouts)
 unsafe fn extract_safearray_i32(var: &VARIANT) -> Result<(Vec<i32>, usize, usize), String> {
     let vt = (*var.Anonymous.Anonymous).vt;
-    
+
     // Check if this is an array variant
     if (vt.0 & VT_ARRAY.0) == 0 {
         return Err(format!("VARIANT is not an array type, got vt={}", vt.0));
     }
-    
+
     let psa: *mut SAFEARRAY = (*var.Anonymous.Anonymous).Anonymous.parray;
     if psa.is_null() {
         return Err("SAFEARRAY pointer is null".to_string());
     }
-    
+
     // Get array dimensions
     let dims = SafeArrayGetDim(psa);
     if dims == 0 {
         return Err("SAFEARRAY has 0 dimensions".to_string());
     }
-    
+
     if dims > 2 {
-        return Err(format!("SAFEARRAY has {} dimensions, expected 1 or 2", dims));
+        return Err(format!(
+            "SAFEARRAY has {} dimensions, expected 1 or 2",
+            dims
+        ));
     }
-    
+
     // Get bounds for each dimension
     let mut lower1: i32 = 0;
     let mut upper1: i32 = 0;
@@ -685,12 +706,15 @@ unsafe fn extract_safearray_i32(var: &VARIANT) -> Result<(Vec<i32>, usize, usize
     if SafeArrayGetUBound(psa, 1, &mut upper1).is_err() {
         return Err("Failed to get upper bound for dimension 1".to_string());
     }
-    
+
     // Validate bounds to prevent integer overflow and stack overflow
     if upper1 < lower1 {
-        return Err(format!("Invalid bounds: upper1 ({}) < lower1 ({})", upper1, lower1));
+        return Err(format!(
+            "Invalid bounds: upper1 ({}) < lower1 ({})",
+            upper1, lower1
+        ));
     }
-    
+
     // Check for reasonable dimension size (individual dimension up to 15000 pixels is generous)
     // This prevents overflow when multiplying dimensions while still supporting large sensors
     let dim1_diff = upper1.saturating_sub(lower1);
@@ -700,10 +724,10 @@ unsafe fn extract_safearray_i32(var: &VARIANT) -> Result<(Vec<i32>, usize, usize
             dim1_diff + 1
         ));
     }
-    
+
     let dim1_size = (dim1_diff + 1) as usize;
     let mut dim2_size = 1;
-    
+
     if dims == 2 {
         let mut lower2: i32 = 0;
         let mut upper2: i32 = 0;
@@ -713,12 +737,15 @@ unsafe fn extract_safearray_i32(var: &VARIANT) -> Result<(Vec<i32>, usize, usize
         if SafeArrayGetUBound(psa, 2, &mut upper2).is_err() {
             return Err("Failed to get upper bound for dimension 2".to_string());
         }
-        
+
         // Validate bounds for dimension 2
         if upper2 < lower2 {
-            return Err(format!("Invalid bounds: upper2 ({}) < lower2 ({})", upper2, lower2));
+            return Err(format!(
+                "Invalid bounds: upper2 ({}) < lower2 ({})",
+                upper2, lower2
+            ));
         }
-        
+
         let dim2_diff = upper2.saturating_sub(lower2);
         if dim2_diff > 15_000 {
             return Err(format!(
@@ -726,10 +753,10 @@ unsafe fn extract_safearray_i32(var: &VARIANT) -> Result<(Vec<i32>, usize, usize
                 dim2_diff + 1
             ));
         }
-        
+
         dim2_size = (dim2_diff + 1) as usize;
     }
-    
+
     // Validate total size to prevent stack overflow and excessive memory allocation
     // Support large camera sensors (e.g., 100MP = 10000x10000 = 100M pixels)
     // At 4 bytes per i32, 100M elements = 400MB which is reasonable for modern systems
@@ -737,30 +764,35 @@ unsafe fn extract_safearray_i32(var: &VARIANT) -> Result<(Vec<i32>, usize, usize
     const MAX_ELEMENTS: usize = 150_000_000; // ~600MB for i32, supports very large sensors
 
     // Use checked arithmetic to prevent overflow
-    let size = dim1_size.checked_mul(dim2_size)
-        .ok_or_else(|| format!(
+    let size = dim1_size.checked_mul(dim2_size).ok_or_else(|| {
+        format!(
             "Array size overflow: {} x {} exceeds maximum computable size",
             dim1_size, dim2_size
-        ))?;
+        )
+    })?;
 
     if size > MAX_ELEMENTS {
         return Err(format!(
             "Array size {} elements ({} x {}) exceeds maximum {} elements (~{}MB)",
-            size, dim1_size, dim2_size, MAX_ELEMENTS, MAX_ELEMENTS * 4 / (1024 * 1024)
+            size,
+            dim1_size,
+            dim2_size,
+            MAX_ELEMENTS,
+            MAX_ELEMENTS * 4 / (1024 * 1024)
         ));
     }
-    
+
     // Access the raw data
     let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
     if SafeArrayAccessData(psa, &mut data_ptr).is_err() {
         return Err("Failed to access SAFEARRAY data".to_string());
     }
-    
+
     if data_ptr.is_null() {
         let _ = SafeArrayUnaccessData(psa);
         return Err("SAFEARRAY data pointer is null".to_string());
     }
-    
+
     // Determine the element type and copy data
     let base_vt = vt.0 & !VT_ARRAY.0;
     let result = if base_vt == VT_I4.0 {
@@ -791,19 +823,22 @@ unsafe fn extract_safearray_i32(var: &VARIANT) -> Result<(Vec<i32>, usize, usize
         }
         Ok(result)
     } else {
-        Err(format!("Unsupported SAFEARRAY element type: vt={}", base_vt))
+        Err(format!(
+            "Unsupported SAFEARRAY element type: vt={}",
+            base_vt
+        ))
     };
-    
+
     // Unaccess the data
     let _ = SafeArrayUnaccessData(psa);
-    
+
     result.map(|data| (data, dim1_size, dim2_size))
 }
 
 /// Extract string array from SAFEARRAY in VARIANT
 unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String> {
     let vt = (*var.Anonymous.Anonymous).vt;
-    
+
     // Check if this is an array variant
     if (vt.0 & VT_ARRAY.0) == 0 {
         return Err(format!("VARIANT is not an array type, got vt={}", vt.0));
@@ -823,16 +858,19 @@ unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String>
     if psa.is_null() {
         return Err("SAFEARRAY pointer is null".to_string());
     }
-    
+
     // Get array dimensions
     let dims = SafeArrayGetDim(psa);
     if dims == 0 {
         return Err("SAFEARRAY has 0 dimensions".to_string());
     }
     if dims > 2 {
-        return Err(format!("SAFEARRAY has {} dimensions, expected 1 or 2", dims));
+        return Err(format!(
+            "SAFEARRAY has {} dimensions, expected 1 or 2",
+            dims
+        ));
     }
-    
+
     // Get bounds
     let mut lower: i32 = 0;
     let mut upper: i32 = 0;
@@ -856,21 +894,27 @@ unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String>
     } else {
         (0, -1)
     };
-    
+
     // Validate bounds to prevent integer overflow and stack overflow
     if upper < lower {
-        return Err(format!("Invalid bounds: upper ({}) < lower ({})", upper, lower));
+        return Err(format!(
+            "Invalid bounds: upper ({}) < lower ({})",
+            upper, lower
+        ));
     }
     if dims == 2 && upper2 < lower2 {
-        return Err(format!("Invalid bounds: upper2 ({}) < lower2 ({})", upper2, lower2));
+        return Err(format!(
+            "Invalid bounds: upper2 ({}) < lower2 ({})",
+            upper2, lower2
+        ));
     }
-    
+
     // Check for potential integer overflow
     let diff = upper.saturating_sub(lower);
     if diff > 10_000_000 {
         return Err(format!("Array size too large: {}", diff + 1));
     }
-    
+
     // Validate total size to prevent stack overflow and excessive memory allocation
     // Limit to ~100MB for safety (assuming BSTR/VARIANT elements)
     const MAX_ELEMENTS: usize = 1_000_000; // Conservative limit for string arrays
@@ -878,21 +922,25 @@ unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String>
         let diff2 = upper2.saturating_sub(lower2);
         let dim1 = (diff + 1) as usize;
         let dim2 = (diff2 + 1) as usize;
-        dim1.checked_mul(dim2).ok_or_else(|| "Array size overflow".to_string())?
+        dim1.checked_mul(dim2)
+            .ok_or_else(|| "Array size overflow".to_string())?
     } else {
         (diff + 1) as usize
     };
-    
+
     if size > MAX_ELEMENTS {
-        return Err(format!("Array size too large: {} elements (max: {})", size, MAX_ELEMENTS));
+        return Err(format!(
+            "Array size too large: {} elements (max: {})",
+            size, MAX_ELEMENTS
+        ));
     }
-    
+
     // Access the raw data
     let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
     if SafeArrayAccessData(psa, &mut data_ptr).is_err() {
         return Err("Failed to access SAFEARRAY data".to_string());
     }
-    
+
     let base_vt = vt.0 & !(VT_ARRAY.0 | VT_BYREF.0);
     let result = if base_vt == VT_BSTR.0 {
         // Array of BSTRs
@@ -915,11 +963,14 @@ unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String>
         }
         Ok(strings)
     } else {
-        Err(format!("Unsupported SAFEARRAY element type for strings: vt={}", base_vt))
+        Err(format!(
+            "Unsupported SAFEARRAY element type for strings: vt={}",
+            base_vt
+        ))
     };
-    
+
     let _ = SafeArrayUnaccessData(psa);
-    
+
     result
 }
 
@@ -969,7 +1020,10 @@ impl AscomDeviceConnection {
 
     /// Check if the device is healthy (responding to commands)
     pub fn is_healthy(&self) -> bool {
-        matches!(self.health.get_health(), ConnectionHealth::Healthy | ConnectionHealth::Unknown)
+        matches!(
+            self.health.get_health(),
+            ConnectionHealth::Healthy | ConnectionHealth::Unknown
+        )
     }
 
     /// Perform a heartbeat check by reading the Connected property
@@ -1006,41 +1060,39 @@ impl AscomDeviceConnection {
     pub fn is_connected(&self) -> Result<bool, String> {
         self.get_bool_property("Connected")
     }
-    
+
     fn get_dispid(&self, name: &str) -> Result<i32, String> {
         unsafe {
             let name_wide: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
             let names = [PCWSTR::from_raw(name_wide.as_ptr())];
             let mut dispid: i32 = 0;
-            
-            self.dispatch.GetIDsOfNames(
-                &GUID::zeroed(),
-                names.as_ptr(),
-                1,
-                0,
-                &mut dispid,
-            ).map_err(|e| format!("Failed to get DISPID for {}: {}", name, e))?;
-            
+
+            self.dispatch
+                .GetIDsOfNames(&GUID::zeroed(), names.as_ptr(), 1, 0, &mut dispid)
+                .map_err(|e| format!("Failed to get DISPID for {}: {}", name, e))?;
+
             Ok(dispid)
         }
     }
-    
+
     pub fn get_string_property(&self, name: &str) -> Result<String, String> {
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             variant_to_string(&result).ok_or_else(|| format!("Property {} is not a string", name))
         }
@@ -1053,16 +1105,18 @@ impl AscomDeviceConnection {
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             extract_safearray_string(&result)
                 .map_err(|e| format!("Property {} is not a string array: {}", name, e))
@@ -1074,119 +1128,134 @@ impl AscomDeviceConnection {
             let dispid = self.get_dispid(name)?;
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
-            
-            self.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to get property {}: {}", name, e))?;
-            
+
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+
             variant_to_bool(&result).ok_or_else(|| format!("Property {} is not a bool", name))
         }
     }
-    
+
     pub fn set_bool_property(&self, name: &str, value: bool) -> Result<(), String> {
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut arg = variant_bool(value);
             let mut dispid_named = DISPID_PROPERTYPUT;
-            
+
             let params = DISPPARAMS {
                 rgvarg: &mut arg,
                 rgdispidNamedArgs: &mut dispid_named,
                 cArgs: 1,
                 cNamedArgs: 1,
             };
-            
-            self.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_PROPERTYPUT,
-                &params,
-                None,
-                None,
-                None,
-            ).map_err(|e| format!("Failed to set property {}: {}", name, e))?;
-            
+
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYPUT,
+                    &params,
+                    None,
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
+
             Ok(())
         }
     }
-    
+
     pub fn get_double_property(&self, name: &str) -> Result<f64, String> {
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
-            
-            self.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to get property {}: {}", name, e))?;
-            
+
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+
             variant_to_f64(&result).ok_or_else(|| format!("Property {} is not a double", name))
         }
     }
-    
+
     pub fn set_double_property(&self, name: &str, value: f64) -> Result<(), String> {
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut arg = variant_f64(value);
             let mut dispid_named = DISPID_PROPERTYPUT;
-            
+
             let params = DISPPARAMS {
                 rgvarg: &mut arg,
                 rgdispidNamedArgs: &mut dispid_named,
                 cArgs: 1,
                 cNamedArgs: 1,
             };
-            
-            self.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_PROPERTYPUT,
-                &params,
-                None,
-                None,
-                None,
-            ).map_err(|e| format!("Failed to set property {}: {}", name, e))?;
-            
+
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYPUT,
+                    &params,
+                    None,
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
+
             Ok(())
         }
     }
-    
+
     pub fn get_int_property(&self, name: &str) -> Result<i32, String> {
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
-            
-            self.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to get property {}: {}", name, e))?;
-            
+
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+
             let vt = (*result.Anonymous.Anonymous).vt;
-            tracing::debug!("ASCOM get_int_property('{}') VARIANT type: {} (VT_I2=2, VT_I4=3, VT_R8=5)", name, vt.0);
-            variant_to_i32(&result).ok_or_else(|| format!("Property {} is not an int (VARIANT type={})", name, vt.0))
+            tracing::debug!(
+                "ASCOM get_int_property('{}') VARIANT type: {} (VT_I2=2, VT_I4=3, VT_R8=5)",
+                name,
+                vt.0
+            );
+            variant_to_i32(&result)
+                .ok_or_else(|| format!("Property {} is not an int (VARIANT type={})", name, vt.0))
         }
     }
 
@@ -1195,29 +1264,31 @@ impl AscomDeviceConnection {
             let dispid = self.get_dispid(name)?;
             let mut arg = variant_i32(value);
             let mut dispid_named = DISPID_PROPERTYPUT;
-            
+
             let params = DISPPARAMS {
                 rgvarg: &mut arg,
                 rgdispidNamedArgs: &mut dispid_named,
                 cArgs: 1,
                 cNamedArgs: 1,
             };
-            
-            self.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_PROPERTYPUT,
-                &params,
-                None,
-                None,
-                None,
-            ).map_err(|e| format!("Failed to set property {}: {}", name, e))?;
-            
+
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYPUT,
+                    &params,
+                    None,
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
+
             Ok(())
         }
     }
-    
+
     pub fn call_method(&self, name: &str) -> Result<(), String> {
         unsafe {
             let dispid = self.get_dispid(name)?;
@@ -1450,7 +1521,12 @@ impl AscomDeviceConnection {
         }
     }
 
-    pub fn call_method_2_double_bool(&self, name: &str, arg1: f64, arg2: bool) -> Result<(), String> {
+    pub fn call_method_2_double_bool(
+        &self,
+        name: &str,
+        arg1: f64,
+        arg2: bool,
+    ) -> Result<(), String> {
         unsafe {
             let dispid = self.get_dispid(name)?;
 
@@ -1575,12 +1651,16 @@ impl Drop for AscomDeviceConnection {
         // RAII cleanup: always attempt to disconnect if connected
         // This ensures COM resources are properly released even on error paths
         if self.connected {
-            tracing::debug!("AscomDeviceConnection::drop - disconnecting {}", self.prog_id);
+            tracing::debug!(
+                "AscomDeviceConnection::drop - disconnecting {}",
+                self.prog_id
+            );
             if let Err(e) = self.disconnect() {
                 // Log but don't panic in Drop
                 tracing::warn!(
                     "Failed to disconnect ASCOM device {} during cleanup: {}",
-                    self.prog_id, e
+                    self.prog_id,
+                    e
                 );
             }
         }
@@ -1664,7 +1744,8 @@ impl<'a> Drop for AscomOperationGuard<'a> {
             if let Err(e) = device.try_disconnect() {
                 tracing::error!(
                     "AscomOperationGuard: failed to disconnect after failed '{}': {}",
-                    self.operation, e
+                    self.operation,
+                    e
                 );
             }
         }
@@ -1730,11 +1811,11 @@ impl AscomCamera {
             device: AscomDeviceConnection::new(prog_id)?,
         })
     }
-    
+
     pub fn connect(&mut self) -> Result<(), String> {
         self.device.connect()
     }
-    
+
     pub fn disconnect(&mut self) -> Result<(), String> {
         self.device.disconnect()
     }
@@ -1743,7 +1824,7 @@ impl AscomCamera {
     pub fn setup_dialog(&mut self) -> Result<(), String> {
         self.device.call_method_0("SetupDialog")
     }
-    
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -1775,103 +1856,104 @@ impl AscomCamera {
     pub fn camera_x_size(&self) -> Result<i32, String> {
         self.device.get_int_property("CameraXSize")
     }
-    
+
     pub fn camera_y_size(&self) -> Result<i32, String> {
         self.device.get_int_property("CameraYSize")
     }
-    
+
     pub fn pixel_size_x(&self) -> Result<f64, String> {
         self.device.get_double_property("PixelSizeX")
     }
-    
+
     pub fn pixel_size_y(&self) -> Result<f64, String> {
         self.device.get_double_property("PixelSizeY")
     }
-    
+
     pub fn max_bin_x(&self) -> Result<i32, String> {
         self.device.get_int_property("MaxBinX")
     }
-    
+
     pub fn max_bin_y(&self) -> Result<i32, String> {
         self.device.get_int_property("MaxBinY")
     }
-    
+
     pub fn bin_x(&self) -> Result<i32, String> {
         self.device.get_int_property("BinX")
     }
-    
+
     pub fn bin_y(&self) -> Result<i32, String> {
         self.device.get_int_property("BinY")
     }
-    
+
     pub fn set_bin_x(&mut self, value: i32) -> Result<(), String> {
         self.device.set_int_property("BinX", value)
     }
-    
+
     pub fn set_bin_y(&mut self, value: i32) -> Result<(), String> {
         self.device.set_int_property("BinY", value)
     }
-    
+
     pub fn can_set_ccd_temperature(&self) -> Result<bool, String> {
         self.device.get_bool_property("CanSetCCDTemperature")
     }
-    
+
     pub fn ccd_temperature(&self) -> Result<f64, String> {
         self.device.get_double_property("CCDTemperature")
     }
-    
+
     pub fn set_ccd_temperature(&mut self, temp: f64) -> Result<(), String> {
         self.device.set_double_property("SetCCDTemperature", temp)
     }
-    
+
     pub fn cooler_on(&self) -> Result<bool, String> {
         self.device.get_bool_property("CoolerOn")
     }
-    
+
     pub fn set_cooler_on(&mut self, on: bool) -> Result<(), String> {
         self.device.set_bool_property("CoolerOn", on)
     }
-    
+
     pub fn cooler_power(&self) -> Result<f64, String> {
         self.device.get_double_property("CoolerPower")
     }
-    
+
     pub fn gain(&self) -> Result<i32, String> {
         self.device.get_int_property("Gain")
     }
-    
+
     pub fn set_gain(&mut self, gain: i32) -> Result<(), String> {
         self.device.set_int_property("Gain", gain)
     }
-    
+
     pub fn offset(&self) -> Result<i32, String> {
         self.device.get_int_property("Offset")
     }
-    
+
     pub fn set_offset(&mut self, offset: i32) -> Result<(), String> {
         self.device.set_int_property("Offset", offset)
     }
-    
+
     pub fn camera_state(&self) -> Result<i32, String> {
         self.device.get_int_property("CameraState")
     }
-    
+
     pub fn image_ready(&self) -> Result<bool, String> {
         self.device.get_bool_property("ImageReady")
     }
-    
+
     pub fn start_exposure(&mut self, duration: f64, light: bool) -> Result<(), String> {
-        self.device.call_method_2_double_bool("StartExposure", duration, light)
+        self.device
+            .call_method_2_double_bool("StartExposure", duration, light)
     }
-    
+
     pub fn abort_exposure(&mut self) -> Result<(), String> {
         self.device.call_method("AbortExposure")
     }
-    
+
     pub fn stop_exposure(&mut self) -> Result<(), String> {
         self.device.call_method("StopExposure")
     }
-    
+
     /// Get the image array from the camera
     /// Returns (pixel_data, dim1_size, dim2_size)
     /// Extracts the SAFEARRAY from the ASCOM ImageArray property
@@ -1880,18 +1962,21 @@ impl AscomCamera {
             let dispid = self.device.get_dispid("ImageArray")?;
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
-            
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_PROPERTYGET,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to get ImageArray property: {}", e))?;
-            
+
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get ImageArray property: {}", e))?;
+
             // Extract SAFEARRAY from VARIANT
             extract_safearray_i32(&result)
         }
@@ -2098,15 +2183,15 @@ impl AscomMount {
             device: AscomDeviceConnection::new(prog_id)?,
         })
     }
-    
+
     pub fn connect(&mut self) -> Result<(), String> {
         self.device.connect()
     }
-    
+
     pub fn disconnect(&mut self) -> Result<(), String> {
         self.device.disconnect()
     }
-    
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -2134,47 +2219,47 @@ impl AscomMount {
     pub fn right_ascension(&self) -> Result<f64, String> {
         self.device.get_double_property("RightAscension")
     }
-    
+
     pub fn declination(&self) -> Result<f64, String> {
         self.device.get_double_property("Declination")
     }
-    
+
     pub fn altitude(&self) -> Result<f64, String> {
         self.device.get_double_property("Altitude")
     }
-    
+
     pub fn azimuth(&self) -> Result<f64, String> {
         self.device.get_double_property("Azimuth")
     }
-    
+
     pub fn side_of_pier(&self) -> Result<i32, String> {
         self.device.get_int_property("SideOfPier")
     }
-    
+
     pub fn sidereal_time(&self) -> Result<f64, String> {
         self.device.get_double_property("SiderealTime")
     }
-    
+
     pub fn tracking(&self) -> Result<bool, String> {
         self.device.get_bool_property("Tracking")
     }
-    
+
     pub fn set_tracking(&mut self, tracking: bool) -> Result<(), String> {
         self.device.set_bool_property("Tracking", tracking)
     }
-    
+
     pub fn slewing(&self) -> Result<bool, String> {
         self.device.get_bool_property("Slewing")
     }
-    
+
     pub fn at_park(&self) -> Result<bool, String> {
         self.device.get_bool_property("AtPark")
     }
-    
+
     pub fn at_home(&self) -> Result<bool, String> {
         self.device.get_bool_property("AtHome")
     }
-    
+
     pub fn can_park(&self) -> Result<bool, String> {
         self.device.get_bool_property("CanPark")
     }
@@ -2188,53 +2273,57 @@ impl AscomMount {
     pub fn alignment_mode(&self) -> Result<i32, String> {
         self.device.get_int_property("AlignmentMode")
     }
-    
+
     pub fn can_unpark(&self) -> Result<bool, String> {
         self.device.get_bool_property("CanUnpark")
     }
-    
+
     pub fn can_slew(&self) -> Result<bool, String> {
         self.device.get_bool_property("CanSlew")
     }
-    
+
     pub fn can_slew_async(&self) -> Result<bool, String> {
         self.device.get_bool_property("CanSlewAsync")
     }
-    
+
     pub fn can_sync(&self) -> Result<bool, String> {
         self.device.get_bool_property("CanSync")
     }
-    
+
     pub fn park(&mut self) -> Result<(), String> {
         self.device.call_method("Park")
     }
-    
+
     pub fn unpark(&mut self) -> Result<(), String> {
         self.device.call_method("Unpark")
     }
-    
+
     pub fn abort_slew(&mut self) -> Result<(), String> {
         self.device.call_method("AbortSlew")
     }
-    
+
     pub fn find_home(&mut self) -> Result<(), String> {
         self.device.call_method("FindHome")
     }
-    
+
     pub fn slew_to_coordinates_async(&mut self, ra: f64, dec: f64) -> Result<(), String> {
-        self.device.call_method_2_double("SlewToCoordinatesAsync", ra, dec)
+        self.device
+            .call_method_2_double("SlewToCoordinatesAsync", ra, dec)
     }
-    
+
     pub fn slew_to_coordinates(&mut self, ra: f64, dec: f64) -> Result<(), String> {
-        self.device.call_method_2_double("SlewToCoordinates", ra, dec)
+        self.device
+            .call_method_2_double("SlewToCoordinates", ra, dec)
     }
-    
+
     pub fn sync_to_coordinates(&mut self, ra: f64, dec: f64) -> Result<(), String> {
-        self.device.call_method_2_double("SyncToCoordinates", ra, dec)
+        self.device
+            .call_method_2_double("SyncToCoordinates", ra, dec)
     }
-    
+
     pub fn slew_to_alt_az_async(&mut self, alt: f64, az: f64) -> Result<(), String> {
-        self.device.call_method_2_double("SlewToAltAzAsync", az, alt)
+        self.device
+            .call_method_2_double("SlewToAltAzAsync", az, alt)
     }
 
     pub fn can_pulse_guide(&self) -> Result<bool, String> {
@@ -2246,7 +2335,8 @@ impl AscomMount {
     }
 
     pub fn pulse_guide(&mut self, direction: i32, duration_ms: u32) -> Result<(), String> {
-        self.device.call_method_2_int("PulseGuide", direction, duration_ms as i32)
+        self.device
+            .call_method_2_int("PulseGuide", direction, duration_ms as i32)
     }
 
     pub fn guide_rate_right_ascension(&self) -> Result<f64, String> {
@@ -2258,11 +2348,13 @@ impl AscomMount {
     }
 
     pub fn set_guide_rate_right_ascension(&mut self, rate: f64) -> Result<(), String> {
-        self.device.set_double_property("GuideRateRightAscension", rate)
+        self.device
+            .set_double_property("GuideRateRightAscension", rate)
     }
 
     pub fn set_guide_rate_declination(&mut self, rate: f64) -> Result<(), String> {
-        self.device.set_double_property("GuideRateDeclination", rate)
+        self.device
+            .set_double_property("GuideRateDeclination", rate)
     }
 
     /// Get the current tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
@@ -2295,7 +2387,8 @@ impl AscomMount {
 
         // Call the ASCOM CanMoveAxis method with the axis parameter
         // CanMoveAxis is a method that takes a TelescopeAxes enum and returns a Boolean
-        self.device.call_method_1_int_return_bool("CanMoveAxis", axis)
+        self.device
+            .call_method_1_int_return_bool("CanMoveAxis", axis)
     }
 
     /// Move an axis at the specified rate (degrees/second)
@@ -2442,15 +2535,15 @@ impl AscomFocuser {
             device: AscomDeviceConnection::new(prog_id)?,
         })
     }
-    
+
     pub fn connect(&mut self) -> Result<(), String> {
         self.device.connect()
     }
-    
+
     pub fn disconnect(&mut self) -> Result<(), String> {
         self.device.disconnect()
     }
-    
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -2494,31 +2587,31 @@ impl AscomFocuser {
     pub fn is_moving(&self) -> Result<bool, String> {
         self.device.get_bool_property("IsMoving")
     }
-    
+
     pub fn absolute(&self) -> Result<bool, String> {
         self.device.get_bool_property("Absolute")
     }
-    
+
     pub fn temp_comp(&self) -> Result<bool, String> {
         self.device.get_bool_property("TempComp")
     }
-    
+
     pub fn set_temp_comp(&mut self, value: bool) -> Result<(), String> {
         self.device.set_bool_property("TempComp", value)
     }
-    
+
     pub fn temp_comp_available(&self) -> Result<bool, String> {
         self.device.get_bool_property("TempCompAvailable")
     }
-    
+
     pub fn temperature(&self) -> Result<f64, String> {
         self.device.get_double_property("Temperature")
     }
-    
+
     pub fn move_to(&mut self, position: i32) -> Result<(), String> {
         self.device.call_method_1_int("Move", position)
     }
-    
+
     pub fn halt(&mut self) -> Result<(), String> {
         self.device.call_method("Halt")
     }
@@ -2589,15 +2682,15 @@ impl AscomFilterWheel {
             device: AscomDeviceConnection::new(prog_id)?,
         })
     }
-    
+
     pub fn connect(&mut self) -> Result<(), String> {
         self.device.connect()
     }
-    
+
     pub fn disconnect(&mut self) -> Result<(), String> {
         self.device.disconnect()
     }
-    
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -2710,23 +2803,23 @@ impl AscomRotator {
     pub fn position(&self) -> Result<f64, String> {
         self.device.get_double_property("Position")
     }
-    
+
     pub fn mechanical_position(&self) -> Result<f64, String> {
         self.device.get_double_property("MechanicalPosition")
     }
-    
+
     pub fn is_moving(&self) -> Result<bool, String> {
         self.device.get_bool_property("IsMoving")
     }
-    
+
     pub fn move_to(&mut self, position: f64) -> Result<(), String> {
         self.device.call_method_1_double("Move", position)
     }
-    
+
     pub fn move_absolute(&mut self, position: f64) -> Result<(), String> {
         self.device.call_method_1_double("MoveAbsolute", position)
     }
-    
+
     pub fn halt(&mut self) -> Result<(), String> {
         self.device.call_method("Halt")
     }
@@ -2896,15 +2989,15 @@ impl AscomSafetyMonitor {
             device: AscomDeviceConnection::new(prog_id)?,
         })
     }
-    
+
     pub fn connect(&mut self) -> Result<(), String> {
         self.device.connect()
     }
-    
+
     pub fn disconnect(&mut self) -> Result<(), String> {
         self.device.disconnect()
     }
-    
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -2972,15 +3065,15 @@ impl AscomObservingConditions {
             device: AscomDeviceConnection::new(prog_id)?,
         })
     }
-    
+
     pub fn connect(&mut self) -> Result<(), String> {
         self.device.connect()
     }
-    
+
     pub fn disconnect(&mut self) -> Result<(), String> {
         self.device.disconnect()
     }
-    
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -3016,43 +3109,43 @@ impl AscomObservingConditions {
     pub fn humidity(&self) -> Result<f64, String> {
         self.device.get_double_property("Humidity")
     }
-    
+
     pub fn pressure(&self) -> Result<f64, String> {
         self.device.get_double_property("Pressure")
     }
-    
+
     pub fn rain_rate(&self) -> Result<f64, String> {
         self.device.get_double_property("RainRate")
     }
-    
+
     pub fn sky_brightness(&self) -> Result<f64, String> {
         self.device.get_double_property("SkyBrightness")
     }
-    
+
     pub fn sky_quality(&self) -> Result<f64, String> {
         self.device.get_double_property("SkyQuality")
     }
-    
+
     pub fn sky_temperature(&self) -> Result<f64, String> {
         self.device.get_double_property("SkyTemperature")
     }
-    
+
     pub fn star_fwhm(&self) -> Result<f64, String> {
         self.device.get_double_property("StarFWHM")
     }
-    
+
     pub fn temperature(&self) -> Result<f64, String> {
         self.device.get_double_property("Temperature")
     }
-    
+
     pub fn wind_direction(&self) -> Result<f64, String> {
         self.device.get_double_property("WindDirection")
     }
-    
+
     pub fn wind_gust(&self) -> Result<f64, String> {
         self.device.get_double_property("WindGust")
     }
-    
+
     pub fn wind_speed(&self) -> Result<f64, String> {
         self.device.get_double_property("WindSpeed")
     }
@@ -3159,15 +3252,15 @@ impl AscomSwitch {
             device: AscomDeviceConnection::new(prog_id)?,
         })
     }
-    
+
     pub fn connect(&mut self) -> Result<(), String> {
         self.device.connect()
     }
-    
+
     pub fn disconnect(&mut self) -> Result<(), String> {
         self.device.disconnect()
     }
-    
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -3200,52 +3293,58 @@ impl AscomSwitch {
         unsafe {
             let dispid = self.device.get_dispid("GetSwitch")?;
             let mut args = [variant_i32(id)];
-            
+
             let params = DISPPARAMS {
                 rgvarg: args.as_mut_ptr(),
                 rgdispidNamedArgs: ptr::null_mut(),
                 cArgs: 1,
                 cNamedArgs: 0,
             };
-            
+
             let mut result = VARIANT::default();
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call GetSwitch: {}", e))?;
-            
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call GetSwitch: {}", e))?;
+
             variant_to_bool(&result).ok_or_else(|| "GetSwitch did not return a bool".to_string())
         }
     }
-    
+
     pub fn set_switch(&mut self, id: i32, state: bool) -> Result<(), String> {
         unsafe {
             let dispid = self.device.get_dispid("SetSwitch")?;
             let mut args = [variant_bool(state), variant_i32(id)];
-            
+
             let params = DISPPARAMS {
                 rgvarg: args.as_mut_ptr(),
                 rgdispidNamedArgs: ptr::null_mut(),
                 cArgs: 2,
                 cNamedArgs: 0,
             };
-            
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call SetSwitch: {}", e))?;
+
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    None,
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call SetSwitch: {}", e))?;
 
             Ok(())
         }
@@ -3264,18 +3363,22 @@ impl AscomSwitch {
             };
 
             let mut result = VARIANT::default();
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call GetSwitchName: {}", e))?;
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call GetSwitchName: {}", e))?;
 
-            variant_to_string(&result).ok_or_else(|| "GetSwitchName did not return a string".to_string())
+            variant_to_string(&result)
+                .ok_or_else(|| "GetSwitchName did not return a string".to_string())
         }
     }
 
@@ -3292,18 +3395,22 @@ impl AscomSwitch {
             };
 
             let mut result = VARIANT::default();
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call GetSwitchDescription: {}", e))?;
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call GetSwitchDescription: {}", e))?;
 
-            variant_to_string(&result).ok_or_else(|| "GetSwitchDescription did not return a string".to_string())
+            variant_to_string(&result)
+                .ok_or_else(|| "GetSwitchDescription did not return a string".to_string())
         }
     }
 
@@ -3320,18 +3427,22 @@ impl AscomSwitch {
             };
 
             let mut result = VARIANT::default();
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call GetSwitchValue: {}", e))?;
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call GetSwitchValue: {}", e))?;
 
-            variant_to_f64(&result).ok_or_else(|| "GetSwitchValue did not return a number".to_string())
+            variant_to_f64(&result)
+                .ok_or_else(|| "GetSwitchValue did not return a number".to_string())
         }
     }
 
@@ -3347,16 +3458,19 @@ impl AscomSwitch {
                 cNamedArgs: 0,
             };
 
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call SetSwitchValue: {}", e))?;
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    None,
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call SetSwitchValue: {}", e))?;
 
             Ok(())
         }
@@ -3375,18 +3489,22 @@ impl AscomSwitch {
             };
 
             let mut result = VARIANT::default();
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call MinSwitchValue: {}", e))?;
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call MinSwitchValue: {}", e))?;
 
-            variant_to_f64(&result).ok_or_else(|| "MinSwitchValue did not return a number".to_string())
+            variant_to_f64(&result)
+                .ok_or_else(|| "MinSwitchValue did not return a number".to_string())
         }
     }
 
@@ -3403,18 +3521,22 @@ impl AscomSwitch {
             };
 
             let mut result = VARIANT::default();
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call MaxSwitchValue: {}", e))?;
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call MaxSwitchValue: {}", e))?;
 
-            variant_to_f64(&result).ok_or_else(|| "MaxSwitchValue did not return a number".to_string())
+            variant_to_f64(&result)
+                .ok_or_else(|| "MaxSwitchValue did not return a number".to_string())
         }
     }
 
@@ -3431,16 +3553,19 @@ impl AscomSwitch {
             };
 
             let mut result = VARIANT::default();
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                Some(&mut result),
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call CanWrite: {}", e))?;
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call CanWrite: {}", e))?;
 
             variant_to_bool(&result).ok_or_else(|| "CanWrite did not return a bool".to_string())
         }
@@ -3462,10 +3587,7 @@ impl AscomSwitch {
             }
         }
 
-        SwitchFullStatus {
-            max_switch,
-            states,
-        }
+        SwitchFullStatus { max_switch, states }
     }
 
     /// Perform a heartbeat check to verify device is still responding
@@ -3497,15 +3619,15 @@ impl AscomCoverCalibrator {
             device: AscomDeviceConnection::new(prog_id)?,
         })
     }
-    
+
     pub fn connect(&mut self) -> Result<(), String> {
         self.device.connect()
     }
-    
+
     pub fn disconnect(&mut self) -> Result<(), String> {
         self.device.disconnect()
     }
-    
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -3541,54 +3663,57 @@ impl AscomCoverCalibrator {
     pub fn brightness(&self) -> Result<i32, String> {
         self.device.get_int_property("Brightness")
     }
-    
+
     pub fn set_brightness(&mut self, brightness: i32) -> Result<(), String> {
         self.device.set_int_property("Brightness", brightness)
     }
-    
+
     pub fn max_brightness(&self) -> Result<i32, String> {
         self.device.get_int_property("MaxBrightness")
     }
-    
+
     pub fn open_cover(&mut self) -> Result<(), String> {
         self.device.call_method("OpenCover")
     }
-    
+
     pub fn close_cover(&mut self) -> Result<(), String> {
         self.device.call_method("CloseCover")
     }
-    
+
     pub fn halt_cover(&mut self) -> Result<(), String> {
         self.device.call_method("HaltCover")
     }
-    
+
     pub fn calibrator_on(&mut self, brightness: i32) -> Result<(), String> {
         unsafe {
             let dispid = self.device.get_dispid("CalibratorOn")?;
             let mut args = [variant_i32(brightness)];
-            
+
             let params = DISPPARAMS {
                 rgvarg: args.as_mut_ptr(),
                 rgdispidNamedArgs: ptr::null_mut(),
                 cArgs: 1,
                 cNamedArgs: 0,
             };
-            
-            self.device.dispatch.Invoke(
-                dispid,
-                &GUID::zeroed(),
-                0,
-                DISPATCH_METHOD,
-                &params,
-                None,
-                None,
-                None,
-            ).map_err(|e| format!("Failed to call CalibratorOn: {}", e))?;
-            
+
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    None,
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call CalibratorOn: {}", e))?;
+
             Ok(())
         }
     }
-    
+
     pub fn calibrator_off(&mut self) -> Result<(), String> {
         self.device.call_method("CalibratorOff")
     }

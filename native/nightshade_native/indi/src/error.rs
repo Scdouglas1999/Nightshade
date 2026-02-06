@@ -86,7 +86,11 @@ impl fmt::Display for IndiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             IndiError::ConnectionFailed(msg) => write!(f, "Connection failed: {}", msg),
-            IndiError::ConnectionTimeout { host, port, duration } => {
+            IndiError::ConnectionTimeout {
+                host,
+                port,
+                duration,
+            } => {
                 write!(
                     f,
                     "Connection timeout: failed to connect to {}:{} after {:?}",

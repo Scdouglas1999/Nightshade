@@ -17,9 +17,9 @@
 //! - $TELESCOPE - Telescope name
 //! - $SEQUENCE - Sequence name
 
+use chrono::{DateTime, Local, Utc};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use chrono::{DateTime, Local, Utc};
 
 /// Frame type for image classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -44,7 +44,7 @@ impl FrameType {
             FrameType::Snapshot => "Snapshot",
         }
     }
-    
+
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "light" => Some(FrameType::Light),
@@ -90,86 +90,86 @@ impl NamingContext {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Set the timestamp to now
     pub fn with_current_time(mut self) -> Self {
         self.timestamp = Some(Utc::now());
         self
     }
-    
+
     /// Set target name
     pub fn with_target(mut self, target: impl Into<String>) -> Self {
         self.target = Some(target.into());
         self
     }
-    
+
     /// Set filter name
     pub fn with_filter(mut self, filter: impl Into<String>) -> Self {
         self.filter = Some(filter.into());
         self
     }
-    
+
     /// Set exposure time
     pub fn with_exposure(mut self, seconds: f64) -> Self {
         self.exposure_time = Some(seconds);
         self
     }
-    
+
     /// Set frame type
     pub fn with_frame_type(mut self, frame_type: FrameType) -> Self {
         self.frame_type = frame_type;
         self
     }
-    
+
     /// Set frame number
     pub fn with_frame_number(mut self, num: u32) -> Self {
         self.frame_number = Some(num);
         self
     }
-    
+
     /// Set camera gain
     pub fn with_gain(mut self, gain: i32) -> Self {
         self.gain = Some(gain);
         self
     }
-    
+
     /// Set camera offset
     pub fn with_offset(mut self, offset: i32) -> Self {
         self.offset = Some(offset);
         self
     }
-    
+
     /// Set sensor temperature
     pub fn with_temperature(mut self, temp: f64) -> Self {
         self.temperature = Some(temp);
         self
     }
-    
+
     /// Set binning
     pub fn with_binning(mut self, x: u32, y: u32) -> Self {
         self.binning_x = Some(x);
         self.binning_y = Some(y);
         self
     }
-    
+
     /// Set camera name
     pub fn with_camera(mut self, camera: impl Into<String>) -> Self {
         self.camera = Some(camera.into());
         self
     }
-    
+
     /// Set telescope name
     pub fn with_telescope(mut self, telescope: impl Into<String>) -> Self {
         self.telescope = Some(telescope.into());
         self
     }
-    
+
     /// Set sequence name
     pub fn with_sequence(mut self, sequence: impl Into<String>) -> Self {
         self.sequence = Some(sequence.into());
         self
     }
-    
+
     /// Add custom variable
     pub fn with_custom(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.custom.insert(key.into(), value.into());
@@ -209,32 +209,32 @@ impl NamingPattern {
             ..Default::default()
         }
     }
-    
+
     /// Set the file extension
     pub fn with_extension(mut self, ext: impl Into<String>) -> Self {
         self.extension = ext.into();
         self
     }
-    
+
     /// Set the base directory
     pub fn with_base_dir(mut self, dir: impl Into<PathBuf>) -> Self {
         self.base_dir = dir.into();
         self
     }
-    
+
     /// Set whether to create subdirectories
     pub fn with_subdirs(mut self, create: bool) -> Self {
         self.create_subdirs = create;
         self
     }
-    
+
     /// Generate a filename from the context
     pub fn generate(&self, context: &NamingContext) -> PathBuf {
         let filename = self.expand_pattern(&self.pattern, context);
         let sanitized = sanitize_filename(&filename);
-        
+
         let mut path = self.base_dir.clone();
-        
+
         // Split by path separator to handle subdirectories
         let parts: Vec<&str> = sanitized.split('/').collect();
         for (i, part) in parts.iter().enumerate() {
@@ -246,51 +246,95 @@ impl NamingPattern {
                 path.push(format!("{}.{}", part, self.extension));
             }
         }
-        
+
         path
     }
-    
+
     /// Expand pattern variables
     fn expand_pattern(&self, pattern: &str, ctx: &NamingContext) -> String {
         let mut result = pattern.to_string();
-        
+
         // Get timestamp
         let ts = ctx.timestamp.unwrap_or_else(Utc::now);
         let local_ts: DateTime<Local> = ts.into();
-        
+
         // Replace all variables
         let replacements: Vec<(&str, String)> = vec![
-            ("$TARGET", ctx.target.clone().unwrap_or_else(|| "Unknown".to_string())),
-            ("$FILTER", ctx.filter.clone().unwrap_or_else(|| "NoFilter".to_string())),
-            ("$EXPTIME", format_exposure(ctx.exposure_time.unwrap_or(0.0))),
+            (
+                "$TARGET",
+                ctx.target.clone().unwrap_or_else(|| "Unknown".to_string()),
+            ),
+            (
+                "$FILTER",
+                ctx.filter.clone().unwrap_or_else(|| "NoFilter".to_string()),
+            ),
+            (
+                "$EXPTIME",
+                format_exposure(ctx.exposure_time.unwrap_or(0.0)),
+            ),
             ("$DATE", local_ts.format("%Y-%m-%d").to_string()),
             ("$TIME", local_ts.format("%H-%M-%S").to_string()),
-            ("$DATETIME", local_ts.format("%Y-%m-%d_%H-%M-%S").to_string()),
+            (
+                "$DATETIME",
+                local_ts.format("%Y-%m-%d_%H-%M-%S").to_string(),
+            ),
             ("$FRAMETYPE", ctx.frame_type.as_str().to_string()),
             ("$FRAMENUM", format!("{:04}", ctx.frame_number.unwrap_or(1))),
-            ("$GAIN", ctx.gain.map(|g| g.to_string()).unwrap_or_else(|| "0".to_string())),
-            ("$OFFSET", ctx.offset.map(|o| o.to_string()).unwrap_or_else(|| "0".to_string())),
+            (
+                "$GAIN",
+                ctx.gain
+                    .map(|g| g.to_string())
+                    .unwrap_or_else(|| "0".to_string()),
+            ),
+            (
+                "$OFFSET",
+                ctx.offset
+                    .map(|o| o.to_string())
+                    .unwrap_or_else(|| "0".to_string()),
+            ),
             ("$TEMP", format_temperature(ctx.temperature)),
-            ("$BINNING", format!("{}x{}", 
-                ctx.binning_x.unwrap_or(1), 
-                ctx.binning_y.unwrap_or(1)
-            )),
-            ("$CAMERA", ctx.camera.clone().unwrap_or_else(|| "Camera".to_string())),
-            ("$TELESCOPE", ctx.telescope.clone().unwrap_or_else(|| "Telescope".to_string())),
-            ("$SEQUENCE", ctx.sequence.clone().unwrap_or_else(|| "Sequence".to_string())),
-            ("$SESSION", ctx.session_id.clone().unwrap_or_else(|| local_ts.format("%Y%m%d").to_string())),
+            (
+                "$BINNING",
+                format!(
+                    "{}x{}",
+                    ctx.binning_x.unwrap_or(1),
+                    ctx.binning_y.unwrap_or(1)
+                ),
+            ),
+            (
+                "$CAMERA",
+                ctx.camera.clone().unwrap_or_else(|| "Camera".to_string()),
+            ),
+            (
+                "$TELESCOPE",
+                ctx.telescope
+                    .clone()
+                    .unwrap_or_else(|| "Telescope".to_string()),
+            ),
+            (
+                "$SEQUENCE",
+                ctx.sequence
+                    .clone()
+                    .unwrap_or_else(|| "Sequence".to_string()),
+            ),
+            (
+                "$SESSION",
+                ctx.session_id
+                    .clone()
+                    .unwrap_or_else(|| local_ts.format("%Y%m%d").to_string()),
+            ),
         ];
-        
+
         for (var, value) in replacements {
             result = result.replace(var, &value);
         }
-        
+
         // Replace custom variables
         for (key, value) in &ctx.custom {
             let var = format!("${}", key.to_uppercase());
             result = result.replace(&var, value);
         }
-        
+
         result
     }
 }
@@ -349,7 +393,7 @@ impl FrameCounter {
             counters: HashMap::new(),
         }
     }
-    
+
     /// Get the next frame number for a given key
     /// Key is typically target_filter_frametype
     pub fn next(&mut self, key: &str) -> u32 {
@@ -357,31 +401,31 @@ impl FrameCounter {
         *counter += 1;
         *counter
     }
-    
+
     /// Get current frame number without incrementing
     pub fn current(&self, key: &str) -> u32 {
         *self.counters.get(key).unwrap_or(&0)
     }
-    
+
     /// Reset a specific counter
     pub fn reset(&mut self, key: &str) {
         self.counters.remove(key);
     }
-    
+
     /// Reset all counters
     pub fn reset_all(&mut self) {
         self.counters.clear();
     }
-    
+
     /// Set a counter to a specific value
     pub fn set(&mut self, key: &str, value: u32) {
         self.counters.insert(key.to_string(), value);
     }
-    
+
     /// Generate a key from context
     pub fn key_from_context(ctx: &NamingContext) -> String {
         format!(
-            "{}_{}_{}", 
+            "{}_{}_{}",
             ctx.target.as_deref().unwrap_or("Unknown"),
             ctx.filter.as_deref().unwrap_or("NoFilter"),
             ctx.frame_type.as_str()
@@ -433,25 +477,25 @@ pub fn scan_for_next_frame_number(
     // Generate what the filename should look like (without the number)
     let mut test_context = context.clone();
     test_context.frame_number = Some(0);
-    
+
     let test_path = pattern.generate(&test_context);
     let parent = test_path.parent().unwrap_or(base_dir);
-    
+
     // If directory doesn't exist, start at 1
     if !parent.exists() {
         return 1;
     }
-    
+
     // Scan for existing files
     let mut max_num = 0u32;
-    
+
     if let Ok(entries) = std::fs::read_dir(parent) {
         for entry in entries.flatten() {
             let filename = entry.file_name();
             let name = filename.to_string_lossy();
-            
+
             // Try to extract frame number from filename
-            // Look for patterns like _0001. or _0001_ 
+            // Look for patterns like _0001. or _0001_
             for i in (0..name.len()).rev() {
                 if let Some(num_str) = extract_frame_number(&name, i) {
                     if let Ok(num) = num_str.parse::<u32>() {
@@ -462,31 +506,31 @@ pub fn scan_for_next_frame_number(
             }
         }
     }
-    
+
     max_num + 1
 }
 
 /// Extract frame number from filename at given position
 fn extract_frame_number(name: &str, pos: usize) -> Option<&str> {
     let bytes = name.as_bytes();
-    
+
     // Check if we're at a digit
     if !bytes.get(pos)?.is_ascii_digit() {
         return None;
     }
-    
+
     // Find start of number sequence
     let mut start = pos;
     while start > 0 && bytes[start - 1].is_ascii_digit() {
         start -= 1;
     }
-    
+
     // Find end of number sequence
     let mut end = pos;
     while end < bytes.len() && bytes[end].is_ascii_digit() {
         end += 1;
     }
-    
+
     // Must be at least 3 digits (typical frame numbers)
     if end - start >= 3 {
         Some(&name[start..end])
@@ -498,7 +542,7 @@ fn extract_frame_number(name: &str, pos: usize) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_basic_pattern() {
         let pattern = NamingPattern::new("$TARGET_$FILTER_$FRAMENUM");
@@ -506,11 +550,11 @@ mod tests {
             .with_target("M31")
             .with_filter("L")
             .with_frame_number(1);
-        
+
         let path = pattern.generate(&context);
         assert!(path.to_string_lossy().contains("M31_L_0001"));
     }
-    
+
     #[test]
     fn test_exposure_formatting() {
         assert_eq!(format_exposure(120.0), "120s");
@@ -518,8 +562,3 @@ mod tests {
         assert_eq!(format_exposure(0.0001), "100us");
     }
 }
-
-
-
-
-

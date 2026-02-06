@@ -74,14 +74,16 @@ pub struct IOptronStatus {
 fn parse_system_status(response: &str) -> Result<IOptronStatus, NativeError> {
     if response.len() < 8 {
         return Err(NativeError::SdkError(format!(
-            "Invalid status response: {}", response
+            "Invalid status response: {}",
+            response
         )));
     }
 
     let chars: Vec<char> = response.chars().collect();
 
     // Parse tracking rate from character at position 2 (0-3 for sidereal/lunar/solar/king)
-    let tracking_rate = chars.get(2)
+    let tracking_rate = chars
+        .get(2)
         .and_then(|c| c.to_digit(10))
         .map(|d| d as u8)
         .unwrap_or(0);
@@ -104,15 +106,19 @@ fn parse_system_status(response: &str) -> Result<IOptronStatus, NativeError> {
 fn parse_ra(response: &str) -> Result<f64, NativeError> {
     if response.len() < 8 {
         return Err(NativeError::SdkError(format!(
-            "Invalid RA response: {}", response
+            "Invalid RA response: {}",
+            response
         )));
     }
 
-    let hours: f64 = response[0..2].parse()
+    let hours: f64 = response[0..2]
+        .parse()
         .map_err(|_| NativeError::SdkError("Invalid RA hours".into()))?;
-    let minutes: f64 = response[2..4].parse()
+    let minutes: f64 = response[2..4]
+        .parse()
         .map_err(|_| NativeError::SdkError("Invalid RA minutes".into()))?;
-    let centisecs: f64 = response[4..8].parse()
+    let centisecs: f64 = response[4..8]
+        .parse()
         .map_err(|_| NativeError::SdkError("Invalid RA seconds".into()))?;
 
     let seconds = centisecs / 100.0;
@@ -122,18 +128,26 @@ fn parse_ra(response: &str) -> Result<f64, NativeError> {
 fn parse_dec(response: &str) -> Result<f64, NativeError> {
     if response.len() < 9 {
         return Err(NativeError::SdkError(format!(
-            "Invalid Dec response: {}", response
+            "Invalid Dec response: {}",
+            response
         )));
     }
 
     let sign = if response.starts_with('-') { -1.0 } else { 1.0 };
-    let start = if response.starts_with('-') || response.starts_with('+') { 1 } else { 0 };
+    let start = if response.starts_with('-') || response.starts_with('+') {
+        1
+    } else {
+        0
+    };
 
-    let degrees: f64 = response[start..start+2].parse()
+    let degrees: f64 = response[start..start + 2]
+        .parse()
         .map_err(|_| NativeError::SdkError("Invalid Dec degrees".into()))?;
-    let arcmin: f64 = response[start+2..start+4].parse()
+    let arcmin: f64 = response[start + 2..start + 4]
+        .parse()
         .map_err(|_| NativeError::SdkError("Invalid Dec arcmin".into()))?;
-    let centiarcsec: f64 = response[start+4..start+8].parse()
+    let centiarcsec: f64 = response[start + 4..start + 8]
+        .parse()
         .map_err(|_| NativeError::SdkError("Invalid Dec arcsec".into()))?;
 
     let arcsec = centiarcsec / 100.0;
@@ -188,7 +202,10 @@ impl std::fmt::Debug for IOptronMount {
 
 impl IOptronMount {
     pub fn new(port: String, baud_rate: Option<u32>) -> Self {
-        let device_id = format!("native:ioptron:{}", port.replace("/", "_").replace("\\", "_"));
+        let device_id = format!(
+            "native:ioptron:{}",
+            port.replace("/", "_").replace("\\", "_")
+        );
         Self {
             device_id,
             name: format!("iOptron ({})", port),
@@ -202,7 +219,10 @@ impl IOptronMount {
     }
 
     fn send_command(&self, command: &str) -> Result<String, NativeError> {
-        let mut port_guard = self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let mut port_guard = self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
@@ -215,7 +235,9 @@ impl IOptronMount {
 
         loop {
             if timeout.elapsed() > Duration::from_secs(5) {
-                return Err(NativeError::Timeout("iOptron command response timed out".to_string()));
+                return Err(NativeError::Timeout(
+                    "iOptron command response timed out".to_string(),
+                ));
             }
 
             match port.read(&mut buf) {
@@ -235,7 +257,10 @@ impl IOptronMount {
     }
 
     fn send_command_no_response(&self, command: &str) -> Result<(), NativeError> {
-        let mut port_guard = self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let mut port_guard = self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
@@ -248,7 +273,10 @@ impl IOptronMount {
     fn update_status(&self) -> Result<(), NativeError> {
         let response = self.send_command(commands::GET_SYSTEM_STATUS)?;
         let new_status = parse_system_status(&response)?;
-        *self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = new_status;
+        *self
+            .status
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = new_status;
         Ok(())
     }
 }
@@ -281,30 +309,51 @@ impl NativeDevice for IOptronMount {
             .open()
             .map_err(|e| NativeError::SdkError(format!("Failed to open serial port: {}", e)))?;
 
-        *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(serial);
+        *self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(serial);
 
         match self.send_command(commands::GET_MOUNT_VERSION) {
             Ok(response) => {
-                *self.mount_model.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = response.clone();
+                *self
+                    .mount_model
+                    .lock()
+                    .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = response.clone();
                 self.name = format!("iOptron {} ({})", response, self.port_name);
             }
             Err(_) => {
-                *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
+                *self
+                    .serial_port
+                    .lock()
+                    .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
                 let serial = serialport::new(&self.port_name, IOPTRON_BAUD_RATE_FAST)
                     .timeout(Duration::from_millis(500))
                     .open()
-                    .map_err(|e| NativeError::SdkError(format!("Failed to open serial port: {}", e)))?;
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to open serial port: {}", e))
+                    })?;
 
-                *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(serial);
+                *self
+                    .serial_port
+                    .lock()
+                    .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(serial);
                 self.baud_rate = IOPTRON_BAUD_RATE_FAST;
 
                 match self.send_command(commands::GET_MOUNT_VERSION) {
                     Ok(response) => {
-                        *self.mount_model.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = response.clone();
+                        *self
+                            .mount_model
+                            .lock()
+                            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? =
+                            response.clone();
                         self.name = format!("iOptron {} ({})", response, self.port_name);
                     }
                     Err(e) => {
-                        *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
+                        *self
+                            .serial_port
+                            .lock()
+                            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
                         return Err(e);
                     }
                 }
@@ -313,7 +362,10 @@ impl NativeDevice for IOptronMount {
 
         let _ = self.update_status();
 
-        *self.connected.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
+        *self
+            .connected
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
         tracing::info!("Connected to iOptron mount");
 
         Ok(())
@@ -326,8 +378,14 @@ impl NativeDevice for IOptronMount {
 
         let _ = self.send_command_no_response(commands::STOP_SLEW);
 
-        *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
-        *self.connected.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = false;
+        *self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
+        *self
+            .connected
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = false;
 
         tracing::info!("Disconnected from iOptron mount");
 
@@ -337,7 +395,11 @@ impl NativeDevice for IOptronMount {
 
 #[async_trait]
 impl NativeMount for IOptronMount {
-    async fn slew_to_coordinates(&mut self, ra_hours: f64, dec_degrees: f64) -> Result<(), NativeError> {
+    async fn slew_to_coordinates(
+        &mut self,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> Result<(), NativeError> {
         if !self.is_connected() {
             return Err(NativeError::NotConnected);
         }
@@ -372,7 +434,10 @@ impl NativeMount for IOptronMount {
         let response = self.send_command(commands::GET_RA_DEC)?;
 
         if response.len() < 16 {
-            return Err(NativeError::SdkError(format!("Invalid coordinate response: {}", response)));
+            return Err(NativeError::SdkError(format!(
+                "Invalid coordinate response: {}",
+                response
+            )));
         }
 
         let ra = parse_ra(&response[0..8])?;
@@ -381,7 +446,11 @@ impl NativeMount for IOptronMount {
         Ok((ra, dec))
     }
 
-    async fn sync_to_coordinates(&mut self, ra_hours: f64, dec_degrees: f64) -> Result<(), NativeError> {
+    async fn sync_to_coordinates(
+        &mut self,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> Result<(), NativeError> {
         if !self.is_connected() {
             return Err(NativeError::NotConnected);
         }
@@ -427,7 +496,10 @@ impl NativeMount for IOptronMount {
         }
 
         self.update_status()?;
-        let status = self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let status = self
+            .status
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
 
         Ok(status.slewing)
     }
@@ -438,12 +510,19 @@ impl NativeMount for IOptronMount {
         }
 
         self.update_status()?;
-        let status = self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let status = self
+            .status
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
 
         Ok(status.parked)
     }
 
-    async fn pulse_guide(&mut self, direction: GuideDirection, duration_ms: u32) -> Result<(), NativeError> {
+    async fn pulse_guide(
+        &mut self,
+        direction: GuideDirection,
+        duration_ms: u32,
+    ) -> Result<(), NativeError> {
         if !self.is_connected() {
             return Err(NativeError::NotConnected);
         }
@@ -495,7 +574,10 @@ impl NativeMount for IOptronMount {
         }
 
         self.update_status()?;
-        let status = self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let status = self
+            .status
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
 
         Ok(status.tracking)
     }
@@ -506,7 +588,10 @@ impl NativeMount for IOptronMount {
         }
 
         self.update_status()?;
-        let status = self.status.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let status = self
+            .status
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
 
         Ok(if status.pier_side_west {
             PierSide::West
@@ -527,11 +612,14 @@ impl NativeMount for IOptronMount {
         }
 
         let alt = parse_dec(&response[0..9])?;
-        let az_deg: f64 = response[9..12].parse()
+        let az_deg: f64 = response[9..12]
+            .parse()
             .map_err(|_| NativeError::SdkError("Invalid azimuth".into()))?;
-        let az_min: f64 = response[12..14].parse()
+        let az_min: f64 = response[12..14]
+            .parse()
             .map_err(|_| NativeError::SdkError("Invalid azimuth".into()))?;
-        let az_sec: f64 = response[14..18].parse()
+        let az_sec: f64 = response[14..18]
+            .parse()
             .map_err(|_| NativeError::SdkError("Invalid azimuth".into()))?;
 
         let az = az_deg + az_min / 60.0 + (az_sec / 100.0) / 3600.0;
@@ -602,7 +690,10 @@ pub async fn discover_mounts() -> Result<Vec<IOptronMountInfo>, NativeError> {
     let ports = serialport::available_ports()
         .map_err(|e| NativeError::SdkError(format!("Failed to enumerate ports: {}", e)))?;
 
-    tracing::info!("iOptron discovery: found {} serial ports to scan", ports.len());
+    tracing::info!(
+        "iOptron discovery: found {} serial ports to scan",
+        ports.len()
+    );
 
     for port_info in ports {
         let port_name = port_info.port_name.clone();
@@ -620,7 +711,10 @@ pub async fn discover_mounts() -> Result<Vec<IOptronMountInfo>, NativeError> {
                 .open();
 
             if let Ok(mut port) = result {
-                if port.write_all(commands::GET_MOUNT_VERSION.as_bytes()).is_ok() {
+                if port
+                    .write_all(commands::GET_MOUNT_VERSION.as_bytes())
+                    .is_ok()
+                {
                     let _ = port.flush();
 
                     let mut buf = [0u8; 32];
@@ -628,9 +722,17 @@ pub async fn discover_mounts() -> Result<Vec<IOptronMountInfo>, NativeError> {
 
                     if let Ok(n) = port.read(&mut buf) {
                         let response = String::from_utf8_lossy(&buf[..n]);
-                        tracing::debug!("iOptron response from {} at {} baud: {:?}", port_name, baud_rate, response);
-                        if response.contains("iEQ") || response.contains("CEM")
-                            || response.contains("GEM") || response.contains("AZ") {
+                        tracing::debug!(
+                            "iOptron response from {} at {} baud: {:?}",
+                            port_name,
+                            baud_rate,
+                            response
+                        );
+                        if response.contains("iEQ")
+                            || response.contains("CEM")
+                            || response.contains("GEM")
+                            || response.contains("AZ")
+                        {
                             let model = response.trim_end_matches('#').to_string();
                             let display_name = format!("iOptron {} ({})", model, port_name);
                             mounts.push(IOptronMountInfo {
@@ -639,7 +741,12 @@ pub async fn discover_mounts() -> Result<Vec<IOptronMountInfo>, NativeError> {
                                 model,
                                 baud_rate,
                             });
-                            tracing::info!("Found iOptron mount on {} at {} baud: {}", port_name, baud_rate, display_name);
+                            tracing::info!(
+                                "Found iOptron mount on {} at {} baud: {}",
+                                port_name,
+                                baud_rate,
+                                display_name
+                            );
                             found_mount = true;
                         }
                     }

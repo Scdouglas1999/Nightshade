@@ -36,26 +36,26 @@ type PoaCameraIdx = c_int;
 #[repr(C)]
 #[derive(Debug, Clone)]
 struct POACameraProperties {
-    camera_model_name: [c_char; 256],  // cameraModelName
-    user_custom_id: [c_char; 16],       // userCustomID  
-    camera_id: c_int,                    // cameraID
-    max_width: c_int,                    // maxWidth (NOTE: width comes before height in SDK)
-    max_height: c_int,                   // maxHeight
-    bit_depth: c_int,                    // bitDepth
-    is_color_camera: c_int,              // isColorCamera (POABool)
-    is_has_st4_port: c_int,              // isHasST4Port (POABool)
-    is_has_cooler: c_int,                // isHasCooler (POABool)
-    is_usb3_speed: c_int,                // isUSB3Speed (POABool)
-    bayer_pattern: c_int,                // bayerPattern (POABayerPattern)
-    pixel_size: f64,                     // pixelSize (double)
-    sn: [c_char; 64],                    // SN
-    sensor_model_name: [c_char; 32],     // sensorModelName
-    local_path: [c_char; 256],           // localPath
-    bins: [c_int; 8],                    // bins - supported bin modes
-    img_formats: [c_int; 8],             // imgFormats - supported image formats
-    is_support_hard_bin: c_int,          // isSupportHardBin (POABool)
-    p_id: c_int,                         // pID
-    reserved: [c_char; 248],             // reserved
+    camera_model_name: [c_char; 256], // cameraModelName
+    user_custom_id: [c_char; 16],     // userCustomID
+    camera_id: c_int,                 // cameraID
+    max_width: c_int,                 // maxWidth (NOTE: width comes before height in SDK)
+    max_height: c_int,                // maxHeight
+    bit_depth: c_int,                 // bitDepth
+    is_color_camera: c_int,           // isColorCamera (POABool)
+    is_has_st4_port: c_int,           // isHasST4Port (POABool)
+    is_has_cooler: c_int,             // isHasCooler (POABool)
+    is_usb3_speed: c_int,             // isUSB3Speed (POABool)
+    bayer_pattern: c_int,             // bayerPattern (POABayerPattern)
+    pixel_size: f64,                  // pixelSize (double)
+    sn: [c_char; 64],                 // SN
+    sensor_model_name: [c_char; 32],  // sensorModelName
+    local_path: [c_char; 256],        // localPath
+    bins: [c_int; 8],                 // bins - supported bin modes
+    img_formats: [c_int; 8],          // imgFormats - supported image formats
+    is_support_hard_bin: c_int,       // isSupportHardBin (POABool)
+    p_id: c_int,                      // pID
+    reserved: [c_char; 248],          // reserved
 }
 
 /// POA Exposure Status
@@ -183,7 +183,7 @@ impl std::fmt::Debug for POAConfigValue {
 struct PoaSdk {
     #[allow(dead_code)]
     lib: libloading::Library,
-    
+
     // Function pointers - matches actual SDK signatures from PlayerOneCamera.h
     get_camera_count: unsafe extern "C" fn() -> c_int,
     get_camera_properties: unsafe extern "C" fn(c_int, *mut POACameraProperties) -> c_int,
@@ -236,12 +236,14 @@ impl PoaSdk {
             unsafe {
                 if let Ok(lib) = libloading::Library::new(path) {
                     tracing::info!("Loaded Player One SDK from: {}", path);
-                    
+
                     // Load all function pointers - actual SDK function names
                     let sdk = Self {
                         get_camera_count: *lib.get(b"POAGetCameraCount\0").ok()?,
                         get_camera_properties: *lib.get(b"POAGetCameraProperties\0").ok()?,
-                        get_camera_properties_by_id: *lib.get(b"POAGetCameraPropertiesByID\0").ok()?,
+                        get_camera_properties_by_id: *lib
+                            .get(b"POAGetCameraPropertiesByID\0")
+                            .ok()?,
                         open_camera: *lib.get(b"POAOpenCamera\0").ok()?,
                         init_camera: *lib.get(b"POAInitCamera\0").ok()?,
                         close_camera: *lib.get(b"POACloseCamera\0").ok()?,
@@ -259,16 +261,16 @@ impl PoaSdk {
                         image_ready: *lib.get(b"POAImageReady\0").ok()?,
                         lib,
                     };
-                    
+
                     return Some(sdk);
                 }
             }
         }
-        
+
         tracing::warn!("Player One SDK not found");
         None
     }
-    
+
     /// Get the global SDK instance
     fn get() -> Option<&'static PoaSdk> {
         POA_SDK.get_or_init(|| Self::load()).as_ref()
@@ -361,21 +363,21 @@ impl PlayerOneCamera {
             current_subframe: None,
         }
     }
-    
+
     /// Load camera info from SDK
     fn load_camera_info(&mut self) -> Result<(), NativeError> {
         let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
-        
+
         let mut info: POACameraProperties = unsafe { std::mem::zeroed() };
         let result = unsafe { (sdk.get_camera_properties_by_id)(self.camera_id, &mut info) };
         check_poa_error(result, "GetCameraProperties")?;
-        
+
         self.current_width = info.max_width;
         self.current_height = info.max_height;
         self.camera_info = Some(info);
         Ok(())
     }
-    
+
     /// Get camera name using safe string conversion
     fn camera_name(&self) -> String {
         if let Some(info) = &self.camera_info {
@@ -384,16 +386,15 @@ impl PlayerOneCamera {
             format!("Player One Camera {}", self.camera_id)
         }
     }
-    
+
     /// Get a control value as integer (mutex protected)
     async fn get_control_int_async(&self, control: POAConfig) -> Result<c_long, NativeError> {
         let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = player_one_mutex().lock().await;
         let mut value = POAConfigValue::default();
         let mut is_auto: POABool = POA_FALSE;
-        let result = unsafe {
-            (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto)
-        };
+        let result =
+            unsafe { (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto) };
         check_poa_error(result, "POAGetConfig")?;
         Ok(unsafe { value.int_value })
     }
@@ -403,9 +404,8 @@ impl PlayerOneCamera {
         let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let mut value = POAConfigValue::default();
         let mut is_auto: POABool = POA_FALSE;
-        let result = unsafe {
-            (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto)
-        };
+        let result =
+            unsafe { (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto) };
         check_poa_error(result, "POAGetConfig")?;
         Ok(unsafe { value.int_value })
     }
@@ -416,9 +416,8 @@ impl PlayerOneCamera {
         let _lock = player_one_mutex().lock().await;
         let mut value = POAConfigValue::default();
         let mut is_auto: POABool = POA_FALSE;
-        let result = unsafe {
-            (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto)
-        };
+        let result =
+            unsafe { (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto) };
         check_poa_error(result, "POAGetConfig")?;
         Ok(unsafe { value.float_value })
     }
@@ -428,15 +427,19 @@ impl PlayerOneCamera {
         let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let mut value = POAConfigValue::default();
         let mut is_auto: POABool = POA_FALSE;
-        let result = unsafe {
-            (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto)
-        };
+        let result =
+            unsafe { (sdk.get_config)(self.camera_id, control as c_int, &mut value, &mut is_auto) };
         check_poa_error(result, "POAGetConfig")?;
         Ok(unsafe { value.float_value })
     }
 
     /// Set a control value (integer, mutex protected)
-    async fn set_control_int_async(&mut self, control: POAConfig, value: c_long, auto: bool) -> Result<(), NativeError> {
+    async fn set_control_int_async(
+        &mut self,
+        control: POAConfig,
+        value: c_long,
+        auto: bool,
+    ) -> Result<(), NativeError> {
         let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = player_one_mutex().lock().await;
         let config_value = POAConfigValue { int_value: value };
@@ -445,14 +448,19 @@ impl PlayerOneCamera {
                 self.camera_id,
                 control as c_int,
                 config_value,
-                if auto { POA_TRUE } else { POA_FALSE }
+                if auto { POA_TRUE } else { POA_FALSE },
             )
         };
         check_poa_error(result, "POASetConfig")
     }
 
     /// Set a control value (integer, synchronous - caller must hold mutex)
-    fn set_control_int(&mut self, control: POAConfig, value: c_long, auto: bool) -> Result<(), NativeError> {
+    fn set_control_int(
+        &mut self,
+        control: POAConfig,
+        value: c_long,
+        auto: bool,
+    ) -> Result<(), NativeError> {
         let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let config_value = POAConfigValue { int_value: value };
         let result = unsafe {
@@ -460,38 +468,52 @@ impl PlayerOneCamera {
                 self.camera_id,
                 control as c_int,
                 config_value,
-                if auto { POA_TRUE } else { POA_FALSE }
+                if auto { POA_TRUE } else { POA_FALSE },
             )
         };
         check_poa_error(result, "POASetConfig")
     }
 
     /// Set a control value (boolean, mutex protected)
-    async fn set_control_bool_async(&mut self, control: POAConfig, value: bool, auto: bool) -> Result<(), NativeError> {
+    async fn set_control_bool_async(
+        &mut self,
+        control: POAConfig,
+        value: bool,
+        auto: bool,
+    ) -> Result<(), NativeError> {
         let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = player_one_mutex().lock().await;
-        let config_value = POAConfigValue { bool_value: if value { POA_TRUE } else { POA_FALSE } };
+        let config_value = POAConfigValue {
+            bool_value: if value { POA_TRUE } else { POA_FALSE },
+        };
         let result = unsafe {
             (sdk.set_config)(
                 self.camera_id,
                 control as c_int,
                 config_value,
-                if auto { POA_TRUE } else { POA_FALSE }
+                if auto { POA_TRUE } else { POA_FALSE },
             )
         };
         check_poa_error(result, "POASetConfig")
     }
 
     /// Set a control value (boolean, synchronous - caller must hold mutex)
-    fn set_control_bool(&mut self, control: POAConfig, value: bool, auto: bool) -> Result<(), NativeError> {
+    fn set_control_bool(
+        &mut self,
+        control: POAConfig,
+        value: bool,
+        auto: bool,
+    ) -> Result<(), NativeError> {
         let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
-        let config_value = POAConfigValue { bool_value: if value { POA_TRUE } else { POA_FALSE } };
+        let config_value = POAConfigValue {
+            bool_value: if value { POA_TRUE } else { POA_FALSE },
+        };
         let result = unsafe {
             (sdk.set_config)(
                 self.camera_id,
                 control as c_int,
                 config_value,
-                if auto { POA_TRUE } else { POA_FALSE }
+                if auto { POA_TRUE } else { POA_FALSE },
             )
         };
         check_poa_error(result, "POASetConfig")
@@ -561,19 +583,19 @@ impl NativeDevice for PlayerOneCamera {
     fn id(&self) -> &str {
         &self.device_id
     }
-    
+
     fn name(&self) -> &str {
         &self.device_id
     }
-    
+
     fn vendor(&self) -> NativeVendor {
         NativeVendor::PlayerOne
     }
-    
+
     fn is_connected(&self) -> bool {
         self.connected
     }
-    
+
     async fn connect(&mut self) -> Result<(), NativeError> {
         let sdk = PoaSdk::get().ok_or(NativeError::SdkNotLoaded)?;
 
@@ -595,14 +617,16 @@ impl NativeDevice for PlayerOneCamera {
         }
 
         // Set default format (Raw16)
-        let result = unsafe { (sdk.set_image_format)(self.camera_id, POAImgFormat::Raw16 as c_int) };
+        let result =
+            unsafe { (sdk.set_image_format)(self.camera_id, POAImgFormat::Raw16 as c_int) };
         check_poa_error(result, "SetImageFormat")?;
 
         // Set default binning and ROI
         if let Some(info) = &self.camera_info {
             let _ = unsafe { (sdk.set_image_bin)(self.camera_id, 1) };
             let _ = unsafe { (sdk.set_image_start_pos)(self.camera_id, 0, 0) };
-            let _ = unsafe { (sdk.set_image_size)(self.camera_id, info.max_width, info.max_height) };
+            let _ =
+                unsafe { (sdk.set_image_size)(self.camera_id, info.max_width, info.max_height) };
         }
 
         self.connected = true;
@@ -643,7 +667,7 @@ impl NativeCamera for PlayerOneCamera {
             CameraCapabilities::default()
         }
     }
-    
+
     async fn get_status(&self) -> Result<CameraStatus, NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -666,11 +690,19 @@ impl NativeCamera for PlayerOneCamera {
         };
 
         // Get temperature (POA_TEMPERATURE is a float value, unit C)
-        let temp = self.get_control_float(POAConfig::POA_TEMPERATURE)
+        let temp = self
+            .get_control_float(POAConfig::POA_TEMPERATURE)
             .unwrap_or(0.0);
 
-        let cooler_power = if self.camera_info.as_ref().map(|i| i.is_has_cooler != 0).unwrap_or(false) {
-            self.get_control_int(POAConfig::POA_COOLER_POWER).ok().map(|v| v as f64)
+        let cooler_power = if self
+            .camera_info
+            .as_ref()
+            .map(|i| i.is_has_cooler != 0)
+            .unwrap_or(false)
+        {
+            self.get_control_int(POAConfig::POA_COOLER_POWER)
+                .ok()
+                .map(|v| v as f64)
         } else {
             None
         };
@@ -679,7 +711,7 @@ impl NativeCamera for PlayerOneCamera {
             state,
             sensor_temp: Some(temp),
             target_temp: None, // Need to get target temp from POA_TARGET_TEMP if needed
-            cooler_on: false, // Need to check POA_COOLER status if needed
+            cooler_on: false,  // Need to check POA_COOLER status if needed
             cooler_power,
             gain: self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0) as i32,
             offset: self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0) as i32,
@@ -688,7 +720,7 @@ impl NativeCamera for PlayerOneCamera {
             exposure_remaining: None, // Not directly available from POA SDK
         })
     }
-    
+
     async fn start_exposure(&mut self, params: ExposureParams) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -723,7 +755,7 @@ impl NativeCamera for PlayerOneCamera {
         tracing::info!("Started {}s exposure", params.duration_secs);
         Ok(())
     }
-    
+
     async fn abort_exposure(&mut self) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -740,7 +772,7 @@ impl NativeCamera for PlayerOneCamera {
         tracing::info!("Aborted exposure");
         Ok(())
     }
-    
+
     async fn is_exposure_complete(&self) -> Result<bool, NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -758,7 +790,7 @@ impl NativeCamera for PlayerOneCamera {
 
         Ok(is_ready == POA_TRUE)
     }
-    
+
     async fn download_image(&mut self) -> Result<ImageData, NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -776,14 +808,23 @@ impl NativeCamera for PlayerOneCamera {
         check_poa_error(result, "GetImageSize")?;
 
         // Calculate buffer size (Raw16 = 2 bytes per pixel) with overflow protection
-        let bytes_per_pixel = if matches!(self.image_format, POAImgFormat::Raw16) { 2 } else { 1 };
+        let bytes_per_pixel = if matches!(self.image_format, POAImgFormat::Raw16) {
+            2
+        } else {
+            1
+        };
         let buffer_size = calculate_buffer_size_i32(width, height, bytes_per_pixel)?;
 
         let mut pooled_buffer = global_u8_pool().get_buffer(buffer_size);
 
         // Get image data with 30 second timeout
         let result = unsafe {
-            (sdk.get_image_data)(self.camera_id, pooled_buffer.as_mut_ptr(), buffer_size as c_long, 30000)
+            (sdk.get_image_data)(
+                self.camera_id,
+                pooled_buffer.as_mut_ptr(),
+                buffer_size as c_long,
+                30000,
+            )
         };
         check_poa_error(result, "GetImageData")?;
 
@@ -798,15 +839,26 @@ impl NativeCamera for PlayerOneCamera {
             pooled_buffer.iter().map(|&x| (x as u16) * 256).collect()
         };
 
-        tracing::info!("Downloaded {}x{} image ({} bytes)", width, height, buffer_size);
+        tracing::info!(
+            "Downloaded {}x{} image ({} bytes)",
+            width,
+            height,
+            buffer_size
+        );
 
         // Get metadata while still holding the mutex
         let gain = self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0) as i32;
         let offset = self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0) as i32;
         let temperature = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
-        let usb_bandwidth = self.get_control_int(POAConfig::POA_USB_BANDWIDTH_LIMIT).ok().map(|v| v as f64);
+        let usb_bandwidth = self
+            .get_control_int(POAConfig::POA_USB_BANDWIDTH_LIMIT)
+            .ok()
+            .map(|v| v as f64);
         let heater_power = self.get_control_int(POAConfig::POA_HEATER_POWER).ok();
-        let fan_power = self.get_control_int(POAConfig::POA_FAN_POWER).ok().map(|v| v as f64);
+        let fan_power = self
+            .get_control_int(POAConfig::POA_FAN_POWER)
+            .ok()
+            .map(|v| v as f64);
 
         // Build vendor features
         let mut vendor_features = VendorFeatures::default();
@@ -821,7 +873,9 @@ impl NativeCamera for PlayerOneCamera {
             height: height as u32,
             data,
             bits_per_pixel: if bytes_per_pixel == 2 { 16 } else { 8 },
-            bayer_pattern: self.camera_info.as_ref()
+            bayer_pattern: self
+                .camera_info
+                .as_ref()
                 .filter(|i| i.is_color_camera != 0)
                 .map(|i| match i.bayer_pattern {
                     0 => BayerPattern::Rggb,
@@ -844,13 +898,18 @@ impl NativeCamera for PlayerOneCamera {
             },
         })
     }
-    
+
     async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
 
-        if !self.camera_info.as_ref().map(|i| i.is_has_cooler != 0).unwrap_or(false) {
+        if !self
+            .camera_info
+            .as_ref()
+            .map(|i| i.is_has_cooler != 0)
+            .unwrap_or(false)
+        {
             return Err(NativeError::NotSupported);
         }
 
@@ -865,41 +924,55 @@ impl NativeCamera for PlayerOneCamera {
 
         Ok(())
     }
-    
+
     async fn get_temperature(&self) -> Result<f64, NativeError> {
         // POA_TEMPERATURE is a float value in Celsius (uses async version with mutex)
-        self.get_control_float_async(POAConfig::POA_TEMPERATURE).await
+        self.get_control_float_async(POAConfig::POA_TEMPERATURE)
+            .await
     }
-    
+
     async fn get_cooler_power(&self) -> Result<f64, NativeError> {
-        if !self.camera_info.as_ref().map(|i| i.is_has_cooler != 0).unwrap_or(false) {
+        if !self
+            .camera_info
+            .as_ref()
+            .map(|i| i.is_has_cooler != 0)
+            .unwrap_or(false)
+        {
             return Err(NativeError::NotSupported);
         }
         // Uses async version with mutex
-        let value = self.get_control_int_async(POAConfig::POA_COOLER_POWER).await?;
+        let value = self
+            .get_control_int_async(POAConfig::POA_COOLER_POWER)
+            .await?;
         Ok(value as f64)
     }
-    
+
     async fn set_gain(&mut self, gain: i32) -> Result<(), NativeError> {
         // Uses async version with mutex
-        self.set_control_int_async(POAConfig::POA_GAIN, gain as c_long, false).await
+        self.set_control_int_async(POAConfig::POA_GAIN, gain as c_long, false)
+            .await
     }
-    
+
     async fn get_gain(&self) -> Result<i32, NativeError> {
         // Uses async version with mutex
-        self.get_control_int_async(POAConfig::POA_GAIN).await.map(|v| v as i32)
+        self.get_control_int_async(POAConfig::POA_GAIN)
+            .await
+            .map(|v| v as i32)
     }
-    
+
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
         // Uses async version with mutex
-        self.set_control_int_async(POAConfig::POA_OFFSET, offset as c_long, false).await
+        self.set_control_int_async(POAConfig::POA_OFFSET, offset as c_long, false)
+            .await
     }
-    
+
     async fn get_offset(&self) -> Result<i32, NativeError> {
         // Uses async version with mutex
-        self.get_control_int_async(POAConfig::POA_OFFSET).await.map(|v| v as i32)
+        self.get_control_int_async(POAConfig::POA_OFFSET)
+            .await
+            .map(|v| v as i32)
     }
-    
+
     async fn set_binning(&mut self, bin_x: i32, bin_y: i32) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -930,11 +1003,11 @@ impl NativeCamera for PlayerOneCamera {
 
         Ok(())
     }
-    
+
     async fn get_binning(&self) -> Result<(i32, i32), NativeError> {
         Ok((self.current_bin, self.current_bin))
     }
-    
+
     async fn set_subframe(&mut self, subframe: Option<SubFrame>) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -944,9 +1017,19 @@ impl NativeCamera for PlayerOneCamera {
         let info = self.camera_info.as_ref().ok_or(NativeError::NotConnected)?;
 
         let (x, y, width, height) = if let Some(ref sf) = subframe {
-            (sf.start_x as c_int, sf.start_y as c_int, sf.width as c_int, sf.height as c_int)
+            (
+                sf.start_x as c_int,
+                sf.start_y as c_int,
+                sf.width as c_int,
+                sf.height as c_int,
+            )
         } else {
-            (0, 0, info.max_width / self.current_bin, info.max_height / self.current_bin)
+            (
+                0,
+                0,
+                info.max_width / self.current_bin,
+                info.max_height / self.current_bin,
+            )
         };
 
         // Acquire mutex for SDK operations
@@ -965,7 +1048,7 @@ impl NativeCamera for PlayerOneCamera {
 
         Ok(())
     }
-    
+
     fn get_sensor_info(&self) -> SensorInfo {
         if let Some(info) = &self.camera_info {
             SensorInfo {
@@ -992,26 +1075,32 @@ impl NativeCamera for PlayerOneCamera {
             SensorInfo::default()
         }
     }
-    
+
     async fn get_readout_modes(&self) -> Result<Vec<ReadoutMode>, NativeError> {
         // Player One doesn't have readout modes
         Ok(Vec::new())
     }
-    
+
     async fn set_readout_mode(&mut self, _mode: &ReadoutMode) -> Result<(), NativeError> {
         Err(NativeError::NotSupported)
     }
-    
+
     async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError> {
         let mut features = VendorFeatures::default();
 
         // Get USB bandwidth (uses async version with mutex)
-        if let Ok(bw) = self.get_control_int_async(POAConfig::POA_USB_BANDWIDTH_LIMIT).await {
+        if let Ok(bw) = self
+            .get_control_int_async(POAConfig::POA_USB_BANDWIDTH_LIMIT)
+            .await
+        {
             features.usb_bandwidth = Some(bw as f64);
         }
 
         // Player One specific: Anti-dew heater power (uses async version with mutex)
-        if let Ok(heater_power) = self.get_control_int_async(POAConfig::POA_HEATER_POWER).await {
+        if let Ok(heater_power) = self
+            .get_control_int_async(POAConfig::POA_HEATER_POWER)
+            .await
+        {
             features.anti_dew_heater = Some(heater_power > 0);
         }
 
@@ -1097,7 +1186,11 @@ pub async fn discover_devices() -> Result<Vec<PlayerOneCameraInfo>, NativeError>
                 let sn = CStr::from_ptr(info.sn.as_ptr())
                     .to_string_lossy()
                     .to_string();
-                if sn.is_empty() { None } else { Some(sn) }
+                if sn.is_empty() {
+                    None
+                } else {
+                    Some(sn)
+                }
             };
 
             // Extract user custom ID (if set by user)
@@ -1105,7 +1198,11 @@ pub async fn discover_devices() -> Result<Vec<PlayerOneCameraInfo>, NativeError>
                 let custom_id = CStr::from_ptr(info.user_custom_id.as_ptr())
                     .to_string_lossy()
                     .to_string();
-                if custom_id.is_empty() { None } else { Some(custom_id) }
+                if custom_id.is_empty() {
+                    None
+                } else {
+                    Some(custom_id)
+                }
             };
 
             cameras.push(PlayerOneCameraInfo {

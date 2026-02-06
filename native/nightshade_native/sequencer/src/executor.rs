@@ -1019,7 +1019,6 @@ impl SequenceExecutor {
                     };
 
                     for (trigger_id, trigger_name, action) in fired_with_names {
-
                         let action_str = format!("{:?}", action);
 
                         tracing::warn!(
@@ -1077,9 +1076,7 @@ impl SequenceExecutor {
                                             latitude: None,
                                             longitude: None,
                                             device_ops: device_ops_for_triggers.clone(),
-                                            trigger_state: Some(
-                                                trigger_state_for_actions.clone(),
-                                            ),
+                                            trigger_state: Some(trigger_state_for_actions.clone()),
                                         };
 
                                         let af_result = crate::instructions::execute_autofocus(
@@ -1091,7 +1088,8 @@ impl SequenceExecutor {
 
                                         if af_result.status == NodeStatus::Success {
                                             if let Some(best_hfr) = af_result.hfr_values.first() {
-                                                let mut ts = trigger_state_for_actions.write().await;
+                                                let mut ts =
+                                                    trigger_state_for_actions.write().await;
                                                 ts.update_hfr(*best_hfr);
                                                 ts.reset_baseline_hfr();
                                                 ts.mark_autofocus_performed();

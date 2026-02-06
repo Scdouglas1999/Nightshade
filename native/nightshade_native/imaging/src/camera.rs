@@ -6,10 +6,16 @@
 //! - Frame type selection
 //! - Single frame and looping capture modes
 
-use crate::{ImageData, naming::{FrameType, NamingContext, NamingPattern, FrameCounter}};
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use tokio::sync::{mpsc, Mutex};
+use crate::{
+    naming::{FrameCounter, FrameType, NamingContext, NamingPattern},
+    ImageData,
+};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, Mutex};
 
 /// Camera connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -86,7 +92,7 @@ impl Default for CoolingSettings {
         Self {
             target_temp: -10.0,
             enabled: false,
-            warmup_rate: 2.0,  // 2°C per minute
+            warmup_rate: 2.0,   // 2°C per minute
             cooldown_rate: 5.0, // 5°C per minute
         }
     }
@@ -97,7 +103,7 @@ impl Default for CoolingSettings {
 pub struct CoolingStatus {
     pub current_temp: f64,
     pub target_temp: f64,
-    pub cooler_power: f64,  // 0-100%
+    pub cooler_power: f64, // 0-100%
     pub is_at_target: bool,
     pub is_cooling: bool,
 }
@@ -172,14 +178,9 @@ pub enum CaptureEvent {
         percent: f64,
     },
     /// Exposure completed, downloading
-    ExposureCompleted {
-        frame_number: u32,
-    },
+    ExposureCompleted { frame_number: u32 },
     /// Download progress
-    DownloadProgress {
-        frame_number: u32,
-        percent: f64,
-    },
+    DownloadProgress { frame_number: u32, percent: f64 },
     /// Image captured successfully
     ImageCaptured {
         frame_number: u32,
@@ -187,18 +188,11 @@ pub enum CaptureEvent {
         context: NamingContext,
     },
     /// Capture error
-    Error {
-        frame_number: u32,
-        message: String,
-    },
+    Error { frame_number: u32, message: String },
     /// All frames completed
-    CaptureCompleted {
-        total_frames: u32,
-    },
+    CaptureCompleted { total_frames: u32 },
     /// Capture cancelled
-    CaptureCancelled {
-        frame_number: u32,
-    },
+    CaptureCancelled { frame_number: u32 },
 }
 
 /// Camera control interface
@@ -206,40 +200,40 @@ pub enum CaptureEvent {
 pub trait CameraController: Send + Sync {
     /// Get camera capabilities
     fn capabilities(&self) -> &CameraCapabilities;
-    
+
     /// Get current connection state
     fn state(&self) -> CameraState;
-    
+
     /// Connect to camera
     async fn connect(&mut self) -> Result<(), CameraError>;
-    
+
     /// Disconnect from camera
     async fn disconnect(&mut self) -> Result<(), CameraError>;
-    
+
     /// Start an exposure
     async fn start_exposure(&mut self, settings: &ExposureSettings) -> Result<(), CameraError>;
-    
+
     /// Check if exposure is in progress
     fn is_exposing(&self) -> bool;
-    
+
     /// Get exposure progress (0.0 - 1.0)
     fn exposure_progress(&self) -> f64;
-    
+
     /// Cancel current exposure
     async fn cancel_exposure(&mut self) -> Result<(), CameraError>;
-    
+
     /// Download the image after exposure
     async fn download_image(&mut self) -> Result<ImageData, CameraError>;
-    
+
     /// Set cooler temperature
     async fn set_cooler_temp(&mut self, temp: f64) -> Result<(), CameraError>;
-    
+
     /// Enable/disable cooler
     async fn set_cooler_enabled(&mut self, enabled: bool) -> Result<(), CameraError>;
-    
+
     /// Get cooling status
     fn cooling_status(&self) -> CoolingStatus;
-    
+
     /// Get current sensor temperature
     fn sensor_temp(&self) -> f64;
 }
@@ -315,7 +309,7 @@ impl CaptureSession {
         base_context: NamingContext,
     ) -> (Self, mpsc::UnboundedReceiver<CaptureEvent>) {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
-        
+
         let session = Self {
             camera,
             settings,
@@ -328,30 +322,30 @@ impl CaptureSession {
             dither_callback: None,
             frame_delay: Duration::from_millis(100),
         };
-        
+
         (session, event_rx)
     }
-    
+
     /// Set dither callback
-    pub fn with_dither_callback<F>(mut self, callback: F) -> Self 
+    pub fn with_dither_callback<F>(mut self, callback: F) -> Self
     where
-        F: Fn(u32) -> bool + Send + Sync + 'static
+        F: Fn(u32) -> bool + Send + Sync + 'static,
     {
         self.dither_callback = Some(Box::new(callback));
         self
     }
-    
+
     /// Set delay between frames
     pub fn with_frame_delay(mut self, delay: Duration) -> Self {
         self.frame_delay = delay;
         self
     }
-    
+
     /// Get cancel flag for external cancellation
     pub fn cancel_flag(&self) -> Arc<AtomicBool> {
         self.cancel_flag.clone()
     }
-    
+
     /// Run the capture session
     pub async fn run(&self) -> Result<u32, CameraError> {
         let total_frames = match self.mode {
@@ -359,32 +353,34 @@ impl CaptureSession {
             CaptureMode::Count(n) => Some(n),
             CaptureMode::Loop => None,
         };
-        
+
         let mut frame_number = 0u32;
-        
+
         loop {
             // Check for cancellation
             if self.cancel_flag.load(Ordering::Relaxed) {
-                let _ = self.event_tx.send(CaptureEvent::CaptureCancelled { frame_number });
+                let _ = self
+                    .event_tx
+                    .send(CaptureEvent::CaptureCancelled { frame_number });
                 return Err(CameraError::Cancelled);
             }
-            
+
             frame_number += 1;
-            
+
             // Check if we've reached the target frame count
             if let Some(total) = total_frames {
                 if frame_number > total {
                     break;
                 }
             }
-            
+
             // Update context with frame number
             let counter_key = FrameCounter::key_from_context(&self.base_context);
             let seq_frame_num = {
                 let mut counter = self.counter.lock().await;
                 counter.next(&counter_key)
             };
-            
+
             let mut context = self.base_context.clone();
             context.frame_number = Some(seq_frame_num);
             context.exposure_time = Some(self.settings.duration);
@@ -394,9 +390,12 @@ impl CaptureSession {
             context.binning_y = Some(self.settings.binning_y);
             context.frame_type = self.settings.frame_type;
             context = context.with_current_time();
-            
+
             // Capture single frame
-            match self.capture_frame(frame_number, total_frames, &context).await {
+            match self
+                .capture_frame(frame_number, total_frames, &context)
+                .await
+            {
                 Ok(image) => {
                     let _ = self.event_tx.send(CaptureEvent::ImageCaptured {
                         frame_number,
@@ -405,7 +404,9 @@ impl CaptureSession {
                     });
                 }
                 Err(CameraError::Cancelled) => {
-                    let _ = self.event_tx.send(CaptureEvent::CaptureCancelled { frame_number });
+                    let _ = self
+                        .event_tx
+                        .send(CaptureEvent::CaptureCancelled { frame_number });
                     return Err(CameraError::Cancelled);
                 }
                 Err(e) => {
@@ -419,27 +420,27 @@ impl CaptureSession {
                     }
                 }
             }
-            
+
             // Call dither callback if set
             if let Some(ref dither) = self.dither_callback {
                 if !dither(frame_number) {
                     // Dither failed, continue anyway
                 }
             }
-            
+
             // Delay between frames (except for single frame)
             if !matches!(self.mode, CaptureMode::Single) {
                 tokio::time::sleep(self.frame_delay).await;
             }
         }
-        
+
         let _ = self.event_tx.send(CaptureEvent::CaptureCompleted {
             total_frames: frame_number,
         });
-        
+
         Ok(frame_number)
     }
-    
+
     /// Capture a single frame
     async fn capture_frame(
         &self,
@@ -448,48 +449,50 @@ impl CaptureSession {
         _context: &NamingContext,
     ) -> Result<ImageData, CameraError> {
         let mut camera = self.camera.lock().await;
-        
+
         // Send exposure started event
         let _ = self.event_tx.send(CaptureEvent::ExposureStarted {
             frame_number,
             total_frames,
             duration: self.settings.duration,
         });
-        
+
         // Start exposure
         camera.start_exposure(&self.settings).await?;
-        
+
         // Monitor exposure progress
         let start = Instant::now();
         let duration = self.settings.duration;
-        
+
         while camera.is_exposing() {
             // Check for cancellation
             if self.cancel_flag.load(Ordering::Relaxed) {
                 camera.cancel_exposure().await?;
                 return Err(CameraError::Cancelled);
             }
-            
+
             let elapsed = start.elapsed().as_secs_f64();
             let remaining = (duration - elapsed).max(0.0);
             let percent = (elapsed / duration * 100.0).min(100.0);
-            
+
             let _ = self.event_tx.send(CaptureEvent::ExposureProgress {
                 frame_number,
                 elapsed,
                 remaining,
                 percent,
             });
-            
+
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        
+
         // Send exposure completed event
-        let _ = self.event_tx.send(CaptureEvent::ExposureCompleted { frame_number });
-        
+        let _ = self
+            .event_tx
+            .send(CaptureEvent::ExposureCompleted { frame_number });
+
         // Download image
         let image = camera.download_image().await?;
-        
+
         Ok(image)
     }
 }
@@ -502,87 +505,84 @@ pub struct CoolingManager {
 }
 
 impl CoolingManager {
-    pub fn new(
-        camera: Arc<Mutex<Box<dyn CameraController>>>,
-        settings: CoolingSettings,
-    ) -> Self {
+    pub fn new(camera: Arc<Mutex<Box<dyn CameraController>>>, settings: CoolingSettings) -> Self {
         Self {
             camera,
             settings,
             cancel_flag: Arc::new(AtomicBool::new(false)),
         }
     }
-    
+
     /// Start cooling to target temperature
     pub async fn cooldown(&self) -> Result<(), CameraError> {
         let mut camera = self.camera.lock().await;
         camera.set_cooler_enabled(true).await?;
         camera.set_cooler_temp(self.settings.target_temp).await?;
         drop(camera);
-        
+
         // Wait for temperature to stabilize
         self.wait_for_temp(self.settings.target_temp, 0.5).await
     }
-    
+
     /// Warm up camera gradually
     pub async fn warmup(&self) -> Result<(), CameraError> {
         let camera_lock = self.camera.lock().await;
         let current_temp = camera_lock.sensor_temp();
         drop(camera_lock);
-        
+
         // Calculate warmup steps
-        let ambient = 20.0;  // Assume 20°C ambient
+        let ambient = 20.0; // Assume 20°C ambient
         let temp_diff = ambient - current_temp;
-        let steps = (temp_diff.abs() / 5.0).ceil() as i32;  // 5°C steps
-        
+        let steps = (temp_diff.abs() / 5.0).ceil() as i32; // 5°C steps
+
         for i in 1..=steps {
             if self.cancel_flag.load(Ordering::Relaxed) {
                 return Err(CameraError::Cancelled);
             }
-            
+
             let target = current_temp + (temp_diff * i as f64 / steps as f64);
             let mut camera = self.camera.lock().await;
             camera.set_cooler_temp(target).await?;
             drop(camera);
-            
+
             // Wait between steps
             let wait_time = (5.0 / self.settings.warmup_rate * 60.0) as u64;
             tokio::time::sleep(Duration::from_secs(wait_time)).await;
         }
-        
+
         // Disable cooler
         let mut camera = self.camera.lock().await;
         camera.set_cooler_enabled(false).await?;
-        
+
         Ok(())
     }
-    
+
     /// Wait for temperature to reach target
     async fn wait_for_temp(&self, target: f64, tolerance: f64) -> Result<(), CameraError> {
-        let timeout = Duration::from_secs(300);  // 5 minute timeout
+        let timeout = Duration::from_secs(300); // 5 minute timeout
         let start = Instant::now();
-        
+
         loop {
             if self.cancel_flag.load(Ordering::Relaxed) {
                 return Err(CameraError::Cancelled);
             }
-            
+
             if start.elapsed() > timeout {
                 return Err(CameraError::Timeout);
             }
-            
+
             let camera = self.camera.lock().await;
             let current = camera.sensor_temp();
             drop(camera);
-            
+
             if (current - target).abs() <= tolerance {
                 return Ok(());
             }
-            
+
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
-    
+
     pub fn cancel(&self) {
         self.cancel_flag.store(true, Ordering::Relaxed);
     }
@@ -621,8 +621,8 @@ impl SimulatedCamera {
                 has_shutter: false,
                 max_gain: 500,
                 max_offset: 100,
-                min_exposure: 0.000032,  // 32µs
-                max_exposure: 3600.0,     // 1 hour
+                min_exposure: 0.000032, // 32µs
+                max_exposure: 3600.0,   // 1 hour
                 bit_depth: 16,
                 name: "Simulated Camera".to_string(),
                 driver_info: "Nightshade Simulator v1.0".to_string(),
@@ -640,7 +640,7 @@ impl SimulatedCamera {
             settings: ExposureSettings::default(),
         }
     }
-    
+
     /// Generate simulated star field image
     fn generate_image(&self) -> ImageData {
         let (width, height) = if self.settings.sub_width > 0 && self.settings.sub_height > 0 {
@@ -651,13 +651,8 @@ impl SimulatedCamera {
                 self.capabilities.sensor_height / self.settings.binning_y,
             )
         };
-        
-        crate::generate_simulated_image(
-            width,
-            height,
-            self.settings.duration,
-            self.settings.gain,
-        )
+
+        crate::generate_simulated_image(width, height, self.settings.duration, self.settings.gain)
     }
 }
 
@@ -666,11 +661,11 @@ impl CameraController for SimulatedCamera {
     fn capabilities(&self) -> &CameraCapabilities {
         &self.capabilities
     }
-    
+
     fn state(&self) -> CameraState {
         self.state
     }
-    
+
     async fn connect(&mut self) -> Result<(), CameraError> {
         if self.state != CameraState::Disconnected {
             return Err(CameraError::AlreadyConnected);
@@ -680,7 +675,7 @@ impl CameraController for SimulatedCamera {
         self.state = CameraState::Connected;
         Ok(())
     }
-    
+
     async fn disconnect(&mut self) -> Result<(), CameraError> {
         if self.state == CameraState::Disconnected {
             return Err(CameraError::NotConnected);
@@ -689,7 +684,7 @@ impl CameraController for SimulatedCamera {
         self.exposure_start = None;
         Ok(())
     }
-    
+
     async fn start_exposure(&mut self, settings: &ExposureSettings) -> Result<(), CameraError> {
         if self.state != CameraState::Connected {
             return Err(CameraError::NotConnected);
@@ -697,15 +692,15 @@ impl CameraController for SimulatedCamera {
         if self.exposure_start.is_some() {
             return Err(CameraError::ExposureInProgress);
         }
-        
+
         self.settings = settings.clone();
         self.exposure_start = Some(Instant::now());
         self.exposure_duration = settings.duration;
         self.state = CameraState::Exposing;
-        
+
         Ok(())
     }
-    
+
     fn is_exposing(&self) -> bool {
         if let Some(start) = self.exposure_start {
             start.elapsed().as_secs_f64() < self.exposure_duration
@@ -713,7 +708,7 @@ impl CameraController for SimulatedCamera {
             false
         }
     }
-    
+
     fn exposure_progress(&self) -> f64 {
         if let Some(start) = self.exposure_start {
             (start.elapsed().as_secs_f64() / self.exposure_duration).min(1.0)
@@ -721,31 +716,31 @@ impl CameraController for SimulatedCamera {
             0.0
         }
     }
-    
+
     async fn cancel_exposure(&mut self) -> Result<(), CameraError> {
         self.exposure_start = None;
         self.state = CameraState::Connected;
         Ok(())
     }
-    
+
     async fn download_image(&mut self) -> Result<ImageData, CameraError> {
         if self.exposure_start.is_none() {
             return Err(CameraError::NoExposure);
         }
-        
+
         self.state = CameraState::Downloading;
-        
+
         // Simulate download time
         tokio::time::sleep(Duration::from_millis(200)).await;
-        
+
         let image = self.generate_image();
-        
+
         self.exposure_start = None;
         self.state = CameraState::Connected;
-        
+
         Ok(image)
     }
-    
+
     async fn set_cooler_temp(&mut self, temp: f64) -> Result<(), CameraError> {
         self.cooling_status.target_temp = temp.clamp(
             self.capabilities.min_cool_temp,
@@ -753,7 +748,7 @@ impl CameraController for SimulatedCamera {
         );
         Ok(())
     }
-    
+
     async fn set_cooler_enabled(&mut self, enabled: bool) -> Result<(), CameraError> {
         self.cooling_status.is_cooling = enabled;
         if !enabled {
@@ -761,7 +756,7 @@ impl CameraController for SimulatedCamera {
         }
         Ok(())
     }
-    
+
     fn cooling_status(&self) -> CoolingStatus {
         // Simulate cooling progress
         let mut status = self.cooling_status.clone();
@@ -771,18 +766,13 @@ impl CameraController for SimulatedCamera {
                 status.cooler_power = (diff.abs() / 30.0 * 100.0).min(100.0);
             } else {
                 status.is_at_target = true;
-                status.cooler_power = 20.0;  // Maintenance power
+                status.cooler_power = 20.0; // Maintenance power
             }
         }
         status
     }
-    
+
     fn sensor_temp(&self) -> f64 {
         self.cooling_status.current_temp
     }
 }
-
-
-
-
-

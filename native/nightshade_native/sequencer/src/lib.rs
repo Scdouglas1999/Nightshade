@@ -2,50 +2,44 @@
 //!
 //! Implements a behavior tree-based sequencer for automated imaging.
 
-mod node;
-mod executor;
-mod triggers;
-pub mod instructions;
-mod device_ops;
-mod polar_align;
-pub mod mosaic;
-pub mod focus_prediction;
-pub mod checkpoint;
-pub mod meridian;
 pub mod autofocus;
+pub mod checkpoint;
+mod device_ops;
+mod executor;
 pub mod flat_wizard;
-pub mod temperature_compensation;
+pub mod focus_prediction;
+pub mod instructions;
+pub mod meridian;
 pub mod meridian_events;
 pub mod meridian_flip_executor;
+pub mod mosaic;
+mod node;
+mod polar_align;
+pub mod temperature_compensation;
+mod triggers;
 
-pub use node::*;
-pub use executor::*;
-pub use triggers::*;
-pub use instructions::*;
-pub use device_ops::*;
-pub use polar_align::*;
-pub use mosaic::*;
 pub use checkpoint::*;
+pub use device_ops::*;
+pub use executor::*;
+pub use instructions::*;
 pub use meridian_events::*;
 pub use meridian_flip_executor::*;
+pub use mosaic::*;
+pub use node::*;
+pub use polar_align::*;
+pub use triggers::*;
 
 // Re-export focus prediction types
-pub use focus_prediction::{FocusPredictionEngine, FocusModel, FilterOffset, PredictionResult};
+pub use focus_prediction::{FilterOffset, FocusModel, FocusPredictionEngine, PredictionResult};
 
 // Re-export autofocus types (with alias to avoid conflict)
 pub use autofocus::{
-    VCurveAutofocus,
-    BacklashCompensation,
-    AutofocusResult,
-    AutofocusMethod as AfMethod,
-    FocusDataPoint as AfDataPoint,
+    AutofocusMethod as AfMethod, AutofocusResult, BacklashCompensation,
+    FocusDataPoint as AfDataPoint, VCurveAutofocus,
 };
 
 // Re-export temperature compensation types
-pub use temperature_compensation::{
-    TemperatureCompensationConfig,
-    CompensationMode,
-};
+pub use temperature_compensation::{CompensationMode, TemperatureCompensationConfig};
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -85,7 +79,10 @@ pub enum NodeStatus {
 
 impl NodeStatus {
     pub fn is_terminal(&self) -> bool {
-        matches!(self, NodeStatus::Success | NodeStatus::Failure | NodeStatus::Skipped | NodeStatus::Cancelled)
+        matches!(
+            self,
+            NodeStatus::Success | NodeStatus::Failure | NodeStatus::Skipped | NodeStatus::Cancelled
+        )
     }
 }
 
@@ -308,9 +305,15 @@ pub struct FlatWizardConfig {
     pub flat_count: u32,
 }
 
-fn default_brightness() -> i32 { 128 }
-fn default_min_brightness() -> i32 { 10 }
-fn default_max_brightness() -> i32 { 255 }
+fn default_brightness() -> i32 {
+    128
+}
+fn default_min_brightness() -> i32 {
+    10
+}
+fn default_max_brightness() -> i32 {
+    255
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PanelLocation {
@@ -486,7 +489,6 @@ impl Default for ExposureConfig {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Binning {
     One,
@@ -624,9 +626,7 @@ pub struct WarmConfig {
 
 impl Default for WarmConfig {
     fn default() -> Self {
-        Self {
-            rate_per_min: 2.0,
-        }
+        Self { rate_per_min: 2.0 }
     }
 }
 
@@ -844,11 +844,12 @@ pub enum TriggerType {
     /// Trigger when HFR increases
     HfrDegraded { threshold_percent: f64 },
     /// Trigger when meridian flip is needed
-    MeridianFlip {
-        config: MeridianFlipConfig,
-    },
+    MeridianFlip { config: MeridianFlipConfig },
     /// Trigger when guiding fails
-    GuidingFailed { rms_threshold: f64, duration_secs: f64 },
+    GuidingFailed {
+        rms_threshold: f64,
+        duration_secs: f64,
+    },
     /// Trigger when altitude too low
     AltitudeLimit { min_altitude: f64 },
     /// Trigger when weather unsafe

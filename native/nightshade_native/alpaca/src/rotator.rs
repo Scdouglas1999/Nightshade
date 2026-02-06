@@ -1,6 +1,9 @@
 //! Alpaca Rotator API implementation
 
-use crate::{AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, TimeoutConfig, RetryConfig};
+use crate::{
+    AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, RetryConfig,
+    TimeoutConfig,
+};
 
 /// Rotator status aggregate for parallel status query
 #[derive(Debug, Clone)]
@@ -177,24 +180,32 @@ impl AlpacaRotator {
 
     /// Set the reverse direction
     pub async fn set_reverse(&self, reverse: bool) -> Result<(), String> {
-        self.client.put("reverse", &[("Reverse", &reverse.to_string())]).await
+        self.client
+            .put("reverse", &[("Reverse", &reverse.to_string())])
+            .await
     }
 
     // Movement commands
 
     /// Move to an absolute position (degrees, 0-360)
     pub async fn move_absolute(&self, position: f64) -> Result<(), String> {
-        self.client.put("moveabsolute", &[("Position", &position.to_string())]).await
+        self.client
+            .put("moveabsolute", &[("Position", &position.to_string())])
+            .await
     }
 
     /// Move relative from current position (degrees)
     pub async fn move_relative(&self, offset: f64) -> Result<(), String> {
-        self.client.put("move", &[("Position", &offset.to_string())]).await
+        self.client
+            .put("move", &[("Position", &offset.to_string())])
+            .await
     }
 
     /// Move to the mechanical position (degrees)
     pub async fn move_mechanical(&self, position: f64) -> Result<(), String> {
-        self.client.put("movemechanical", &[("Position", &position.to_string())]).await
+        self.client
+            .put("movemechanical", &[("Position", &position.to_string())])
+            .await
     }
 
     /// Halt any rotator motion
@@ -205,7 +216,9 @@ impl AlpacaRotator {
     /// Sync the rotator position to a new value
     /// This sets the offset between mechanical and synced positions
     pub async fn sync(&self, position: f64) -> Result<(), String> {
-        self.client.put("sync", &[("Position", &position.to_string())]).await
+        self.client
+            .put("sync", &[("Position", &position.to_string())])
+            .await
     }
 
     // Parallel status methods
@@ -229,10 +242,7 @@ impl AlpacaRotator {
 
     /// Get rotator capabilities in a single parallel query
     pub async fn get_capabilities(&self) -> Result<RotatorCapabilities, String> {
-        let (can_reverse, step_size) = tokio::join!(
-            self.can_reverse(),
-            self.step_size(),
-        );
+        let (can_reverse, step_size) = tokio::join!(self.can_reverse(), self.step_size(),);
 
         Ok(RotatorCapabilities {
             can_reverse: can_reverse?,
@@ -269,7 +279,8 @@ impl AlpacaRotator {
         poll_interval: std::time::Duration,
         timeout: std::time::Duration,
     ) -> Result<bool, AlpacaError> {
-        self.move_absolute(position).await
+        self.move_absolute(position)
+            .await
             .map_err(|e| AlpacaError::OperationFailed(e))?;
         self.wait_for_idle(poll_interval, timeout).await
     }

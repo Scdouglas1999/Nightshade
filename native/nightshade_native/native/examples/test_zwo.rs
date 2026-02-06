@@ -3,7 +3,7 @@ use nightshade_native::vendor::zwo::{discover_devices, is_sdk_available};
 #[tokio::main]
 async fn main() {
     println!("Checking ZWO SDK availability...");
-    
+
     // Try explicit load to debug
     let path = "C:\\Users\\scdou\\Documents\\Nightshade2\\SDKs\\ZWO\\ASI_Camera_SDK\\ASI_Windows_SDK_V1.40\\ASI SDK\\lib\\x64\\ASICamera2.dll";
     println!("Attempting to load from: {}", path);
@@ -27,7 +27,7 @@ async fn main() {
             for cam in cameras {
                 println!(" - {} (ID: {})", cam.name, cam.camera_id);
             }
-        },
+        }
         Err(e) => println!("Error discovering cameras: {:?}", e),
     }
 }

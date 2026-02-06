@@ -4,8 +4,8 @@
 //! and meet the production requirements.
 
 use nightshade_imaging::{
-    process_tiled, process_with_progress, ProcessOperation, ImageData, PixelType,
-    calculate_tile_grid, TileRegion,
+    calculate_tile_grid, process_tiled, process_with_progress, ImageData, PixelType,
+    ProcessOperation, TileRegion,
 };
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -15,15 +15,12 @@ async fn test_tiled_processing_completes() {
     // Test that tiled processing completes successfully
     let image = ImageData::new(2048, 2048, 1, PixelType::U16);
 
-    let result = process_tiled(
-        &image,
-        512,
-        ProcessOperation::Normalize,
-        None,
-    )
-    .await;
+    let result = process_tiled(&image, 512, ProcessOperation::Normalize, None).await;
 
-    assert!(result.is_ok(), "Tiled processing should complete without error");
+    assert!(
+        result.is_ok(),
+        "Tiled processing should complete without error"
+    );
 
     let processed = result.unwrap();
     assert_eq!(processed.width, image.width);
@@ -42,13 +39,7 @@ async fn test_tiled_processing_faster_than_2gb() {
 
     let start = Instant::now();
 
-    let result = process_tiled(
-        &image,
-        512,
-        ProcessOperation::Normalize,
-        None,
-    )
-    .await;
+    let result = process_tiled(&image, 512, ProcessOperation::Normalize, None).await;
 
     let elapsed = start.elapsed();
 
@@ -114,14 +105,9 @@ async fn test_progress_callback_called() {
     let progress_values = Arc::new(Mutex::new(Vec::new()));
     let progress_clone = progress_values.clone();
 
-    let result = process_with_progress(
-        &image,
-        ProcessOperation::Normalize,
-        256,
-        move |progress| {
-            progress_clone.lock().unwrap().push(progress);
-        },
-    )
+    let result = process_with_progress(&image, ProcessOperation::Normalize, 256, move |progress| {
+        progress_clone.lock().unwrap().push(progress);
+    })
     .await;
 
     assert!(result.is_ok(), "Processing with progress should succeed");
@@ -154,13 +140,7 @@ async fn test_different_tile_sizes() {
     let image = ImageData::new(2048, 2048, 1, PixelType::U16);
 
     for tile_size in [128, 256, 512, 1024] {
-        let result = process_tiled(
-            &image,
-            tile_size,
-            ProcessOperation::Normalize,
-            None,
-        )
-        .await;
+        let result = process_tiled(&image, tile_size, ProcessOperation::Normalize, None).await;
 
         assert!(
             result.is_ok(),
@@ -195,13 +175,7 @@ async fn test_gamma_operation() {
     // Test gamma correction
     let image = ImageData::new(1024, 1024, 1, PixelType::U16);
 
-    let result = process_tiled(
-        &image,
-        512,
-        ProcessOperation::Gamma { gamma: 2.2 },
-        None,
-    )
-    .await;
+    let result = process_tiled(&image, 512, ProcessOperation::Gamma { gamma: 2.2 }, None).await;
 
     assert!(result.is_ok(), "Gamma correction should complete");
 }
@@ -246,23 +220,21 @@ async fn test_ui_responsiveness() {
     let last_progress_clone = last_progress.clone();
     let ui_updates_clone = ui_updates.clone();
 
-    let result = process_with_progress(
-        &image,
-        ProcessOperation::Normalize,
-        512,
-        move |progress| {
-            let mut last = last_progress_clone.lock().unwrap();
-            if progress - *last > 0.1 {
-                // Simulate UI update every 10%
-                *ui_updates_clone.lock().unwrap() += 1;
-                *last = progress;
-            }
-        },
-    )
+    let result = process_with_progress(&image, ProcessOperation::Normalize, 512, move |progress| {
+        let mut last = last_progress_clone.lock().unwrap();
+        if progress - *last > 0.1 {
+            // Simulate UI update every 10%
+            *ui_updates_clone.lock().unwrap() += 1;
+            *last = progress;
+        }
+    })
     .await;
 
     assert!(result.is_ok(), "Processing should complete");
-    assert!(*ui_updates.lock().unwrap() > 0, "Should have triggered UI updates");
+    assert!(
+        *ui_updates.lock().unwrap() > 0,
+        "Should have triggered UI updates"
+    );
 }
 
 #[test]
@@ -281,10 +253,7 @@ fn test_production_ready_requirements() {
 
     // 3. Memory efficiency: 512px tile uses < 1MB
     let tile_memory = 512 * 512 * 2; // U16
-    assert!(
-        tile_memory < 1_000_000,
-        "Tile memory usage is efficient"
-    );
+    assert!(tile_memory < 1_000_000, "Tile memory usage is efficient");
 
     // 4. Parallelism: rayon is available (tested implicitly in other tests)
 

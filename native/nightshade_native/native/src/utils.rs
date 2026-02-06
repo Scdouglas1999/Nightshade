@@ -92,7 +92,11 @@ pub fn safe_char_array_to_string<const N: usize>(arr: &[c_char; N]) -> String {
 /// let buffer_size = calculate_buffer_size(4656, 3520, 2)?;
 /// let mut buffer: Vec<u8> = vec![0u8; buffer_size];
 /// ```
-pub fn calculate_buffer_size(width: u32, height: u32, bytes_per_pixel: u32) -> Result<usize, NativeError> {
+pub fn calculate_buffer_size(
+    width: u32,
+    height: u32,
+    bytes_per_pixel: u32,
+) -> Result<usize, NativeError> {
     width
         .checked_mul(height)
         .and_then(|pixels| pixels.checked_mul(bytes_per_pixel))
@@ -115,7 +119,11 @@ pub fn calculate_buffer_size(width: u32, height: u32, bytes_per_pixel: u32) -> R
 /// # Returns
 /// * `Ok(usize)` - The safe buffer size
 /// * `Err(NativeError)` - If any input is negative or the calculation would overflow
-pub fn calculate_buffer_size_i32(width: i32, height: i32, bytes_per_pixel: i32) -> Result<usize, NativeError> {
+pub fn calculate_buffer_size_i32(
+    width: i32,
+    height: i32,
+    bytes_per_pixel: i32,
+) -> Result<usize, NativeError> {
     // Validate inputs are positive
     if width <= 0 || height <= 0 || bytes_per_pixel <= 0 {
         return Err(NativeError::InvalidParameter(format!(
@@ -173,10 +181,7 @@ pub fn sdk_error(vendor: &str, operation: &str, code: i32, message: Option<&str>
             "{} {}: error code {} - {}",
             vendor, operation, code, msg
         )),
-        None => NativeError::SdkError(format!(
-            "{} {}: error code {}",
-            vendor, operation, code
-        )),
+        None => NativeError::SdkError(format!("{} {}: error code {}", vendor, operation, code)),
     }
 }
 
@@ -237,8 +242,8 @@ impl<F: FnOnce()> Drop for CleanupGuard<F> {
 // TIMEOUT UTILITIES
 // =============================================================================
 
-use std::time::{Duration, Instant};
 use crate::traits::NativeTimeoutConfig;
+use std::time::{Duration, Instant};
 
 /// Wait for an exposure to complete with timeout and exponential backoff.
 ///

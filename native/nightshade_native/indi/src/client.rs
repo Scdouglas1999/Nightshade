@@ -67,14 +67,9 @@ pub enum IndiEvent {
         delay_secs: f64,
     },
     /// Reader task restarted successfully after failure
-    ReaderRestarted {
-        attempts_used: u32,
-    },
+    ReaderRestarted { attempts_used: u32 },
     /// Reader task restart failed after max attempts
-    ReaderRestartFailed {
-        attempts: u32,
-        last_error: String,
-    },
+    ReaderRestartFailed { attempts: u32, last_error: String },
     /// Reader task health changed
     ReaderHealthChanged {
         healthy: bool,
@@ -431,7 +426,10 @@ impl IndiClient {
     /// Get the detected server protocol version as a Result
     /// Returns Ok with the version string if available, or Err if not detected
     pub async fn get_server_version(&self) -> IndiResult<String> {
-        self.server_version.read().await.clone()
+        self.server_version
+            .read()
+            .await
+            .clone()
             .ok_or_else(|| IndiError::ProtocolError("Server version not detected".to_string()))
     }
 
@@ -744,7 +742,10 @@ impl IndiClient {
                 if start.elapsed() > blob_timeout {
                     tracing::error!(
                         "BLOB reception timeout for {}.{}: expected {} bytes after {:?}",
-                        current_device, current_property, current_blob_size, blob_timeout
+                        current_device,
+                        current_property,
+                        current_blob_size,
+                        blob_timeout
                     );
                     let _ = event_tx.send(IndiEvent::Error(format!(
                         "BLOB timeout for {}.{}: expected {} bytes after {:?}",
@@ -792,8 +793,8 @@ impl IndiClient {
                                 };
 
                                 // Parse state and perm
-                                let state_str =
-                                    get_attribute(&e, "state").unwrap_or_else(|| "Idle".to_string());
+                                let state_str = get_attribute(&e, "state")
+                                    .unwrap_or_else(|| "Idle".to_string());
                                 let state = parse_state(&state_str);
 
                                 let perm_str =
@@ -860,10 +861,8 @@ impl IndiClient {
                                 // Extract min/max/step/format for number elements
                                 if name_str == "defNumber" {
                                     let limits = NumberLimits {
-                                        min: get_attribute(&e, "min")
-                                            .and_then(|s| s.parse().ok()),
-                                        max: get_attribute(&e, "max")
-                                            .and_then(|s| s.parse().ok()),
+                                        min: get_attribute(&e, "min").and_then(|s| s.parse().ok()),
+                                        max: get_attribute(&e, "max").and_then(|s| s.parse().ok()),
                                         step: get_attribute(&e, "step")
                                             .and_then(|s| s.parse().ok()),
                                         format: get_attribute(&e, "format"),
@@ -930,7 +929,10 @@ impl IndiClient {
                         blob_start_time = Some(Instant::now());
                         tracing::debug!(
                             "Starting BLOB reception for {}.{}.{}: expected size {} bytes",
-                            current_device, current_property, current_element, current_blob_size
+                            current_device,
+                            current_property,
+                            current_element,
+                            current_blob_size
                         );
                     }
                     // Handle elements values (oneSwitch, oneNumber, etc.)
@@ -983,8 +985,11 @@ impl IndiClient {
                                     if let Some(start) = blob_start_time {
                                         tracing::debug!(
                                             "BLOB received for {}.{}.{}: {} bytes in {:?}",
-                                            current_device, current_property, current_element,
-                                            data.len(), start.elapsed()
+                                            current_device,
+                                            current_property,
+                                            current_element,
+                                            data.len(),
+                                            start.elapsed()
                                         );
                                     }
 
@@ -1950,7 +1955,11 @@ fn validate_blob_format(declared_format: &str, data: &[u8]) -> String {
         ".png"
     } else if data.len() >= 3 && &data[0..3] == [0xFF, 0xD8, 0xFF] {
         ".jpeg"
-    } else if data.len() >= 4 && &data[0..4] == b"RIFF" && data.len() >= 12 && &data[8..12] == b"WEBP" {
+    } else if data.len() >= 4
+        && &data[0..4] == b"RIFF"
+        && data.len() >= 12
+        && &data[8..12] == b"WEBP"
+    {
         ".webp"
     } else if data.len() >= 4 && &data[0..4] == [0x1F, 0x8B, 0x08, 0x00] {
         ".gz"
@@ -2308,7 +2317,8 @@ mod tests {
         let expected = 10.0;
         let tolerance = expected * 0.15;
         assert!(
-            delay.as_secs_f64() >= expected - tolerance && delay.as_secs_f64() <= expected + tolerance,
+            delay.as_secs_f64() >= expected - tolerance
+                && delay.as_secs_f64() <= expected + tolerance,
             "Delay {} not within expected range [{}, {}]",
             delay.as_secs_f64(),
             expected - tolerance,
@@ -2334,7 +2344,9 @@ mod tests {
         assert_eq!(client.reader_consecutive_failures(), 0);
 
         // Simulate failures (normally done by supervised_reader_task)
-        client.reader_consecutive_failures.store(3, Ordering::SeqCst);
+        client
+            .reader_consecutive_failures
+            .store(3, Ordering::SeqCst);
         assert_eq!(client.reader_consecutive_failures(), 3);
 
         // Reset
@@ -2351,15 +2363,21 @@ mod tests {
         assert!(!client.is_reader_failed_permanently());
 
         // Simulate failures below threshold
-        client.reader_consecutive_failures.store(max_failures - 1, Ordering::SeqCst);
+        client
+            .reader_consecutive_failures
+            .store(max_failures - 1, Ordering::SeqCst);
         assert!(!client.is_reader_failed_permanently());
 
         // At threshold
-        client.reader_consecutive_failures.store(max_failures, Ordering::SeqCst);
+        client
+            .reader_consecutive_failures
+            .store(max_failures, Ordering::SeqCst);
         assert!(client.is_reader_failed_permanently());
 
         // Above threshold
-        client.reader_consecutive_failures.store(max_failures + 1, Ordering::SeqCst);
+        client
+            .reader_consecutive_failures
+            .store(max_failures + 1, Ordering::SeqCst);
         assert!(client.is_reader_failed_permanently());
     }
 
@@ -2462,12 +2480,18 @@ mod tests {
         let max_failures = client.reader_task_config().max_consecutive_failures;
 
         // Simulate exceeding max failures
-        client.reader_consecutive_failures.store(max_failures, Ordering::SeqCst);
+        client
+            .reader_consecutive_failures
+            .store(max_failures, Ordering::SeqCst);
 
         // Recovery should fail
         let result = client.recover_reader().await;
         assert!(result.is_err());
-        if let Err(IndiError::ReconnectionFailed { attempts, last_error }) = result {
+        if let Err(IndiError::ReconnectionFailed {
+            attempts,
+            last_error,
+        }) = result
+        {
             assert_eq!(attempts, max_failures);
             assert!(last_error.contains("Exceeded maximum"));
         } else {
@@ -2480,7 +2504,9 @@ mod tests {
         let mut client = IndiClient::new("localhost", Some(7624));
 
         // Simulate some failures
-        client.reader_consecutive_failures.store(3, Ordering::SeqCst);
+        client
+            .reader_consecutive_failures
+            .store(3, Ordering::SeqCst);
         assert_eq!(client.reader_consecutive_failures(), 3);
 
         // Disconnect should reset
@@ -2509,9 +2535,12 @@ mod tests {
         assert!(client.is_keepalive_in_progress());
 
         // This should not allow another keepalive to start
-        let result = client
-            .keepalive_in_progress
-            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
+        let result = client.keepalive_in_progress.compare_exchange(
+            false,
+            true,
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        );
         assert!(result.is_err()); // Should fail because already in progress
     }
 
@@ -2562,7 +2591,9 @@ mod tests {
 
         // Simulate old response
         let old_time = current_time_ms() - 10000; // 10 seconds ago
-        client.last_keepalive_response_ms.store(old_time, Ordering::SeqCst);
+        client
+            .last_keepalive_response_ms
+            .store(old_time, Ordering::SeqCst);
 
         let time_since = client.time_since_last_keepalive_response_ms();
         assert!(
@@ -2602,7 +2633,9 @@ mod tests {
         client.connected.store(true, Ordering::SeqCst);
         let keepalive_interval_ms = client.timeout_config.keepalive_interval_secs * 1000;
         let old_time = current_time_ms() - (keepalive_interval_ms * 3); // 3x interval ago
-        client.last_keepalive_response_ms.store(old_time, Ordering::SeqCst);
+        client
+            .last_keepalive_response_ms
+            .store(old_time, Ordering::SeqCst);
 
         // Should not be healthy (stale response)
         assert!(!client.is_connection_healthy());
@@ -2653,7 +2686,9 @@ mod tests {
         let keepalive_interval_ms = client.timeout_config.keepalive_interval_secs * 1000;
         let timeout_ms = keepalive_interval_ms * 2;
         let old_time = current_time_ms() - (timeout_ms + 1000); // Beyond timeout
-        client.last_keepalive_response_ms.store(old_time, Ordering::SeqCst);
+        client
+            .last_keepalive_response_ms
+            .store(old_time, Ordering::SeqCst);
 
         // check_keepalive should detect the timeout
         let result = client.check_keepalive().await;

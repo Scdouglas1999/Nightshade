@@ -105,23 +105,32 @@ pub async fn discover_servers_with_config(config: DiscoveryConfig) -> Vec<(Strin
         return Vec::new();
     }
 
-    let broadcast_addr: SocketAddr = match format!("255.255.255.255:{}", ALPACA_DISCOVERY_PORT).parse() {
-        Ok(addr) => addr,
-        Err(e) => {
-            warn!("Failed to parse broadcast address: {}", e);
-            return Vec::new();
-        }
-    };
+    let broadcast_addr: SocketAddr =
+        match format!("255.255.255.255:{}", ALPACA_DISCOVERY_PORT).parse() {
+            Ok(addr) => addr,
+            Err(e) => {
+                warn!("Failed to parse broadcast address: {}", e);
+                return Vec::new();
+            }
+        };
 
     // Send multiple discovery broadcasts
     let discovery_message = b"alpacadiscovery1";
 
     for broadcast_num in 0..config.broadcast_count {
         if let Err(e) = socket.send_to(discovery_message, broadcast_addr).await {
-            warn!("Failed to send discovery broadcast {}: {}", broadcast_num + 1, e);
+            warn!(
+                "Failed to send discovery broadcast {}: {}",
+                broadcast_num + 1,
+                e
+            );
             continue;
         }
-        debug!("Sent discovery broadcast {}/{}", broadcast_num + 1, config.broadcast_count);
+        debug!(
+            "Sent discovery broadcast {}/{}",
+            broadcast_num + 1,
+            config.broadcast_count
+        );
 
         // Wait briefly between broadcasts
         if broadcast_num + 1 < config.broadcast_count {
@@ -167,7 +176,10 @@ pub async fn discover_servers_with_config(config: DiscoveryConfig) -> Vec<(Strin
 }
 
 /// Get configured devices from an Alpaca server
-pub async fn get_configured_devices(server_ip: &str, port: u16) -> Result<Vec<AlpacaDevice>, String> {
+pub async fn get_configured_devices(
+    server_ip: &str,
+    port: u16,
+) -> Result<Vec<AlpacaDevice>, String> {
     get_configured_devices_with_timeout(server_ip, port, Duration::from_secs(10)).await
 }
 
@@ -177,18 +189,17 @@ pub async fn get_configured_devices_with_timeout(
     port: u16,
     timeout_duration: Duration,
 ) -> Result<Vec<AlpacaDevice>, String> {
-    let url = format!("http://{}:{}/management/v1/configureddevices", server_ip, port);
+    let url = format!(
+        "http://{}:{}/management/v1/configureddevices",
+        server_ip, port
+    );
 
     let client = reqwest::Client::builder()
         .timeout(timeout_duration)
         .build()
         .map_err(|e| e.to_string())?;
 
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let response = client.get(&url).send().await.map_err(|e| e.to_string())?;
 
     if !response.status().is_success() {
         return Err(format!(
@@ -203,10 +214,7 @@ pub async fn get_configured_devices_with_timeout(
         value: Vec<ConfiguredDevice>,
     }
 
-    let api_response: ApiResponse = response
-        .json()
-        .await
-        .map_err(|e| e.to_string())?;
+    let api_response: ApiResponse = response.json().await.map_err(|e| e.to_string())?;
 
     let base_url = format!("http://{}:{}", server_ip, port);
 
@@ -360,19 +368,15 @@ pub async fn get_server_description(
         .build()
         .map_err(|e| AlpacaError::RequestFailed(e.to_string()))?;
 
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| {
-            if e.is_timeout() {
-                AlpacaError::timeout("server description query", 10000)
-            } else if e.is_connect() {
-                AlpacaError::connection_refused(&url, e.to_string())
-            } else {
-                AlpacaError::RequestFailed(e.to_string())
-            }
-        })?;
+    let response = client.get(&url).send().await.map_err(|e| {
+        if e.is_timeout() {
+            AlpacaError::timeout("server description query", 10000)
+        } else if e.is_connect() {
+            AlpacaError::connection_refused(&url, e.to_string())
+        } else {
+            AlpacaError::RequestFailed(e.to_string())
+        }
+    })?;
 
     if !response.status().is_success() {
         return Err(AlpacaError::HttpError {
@@ -404,19 +408,15 @@ pub async fn get_api_versions(server_ip: &str, port: u16) -> Result<Vec<u32>, Al
         .build()
         .map_err(|e| AlpacaError::RequestFailed(e.to_string()))?;
 
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| {
-            if e.is_timeout() {
-                AlpacaError::timeout("API versions query", 5000)
-            } else if e.is_connect() {
-                AlpacaError::connection_refused(&url, e.to_string())
-            } else {
-                AlpacaError::RequestFailed(e.to_string())
-            }
-        })?;
+    let response = client.get(&url).send().await.map_err(|e| {
+        if e.is_timeout() {
+            AlpacaError::timeout("API versions query", 5000)
+        } else if e.is_connect() {
+            AlpacaError::connection_refused(&url, e.to_string())
+        } else {
+            AlpacaError::RequestFailed(e.to_string())
+        }
+    })?;
 
     if !response.status().is_success() {
         return Err(AlpacaError::HttpError {

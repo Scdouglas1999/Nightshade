@@ -16,7 +16,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
@@ -2641,28 +2640,45 @@ class NativeBridge {
     await _phd2Client!.loop();
   }
 
-  /// Get PHD2 star image (stub - not available in simulation mode)
+  /// Get PHD2 star image
   static Future<Phd2StarImage> phd2GetStarImage({int size = 50}) async {
-    // Return a placeholder star image for simulation
-    final pixelCount = size * size;
-    final pixels = Uint8List(pixelCount);
-    // Create a simple Gaussian-like pattern centered in the image
-    final center = size ~/ 2;
-    for (int y = 0; y < size; y++) {
-      for (int x = 0; x < size; x++) {
-        final dx = x - center;
-        final dy = y - center;
-        final dist = math.sqrt(dx * dx + dy * dy);
-        final value = (255 * math.exp(-dist * dist / 50)).round();
-        pixels[y * size + x] = value;
-      }
+    if (_phd2Client == null || !_phd2Client!.isConnected) {
+      throw Exception('PHD2 not connected');
     }
+
+    final result = await _phd2Client!.getStarImage(size: size);
+
+    // PHD2 get_star_image returns:
+    //   frame: scalar frame number
+    //   width, height: top-level integers
+    //   star_pos: [x, y] array (if star is selected)
+    //   pixels: base64-encoded pixel data
+    final frame = (result['frame'] as num?)?.toInt() ?? 0;
+    final width = (result['width'] as num?)?.toInt() ?? size;
+    final height = (result['height'] as num?)?.toInt() ?? size;
+
+    // star_pos is a positional array [x, y], not a named map
+    final starPos = result['star_pos'] as List?;
+    final starX = (starPos != null && starPos.length >= 1)
+        ? (starPos[0] as num).toDouble()
+        : width / 2.0;
+    final starY = (starPos != null && starPos.length >= 2)
+        ? (starPos[1] as num).toDouble()
+        : height / 2.0;
+
+    // Decode base64 pixel data
+    final pixelsB64 = result['pixels'] as String?;
+    if (pixelsB64 == null) {
+      throw Exception('No pixel data in PHD2 star image response');
+    }
+    final pixels = base64Decode(pixelsB64);
+
     return Phd2StarImage(
-      frame: 1,
-      width: size,
-      height: size,
-      starX: center.toDouble(),
-      starY: center.toDouble(),
+      frame: frame,
+      width: width,
+      height: height,
+      starX: starX,
+      starY: starY,
       pixels: pixels,
     );
   }
@@ -2670,12 +2686,10 @@ class NativeBridge {
   /// Get PHD2 algorithm parameter names
   static Future<List<String>> phd2GetAlgoParamNames(
       {required String axis}) async {
-    // Return typical PHD2 Brain parameters
-    if (axis.toLowerCase() == 'ra') {
-      return ['Aggressiveness', 'Hysteresis', 'MinMove', 'MaxDur'];
-    } else {
-      return ['Aggressiveness', 'MinMove', 'MaxDur', 'Algorithm'];
+    if (_phd2Client == null || !_phd2Client!.isConnected) {
+      throw Exception('PHD2 not connected');
     }
+    return await _phd2Client!.getAlgoParamNames(axis: axis);
   }
 
   /// Get PHD2 algorithm parameter value
@@ -2683,19 +2697,10 @@ class NativeBridge {
     required String axis,
     required String name,
   }) async {
-    // Return reasonable default values for simulation
-    switch (name) {
-      case 'Aggressiveness':
-        return axis.toLowerCase() == 'ra' ? 70.0 : 70.0;
-      case 'Hysteresis':
-        return 10.0;
-      case 'MinMove':
-        return 0.15;
-      case 'MaxDur':
-        return axis.toLowerCase() == 'ra' ? 2500.0 : 2500.0;
-      default:
-        return 0.0;
+    if (_phd2Client == null || !_phd2Client!.isConnected) {
+      throw Exception('PHD2 not connected');
     }
+    return await _phd2Client!.getAlgoParam(axis: axis, name: name);
   }
 
   /// Set PHD2 algorithm parameter
@@ -2704,8 +2709,10 @@ class NativeBridge {
     required String name,
     required double value,
   }) async {
-    // No-op in simulation mode
-    debugPrint('[NativeBridge Stub] phd2SetAlgoParam: $axis.$name = $value');
+    if (_phd2Client == null || !_phd2Client!.isConnected) {
+      throw Exception('PHD2 not connected');
+    }
+    await _phd2Client!.setAlgoParam(axis: axis, name: name, value: value);
   }
 
   /// Set PHD2 paused state
@@ -2725,10 +2732,7 @@ class NativeBridge {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
-    // Note: The Dart PHD2 client doesn't have this method yet
-    // For now, just log it
-    debugPrint(
-        '[NativeBridge Stub] phd2ClearCalibration($which) - not implemented in Dart client');
+    await _phd2Client!.clearCalibration(which: which);
   }
 
   /// Flip PHD2 calibration (for meridian flip)
@@ -2736,8 +2740,7 @@ class NativeBridge {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
-    debugPrint(
-        '[NativeBridge Stub] phd2FlipCalibration() - not implemented in Dart client');
+    await _phd2Client!.flipCalibration();
   }
 
   /// Get PHD2 calibration data
@@ -2782,9 +2785,7 @@ class NativeBridge {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
-    await _phd2Client!.autoSelectStar();
-    // Return center of frame as placeholder
-    return (256.0, 256.0);
+    return await _phd2Client!.findStar();
   }
 
   /// Set PHD2 lock position
@@ -2796,8 +2797,7 @@ class NativeBridge {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
-    debugPrint(
-        '[NativeBridge Stub] phd2SetLockPosition($x, $y, exact=$exact) - not implemented in Dart client');
+    await _phd2Client!.setLockPosition(x: x, y: y, exact: exact);
   }
 
   /// Get PHD2 lock position
@@ -2805,8 +2805,7 @@ class NativeBridge {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
-    // Return placeholder
-    return (256.0, 256.0);
+    return await _phd2Client!.getLockPosition();
   }
 
   /// Deselect star in PHD2
@@ -2814,8 +2813,7 @@ class NativeBridge {
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
-    debugPrint(
-        '[NativeBridge Stub] phd2DeselectStar() - not implemented in Dart client');
+    await _phd2Client!.deselectStar();
   }
 
   // =========================================================================

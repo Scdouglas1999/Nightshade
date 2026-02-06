@@ -8,8 +8,8 @@
 //! by `svbony_mutex()` from `crate::sync` to prevent concurrent access.
 
 use crate::camera::{
-    BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams,
-    ImageData, ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
+    BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData,
+    ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
 };
 use crate::sync::svbony_mutex;
 use crate::traits::{NativeCamera, NativeDevice, NativeError};
@@ -79,16 +79,26 @@ impl SvbError {
 
     fn to_native_error(self, msg: &str) -> NativeError {
         match self {
-            SvbError::Success => NativeError::SdkError(format!("SVBony {} called to_native_error on Success", msg)),
+            SvbError::Success => {
+                NativeError::SdkError(format!("SVBony {} called to_native_error on Success", msg))
+            }
             SvbError::InvalidIndex | SvbError::InvalidId => {
                 NativeError::InvalidDevice(format!("SVBony {}: {:?}", msg, self))
             }
             SvbError::CameraClosed => NativeError::NotConnected,
             SvbError::CameraRemoved => NativeError::Disconnected,
-            SvbError::Timeout => NativeError::Timeout(format!("SVBony {}: operation timed out", msg)),
-            SvbError::InvalidControlType | SvbError::InvalidSize | SvbError::InvalidImgType
-            | SvbError::OutOfBoundary | SvbError::InvalidSequence | SvbError::InvalidMode
-            | SvbError::InvalidDirection | SvbError::InvalidPath | SvbError::InvalidFileFormat => {
+            SvbError::Timeout => {
+                NativeError::Timeout(format!("SVBony {}: operation timed out", msg))
+            }
+            SvbError::InvalidControlType
+            | SvbError::InvalidSize
+            | SvbError::InvalidImgType
+            | SvbError::OutOfBoundary
+            | SvbError::InvalidSequence
+            | SvbError::InvalidMode
+            | SvbError::InvalidDirection
+            | SvbError::InvalidPath
+            | SvbError::InvalidFileFormat => {
                 NativeError::InvalidParameter(format!("SVBony {}: {:?}", msg, self))
             }
             SvbError::BufferTooSmall => {
@@ -97,12 +107,10 @@ impl SvbError {
             SvbError::VideoModeActive | SvbError::ExposureInProgress => {
                 NativeError::SdkError(format!("SVBony {}: camera busy ({:?})", msg, self))
             }
-            SvbError::GeneralError => {
-                NativeError::SdkError(format!(
-                    "SVBony {}: general error - camera may be in use by another application",
-                    msg
-                ))
-            }
+            SvbError::GeneralError => NativeError::SdkError(format!(
+                "SVBony {}: general error - camera may be in use by another application",
+                msg
+            )),
             SvbError::UnknownSensorType | SvbError::End => {
                 NativeError::SdkError(format!("SVBony {}: {:?}", msg, self))
             }
@@ -192,21 +200,49 @@ struct SvbControlCaps {
 
 type SvbGetNumOfConnectedCameras = unsafe extern "C" fn() -> c_int;
 type SvbGetCameraInfo = unsafe extern "C" fn(info: *mut SvbCameraInfo, index: c_int) -> c_int;
-type SvbGetCameraProperty = unsafe extern "C" fn(camera_id: c_int, prop: *mut SvbCameraProperty) -> c_int;
-type SvbGetCameraPropertyEx = unsafe extern "C" fn(camera_id: c_int, prop: *mut SvbCameraPropertyEx) -> c_int;
+type SvbGetCameraProperty =
+    unsafe extern "C" fn(camera_id: c_int, prop: *mut SvbCameraProperty) -> c_int;
+type SvbGetCameraPropertyEx =
+    unsafe extern "C" fn(camera_id: c_int, prop: *mut SvbCameraPropertyEx) -> c_int;
 type SvbOpenCamera = unsafe extern "C" fn(camera_id: c_int) -> c_int;
 type SvbCloseCamera = unsafe extern "C" fn(camera_id: c_int) -> c_int;
 type SvbGetNumOfControls = unsafe extern "C" fn(camera_id: c_int, num: *mut c_int) -> c_int;
-type SvbGetControlCaps = unsafe extern "C" fn(camera_id: c_int, index: c_int, caps: *mut SvbControlCaps) -> c_int;
-type SvbGetControlValue = unsafe extern "C" fn(camera_id: c_int, ctrl_type: c_int, value: *mut c_long, is_auto: *mut c_int) -> c_int;
-type SvbSetControlValue = unsafe extern "C" fn(camera_id: c_int, ctrl_type: c_int, value: c_long, is_auto: c_int) -> c_int;
-type SvbSetROIFormat = unsafe extern "C" fn(camera_id: c_int, start_x: c_int, start_y: c_int, width: c_int, height: c_int, bin: c_int) -> c_int;
-type SvbGetROIFormat = unsafe extern "C" fn(camera_id: c_int, start_x: *mut c_int, start_y: *mut c_int, width: *mut c_int, height: *mut c_int, bin: *mut c_int) -> c_int;
+type SvbGetControlCaps =
+    unsafe extern "C" fn(camera_id: c_int, index: c_int, caps: *mut SvbControlCaps) -> c_int;
+type SvbGetControlValue = unsafe extern "C" fn(
+    camera_id: c_int,
+    ctrl_type: c_int,
+    value: *mut c_long,
+    is_auto: *mut c_int,
+) -> c_int;
+type SvbSetControlValue = unsafe extern "C" fn(
+    camera_id: c_int,
+    ctrl_type: c_int,
+    value: c_long,
+    is_auto: c_int,
+) -> c_int;
+type SvbSetROIFormat = unsafe extern "C" fn(
+    camera_id: c_int,
+    start_x: c_int,
+    start_y: c_int,
+    width: c_int,
+    height: c_int,
+    bin: c_int,
+) -> c_int;
+type SvbGetROIFormat = unsafe extern "C" fn(
+    camera_id: c_int,
+    start_x: *mut c_int,
+    start_y: *mut c_int,
+    width: *mut c_int,
+    height: *mut c_int,
+    bin: *mut c_int,
+) -> c_int;
 type SvbSetOutputImageType = unsafe extern "C" fn(camera_id: c_int, img_type: c_int) -> c_int;
 type SvbGetOutputImageType = unsafe extern "C" fn(camera_id: c_int, img_type: *mut c_int) -> c_int;
 type SvbStartVideoCapture = unsafe extern "C" fn(camera_id: c_int) -> c_int;
 type SvbStopVideoCapture = unsafe extern "C" fn(camera_id: c_int) -> c_int;
-type SvbGetVideoData = unsafe extern "C" fn(camera_id: c_int, buf: *mut u8, buf_size: c_long, wait_ms: c_int) -> c_int;
+type SvbGetVideoData =
+    unsafe extern "C" fn(camera_id: c_int, buf: *mut u8, buf_size: c_long, wait_ms: c_int) -> c_int;
 type SvbGetSdkVersion = unsafe extern "C" fn() -> *const c_char;
 
 /// SVBony SDK wrapper with dynamically loaded functions
@@ -250,58 +286,106 @@ impl SvbonySdk {
             Ok(Self {
                 get_num_of_connected_cameras: *library
                     .get::<SvbGetNumOfConnectedCameras>(b"SVBGetNumOfConnectedCameras\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetNumOfConnectedCameras: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "Failed to load SVBGetNumOfConnectedCameras: {}",
+                            e
+                        ))
+                    })?,
                 get_camera_info: *library
                     .get::<SvbGetCameraInfo>(b"SVBGetCameraInfo\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetCameraInfo: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBGetCameraInfo: {}", e))
+                    })?,
                 get_camera_property: *library
                     .get::<SvbGetCameraProperty>(b"SVBGetCameraProperty\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetCameraProperty: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBGetCameraProperty: {}", e))
+                    })?,
                 get_camera_property_ex: *library
                     .get::<SvbGetCameraPropertyEx>(b"SVBGetCameraPropertyEx\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetCameraPropertyEx: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "Failed to load SVBGetCameraPropertyEx: {}",
+                            e
+                        ))
+                    })?,
                 open_camera: *library
                     .get::<SvbOpenCamera>(b"SVBOpenCamera\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBOpenCamera: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBOpenCamera: {}", e))
+                    })?,
                 close_camera: *library
                     .get::<SvbCloseCamera>(b"SVBCloseCamera\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBCloseCamera: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBCloseCamera: {}", e))
+                    })?,
                 get_num_of_controls: *library
                     .get::<SvbGetNumOfControls>(b"SVBGetNumOfControls\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetNumOfControls: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBGetNumOfControls: {}", e))
+                    })?,
                 get_control_caps: *library
                     .get::<SvbGetControlCaps>(b"SVBGetControlCaps\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetControlCaps: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBGetControlCaps: {}", e))
+                    })?,
                 get_control_value: *library
                     .get::<SvbGetControlValue>(b"SVBGetControlValue\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetControlValue: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBGetControlValue: {}", e))
+                    })?,
                 set_control_value: *library
                     .get::<SvbSetControlValue>(b"SVBSetControlValue\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBSetControlValue: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBSetControlValue: {}", e))
+                    })?,
                 set_roi_format: *library
                     .get::<SvbSetROIFormat>(b"SVBSetROIFormat\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBSetROIFormat: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBSetROIFormat: {}", e))
+                    })?,
                 get_roi_format: *library
                     .get::<SvbGetROIFormat>(b"SVBGetROIFormat\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetROIFormat: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBGetROIFormat: {}", e))
+                    })?,
                 set_output_image_type: *library
                     .get::<SvbSetOutputImageType>(b"SVBSetOutputImageType\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBSetOutputImageType: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "Failed to load SVBSetOutputImageType: {}",
+                            e
+                        ))
+                    })?,
                 get_output_image_type: *library
                     .get::<SvbGetOutputImageType>(b"SVBGetOutputImageType\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetOutputImageType: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "Failed to load SVBGetOutputImageType: {}",
+                            e
+                        ))
+                    })?,
                 start_video_capture: *library
                     .get::<SvbStartVideoCapture>(b"SVBStartVideoCapture\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBStartVideoCapture: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBStartVideoCapture: {}", e))
+                    })?,
                 stop_video_capture: *library
                     .get::<SvbStopVideoCapture>(b"SVBStopVideoCapture\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBStopVideoCapture: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBStopVideoCapture: {}", e))
+                    })?,
                 get_video_data: *library
                     .get::<SvbGetVideoData>(b"SVBGetVideoData\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetVideoData: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBGetVideoData: {}", e))
+                    })?,
                 get_sdk_version: *library
                     .get::<SvbGetSdkVersion>(b"SVBGetSDKVersion\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load SVBGetSDKVersion: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load SVBGetSDKVersion: {}", e))
+                    })?,
                 _library: library,
             })
         }
@@ -358,7 +442,11 @@ pub async fn discover_devices() -> Result<Vec<SvbonyDiscoveryInfo>, NativeError>
             devices.push(SvbonyDiscoveryInfo {
                 camera_id: info.camera_id,
                 name,
-                serial_number: if serial.is_empty() { None } else { Some(serial) },
+                serial_number: if serial.is_empty() {
+                    None
+                } else {
+                    Some(serial)
+                },
                 discovery_index: i as usize,
             });
         }
@@ -450,7 +538,12 @@ impl SvbonyCamera {
         let mut value: c_long = 0;
         let mut is_auto: c_int = 0;
         let result = unsafe {
-            (sdk.get_control_value)(self.camera_id, control_type as c_int, &mut value, &mut is_auto)
+            (sdk.get_control_value)(
+                self.camera_id,
+                control_type as c_int,
+                &mut value,
+                &mut is_auto,
+            )
         };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("get control value"));
@@ -459,7 +552,10 @@ impl SvbonyCamera {
     }
 
     /// Get control value (async - acquires mutex)
-    async fn get_control_value_async(&self, control_type: SvbControlType) -> Result<i64, NativeError> {
+    async fn get_control_value_async(
+        &self,
+        control_type: SvbControlType,
+    ) -> Result<i64, NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -468,7 +564,12 @@ impl SvbonyCamera {
         let mut value: c_long = 0;
         let mut is_auto: c_int = 0;
         let result = unsafe {
-            (sdk.get_control_value)(self.camera_id, control_type as c_int, &mut value, &mut is_auto)
+            (sdk.get_control_value)(
+                self.camera_id,
+                control_type as c_int,
+                &mut value,
+                &mut is_auto,
+            )
         };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("get control value"));
@@ -477,7 +578,11 @@ impl SvbonyCamera {
     }
 
     /// Set control value (synchronous - caller must hold mutex)
-    fn set_control_value(&self, control_type: SvbControlType, value: i64) -> Result<(), NativeError> {
+    fn set_control_value(
+        &self,
+        control_type: SvbControlType,
+        value: i64,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -492,7 +597,11 @@ impl SvbonyCamera {
     }
 
     /// Set control value (async - acquires mutex)
-    async fn set_control_value_async(&self, control_type: SvbControlType, value: i64) -> Result<(), NativeError> {
+    async fn set_control_value_async(
+        &self,
+        control_type: SvbControlType,
+        value: i64,
+    ) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -508,7 +617,10 @@ impl SvbonyCamera {
     }
 
     /// Get the min/max range for a control type (async - acquires mutex)
-    async fn get_control_range_async(&self, target_type: SvbControlType) -> Result<(i64, i64), NativeError> {
+    async fn get_control_range_async(
+        &self,
+        target_type: SvbControlType,
+    ) -> Result<(i64, i64), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -650,10 +762,12 @@ impl NativeDevice for SvbonyCamera {
         }
 
         // Set default image type (16-bit RAW)
-        let result = unsafe { (sdk.set_output_image_type)(self.camera_id, SvbImgType::Raw16 as c_int) };
+        let result =
+            unsafe { (sdk.set_output_image_type)(self.camera_id, SvbImgType::Raw16 as c_int) };
         if SvbError::from_i32(result) != SvbError::Success {
             tracing::warn!("Could not set 16-bit output, trying 8-bit");
-            let _ = unsafe { (sdk.set_output_image_type)(self.camera_id, SvbImgType::Raw8 as c_int) };
+            let _ =
+                unsafe { (sdk.set_output_image_type)(self.camera_id, SvbImgType::Raw8 as c_int) };
         }
 
         // Read initial gain/offset (while we hold the mutex)
@@ -667,8 +781,12 @@ impl NativeDevice for SvbonyCamera {
         self.connected = true;
         self.state = CameraState::Idle;
 
-        tracing::info!("Connected to SVBony camera: {} ({}x{})",
-            self.name, self.sensor_info.width, self.sensor_info.height);
+        tracing::info!(
+            "Connected to SVBony camera: {} ({}x{})",
+            self.name,
+            self.sensor_info.width,
+            self.sensor_info.height
+        );
 
         Ok(())
     }
@@ -712,7 +830,8 @@ impl NativeCamera for SvbonyCamera {
 
         // Get sensor temperature and cooler power using async mutex-protected methods
         let sensor_temp = if self.capabilities.can_cool {
-            self.get_control_value_async(SvbControlType::CurrentTemperature).await
+            self.get_control_value_async(SvbControlType::CurrentTemperature)
+                .await
                 .map(|v| v as f64 / 10.0)
                 .ok()
         } else {
@@ -720,7 +839,8 @@ impl NativeCamera for SvbonyCamera {
         };
 
         let cooler_power = if self.capabilities.can_cool && self.cooler_on {
-            self.get_control_value_async(SvbControlType::CoolerPower).await
+            self.get_control_value_async(SvbControlType::CoolerPower)
+                .await
                 .map(|v| v as f64)
                 .ok()
         } else {
@@ -740,7 +860,11 @@ impl NativeCamera for SvbonyCamera {
             state: self.state,
             sensor_temp,
             cooler_power,
-            target_temp: if self.capabilities.can_cool { Some(self.target_temp) } else { None },
+            target_temp: if self.capabilities.can_cool {
+                Some(self.target_temp)
+            } else {
+                None
+            },
             cooler_on: self.cooler_on,
             gain: self.current_gain,
             offset: self.current_offset,
@@ -849,7 +973,14 @@ impl NativeCamera for SvbonyCamera {
         let mut height: c_int = 0;
         let mut bin: c_int = 0;
         let result = unsafe {
-            (sdk.get_roi_format)(self.camera_id, &mut start_x, &mut start_y, &mut width, &mut height, &mut bin)
+            (sdk.get_roi_format)(
+                self.camera_id,
+                &mut start_x,
+                &mut start_y,
+                &mut width,
+                &mut height,
+                &mut bin,
+            )
         };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("get ROI format"));
@@ -937,10 +1068,15 @@ impl NativeCamera for SvbonyCamera {
         }
 
         // Use async mutex-protected methods
-        self.set_control_value_async(SvbControlType::CoolerEnable, if enabled { 1 } else { 0 }).await?;
+        self.set_control_value_async(SvbControlType::CoolerEnable, if enabled { 1 } else { 0 })
+            .await?;
         if enabled {
             // SVBony uses temperature * 10
-            self.set_control_value_async(SvbControlType::TargetTemperature, (target_temp * 10.0) as i64).await?;
+            self.set_control_value_async(
+                SvbControlType::TargetTemperature,
+                (target_temp * 10.0) as i64,
+            )
+            .await?;
         }
 
         self.cooler_on = enabled;
@@ -957,7 +1093,9 @@ impl NativeCamera for SvbonyCamera {
         }
 
         // Use async mutex-protected method
-        let value = self.get_control_value_async(SvbControlType::CurrentTemperature).await?;
+        let value = self
+            .get_control_value_async(SvbControlType::CurrentTemperature)
+            .await?;
         Ok(value as f64 / 10.0)
     }
 
@@ -970,13 +1108,16 @@ impl NativeCamera for SvbonyCamera {
         }
 
         // Use async mutex-protected method
-        let value = self.get_control_value_async(SvbControlType::CoolerPower).await?;
+        let value = self
+            .get_control_value_async(SvbControlType::CoolerPower)
+            .await?;
         Ok(value as f64)
     }
 
     async fn set_gain(&mut self, gain: i32) -> Result<(), NativeError> {
         // Use async mutex-protected method
-        self.set_control_value_async(SvbControlType::Gain, gain as i64).await?;
+        self.set_control_value_async(SvbControlType::Gain, gain as i64)
+            .await?;
         self.current_gain = gain;
         Ok(())
     }
@@ -987,7 +1128,8 @@ impl NativeCamera for SvbonyCamera {
 
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
         // Use async mutex-protected method
-        self.set_control_value_async(SvbControlType::BlackLevel, offset as i64).await?;
+        self.set_control_value_async(SvbControlType::BlackLevel, offset as i64)
+            .await?;
         self.current_offset = offset;
         Ok(())
     }
@@ -1019,7 +1161,14 @@ impl NativeCamera for SvbonyCamera {
         let _lock = svbony_mutex().lock().await;
 
         let result = unsafe {
-            (sdk.set_roi_format)(self.camera_id, 0, 0, width as c_int, height as c_int, bin as c_int)
+            (sdk.set_roi_format)(
+                self.camera_id,
+                0,
+                0,
+                width as c_int,
+                height as c_int,
+                bin as c_int,
+            )
         };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("set binning"));
@@ -1060,7 +1209,14 @@ impl NativeCamera for SvbonyCamera {
         let _lock = svbony_mutex().lock().await;
 
         let result = unsafe {
-            (sdk.set_roi_format)(self.camera_id, start_x, start_y, width, height, self.current_bin_x as c_int)
+            (sdk.set_roi_format)(
+                self.camera_id,
+                start_x,
+                start_y,
+                width,
+                height,
+                self.current_bin_x as c_int,
+            )
         };
         if SvbError::from_i32(result) != SvbError::Success {
             return Err(SvbError::from_i32(result).to_native_error("set subframe"));
@@ -1112,7 +1268,9 @@ impl NativeCamera for SvbonyCamera {
         }
 
         // SVBony uses BlackLevel as the offset control (use async mutex-protected method)
-        let (min, max) = self.get_control_range_async(SvbControlType::BlackLevel).await?;
+        let (min, max) = self
+            .get_control_range_async(SvbControlType::BlackLevel)
+            .await?;
         Ok((min as i32, max as i32))
     }
 }

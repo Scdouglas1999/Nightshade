@@ -1,6 +1,6 @@
 //! Trigger system for the sequencer
 
-use crate::{RecoveryAction, TriggerType, PierSide};
+use crate::{PierSide, RecoveryAction, TriggerType};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -88,7 +88,7 @@ impl Trigger {
                             let on_pre_flip_side = match state.pier_side {
                                 Some(PierSide::West) => ha > 0.0, // Target has crossed
                                 Some(PierSide::East) => false,    // Already flipped
-                                _ => ha > 0.0, // Unknown - use HA sign
+                                _ => ha > 0.0,                    // Unknown - use HA sign
                             };
                             on_pre_flip_side && minutes_past >= config.minutes_past_meridian
                         } else {
@@ -102,14 +102,16 @@ impl Trigger {
                             let now = chrono::Utc::now().timestamp();
                             let minutes_to_limit = (limit_time - now) as f64 / 60.0;
                             // Trigger when we're within the threshold of hitting the limit
-                            minutes_to_limit > 0.0 && minutes_to_limit <= config.minutes_before_limit
+                            minutes_to_limit > 0.0
+                                && minutes_to_limit <= config.minutes_before_limit
                         } else if let Some(ha) = state.current_hour_angle {
                             // Fallback: estimate limit time from HA if mount doesn't report it
                             // Assume typical limit is around HA = +6h (6 hours past meridian)
                             let assumed_limit_ha = 6.0; // hours
                             let hours_to_limit = assumed_limit_ha - ha;
                             let minutes_to_limit = hours_to_limit * 60.0;
-                            minutes_to_limit > 0.0 && minutes_to_limit <= config.minutes_before_limit
+                            minutes_to_limit > 0.0
+                                && minutes_to_limit <= config.minutes_before_limit
                         } else {
                             false
                         }
@@ -130,13 +132,17 @@ impl Trigger {
                     }
                 }
             }
-            TriggerType::GuidingFailed { rms_threshold, duration_secs } => {
+            TriggerType::GuidingFailed {
+                rms_threshold,
+                duration_secs,
+            } => {
                 if let Some(rms_history) = &state.guiding_rms_history {
                     // Check if RMS has been above threshold for duration
-                    let recent: Vec<_> = rms_history.iter()
+                    let recent: Vec<_> = rms_history
+                        .iter()
                         .filter(|(time, _)| time.elapsed().as_secs_f64() < *duration_secs)
                         .collect();
-                    
+
                     if recent.is_empty() {
                         false
                     } else {
@@ -153,19 +159,17 @@ impl Trigger {
                     false
                 }
             }
-            TriggerType::WeatherUnsafe => {
-                !state.weather_safe
-            }
+            TriggerType::WeatherUnsafe => !state.weather_safe,
             TriggerType::TemperatureShift { degrees } => {
-                if let (Some(baseline), Some(current)) = (state.baseline_temperature, state.current_temperature) {
+                if let (Some(baseline), Some(current)) =
+                    (state.baseline_temperature, state.current_temperature)
+                {
                     (current - baseline).abs() > *degrees
                 } else {
                     false
                 }
             }
-            TriggerType::FilterChange => {
-                state.filter_changed
-            }
+            TriggerType::FilterChange => state.filter_changed,
             TriggerType::DawnApproaching { minutes_before } => {
                 // Dawn time should be pre-calculated when observer location is set
                 if let Some(dawn_time) = state.dawn_time {
@@ -197,8 +201,12 @@ impl Trigger {
                 state.mount_tracking_expected && state.mount_tracking_lost
             }
             TriggerType::DomeShutterNotOpen => {
-                state.dome_shutter_open_expected &&
-                state.dome_shutter_status.as_ref().map(|s| s != "Open").unwrap_or(false)
+                state.dome_shutter_open_expected
+                    && state
+                        .dome_shutter_status
+                        .as_ref()
+                        .map(|s| s != "Open")
+                        .unwrap_or(false)
             }
         };
 
@@ -223,7 +231,10 @@ pub fn calculate_dawn_time(latitude: f64, longitude: f64) -> i64 {
 
     // Approximate solar declination using Cooper's equation
     let day_of_year = today.ordinal() as f64;
-    let declination: f64 = 23.45 * (360.0_f64 * (284.0 + day_of_year) / 365.0).to_radians().sin();
+    let declination: f64 = 23.45
+        * (360.0_f64 * (284.0 + day_of_year) / 365.0)
+            .to_radians()
+            .sin();
     let dec_rad = declination.to_radians();
     let lat_rad = latitude.to_radians();
     let alt_rad = altitude_threshold.to_radians();
@@ -251,10 +262,8 @@ pub fn calculate_dawn_time(latitude: f64, longitude: f64) -> i64 {
         .and_hms_opt(dawn_hour, dawn_minutes, 0)
         .unwrap_or_else(|| today.and_hms_opt(6, 0, 0).unwrap());
 
-    let dawn_timestamp = chrono::DateTime::<Utc>::from_naive_utc_and_offset(
-        dawn_datetime,
-        Utc,
-    ).timestamp();
+    let dawn_timestamp =
+        chrono::DateTime::<Utc>::from_naive_utc_and_offset(dawn_datetime, Utc).timestamp();
 
     // If the calculated dawn is in the past, it's tomorrow's dawn
     if dawn_timestamp < now.timestamp() {
@@ -317,8 +326,8 @@ pub struct TriggerState {
     pub last_plate_solve_ra: Option<f64>,  // RA in degrees
     pub last_plate_solve_dec: Option<f64>, // Dec in degrees
     pub last_plate_solve_pixel_scale: Option<f64>, // arcsec per pixel
-    pub target_ra: Option<f64>,  // Target RA in degrees
-    pub target_dec: Option<f64>, // Target Dec in degrees
+    pub target_ra: Option<f64>,            // Target RA in degrees
+    pub target_dec: Option<f64>,           // Target Dec in degrees
 
     // Mount tracking
     pub mount_is_tracking: Option<bool>,
@@ -354,10 +363,10 @@ impl TriggerState {
         if self.guiding_rms_history.is_none() {
             self.guiding_rms_history = Some(Vec::new());
         }
-        
+
         if let Some(history) = &mut self.guiding_rms_history {
             history.push((Instant::now(), rms));
-            
+
             // Keep only last 5 minutes of history
             history.retain(|(time, _)| time.elapsed().as_secs() < 300);
         }
@@ -600,14 +609,14 @@ impl TriggerManager {
         // Clone the state once before the loop
         let state = self.state.read().await.clone();
         let mut fired = Vec::new();
-        
+
         for trigger in &mut self.triggers {
             if trigger.check(&state).await {
                 tracing::warn!("Trigger fired: {} ({})", trigger.name, trigger.id);
                 fired.push((trigger.id.clone(), trigger.recovery_action.clone()));
             }
         }
-        
+
         fired
     }
 
@@ -618,9 +627,12 @@ impl TriggerManager {
             Trigger::new(
                 "hfr_degraded",
                 "HFR Degradation",
-                TriggerType::HfrDegraded { threshold_percent: 20.0 },
+                TriggerType::HfrDegraded {
+                    threshold_percent: 20.0,
+                },
                 RecoveryAction::Autofocus,
-            ).with_cooldown(300) // 5 minute cooldown
+            )
+            .with_cooldown(300), // 5 minute cooldown
         );
 
         // Meridian flip trigger - uses MeridianFlip recovery action
@@ -628,9 +640,12 @@ impl TriggerManager {
             Trigger::new(
                 "meridian_flip",
                 "Meridian Flip",
-                TriggerType::MeridianFlip { config: crate::MeridianFlipConfig::default() },
+                TriggerType::MeridianFlip {
+                    config: crate::MeridianFlipConfig::default(),
+                },
                 RecoveryAction::MeridianFlip(crate::MeridianFlipConfig::default()),
-            ).with_cooldown(600) // 10 minute cooldown to prevent double-flip
+            )
+            .with_cooldown(600), // 10 minute cooldown to prevent double-flip
         );
 
         // Guiding failure trigger
@@ -638,9 +653,13 @@ impl TriggerManager {
             Trigger::new(
                 "guiding_failed",
                 "Guiding Failure",
-                TriggerType::GuidingFailed { rms_threshold: 2.0, duration_secs: 30.0 },
+                TriggerType::GuidingFailed {
+                    rms_threshold: 2.0,
+                    duration_secs: 30.0,
+                },
                 RecoveryAction::Retry { max_attempts: 3 },
-            ).with_cooldown(60)
+            )
+            .with_cooldown(60),
         );
 
         // Altitude limit trigger
@@ -650,7 +669,8 @@ impl TriggerManager {
                 "Altitude Limit",
                 TriggerType::AltitudeLimit { min_altitude: 30.0 },
                 RecoveryAction::NextTarget,
-            ).with_cooldown(60)
+            )
+            .with_cooldown(60),
         );
 
         // Weather safety trigger
@@ -660,7 +680,8 @@ impl TriggerManager {
                 "Weather Unsafe",
                 TriggerType::WeatherUnsafe,
                 RecoveryAction::ParkAndAbort,
-            ).with_cooldown(0) // No cooldown for safety
+            )
+            .with_cooldown(0), // No cooldown for safety
         );
 
         // Temperature shift trigger
@@ -670,7 +691,8 @@ impl TriggerManager {
                 "Temperature Shift",
                 TriggerType::TemperatureShift { degrees: 2.0 },
                 RecoveryAction::Autofocus,
-            ).with_cooldown(600)
+            )
+            .with_cooldown(600),
         );
 
         // Filter change trigger (for focus offsets)
@@ -680,7 +702,8 @@ impl TriggerManager {
                 "Filter Change",
                 TriggerType::FilterChange,
                 RecoveryAction::Continue, // Handle via filter focus offsets
-            ).with_cooldown(0)
+            )
+            .with_cooldown(0),
         );
 
         // Dawn approaching trigger (automatic morning shutdown)
@@ -688,9 +711,12 @@ impl TriggerManager {
             Trigger::new(
                 "dawn_approaching",
                 "Dawn Approaching",
-                TriggerType::DawnApproaching { minutes_before: 30.0 }, // 30 min before astronomical twilight
+                TriggerType::DawnApproaching {
+                    minutes_before: 30.0,
+                }, // 30 min before astronomical twilight
                 RecoveryAction::ParkAndAbort,
-            ).with_cooldown(0) // No cooldown for safety
+            )
+            .with_cooldown(0), // No cooldown for safety
         );
 
         // Mount tracking lost trigger
@@ -700,7 +726,8 @@ impl TriggerManager {
                 "Mount Tracking Lost",
                 TriggerType::MountTrackingLost,
                 RecoveryAction::Pause,
-            ).with_cooldown(60) // 60 second cooldown
+            )
+            .with_cooldown(60), // 60 second cooldown
         );
 
         // Dome shutter not open trigger
@@ -710,7 +737,8 @@ impl TriggerManager {
                 "Dome Shutter Not Open",
                 TriggerType::DomeShutterNotOpen,
                 RecoveryAction::ParkAndAbort,
-            ).with_cooldown(0) // No cooldown for safety
+            )
+            .with_cooldown(0), // No cooldown for safety
         );
     }
 }
@@ -731,7 +759,9 @@ mod tests {
         let mut trigger = Trigger::new(
             "test",
             "Test HFR",
-            TriggerType::HfrDegraded { threshold_percent: 20.0 },
+            TriggerType::HfrDegraded {
+                threshold_percent: 20.0,
+            },
             RecoveryAction::Autofocus,
         );
 
@@ -790,7 +820,11 @@ mod tests {
         let now = std::time::Instant::now();
         state.guiding_rms_history.as_mut().unwrap().push((now, 2.5));
         tokio::time::sleep(Duration::from_millis(100)).await;
-        state.guiding_rms_history.as_mut().unwrap().push((std::time::Instant::now(), 2.8));
+        state
+            .guiding_rms_history
+            .as_mut()
+            .unwrap()
+            .push((std::time::Instant::now(), 2.8));
 
         // Should trigger - RMS above threshold for duration
         assert!(trigger.check(&state).await);
@@ -918,9 +952,12 @@ mod tests {
         let mut trigger = Trigger::new(
             "test",
             "Test Cooldown",
-            TriggerType::HfrDegraded { threshold_percent: 20.0 },
+            TriggerType::HfrDegraded {
+                threshold_percent: 20.0,
+            },
             RecoveryAction::Autofocus,
-        ).with_cooldown(2); // 2 second cooldown
+        )
+        .with_cooldown(2); // 2 second cooldown
 
         let mut state = TriggerState::new();
         state.baseline_hfr = Some(2.0);
@@ -947,7 +984,9 @@ mod tests {
         manager.add_trigger(Trigger::new(
             "hfr",
             "HFR Monitor",
-            TriggerType::HfrDegraded { threshold_percent: 25.0 },
+            TriggerType::HfrDegraded {
+                threshold_percent: 25.0,
+            },
             RecoveryAction::Autofocus,
         ));
 

@@ -42,8 +42,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 /// Global quirk registry with runtime overrides
-static QUIRK_REGISTRY: std::sync::OnceLock<Arc<RwLock<QuirkRegistry>>> =
-    std::sync::OnceLock::new();
+static QUIRK_REGISTRY: std::sync::OnceLock<Arc<RwLock<QuirkRegistry>>> = std::sync::OnceLock::new();
 
 /// Initialize or get the global quirk registry
 fn get_registry() -> &'static Arc<RwLock<QuirkRegistry>> {
@@ -311,12 +310,9 @@ mod tests {
         assert!(!quirks.is_empty(), "ZWO cameras should have quirks");
 
         // Check for temperature scale factor
-        let has_temp_scale = quirks.iter().any(|q| {
-            matches!(
-                q,
-                Quirk::Temperature(TemperatureQuirk::ScaleFactor(10.0))
-            )
-        });
+        let has_temp_scale = quirks
+            .iter()
+            .any(|q| matches!(q, Quirk::Temperature(TemperatureQuirk::ScaleFactor(10.0))));
         assert!(has_temp_scale, "ZWO should have temperature scale factor");
     }
 
@@ -326,9 +322,7 @@ mod tests {
         assert!(!quirks.is_empty(), "QHY should have vendor quirks");
 
         // Check for discovery protection
-        let has_discovery_protection = quirks
-            .iter()
-            .any(|q| matches!(q, Quirk::Discovery(_)));
+        let has_discovery_protection = quirks.iter().any(|q| matches!(q, Quirk::Discovery(_)));
         assert!(
             has_discovery_protection,
             "QHY should have discovery protection"

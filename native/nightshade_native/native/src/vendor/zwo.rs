@@ -24,8 +24,8 @@ use crate::camera::*;
 use crate::sync::{zwo_camera_mutex, zwo_eaf_mutex, zwo_efw_mutex};
 use crate::traits::*;
 use crate::utils::{
-    calculate_buffer_size_i32, safe_cstr_to_string, CleanupGuard,
-    wait_for_exposure, wait_for_filterwheel_move, wait_for_focuser_move,
+    calculate_buffer_size_i32, safe_cstr_to_string, wait_for_exposure, wait_for_filterwheel_move,
+    wait_for_focuser_move, CleanupGuard,
 };
 use crate::NativeVendor;
 use async_trait::async_trait;
@@ -41,24 +41,24 @@ use std::sync::OnceLock;
 #[repr(C)]
 #[derive(Debug, Clone)]
 struct ASICameraInfo {
-    name: [c_char; 64],           // Name[64] - camera name
-    camera_id: c_int,              // CameraID - unique camera ID
-    max_height: c_long,            // MaxHeight - max height
-    max_width: c_long,             // MaxWidth - max width
-    is_color_cam: c_int,           // IsColorCam (ASI_BOOL)
-    bayer_pattern: c_int,          // BayerPattern (ASI_BAYER_PATTERN)
-    supported_bins: [c_int; 16],   // SupportedBins[16] - ends with 0
+    name: [c_char; 64],                 // Name[64] - camera name
+    camera_id: c_int,                   // CameraID - unique camera ID
+    max_height: c_long,                 // MaxHeight - max height
+    max_width: c_long,                  // MaxWidth - max width
+    is_color_cam: c_int,                // IsColorCam (ASI_BOOL)
+    bayer_pattern: c_int,               // BayerPattern (ASI_BAYER_PATTERN)
+    supported_bins: [c_int; 16],        // SupportedBins[16] - ends with 0
     supported_video_format: [c_int; 8], // SupportedVideoFormat[8] - ends with ASI_IMG_END
-    pixel_size: f64,               // PixelSize (double) - in um
-    mechanical_shutter: c_int,     // MechanicalShutter (ASI_BOOL)
-    st4_port: c_int,               // ST4Port (ASI_BOOL)
-    is_cooler_cam: c_int,          // IsCoolerCam (ASI_BOOL)
-    is_usb3_host: c_int,           // IsUSB3Host (ASI_BOOL)
-    is_usb3_camera: c_int,         // IsUSB3Camera (ASI_BOOL)
-    elec_per_adu: f32,             // ElecPerADU (float)
-    bit_depth: c_int,              // BitDepth (int)
-    is_trigger_cam: c_int,         // IsTriggerCam (ASI_BOOL)
-    unused: [c_char; 16],          // Unused[16] - padding
+    pixel_size: f64,                    // PixelSize (double) - in um
+    mechanical_shutter: c_int,          // MechanicalShutter (ASI_BOOL)
+    st4_port: c_int,                    // ST4Port (ASI_BOOL)
+    is_cooler_cam: c_int,               // IsCoolerCam (ASI_BOOL)
+    is_usb3_host: c_int,                // IsUSB3Host (ASI_BOOL)
+    is_usb3_camera: c_int,              // IsUSB3Camera (ASI_BOOL)
+    elec_per_adu: f32,                  // ElecPerADU (float)
+    bit_depth: c_int,                   // BitDepth (int)
+    is_trigger_cam: c_int,              // IsTriggerCam (ASI_BOOL)
+    unused: [c_char; 16],               // Unused[16] - padding
 }
 
 /// ASI Exposure Status
@@ -82,28 +82,28 @@ const ASI_TRUE: ASIBool = 1;
 #[allow(non_camel_case_types, dead_code)]
 enum ASIError {
     ASI_SUCCESS = 0,
-    ASI_ERROR_INVALID_INDEX = 1,      // no camera connected or index value out of boundary
-    ASI_ERROR_INVALID_ID = 2,         // invalid ID
+    ASI_ERROR_INVALID_INDEX = 1, // no camera connected or index value out of boundary
+    ASI_ERROR_INVALID_ID = 2,    // invalid ID
     ASI_ERROR_INVALID_CONTROL_TYPE = 3, // invalid control type
-    ASI_ERROR_CAMERA_CLOSED = 4,      // camera didn't open
-    ASI_ERROR_CAMERA_REMOVED = 5,     // failed to find the camera, maybe removed
-    ASI_ERROR_INVALID_PATH = 6,       // cannot find the path of the file
+    ASI_ERROR_CAMERA_CLOSED = 4, // camera didn't open
+    ASI_ERROR_CAMERA_REMOVED = 5, // failed to find the camera, maybe removed
+    ASI_ERROR_INVALID_PATH = 6,  // cannot find the path of the file
     ASI_ERROR_INVALID_FILEFORMAT = 7,
-    ASI_ERROR_INVALID_SIZE = 8,       // wrong video format size
-    ASI_ERROR_INVALID_IMGTYPE = 9,    // unsupported image format
-    ASI_ERROR_OUTOF_BOUNDARY = 10,    // the startpos is out of boundary
-    ASI_ERROR_TIMEOUT = 11,           // timeout
-    ASI_ERROR_INVALID_SEQUENCE = 12,  // stop capture first
-    ASI_ERROR_BUFFER_TOO_SMALL = 13,  // buffer size is not big enough
+    ASI_ERROR_INVALID_SIZE = 8,      // wrong video format size
+    ASI_ERROR_INVALID_IMGTYPE = 9,   // unsupported image format
+    ASI_ERROR_OUTOF_BOUNDARY = 10,   // the startpos is out of boundary
+    ASI_ERROR_TIMEOUT = 11,          // timeout
+    ASI_ERROR_INVALID_SEQUENCE = 12, // stop capture first
+    ASI_ERROR_BUFFER_TOO_SMALL = 13, // buffer size is not big enough
     ASI_ERROR_VIDEO_MODE_ACTIVE = 14,
     ASI_ERROR_EXPOSURE_IN_PROGRESS = 15,
-    ASI_ERROR_GENERAL_ERROR = 16,     // general error, eg: value is out of valid range
-    ASI_ERROR_INVALID_MODE = 17,      // the current mode is wrong
+    ASI_ERROR_GENERAL_ERROR = 16, // general error, eg: value is out of valid range
+    ASI_ERROR_INVALID_MODE = 17,  // the current mode is wrong
     ASI_ERROR_GPS_NOT_SUPPORTED = 18, // camera does not support GPS
-    ASI_ERROR_GPS_VER_ERR = 19,       // FPGA GPS ver is too low
-    ASI_ERROR_GPS_FPGA_ERR = 20,      // failed to read or write data to FPGA
+    ASI_ERROR_GPS_VER_ERR = 19,   // FPGA GPS ver is too low
+    ASI_ERROR_GPS_FPGA_ERR = 20,  // failed to read or write data to FPGA
     ASI_ERROR_GPS_PARAM_OUT_OF_RANGE = 21, // start line or end line out of range
-    ASI_ERROR_GPS_DATA_INVALID = 22,  // GPS has not yet found satellite
+    ASI_ERROR_GPS_DATA_INVALID = 22, // GPS has not yet found satellite
     ASI_ERROR_END = 23,
 }
 
@@ -120,17 +120,17 @@ enum ASIControlType {
     ASI_OFFSET = 5,
     ASI_BANDWIDTHOVERLOAD = 6,
     ASI_OVERCLOCK = 7,
-    ASI_TEMPERATURE = 8,        // returns 10*temperature
+    ASI_TEMPERATURE = 8, // returns 10*temperature
     ASI_FLIP = 9,
     ASI_AUTO_MAX_GAIN = 10,
-    ASI_AUTO_MAX_EXP = 11,      // micro second
+    ASI_AUTO_MAX_EXP = 11, // micro second
     ASI_AUTO_TARGET_BRIGHTNESS = 12,
     ASI_HARDWARE_BIN = 13,
     ASI_HIGH_SPEED_MODE = 14,
     ASI_COOLER_POWER_PERC = 15,
-    ASI_TARGET_TEMP = 16,       // NOT multiplied by 10 (direct degrees C)
+    ASI_TARGET_TEMP = 16, // NOT multiplied by 10 (direct degrees C)
     ASI_COOLER_ON = 17,
-    ASI_MONO_BIN = 18,          // reduces grid at software bin for color camera
+    ASI_MONO_BIN = 18, // reduces grid at software bin for color camera
     ASI_FAN_ON = 19,
     ASI_PATTERN_ADJUST = 20,
     ASI_ANTI_DEW_HEATER = 21,
@@ -140,7 +140,7 @@ enum ASIControlType {
     ASI_GPS_SUPPORT = 25,
     ASI_GPS_START_LINE = 26,
     ASI_GPS_END_LINE = 27,
-    ASI_ROLLING_INTERVAL = 28,  // microsecond
+    ASI_ROLLING_INTERVAL = 28, // microsecond
 }
 
 /// ASI Image type
@@ -209,7 +209,8 @@ struct AsiSdk {
     set_control_value: unsafe extern "C" fn(c_int, c_int, c_long, ASIBool) -> c_int,
     set_roi_format: unsafe extern "C" fn(c_int, c_int, c_int, c_int, c_int) -> c_int,
     set_start_pos: unsafe extern "C" fn(c_int, c_int, c_int) -> c_int,
-    get_roi_format: unsafe extern "C" fn(c_int, *mut c_int, *mut c_int, *mut c_int, *mut c_int) -> c_int,
+    get_roi_format:
+        unsafe extern "C" fn(c_int, *mut c_int, *mut c_int, *mut c_int, *mut c_int) -> c_int,
     start_exposure: unsafe extern "C" fn(c_int, ASIBool) -> c_int,
     stop_exposure: unsafe extern "C" fn(c_int) -> c_int,
     get_exp_status: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
@@ -225,40 +226,59 @@ impl AsiSdk {
     fn load() -> Option<Self> {
         // Build list of paths to search, starting with most likely locations
         let mut lib_paths: Vec<String> = Vec::new();
-        
+
         if cfg!(target_os = "windows") {
             // Try current directory first (works if DLL is in same folder as executable)
             lib_paths.push("ASICamera2.dll".to_string());
-            
+
             // Standard installation paths
             lib_paths.push("C:\\Program Files\\ZWO\\ASI SDK\\lib\\x64\\ASICamera2.dll".to_string());
-            lib_paths.push("C:\\Program Files (x86)\\ZWO\\ASI SDK\\lib\\x64\\ASICamera2.dll".to_string());
+            lib_paths.push(
+                "C:\\Program Files (x86)\\ZWO\\ASI SDK\\lib\\x64\\ASICamera2.dll".to_string(),
+            );
             // User workspace path
             lib_paths.push("C:\\Users\\scdou\\Documents\\Nightshade2\\SDKs\\ZWO\\ASI_Camera_SDK\\ASI_Windows_SDK_V1.40\\ASI SDK\\lib\\x64\\ASICamera2.dll".to_string());
-            
+
             // Get executable directory and try paths relative to it
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
                     // Check next to executable
                     lib_paths.push(exe_dir.join("ASICamera2.dll").to_string_lossy().to_string());
-                    
+
                     // Check parent directories (for release builds in subdirectories)
                     if let Some(parent) = exe_dir.parent() {
                         lib_paths.push(parent.join("ASICamera2.dll").to_string_lossy().to_string());
-                        
+
                         // Try SDKs directory if project structure exists
-                        let sdk_path = parent.join("SDKs").join("ZWO").join("ASI_Camera_SDK")
-                            .join("ASI_Windows_SDK_V1.40").join("ASI SDK").join("lib").join("x64")
+                        let sdk_path = parent
+                            .join("SDKs")
+                            .join("ZWO")
+                            .join("ASI_Camera_SDK")
+                            .join("ASI_Windows_SDK_V1.40")
+                            .join("ASI SDK")
+                            .join("lib")
+                            .join("x64")
                             .join("ASICamera2.dll");
                         lib_paths.push(sdk_path.to_string_lossy().to_string());
                     }
-                    
+
                     // Check 2 levels up
                     if let Some(grandparent) = exe_dir.parent().and_then(|p| p.parent()) {
-                        lib_paths.push(grandparent.join("ASICamera2.dll").to_string_lossy().to_string());
-                        
-                        let sdk_path = grandparent.join("SDKs").join("ZWO").join("ASI_Camera_SDK")
-                            .join("ASI_Windows_SDK_V1.40").join("ASI SDK").join("lib").join("x64")
+                        lib_paths.push(
+                            grandparent
+                                .join("ASICamera2.dll")
+                                .to_string_lossy()
+                                .to_string(),
+                        );
+
+                        let sdk_path = grandparent
+                            .join("SDKs")
+                            .join("ZWO")
+                            .join("ASI_Camera_SDK")
+                            .join("ASI_Windows_SDK_V1.40")
+                            .join("ASI SDK")
+                            .join("lib")
+                            .join("x64")
                             .join("ASICamera2.dll");
                         lib_paths.push(sdk_path.to_string_lossy().to_string());
                     }
@@ -282,32 +302,57 @@ impl AsiSdk {
                         tracing::info!("Found ASI SDK at: {}", path);
 
                         // Helper to load and log function pointer failures
-                        fn load_symbol<T: Copy>(lib: &libloading::Library, name: &[u8], name_str: &str) -> Option<T> {
+                        fn load_symbol<T: Copy>(
+                            lib: &libloading::Library,
+                            name: &[u8],
+                            name_str: &str,
+                        ) -> Option<T> {
                             match unsafe { lib.get::<T>(name) } {
                                 Ok(sym) => Some(*sym),
                                 Err(e) => {
-                                    tracing::error!("Failed to load ASI function '{}': {}", name_str, e);
+                                    tracing::error!(
+                                        "Failed to load ASI function '{}': {}",
+                                        name_str,
+                                        e
+                                    );
                                     None
                                 }
                             }
                         }
 
-                        let get_num_cameras = load_symbol(&lib, b"ASIGetNumOfConnectedCameras\0", "ASIGetNumOfConnectedCameras")?;
-                        let get_camera_property = load_symbol(&lib, b"ASIGetCameraProperty\0", "ASIGetCameraProperty")?;
+                        let get_num_cameras = load_symbol(
+                            &lib,
+                            b"ASIGetNumOfConnectedCameras\0",
+                            "ASIGetNumOfConnectedCameras",
+                        )?;
+                        let get_camera_property =
+                            load_symbol(&lib, b"ASIGetCameraProperty\0", "ASIGetCameraProperty")?;
                         let open_camera = load_symbol(&lib, b"ASIOpenCamera\0", "ASIOpenCamera")?;
                         let init_camera = load_symbol(&lib, b"ASIInitCamera\0", "ASIInitCamera")?;
-                        let close_camera = load_symbol(&lib, b"ASICloseCamera\0", "ASICloseCamera")?;
-                        let get_control_value = load_symbol(&lib, b"ASIGetControlValue\0", "ASIGetControlValue")?;
-                        let set_control_value = load_symbol(&lib, b"ASISetControlValue\0", "ASISetControlValue")?;
-                        let set_roi_format = load_symbol(&lib, b"ASISetROIFormat\0", "ASISetROIFormat")?;
-                        let set_start_pos = load_symbol(&lib, b"ASISetStartPos\0", "ASISetStartPos")?;
-                        let get_roi_format = load_symbol(&lib, b"ASIGetROIFormat\0", "ASIGetROIFormat")?;
-                        let start_exposure = load_symbol(&lib, b"ASIStartExposure\0", "ASIStartExposure")?;
-                        let stop_exposure = load_symbol(&lib, b"ASIStopExposure\0", "ASIStopExposure")?;
-                        let get_exp_status = load_symbol(&lib, b"ASIGetExpStatus\0", "ASIGetExpStatus")?;
-                        let get_data_after_exp = load_symbol(&lib, b"ASIGetDataAfterExp\0", "ASIGetDataAfterExp")?;
-                        let get_num_controls = load_symbol(&lib, b"ASIGetNumOfControls\0", "ASIGetNumOfControls")?;
-                        let get_control_caps = load_symbol(&lib, b"ASIGetControlCaps\0", "ASIGetControlCaps")?;
+                        let close_camera =
+                            load_symbol(&lib, b"ASICloseCamera\0", "ASICloseCamera")?;
+                        let get_control_value =
+                            load_symbol(&lib, b"ASIGetControlValue\0", "ASIGetControlValue")?;
+                        let set_control_value =
+                            load_symbol(&lib, b"ASISetControlValue\0", "ASISetControlValue")?;
+                        let set_roi_format =
+                            load_symbol(&lib, b"ASISetROIFormat\0", "ASISetROIFormat")?;
+                        let set_start_pos =
+                            load_symbol(&lib, b"ASISetStartPos\0", "ASISetStartPos")?;
+                        let get_roi_format =
+                            load_symbol(&lib, b"ASIGetROIFormat\0", "ASIGetROIFormat")?;
+                        let start_exposure =
+                            load_symbol(&lib, b"ASIStartExposure\0", "ASIStartExposure")?;
+                        let stop_exposure =
+                            load_symbol(&lib, b"ASIStopExposure\0", "ASIStopExposure")?;
+                        let get_exp_status =
+                            load_symbol(&lib, b"ASIGetExpStatus\0", "ASIGetExpStatus")?;
+                        let get_data_after_exp =
+                            load_symbol(&lib, b"ASIGetDataAfterExp\0", "ASIGetDataAfterExp")?;
+                        let get_num_controls =
+                            load_symbol(&lib, b"ASIGetNumOfControls\0", "ASIGetNumOfControls")?;
+                        let get_control_caps =
+                            load_symbol(&lib, b"ASIGetControlCaps\0", "ASIGetControlCaps")?;
 
                         let sdk_result = Self {
                             get_num_cameras,
@@ -339,7 +384,7 @@ impl AsiSdk {
                 }
             }
         }
-        
+
         // Try to find via PATH environment variable as last resort
         #[cfg(windows)]
         {
@@ -350,32 +395,57 @@ impl AsiSdk {
                         tracing::info!("Found ASI SDK via system PATH");
 
                         // Helper to load and log function pointer failures
-                        fn load_symbol<T: Copy>(lib: &libloading::Library, name: &[u8], name_str: &str) -> Option<T> {
+                        fn load_symbol<T: Copy>(
+                            lib: &libloading::Library,
+                            name: &[u8],
+                            name_str: &str,
+                        ) -> Option<T> {
                             match unsafe { lib.get::<T>(name) } {
                                 Ok(sym) => Some(*sym),
                                 Err(e) => {
-                                    tracing::error!("Failed to load ASI function '{}': {}", name_str, e);
+                                    tracing::error!(
+                                        "Failed to load ASI function '{}': {}",
+                                        name_str,
+                                        e
+                                    );
                                     None
                                 }
                             }
                         }
 
-                        let get_num_cameras = load_symbol(&lib, b"ASIGetNumOfConnectedCameras\0", "ASIGetNumOfConnectedCameras")?;
-                        let get_camera_property = load_symbol(&lib, b"ASIGetCameraProperty\0", "ASIGetCameraProperty")?;
+                        let get_num_cameras = load_symbol(
+                            &lib,
+                            b"ASIGetNumOfConnectedCameras\0",
+                            "ASIGetNumOfConnectedCameras",
+                        )?;
+                        let get_camera_property =
+                            load_symbol(&lib, b"ASIGetCameraProperty\0", "ASIGetCameraProperty")?;
                         let open_camera = load_symbol(&lib, b"ASIOpenCamera\0", "ASIOpenCamera")?;
                         let init_camera = load_symbol(&lib, b"ASIInitCamera\0", "ASIInitCamera")?;
-                        let close_camera = load_symbol(&lib, b"ASICloseCamera\0", "ASICloseCamera")?;
-                        let get_control_value = load_symbol(&lib, b"ASIGetControlValue\0", "ASIGetControlValue")?;
-                        let set_control_value = load_symbol(&lib, b"ASISetControlValue\0", "ASISetControlValue")?;
-                        let set_roi_format = load_symbol(&lib, b"ASISetROIFormat\0", "ASISetROIFormat")?;
-                        let set_start_pos = load_symbol(&lib, b"ASISetStartPos\0", "ASISetStartPos")?;
-                        let get_roi_format = load_symbol(&lib, b"ASIGetROIFormat\0", "ASIGetROIFormat")?;
-                        let start_exposure = load_symbol(&lib, b"ASIStartExposure\0", "ASIStartExposure")?;
-                        let stop_exposure = load_symbol(&lib, b"ASIStopExposure\0", "ASIStopExposure")?;
-                        let get_exp_status = load_symbol(&lib, b"ASIGetExpStatus\0", "ASIGetExpStatus")?;
-                        let get_data_after_exp = load_symbol(&lib, b"ASIGetDataAfterExp\0", "ASIGetDataAfterExp")?;
-                        let get_num_controls = load_symbol(&lib, b"ASIGetNumOfControls\0", "ASIGetNumOfControls")?;
-                        let get_control_caps = load_symbol(&lib, b"ASIGetControlCaps\0", "ASIGetControlCaps")?;
+                        let close_camera =
+                            load_symbol(&lib, b"ASICloseCamera\0", "ASICloseCamera")?;
+                        let get_control_value =
+                            load_symbol(&lib, b"ASIGetControlValue\0", "ASIGetControlValue")?;
+                        let set_control_value =
+                            load_symbol(&lib, b"ASISetControlValue\0", "ASISetControlValue")?;
+                        let set_roi_format =
+                            load_symbol(&lib, b"ASISetROIFormat\0", "ASISetROIFormat")?;
+                        let set_start_pos =
+                            load_symbol(&lib, b"ASISetStartPos\0", "ASISetStartPos")?;
+                        let get_roi_format =
+                            load_symbol(&lib, b"ASIGetROIFormat\0", "ASIGetROIFormat")?;
+                        let start_exposure =
+                            load_symbol(&lib, b"ASIStartExposure\0", "ASIStartExposure")?;
+                        let stop_exposure =
+                            load_symbol(&lib, b"ASIStopExposure\0", "ASIStopExposure")?;
+                        let get_exp_status =
+                            load_symbol(&lib, b"ASIGetExpStatus\0", "ASIGetExpStatus")?;
+                        let get_data_after_exp =
+                            load_symbol(&lib, b"ASIGetDataAfterExp\0", "ASIGetDataAfterExp")?;
+                        let get_num_controls =
+                            load_symbol(&lib, b"ASIGetNumOfControls\0", "ASIGetNumOfControls")?;
+                        let get_control_caps =
+                            load_symbol(&lib, b"ASIGetControlCaps\0", "ASIGetControlCaps")?;
 
                         let sdk = Self {
                             get_num_cameras,
@@ -396,7 +466,9 @@ impl AsiSdk {
                             get_control_caps,
                             lib,
                         };
-                        tracing::info!("Successfully loaded all ASI SDK functions from system PATH");
+                        tracing::info!(
+                            "Successfully loaded all ASI SDK functions from system PATH"
+                        );
                         return Some(sdk);
                     }
                     Err(e) => {
@@ -410,7 +482,7 @@ impl AsiSdk {
         tracing::error!("To use native ZWO drivers, install the ASI SDK from https://astronomy-imaging-camera.com/software-drivers or place ASICamera2.dll in the application directory.");
         None
     }
-    
+
     /// Get the global SDK instance
     fn get() -> Option<&'static AsiSdk> {
         ASI_SDK.get_or_init(|| Self::load()).as_ref()
@@ -484,7 +556,7 @@ impl ZwoCamera {
             current_subframe: None,
         }
     }
-    
+
     /// Load camera info from SDK
     fn load_camera_info(&mut self) -> Result<(), NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
@@ -493,13 +565,13 @@ impl ZwoCamera {
         // ASIGetCameraProperty(ASI_CAMERA_INFO *pASICameraInfo, int iCameraIndex)
         let result = unsafe { (sdk.get_camera_property)(&mut info, self.camera_id) };
         check_asi_error(result)?;
-        
+
         self.current_width = info.max_width as i32;
         self.current_height = info.max_height as i32;
         self.camera_info = Some(info);
         Ok(())
     }
-    
+
     /// Get camera name using safe string conversion
     fn camera_name(&self) -> String {
         if let Some(info) = &self.camera_info {
@@ -509,7 +581,7 @@ impl ZwoCamera {
             format!("ZWO Camera {}", self.camera_id)
         }
     }
-    
+
     /// Get a control value (mutex protected)
     async fn get_control_async(&self, control: ASIControlType) -> Result<c_long, NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
@@ -536,7 +608,12 @@ impl ZwoCamera {
     }
 
     /// Set a control value (mutex protected)
-    async fn set_control_async(&mut self, control: ASIControlType, value: c_long, auto: bool) -> Result<(), NativeError> {
+    async fn set_control_async(
+        &mut self,
+        control: ASIControlType,
+        value: c_long,
+        auto: bool,
+    ) -> Result<(), NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_camera_mutex().lock().await;
         let result = unsafe {
@@ -544,28 +621,36 @@ impl ZwoCamera {
                 self.camera_id,
                 control as c_int,
                 value,
-                if auto { ASI_TRUE } else { ASI_FALSE }
+                if auto { ASI_TRUE } else { ASI_FALSE },
             )
         };
         check_asi_error(result)
     }
 
     /// Set a control value (synchronous version - caller must hold mutex)
-    fn set_control(&mut self, control: ASIControlType, value: c_long, auto: bool) -> Result<(), NativeError> {
+    fn set_control(
+        &mut self,
+        control: ASIControlType,
+        value: c_long,
+        auto: bool,
+    ) -> Result<(), NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let result = unsafe {
             (sdk.set_control_value)(
                 self.camera_id,
                 control as c_int,
                 value,
-                if auto { ASI_TRUE } else { ASI_FALSE }
+                if auto { ASI_TRUE } else { ASI_FALSE },
             )
         };
         check_asi_error(result)
     }
 
     /// Get the min/max range for a control (mutex protected)
-    async fn get_control_range_async(&self, target_control: ASIControlType) -> Result<(i32, i32), NativeError> {
+    async fn get_control_range_async(
+        &self,
+        target_control: ASIControlType,
+    ) -> Result<(i32, i32), NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_camera_mutex().lock().await;
 
@@ -660,10 +745,7 @@ impl ZwoCamera {
         match tokio::time::timeout(timeout_duration, self.download_image()).await {
             Ok(result) => result,
             Err(_elapsed) => {
-                tracing::error!(
-                    "ZWO image download timed out after {:?}",
-                    timeout_duration
-                );
+                tracing::error!("ZWO image download timed out after {:?}", timeout_duration);
                 Err(NativeError::download_timeout(
                     timeout_duration,
                     self.current_width as u32,
@@ -679,21 +761,21 @@ impl NativeDevice for ZwoCamera {
     fn id(&self) -> &str {
         &self.device_id
     }
-    
+
     fn name(&self) -> &str {
         // We need to return a &str, but camera_name() returns String
         // For now, return the device_id - a proper implementation would store the name
         &self.device_id
     }
-    
+
     fn vendor(&self) -> NativeVendor {
         NativeVendor::Zwo
     }
-    
+
     fn is_connected(&self) -> bool {
         self.connected
     }
-    
+
     async fn connect(&mut self) -> Result<(), NativeError> {
         tracing::info!("Connecting to ZWO camera ID {}...", self.camera_id);
 
@@ -708,7 +790,11 @@ impl NativeDevice for ZwoCamera {
         // Load camera info
         tracing::debug!("Loading camera info for ID {}", self.camera_id);
         self.load_camera_info().map_err(|e| {
-            tracing::error!("Failed to load camera info for ID {}: {:?}", self.camera_id, e);
+            tracing::error!(
+                "Failed to load camera info for ID {}: {:?}",
+                self.camera_id,
+                e
+            );
             e
         })?;
         tracing::debug!("Camera info loaded successfully");
@@ -717,7 +803,11 @@ impl NativeDevice for ZwoCamera {
         tracing::debug!("Opening camera ID {}", self.camera_id);
         let result = unsafe { (sdk.open_camera)(self.camera_id) };
         if result != 0 {
-            tracing::error!("ASIOpenCamera failed for ID {}: ASI error code {}", self.camera_id, result);
+            tracing::error!(
+                "ASIOpenCamera failed for ID {}: ASI error code {}",
+                self.camera_id,
+                result
+            );
             return Err(check_asi_error(result).unwrap_err());
         }
         tracing::debug!("Camera opened successfully");
@@ -735,7 +825,11 @@ impl NativeDevice for ZwoCamera {
         tracing::debug!("Initializing camera ID {}", self.camera_id);
         let result = unsafe { (sdk.init_camera)(self.camera_id) };
         if result != 0 {
-            tracing::error!("ASIInitCamera failed for ID {}: ASI error code {}", self.camera_id, result);
+            tracing::error!(
+                "ASIInitCamera failed for ID {}: ASI error code {}",
+                self.camera_id,
+                result
+            );
             // cleanup_guard will handle closing the camera
             return Err(check_asi_error(result).unwrap_err());
         }
@@ -743,7 +837,11 @@ impl NativeDevice for ZwoCamera {
 
         // Set default ROI format (full frame, bin 1, Raw16)
         if let Some(info) = &self.camera_info {
-            tracing::debug!("Setting ROI format: {}x{}, bin 1, Raw16", info.max_width, info.max_height);
+            tracing::debug!(
+                "Setting ROI format: {}x{}, bin 1, Raw16",
+                info.max_width,
+                info.max_height
+            );
             let result = unsafe {
                 (sdk.set_roi_format)(
                     self.camera_id,
@@ -775,7 +873,10 @@ impl NativeDevice for ZwoCamera {
         cleanup_guard.defuse();
 
         self.connected = true;
-        tracing::info!("Successfully connected to ZWO camera: {}", self.camera_name());
+        tracing::info!(
+            "Successfully connected to ZWO camera: {}",
+            self.camera_name()
+        );
         Ok(())
     }
 
@@ -812,7 +913,7 @@ impl NativeCamera for ZwoCamera {
             CameraCapabilities::default()
         }
     }
-    
+
     async fn get_status(&self) -> Result<CameraStatus, NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
@@ -835,12 +936,20 @@ impl NativeCamera for ZwoCamera {
         };
 
         // Get temperature (ASI_TEMPERATURE returns 10*temperature) - use sync version since we hold mutex
-        let temp = self.get_control(ASIControlType::ASI_TEMPERATURE)
+        let temp = self
+            .get_control(ASIControlType::ASI_TEMPERATURE)
             .map(|v| v as f64 / 10.0)
             .unwrap_or(0.0);
 
-        let cooler_power = if self.camera_info.as_ref().map(|i| i.is_cooler_cam != 0).unwrap_or(false) {
-            self.get_control(ASIControlType::ASI_COOLER_POWER_PERC).ok().map(|v| v as f64)
+        let cooler_power = if self
+            .camera_info
+            .as_ref()
+            .map(|i| i.is_cooler_cam != 0)
+            .unwrap_or(false)
+        {
+            self.get_control(ASIControlType::ASI_COOLER_POWER_PERC)
+                .ok()
+                .map(|v| v as f64)
         } else {
             None
         };
@@ -849,7 +958,7 @@ impl NativeCamera for ZwoCamera {
             state,
             sensor_temp: Some(temp),
             target_temp: None, // ZWO doesn't easily provide target temp back
-            cooler_on: false, // ZWO SDK doesn't have a simple "is cooler on" property check
+            cooler_on: false,  // ZWO SDK doesn't have a simple "is cooler on" property check
             cooler_power,
             gain: self.current_gain,
             offset: self.current_offset,
@@ -925,13 +1034,15 @@ impl NativeCamera for ZwoCamera {
         let is_complete = status == ASIExposureStatus::Success as c_int;
         // Log status for debugging (0=Idle, 1=Working, 2=Success, 3=Failed)
         if is_complete || status == ASIExposureStatus::Failed as c_int {
-            tracing::info!("ZWO exposure status: {} ({})", status,
+            tracing::info!(
+                "ZWO exposure status: {} ({})",
+                status,
                 match status {
                     0 => "Idle",
                     1 => "Working",
                     2 => "Success",
                     3 => "Failed",
-                    _ => "Unknown"
+                    _ => "Unknown",
                 }
             );
         }
@@ -956,12 +1067,22 @@ impl NativeCamera for ZwoCamera {
         let mut img_type: c_int = 0;
 
         let result = unsafe {
-            (sdk.get_roi_format)(self.camera_id, &mut width, &mut height, &mut bin, &mut img_type)
+            (sdk.get_roi_format)(
+                self.camera_id,
+                &mut width,
+                &mut height,
+                &mut bin,
+                &mut img_type,
+            )
         };
         check_asi_error(result)?;
 
         // Calculate buffer size (Raw16 = 2 bytes per pixel) with overflow protection
-        let bytes_per_pixel = if img_type == ASIImgType::Raw16 as c_int { 2 } else { 1 };
+        let bytes_per_pixel = if img_type == ASIImgType::Raw16 as c_int {
+            2
+        } else {
+            1
+        };
         let buffer_size = calculate_buffer_size_i32(width, height, bytes_per_pixel)?;
 
         // Use pooled buffer for efficient memory reuse during high-throughput capture
@@ -969,10 +1090,14 @@ impl NativeCamera for ZwoCamera {
         pooled_buffer.resize(buffer_size);
 
         let result = unsafe {
-            (sdk.get_data_after_exp)(self.camera_id, pooled_buffer.as_mut_ptr(), buffer_size as c_long)
+            (sdk.get_data_after_exp)(
+                self.camera_id,
+                pooled_buffer.as_mut_ptr(),
+                buffer_size as c_long,
+            )
         };
         check_asi_error(result)?;
-        
+
         // Convert to u16 if needed
         let data: Vec<u16> = if bytes_per_pixel == 2 {
             pooled_buffer
@@ -1002,11 +1127,18 @@ impl NativeCamera for ZwoCamera {
             }
         }
 
-        tracing::info!("Downloaded {}x{} image ({} bytes, img_type={})", width, height, buffer_size, img_type);
+        tracing::info!(
+            "Downloaded {}x{} image ({} bytes, img_type={})",
+            width,
+            height,
+            buffer_size,
+            img_type
+        );
 
         // Get temperature and vendor features using sync methods since we already hold the lock
         // (calling async methods here would deadlock because they try to acquire the same mutex)
-        let temperature = self.get_control(ASIControlType::ASI_TEMPERATURE)
+        let temperature = self
+            .get_control(ASIControlType::ASI_TEMPERATURE)
             .map(|v| v as f64 / 10.0)
             .ok();
 
@@ -1017,13 +1149,15 @@ impl NativeCamera for ZwoCamera {
         if let Ok(heater) = self.get_control(ASIControlType::ASI_ANTI_DEW_HEATER) {
             vendor_data.anti_dew_heater = Some(heater != 0);
         }
-        
+
         Ok(ImageData {
             width: width as u32,
             height: height as u32,
             data,
             bits_per_pixel: if bytes_per_pixel == 2 { 16 } else { 8 },
-            bayer_pattern: self.camera_info.as_ref()
+            bayer_pattern: self
+                .camera_info
+                .as_ref()
                 .filter(|i| i.is_color_cam != 0)
                 .map(|i| match i.bayer_pattern {
                     0 => BayerPattern::Rggb,
@@ -1046,54 +1180,86 @@ impl NativeCamera for ZwoCamera {
             },
         })
     }
-    
+
     async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
 
-        if !self.camera_info.as_ref().map(|i| i.is_cooler_cam != 0).unwrap_or(false) {
+        if !self
+            .camera_info
+            .as_ref()
+            .map(|i| i.is_cooler_cam != 0)
+            .unwrap_or(false)
+        {
             return Err(NativeError::NotSupported);
         }
 
         // Use async versions with mutex protection
-        self.set_control_async(ASIControlType::ASI_TARGET_TEMP, target_temp as c_long, false).await?;
-        self.set_control_async(ASIControlType::ASI_COOLER_ON, if enabled { 1 } else { 0 }, false).await?;
+        self.set_control_async(
+            ASIControlType::ASI_TARGET_TEMP,
+            target_temp as c_long,
+            false,
+        )
+        .await?;
+        self.set_control_async(
+            ASIControlType::ASI_COOLER_ON,
+            if enabled { 1 } else { 0 },
+            false,
+        )
+        .await?;
 
         Ok(())
     }
 
     async fn get_temperature(&self) -> Result<f64, NativeError> {
         // ASI_TEMPERATURE returns 10*temperature - use async version with mutex
-        let value = self.get_control_async(ASIControlType::ASI_TEMPERATURE).await?;
+        let value = self
+            .get_control_async(ASIControlType::ASI_TEMPERATURE)
+            .await?;
         Ok(value as f64 / 10.0)
     }
 
     async fn get_cooler_power(&self) -> Result<f64, NativeError> {
-        if !self.camera_info.as_ref().map(|i| i.is_cooler_cam != 0).unwrap_or(false) {
+        if !self
+            .camera_info
+            .as_ref()
+            .map(|i| i.is_cooler_cam != 0)
+            .unwrap_or(false)
+        {
             return Err(NativeError::NotSupported);
         }
-        let value = self.get_control_async(ASIControlType::ASI_COOLER_POWER_PERC).await?;
+        let value = self
+            .get_control_async(ASIControlType::ASI_COOLER_POWER_PERC)
+            .await?;
         Ok(value as f64)
     }
 
     async fn set_gain(&mut self, gain: i32) -> Result<(), NativeError> {
         self.current_gain = gain;
-        self.set_control_async(ASIControlType::ASI_GAIN, gain as c_long, false).await
+        self.set_control_async(ASIControlType::ASI_GAIN, gain as c_long, false)
+            .await
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
-        let val = self.get_control_async(ASIControlType::ASI_GAIN).await.map(|v| v as i32)?;
+        let val = self
+            .get_control_async(ASIControlType::ASI_GAIN)
+            .await
+            .map(|v| v as i32)?;
         Ok(val)
     }
 
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
         self.current_offset = offset;
-        self.set_control_async(ASIControlType::ASI_OFFSET, offset as c_long, false).await
+        self.set_control_async(ASIControlType::ASI_OFFSET, offset as c_long, false)
+            .await
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {
-        let val = self.get_control_async(ASIControlType::ASI_OFFSET).await.map(|v| v as i32)?;
+        let val = self
+            .get_control_async(ASIControlType::ASI_OFFSET)
+            .await
+            .map(|v| v as i32)?;
         Ok(val)
     }
 
@@ -1146,11 +1312,19 @@ impl NativeCamera for ZwoCamera {
         let info = self.camera_info.as_ref().ok_or(NativeError::NotConnected)?;
 
         let (width, height, x, y) = if let Some(ref sf) = subframe {
-            (sf.width as c_int, sf.height as c_int, sf.start_x as c_int, sf.start_y as c_int)
+            (
+                sf.width as c_int,
+                sf.height as c_int,
+                sf.start_x as c_int,
+                sf.start_y as c_int,
+            )
         } else {
-            (info.max_width as c_int / self.current_bin as c_int,
-             info.max_height as c_int / self.current_bin as c_int,
-             0, 0)
+            (
+                info.max_width as c_int / self.current_bin as c_int,
+                info.max_height as c_int / self.current_bin as c_int,
+                0,
+                0,
+            )
         };
 
         // Acquire mutex for SDK operations
@@ -1167,9 +1341,7 @@ impl NativeCamera for ZwoCamera {
         };
         check_asi_error(result)?;
 
-        let result = unsafe {
-             (sdk.set_start_pos)(self.camera_id, x, y)
-        };
+        let result = unsafe { (sdk.set_start_pos)(self.camera_id, x, y) };
         check_asi_error(result)?;
 
         self.current_width = width as i32;
@@ -1206,26 +1378,32 @@ impl NativeCamera for ZwoCamera {
             SensorInfo::default()
         }
     }
-    
+
     async fn get_readout_modes(&self) -> Result<Vec<ReadoutMode>, NativeError> {
         // ZWO doesn't have readout modes
         Ok(Vec::new())
     }
-    
+
     async fn set_readout_mode(&mut self, _mode: &ReadoutMode) -> Result<(), NativeError> {
         Err(NativeError::NotSupported)
     }
-    
+
     async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError> {
         let mut features = VendorFeatures::default();
 
         // Get USB bandwidth - use async version with mutex
-        if let Ok(bw) = self.get_control_async(ASIControlType::ASI_BANDWIDTHOVERLOAD).await {
+        if let Ok(bw) = self
+            .get_control_async(ASIControlType::ASI_BANDWIDTHOVERLOAD)
+            .await
+        {
             features.usb_bandwidth = Some(bw as f64);
         }
 
         // ZWO-specific: Anti-dew heater - use async version with mutex
-        if let Ok(heater) = self.get_control_async(ASIControlType::ASI_ANTI_DEW_HEATER).await {
+        if let Ok(heater) = self
+            .get_control_async(ASIControlType::ASI_ANTI_DEW_HEATER)
+            .await
+        {
             features.anti_dew_heater = Some(heater != 0);
         }
 
@@ -1243,7 +1421,8 @@ impl NativeCamera for ZwoCamera {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
-        self.get_control_range_async(ASIControlType::ASI_OFFSET).await
+        self.get_control_range_async(ASIControlType::ASI_OFFSET)
+            .await
     }
 }
 
@@ -1341,7 +1520,9 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
             };
             tracing::warn!(
                 "Failed to query camera index {}: ASI error {} ({})",
-                i, result, error_desc
+                i,
+                result,
+                error_desc
             );
         }
     }
@@ -1422,7 +1603,8 @@ struct EafSdk {
     set_beep: unsafe extern "C" fn(c_int, bool) -> c_int,
     get_beep: unsafe extern "C" fn(c_int, *mut bool) -> c_int,
     get_sdk_version: unsafe extern "C" fn() -> *const c_char,
-    get_firmware_version: unsafe extern "C" fn(c_int, *mut c_uchar, *mut c_uchar, *mut c_uchar) -> c_int,
+    get_firmware_version:
+        unsafe extern "C" fn(c_int, *mut c_uchar, *mut c_uchar, *mut c_uchar) -> c_int,
     get_serial_number: unsafe extern "C" fn(c_int, *mut EAFSerialNumber) -> c_int,
     reset_position: unsafe extern "C" fn(c_int, c_int) -> c_int,
     _library: libloading::Library,
@@ -1481,16 +1663,29 @@ impl EafSdk {
 fn check_eaf_error(code: c_int) -> Result<(), NativeError> {
     match code {
         0 => Ok(()),
-        1 => Err(NativeError::InvalidDevice("EAF_ERROR_INVALID_INDEX".to_string())),
-        2 => Err(NativeError::InvalidDevice("EAF_ERROR_INVALID_ID".to_string())),
-        3 => Err(NativeError::InvalidParameter("EAF_ERROR_INVALID_VALUE".to_string())),
+        1 => Err(NativeError::InvalidDevice(
+            "EAF_ERROR_INVALID_INDEX".to_string(),
+        )),
+        2 => Err(NativeError::InvalidDevice(
+            "EAF_ERROR_INVALID_ID".to_string(),
+        )),
+        3 => Err(NativeError::InvalidParameter(
+            "EAF_ERROR_INVALID_VALUE".to_string(),
+        )),
         4 => Err(NativeError::Disconnected),
-        5 => Err(NativeError::SdkError("EAF_ERROR_MOVING: Focuser is moving".to_string())),
-        6 => Err(NativeError::SdkError("EAF_ERROR_ERROR_STATE: Focuser in error state".to_string())),
+        5 => Err(NativeError::SdkError(
+            "EAF_ERROR_MOVING: Focuser is moving".to_string(),
+        )),
+        6 => Err(NativeError::SdkError(
+            "EAF_ERROR_ERROR_STATE: Focuser in error state".to_string(),
+        )),
         7 => Err(NativeError::SdkError("EAF_ERROR_GENERAL_ERROR".to_string())),
         8 => Err(NativeError::NotSupported),
         9 => Err(NativeError::NotConnected),
-        _ => Err(NativeError::SdkError(format!("Unknown EAF error code: {}", code))),
+        _ => Err(NativeError::SdkError(format!(
+            "Unknown EAF error code: {}",
+            code
+        ))),
     }
 }
 
@@ -1557,7 +1752,10 @@ impl NativeDevice for ZwoFocuser {
         // Create cleanup guard to close the focuser if subsequent operations fail
         let focuser_id = self.focuser_id;
         let cleanup_guard = CleanupGuard::new(|| {
-            tracing::debug!("Cleaning up ZWO EAF focuser {} after failed connect", focuser_id);
+            tracing::debug!(
+                "Cleaning up ZWO EAF focuser {} after failed connect",
+                focuser_id
+            );
             if let Some(sdk) = EafSdk::get() {
                 let _ = unsafe { (sdk.close)(focuser_id) };
             }
@@ -1575,7 +1773,11 @@ impl NativeDevice for ZwoFocuser {
         cleanup_guard.defuse();
 
         self.connected = true;
-        tracing::info!("Connected to ZWO EAF: {} (max step: {})", self.name, self.max_position);
+        tracing::info!(
+            "Connected to ZWO EAF: {} (max step: {})",
+            self.name,
+            self.max_position
+        );
         Ok(())
     }
 
@@ -1584,7 +1786,10 @@ impl NativeDevice for ZwoFocuser {
             return Ok(());
         }
 
-        tracing::info!("Disconnecting from ZWO EAF focuser ID {}...", self.focuser_id);
+        tracing::info!(
+            "Disconnecting from ZWO EAF focuser ID {}...",
+            self.focuser_id
+        );
 
         let sdk = EafSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_eaf_mutex().lock().await;
@@ -1714,12 +1919,7 @@ impl ZwoFocuser {
         self.move_to(position).await?;
 
         // Wait for move to complete
-        wait_for_focuser_move(
-            || async { self.is_moving().await },
-            config,
-            position,
-        )
-        .await
+        wait_for_focuser_move(|| async { self.is_moving().await }, config, position).await
     }
 
     /// Move focuser relative and wait for completion with timeout.
@@ -1766,7 +1966,10 @@ pub fn is_eaf_sdk_available() -> bool {
 pub fn get_eaf_sdk_status() -> (bool, String) {
     match EafSdk::get() {
         Some(_) => (true, "ZWO EAF SDK loaded successfully".to_string()),
-        None => (false, "ZWO EAF SDK (EAF_focuser.dll) not found.".to_string()),
+        None => (
+            false,
+            "ZWO EAF SDK (EAF_focuser.dll) not found.".to_string(),
+        ),
     }
 }
 
@@ -1809,18 +2012,28 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
                 let mut sn: EAFSerialNumber = unsafe { std::mem::zeroed() };
                 let serial_number = if unsafe { (sdk.get_serial_number)(id, &mut sn) } == 0 {
                     let sn_bytes: [u8; 8] = sn.id;
-                    let sn_str = sn_bytes.iter()
+                    let sn_str = sn_bytes
+                        .iter()
                         .take_while(|&&b| b != 0)
                         .map(|&b| format!("{:02X}", b))
                         .collect::<String>();
-                    if sn_str.is_empty() { None } else { Some(sn_str) }
+                    if sn_str.is_empty() {
+                        None
+                    } else {
+                        Some(sn_str)
+                    }
                 } else {
                     None
                 };
 
                 let _ = unsafe { (sdk.close)(id) };
 
-                tracing::info!("Found ZWO EAF: {} (ID: {}, SN: {:?})", name, id, serial_number);
+                tracing::info!(
+                    "Found ZWO EAF: {} (ID: {}, SN: {:?})",
+                    name,
+                    id,
+                    serial_number
+                );
                 focusers.push(ZwoFocuserDiscoveryInfo {
                     focuser_id: id,
                     name,
@@ -1886,7 +2099,8 @@ struct EfwSdk {
     calibrate: unsafe extern "C" fn(c_int) -> c_int,
     get_sdk_version: unsafe extern "C" fn() -> *const c_char,
     get_hw_error_code: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
-    get_firmware_version: unsafe extern "C" fn(c_int, *mut c_uchar, *mut c_uchar, *mut c_uchar) -> c_int,
+    get_firmware_version:
+        unsafe extern "C" fn(c_int, *mut c_uchar, *mut c_uchar, *mut c_uchar) -> c_int,
     get_serial_number: unsafe extern "C" fn(c_int, *mut EFWSerialNumber) -> c_int,
     _library: libloading::Library,
 }
@@ -1936,16 +2150,29 @@ impl EfwSdk {
 fn check_efw_error(code: c_int) -> Result<(), NativeError> {
     match code {
         0 => Ok(()),
-        1 => Err(NativeError::InvalidDevice("EFW_ERROR_INVALID_INDEX".to_string())),
-        2 => Err(NativeError::InvalidDevice("EFW_ERROR_INVALID_ID".to_string())),
-        3 => Err(NativeError::InvalidParameter("EFW_ERROR_INVALID_VALUE".to_string())),
+        1 => Err(NativeError::InvalidDevice(
+            "EFW_ERROR_INVALID_INDEX".to_string(),
+        )),
+        2 => Err(NativeError::InvalidDevice(
+            "EFW_ERROR_INVALID_ID".to_string(),
+        )),
+        3 => Err(NativeError::InvalidParameter(
+            "EFW_ERROR_INVALID_VALUE".to_string(),
+        )),
         4 => Err(NativeError::Disconnected),
-        5 => Err(NativeError::SdkError("EFW_ERROR_MOVING: Filter wheel is moving".to_string())),
-        6 => Err(NativeError::SdkError("EFW_ERROR_ERROR_STATE: Filter wheel in error state".to_string())),
+        5 => Err(NativeError::SdkError(
+            "EFW_ERROR_MOVING: Filter wheel is moving".to_string(),
+        )),
+        6 => Err(NativeError::SdkError(
+            "EFW_ERROR_ERROR_STATE: Filter wheel in error state".to_string(),
+        )),
         7 => Err(NativeError::SdkError("EFW_ERROR_GENERAL_ERROR".to_string())),
         8 => Err(NativeError::NotSupported),
         9 => Err(NativeError::NotConnected),
-        _ => Err(NativeError::SdkError(format!("Unknown EFW error code: {}", code))),
+        _ => Err(NativeError::SdkError(format!(
+            "Unknown EFW error code: {}",
+            code
+        ))),
     }
 }
 
@@ -1997,7 +2224,10 @@ impl NativeDevice for ZwoFilterWheel {
     }
 
     async fn connect(&mut self) -> Result<(), NativeError> {
-        tracing::info!("Connecting to ZWO EFW filter wheel ID {}...", self.filterwheel_id);
+        tracing::info!(
+            "Connecting to ZWO EFW filter wheel ID {}...",
+            self.filterwheel_id
+        );
 
         let sdk = EfwSdk::get().ok_or_else(|| {
             tracing::error!("Cannot connect to ZWO EFW: EFW SDK not loaded");
@@ -2014,7 +2244,10 @@ impl NativeDevice for ZwoFilterWheel {
         // Create cleanup guard to close the filter wheel if subsequent operations fail
         let filterwheel_id = self.filterwheel_id;
         let cleanup_guard = CleanupGuard::new(|| {
-            tracing::debug!("Cleaning up ZWO EFW filter wheel {} after failed connect", filterwheel_id);
+            tracing::debug!(
+                "Cleaning up ZWO EFW filter wheel {} after failed connect",
+                filterwheel_id
+            );
             if let Some(sdk) = EfwSdk::get() {
                 let _ = unsafe { (sdk.close)(filterwheel_id) };
             }
@@ -2037,7 +2270,11 @@ impl NativeDevice for ZwoFilterWheel {
         cleanup_guard.defuse();
 
         self.connected = true;
-        tracing::info!("Connected to ZWO EFW: {} ({} slots)", self.name, self.slot_count);
+        tracing::info!(
+            "Connected to ZWO EFW: {} ({} slots)",
+            self.name,
+            self.slot_count
+        );
         Ok(())
     }
 
@@ -2046,7 +2283,10 @@ impl NativeDevice for ZwoFilterWheel {
             return Ok(());
         }
 
-        tracing::info!("Disconnecting from ZWO EFW filter wheel ID {}...", self.filterwheel_id);
+        tracing::info!(
+            "Disconnecting from ZWO EFW filter wheel ID {}...",
+            self.filterwheel_id
+        );
 
         let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_efw_mutex().lock().await;
@@ -2161,12 +2401,7 @@ impl ZwoFilterWheel {
         self.move_to_position(position).await?;
 
         // Wait for move to complete
-        wait_for_filterwheel_move(
-            || async { self.is_moving().await },
-            config,
-            position,
-        )
-        .await
+        wait_for_filterwheel_move(|| async { self.is_moving().await }, config, position).await
     }
 }
 
@@ -2236,18 +2471,29 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
                 let mut sn: EFWSerialNumber = unsafe { std::mem::zeroed() };
                 let serial_number = if unsafe { (sdk.get_serial_number)(id, &mut sn) } == 0 {
                     let sn_bytes: [u8; 8] = sn.id;
-                    let sn_str = sn_bytes.iter()
+                    let sn_str = sn_bytes
+                        .iter()
                         .take_while(|&&b| b != 0)
                         .map(|&b| format!("{:02X}", b))
                         .collect::<String>();
-                    if sn_str.is_empty() { None } else { Some(sn_str) }
+                    if sn_str.is_empty() {
+                        None
+                    } else {
+                        Some(sn_str)
+                    }
                 } else {
                     None
                 };
 
                 let _ = unsafe { (sdk.close)(id) };
 
-                tracing::info!("Found ZWO EFW: {} (ID: {}, {} slots, SN: {:?})", name, id, slot_count, serial_number);
+                tracing::info!(
+                    "Found ZWO EFW: {} (ID: {}, {} slots, SN: {:?})",
+                    name,
+                    id,
+                    slot_count,
+                    serial_number
+                );
                 wheels.push(ZwoFilterWheelDiscoveryInfo {
                     filterwheel_id: id,
                     name,

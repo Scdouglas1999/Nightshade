@@ -61,14 +61,9 @@ pub enum MeridianFlipEvent {
         duration_secs: Option<f64>,
     },
     /// A step failed
-    StepFailed {
-        step: FlipStep,
-        error: String,
-    },
+    StepFailed { step: FlipStep, error: String },
     /// Overall progress update (0-100)
-    Progress {
-        percent: u8,
-    },
+    Progress { percent: u8 },
     /// Retry scheduled after failure
     RetryScheduled {
         attempt: u8,
@@ -81,14 +76,9 @@ pub enum MeridianFlipEvent {
         duration_secs: f64,
     },
     /// Flip failed after all retries
-    Failed {
-        error: String,
-        action_taken: String,
-    },
+    Failed { error: String, action_taken: String },
     /// Flip was aborted by user
-    Aborted {
-        reason: String,
-    },
+    Aborted { reason: String },
 }
 
 /// Callback type for receiving flip events
@@ -125,22 +115,38 @@ impl FlipEventEmitter {
 
     fn log_event(&self, event: &MeridianFlipEvent) {
         match event {
-            MeridianFlipEvent::Starting { target_name, from_pier_side, hour_angle } => {
+            MeridianFlipEvent::Starting {
+                target_name,
+                from_pier_side,
+                hour_angle,
+            } => {
                 tracing::info!(
                     "{} ══════════════════════════════════════════════════════════",
                     self.log_prefix
                 );
                 tracing::info!("{} FLIP TRIGGER ACTIVATED", self.log_prefix);
                 tracing::info!("{}   Target: {}", self.log_prefix, target_name);
-                tracing::info!("{}   Hour Angle: {:.2}h ({:.1} minutes past meridian)",
-                    self.log_prefix, hour_angle, hour_angle * 60.0);
-                tracing::info!("{}   Current Pier Side: {:?}", self.log_prefix, from_pier_side);
+                tracing::info!(
+                    "{}   Hour Angle: {:.2}h ({:.1} minutes past meridian)",
+                    self.log_prefix,
+                    hour_angle,
+                    hour_angle * 60.0
+                );
+                tracing::info!(
+                    "{}   Current Pier Side: {:?}",
+                    self.log_prefix,
+                    from_pier_side
+                );
                 tracing::info!(
                     "{} ──────────────────────────────────────────────────────────",
                     self.log_prefix
                 );
             }
-            MeridianFlipEvent::StepStarted { step, step_index, total_steps } => {
+            MeridianFlipEvent::StepStarted {
+                step,
+                step_index,
+                total_steps,
+            } => {
                 tracing::info!(
                     "{} Step {}/{}: {}...",
                     self.log_prefix,
@@ -149,7 +155,10 @@ impl FlipEventEmitter {
                     step.description()
                 );
             }
-            MeridianFlipEvent::StepCompleted { step, duration_secs } => {
+            MeridianFlipEvent::StepCompleted {
+                step,
+                duration_secs,
+            } => {
                 if let Some(duration) = duration_secs {
                     tracing::info!(
                         "{}   ✓ {} (took {:.1}s)",
@@ -172,7 +181,11 @@ impl FlipEventEmitter {
             MeridianFlipEvent::Progress { percent } => {
                 tracing::debug!("{} Progress: {}%", self.log_prefix, percent);
             }
-            MeridianFlipEvent::RetryScheduled { attempt, max_attempts, delay_secs } => {
+            MeridianFlipEvent::RetryScheduled {
+                attempt,
+                max_attempts,
+                delay_secs,
+            } => {
                 tracing::warn!(
                     "{} Retry {}/{} scheduled in {:.0} seconds...",
                     self.log_prefix,
@@ -181,13 +194,20 @@ impl FlipEventEmitter {
                     delay_secs
                 );
             }
-            MeridianFlipEvent::Completed { new_pier_side, duration_secs } => {
+            MeridianFlipEvent::Completed {
+                new_pier_side,
+                duration_secs,
+            } => {
                 tracing::info!(
                     "{} ══════════════════════════════════════════════════════════",
                     self.log_prefix
                 );
                 tracing::info!("{} FLIP COMPLETED SUCCESSFULLY", self.log_prefix);
-                tracing::info!("{}   Total duration: {:.1} seconds", self.log_prefix, duration_secs);
+                tracing::info!(
+                    "{}   Total duration: {:.1} seconds",
+                    self.log_prefix,
+                    duration_secs
+                );
                 tracing::info!("{}   New pier side: {:?}", self.log_prefix, new_pier_side);
                 tracing::info!("{}   Resuming sequence...", self.log_prefix);
                 tracing::info!(
@@ -195,7 +215,10 @@ impl FlipEventEmitter {
                     self.log_prefix
                 );
             }
-            MeridianFlipEvent::Failed { error, action_taken } => {
+            MeridianFlipEvent::Failed {
+                error,
+                action_taken,
+            } => {
                 tracing::error!(
                     "{} ══════════════════════════════════════════════════════════",
                     self.log_prefix

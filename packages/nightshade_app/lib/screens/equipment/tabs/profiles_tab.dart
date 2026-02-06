@@ -610,10 +610,13 @@ class _ProfileCardState extends ConsumerState<_ProfileCard> {
         }
 
         if (action == _ValidationAction.updateProfile) {
-          // TODO: Navigate to profile editor or show edit dialog
-          // For now, just load anyway and let user update manually
+          // Clear the missing device assignments from the profile
+          await profileService.clearDevicesFromProfile(
+            profile.id,
+            validation.missingDeviceIds.keys.toSet(),
+          );
           if (mounted) {
-            context.showInfoSnackBar('Profile loaded. Update device assignments in the Profiles tab.');
+            context.showSuccessSnackBar('Removed missing devices from "${profile.name}"');
           }
         }
         // action == _ValidationAction.proceedAnyway falls through to load

@@ -1,6 +1,9 @@
 //! Alpaca Filter Wheel API implementation
 
-use crate::{AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, TimeoutConfig, RetryConfig};
+use crate::{
+    AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, RetryConfig,
+    TimeoutConfig,
+};
 
 /// Filter wheel status aggregate for parallel status query
 #[derive(Debug, Clone)]
@@ -141,7 +144,9 @@ impl AlpacaFilterWheel {
 
     /// Set the filter wheel position (0-based)
     pub async fn set_position(&self, position: i32) -> Result<(), String> {
-        self.client.put("position", &[("Position", &position.to_string())]).await
+        self.client
+            .put("position", &[("Position", &position.to_string())])
+            .await
     }
 
     /// Check if filter wheel is currently moving
@@ -167,10 +172,7 @@ impl AlpacaFilterWheel {
 
     /// Get comprehensive filter wheel status in a single query
     pub async fn get_status(&self) -> Result<FilterWheelStatus, String> {
-        let (connected, position) = tokio::join!(
-            self.is_connected(),
-            self.position(),
-        );
+        let (connected, position) = tokio::join!(self.is_connected(), self.position(),);
 
         let pos = position?;
         Ok(FilterWheelStatus {
@@ -182,10 +184,7 @@ impl AlpacaFilterWheel {
 
     /// Get filter wheel configuration in a single parallel query
     pub async fn get_filter_info(&self) -> Result<FilterWheelInfo, String> {
-        let (names, focus_offsets) = tokio::join!(
-            self.names(),
-            self.focus_offsets(),
-        );
+        let (names, focus_offsets) = tokio::join!(self.names(), self.focus_offsets(),);
 
         Ok(FilterWheelInfo {
             names: names?,
@@ -234,7 +233,8 @@ impl AlpacaFilterWheel {
             return Err("Filter wheel is moving".to_string());
         }
         let names = self.names().await?;
-        names.get(pos as usize)
+        names
+            .get(pos as usize)
             .cloned()
             .ok_or_else(|| format!("Invalid position: {}", pos))
     }
@@ -246,7 +246,8 @@ impl AlpacaFilterWheel {
             return Err("Filter wheel is moving".to_string());
         }
         let offsets = self.focus_offsets().await?;
-        offsets.get(pos as usize)
+        offsets
+            .get(pos as usize)
             .copied()
             .ok_or_else(|| format!("Invalid position: {}", pos))
     }
