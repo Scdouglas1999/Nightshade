@@ -20,8 +20,8 @@ void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Check for headless mode flag
-  final isHeadless = args.contains('--headless') || 
-                     Platform.environment['NIGHTSHADE_HEADLESS'] == '1';
+  final isHeadless = args.contains('--headless') ||
+      Platform.environment['NIGHTSHADE_HEADLESS'] == '1';
 
   if (isHeadless) {
     // Redirect to headless entry point
@@ -39,7 +39,7 @@ void main(List<String> args) async {
   final profileDir = path.join(appDir.path, 'Nightshade', 'profiles');
   await Directory(profileDir).create(recursive: true);
   await bridge.NativeBridge.apiInitProfileStorage(storagePath: profileDir);
-  
+
   // Initialize settings storage
   await bridge.NativeBridge.apiInitSettingsStorage(storagePath: profileDir);
 
@@ -175,8 +175,9 @@ void _startBackgroundServices() {
 
       print('[MAIN] Starting web server...');
       await webServer.start();
-      print('[MAIN] Web server started for mobile access on port ${webServer.actualPort}');
-      
+      print(
+          '[MAIN] Web server started for mobile access on port ${webServer.actualPort}');
+
       // Start UDP broadcasting for auto-discovery
       print('[MAIN] Starting UDP broadcast for auto-discovery...');
       await NightshadeDiscovery.startBroadcasting(
@@ -192,7 +193,8 @@ void _startBackgroundServices() {
         await _startMdnsAdvertising(webServer.actualPort);
         print('[MAIN] mDNS service advertised as _nightshade._tcp');
       } catch (e) {
-        debugPrint('[MAIN] mDNS advertising failed (expected on some platforms): $e');
+        debugPrint(
+            '[MAIN] mDNS advertising failed (expected on some platforms): $e');
       }
 
       // Start LAN push update receiver
@@ -206,7 +208,8 @@ void _startBackgroundServices() {
           LanPushNotifier.notifyUpdateReceived(manifest, stagingPath);
         };
         lanPushReceiver.onProgress = (received, total, progress, message) {
-          print('[MAIN] LAN push progress: ${(progress * 100).toStringAsFixed(1)}% - $message');
+          print(
+              '[MAIN] LAN push progress: ${(progress * 100).toStringAsFixed(1)}% - $message');
           LanPushNotifier.notifyProgress(received, total, progress, message);
         };
         lanPushReceiver.onError = (error) {
@@ -258,7 +261,7 @@ Future<void> _runHeadless() async {
     final profileDir = path.join(appDir.path, 'Nightshade', 'profiles');
     await Directory(profileDir).create(recursive: true);
     await bridge.NativeBridge.apiInitProfileStorage(storagePath: profileDir);
-    
+
     // Initialize settings storage
     await bridge.NativeBridge.apiInitSettingsStorage(storagePath: profileDir);
     print('✓ Native bridge initialized');
@@ -448,16 +451,16 @@ Future<Map<String, dynamic>> _getDevicesHandler() async {
       bridge.NativeBridge.discoverDevices(bridge.DeviceType.filterWheel),
       bridge.NativeBridge.discoverDevices(bridge.DeviceType.guider),
     ]);
-    
+
     final cameras = results[0];
     final mounts = results[1];
     final focusers = results[2];
     final filterWheels = results[3];
     final guiders = results[4];
-    
+
     // Format devices for API response
     final allDevices = <Map<String, dynamic>>[];
-    
+
     for (final camera in cameras) {
       allDevices.add({
         'id': camera.id,
@@ -467,7 +470,7 @@ Future<Map<String, dynamic>> _getDevicesHandler() async {
         'description': camera.description,
       });
     }
-    
+
     for (final mount in mounts) {
       allDevices.add({
         'id': mount.id,
@@ -477,7 +480,7 @@ Future<Map<String, dynamic>> _getDevicesHandler() async {
         'description': mount.description,
       });
     }
-    
+
     for (final focuser in focusers) {
       allDevices.add({
         'id': focuser.id,
@@ -487,7 +490,7 @@ Future<Map<String, dynamic>> _getDevicesHandler() async {
         'description': focuser.description,
       });
     }
-    
+
     for (final filterWheel in filterWheels) {
       allDevices.add({
         'id': filterWheel.id,
@@ -497,7 +500,7 @@ Future<Map<String, dynamic>> _getDevicesHandler() async {
         'description': filterWheel.description,
       });
     }
-    
+
     for (final guider in guiders) {
       allDevices.add({
         'id': guider.id,
@@ -519,25 +522,25 @@ Future<Map<String, dynamic>> _getDevicesHandler() async {
         'rotator': null,
       },
     };
-    
+
     return response;
   } catch (e, stackTrace) {
     debugPrint('[API] Error discovering devices: $e');
-      debugPrint('[API] Stack trace: $stackTrace');
-      return {
-        'devices': <Map<String, dynamic>>[],
-        'available': <Map<String, dynamic>>[],
-        'connected': {
-          'camera': null,
-          'mount': null,
-          'focuser': null,
-          'filterWheel': null,
-          'rotator': null,
-        },
-        'error': e.toString(),
-      };
-    }
+    debugPrint('[API] Stack trace: $stackTrace');
+    return {
+      'devices': <Map<String, dynamic>>[],
+      'available': <Map<String, dynamic>>[],
+      'connected': {
+        'camera': null,
+        'mount': null,
+        'focuser': null,
+        'filterWheel': null,
+        'rotator': null,
+      },
+      'error': e.toString(),
+    };
   }
+}
 
 /// Handler for /api/devices/connect endpoint
 Future<void> _connectDeviceHandler(String deviceType, String deviceId) async {
@@ -588,7 +591,8 @@ Future<void> _connectDeviceHandler(String deviceType, String deviceId) async {
 }
 
 /// Handler for /api/devices/disconnect endpoint
-Future<void> _disconnectDeviceHandler(String deviceType, String deviceId) async {
+Future<void> _disconnectDeviceHandler(
+    String deviceType, String deviceId) async {
   print('[API] Disconnecting device: $deviceType / $deviceId');
   try {
     // Parse device type
@@ -683,8 +687,10 @@ Future<void> _cameraAbortHandler(String deviceId) async {
 }
 
 /// Handler for /api/camera/cooling endpoint
-Future<void> _cameraSetCoolingHandler(String deviceId, bool enabled, double? targetTemp) async {
-  print('[API] Setting camera cooling: $deviceId, enabled=$enabled, target=$targetTemp');
+Future<void> _cameraSetCoolingHandler(
+    String deviceId, bool enabled, double? targetTemp) async {
+  print(
+      '[API] Setting camera cooling: $deviceId, enabled=$enabled, target=$targetTemp');
   await bridge.NativeBridge.setCameraCooler(deviceId, enabled, targetTemp);
   print('[API] Cooling set');
 }
@@ -816,9 +822,13 @@ Future<Map<String, dynamic>> _focuserStatusHandler(String deviceId) async {
   return {
     'connected': status.connected,
     'position': status.position,
+    'moving': status.moving,
     'isMoving': status.moving,
     'temperature': status.temperature,
     'maxPosition': status.maxPosition,
+    'stepSize': status.stepSize,
+    'isAbsolute': status.isAbsolute,
+    'hasTemperature': status.hasTemperature,
   };
 }
 
@@ -827,7 +837,8 @@ Future<Map<String, dynamic>> _focuserStatusHandler(String deviceId) async {
 // ============================================================================
 
 /// Handler for /api/filter-wheel/position endpoint
-Future<void> _filterWheelSetPositionHandler(String deviceId, int position) async {
+Future<void> _filterWheelSetPositionHandler(
+    String deviceId, int position) async {
   print('[API] Setting filter wheel position: $deviceId to position=$position');
   await bridge.NativeBridge.filterWheelSetPosition(deviceId, position);
   print('[API] Filter wheel moving');
@@ -946,7 +957,8 @@ Future<void> _phd2DitherHandler(Map<String, dynamic> params) async {
 // ============================================================================
 
 /// Handler for /api/camera/last-image endpoint
-Future<Map<String, dynamic>?> _cameraGetLastImageHandler(String deviceId) async {
+Future<Map<String, dynamic>?> _cameraGetLastImageHandler(
+    String deviceId) async {
   print('[API] Getting last image for: $deviceId');
   final result = await bridge.NativeBridge.getLastImage(deviceId: deviceId);
   if (result == null) return null;
@@ -975,8 +987,10 @@ Future<Map<String, dynamic>?> _cameraGetLastImageHandler(String deviceId) async 
 // ============================================================================
 
 /// Handler for /api/mount/pulse-guide endpoint
-Future<void> _mountPulseGuideHandler(String deviceId, String direction, int durationMs) async {
-  print('[API] Pulse guiding mount: $deviceId, direction=$direction, duration=$durationMs');
+Future<void> _mountPulseGuideHandler(
+    String deviceId, String direction, int durationMs) async {
+  print(
+      '[API] Pulse guiding mount: $deviceId, direction=$direction, duration=$durationMs');
   await bridge.NativeBridge.mountPulseGuide(deviceId, direction, durationMs);
   print('[API] Pulse guide complete');
 }
@@ -986,7 +1000,8 @@ Future<void> _mountPulseGuideHandler(String deviceId, String direction, int dura
 // ============================================================================
 
 /// Handler for /api/focuser/autofocus/start endpoint
-Future<Map<String, dynamic>> _autofocusStartHandler(Map<String, dynamic> params) async {
+Future<Map<String, dynamic>> _autofocusStartHandler(
+    Map<String, dynamic> params) async {
   print('[API] Starting autofocus: $params');
   final deviceId = params['deviceId'] as String;
   final cameraId = params['cameraId'] as String;
@@ -1004,18 +1019,28 @@ Future<Map<String, dynamic>> _autofocusStartHandler(Map<String, dynamic> params)
     binning: binning,
   );
 
-  final bestPosition = await bridge.NativeBridge.apiRunAutofocus(
+  final result = await bridge.NativeBridge.apiRunAutofocus(
     deviceId: deviceId,
     cameraId: cameraId,
     config: config,
   );
 
   return {
-    'bestPosition': bestPosition.toInt(),
-    'bestHfr': 0.0, // Not returned from simple autofocus
-    'focusData': <Map<String, dynamic>>[],
-    'method': method,
-    'timestamp': DateTime.now().millisecondsSinceEpoch,
+    'bestPosition': result.bestPosition,
+    'bestHfr': result.bestHfr,
+    'focusData': result.focusData
+        .map((dp) => {
+              'position': dp.position,
+              'hfr': dp.hfr,
+              'fwhm': dp.fwhm,
+              'starCount': dp.starCount,
+            })
+        .toList(),
+    'method': result.method,
+    'temperature': result.temperature,
+    'timestamp': result.timestamp.toInt(),
+    'curveFitQuality': result.curveFitQuality,
+    'backlashApplied': result.backlashApplied,
   };
 }
 
@@ -1033,7 +1058,8 @@ Future<void> _autofocusCancelHandler() async {
 /// Handler for /api/filter-wheel/set-by-name endpoint
 Future<void> _filterWheelSetByNameHandler(String deviceId, String name) async {
   print('[API] Setting filter by name: $deviceId to $name');
-  await bridge.NativeBridge.apiFilterwheelSetByName(deviceId: deviceId, name: name);
+  await bridge.NativeBridge.apiFilterwheelSetByName(
+      deviceId: deviceId, name: name);
   print('[API] Filter set');
 }
 
@@ -1051,14 +1077,16 @@ Future<void> _rotatorMoveToHandler(String deviceId, double angle) async {
 /// Handler for /api/rotator/move-relative endpoint
 Future<void> _rotatorMoveRelativeHandler(String deviceId, double delta) async {
   print('[API] Moving rotator relative: $deviceId by delta=$delta');
-  await bridge.NativeBridge.apiRotatorMoveRelative(deviceId: deviceId, delta: delta);
+  await bridge.NativeBridge.apiRotatorMoveRelative(
+      deviceId: deviceId, delta: delta);
   print('[API] Rotator moving');
 }
 
 /// Handler for /api/rotator/status endpoint
 Future<Map<String, dynamic>> _rotatorGetStatusHandler(String deviceId) async {
   print('[API] Getting rotator status: $deviceId');
-  final status = await bridge.NativeBridge.apiGetRotatorStatus(deviceId: deviceId);
+  final status =
+      await bridge.NativeBridge.apiGetRotatorStatus(deviceId: deviceId);
   return {
     'connected': status.connected,
     'position': status.position,
@@ -1081,7 +1109,8 @@ Future<void> _rotatorHaltHandler(String deviceId) async {
 // ============================================================================
 
 /// Handler for /api/plate-solve endpoint
-Future<Map<String, dynamic>> _plateSolveHandler(Map<String, dynamic> params) async {
+Future<Map<String, dynamic>> _plateSolveHandler(
+    Map<String, dynamic> params) async {
   print('[API] Plate solving: $params');
   final imagePath = params['imagePath'] as String;
   final ra = (params['ra'] as num?)?.toDouble();
@@ -1354,7 +1383,8 @@ Future<String?> _getLocalIp() async {
     final interfaces = await NetworkInterface.list();
     for (final interface in interfaces) {
       // Skip loopback interfaces
-      if (interface.name.contains('lo') || interface.name.contains('Loopback')) {
+      if (interface.name.contains('lo') ||
+          interface.name.contains('Loopback')) {
         continue;
       }
       for (final addr in interface.addresses) {

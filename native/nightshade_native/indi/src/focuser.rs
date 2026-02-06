@@ -50,11 +50,22 @@ impl IndiFocuser {
     /// Move to absolute position
     pub async fn move_to(&self, position: i32) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_number(&self.device_name, ABS_FOCUS_POSITION, "FOCUS_ABSOLUTE_POSITION", position as f64).await
+        client
+            .set_number(
+                &self.device_name,
+                ABS_FOCUS_POSITION,
+                "FOCUS_ABSOLUTE_POSITION",
+                position as f64,
+            )
+            .await
     }
 
     /// Move to absolute position with timeout
-    pub async fn move_to_with_timeout(&self, position: i32, timeout: Option<Duration>) -> Result<(), String> {
+    pub async fn move_to_with_timeout(
+        &self,
+        position: i32,
+        timeout: Option<Duration>,
+    ) -> Result<(), String> {
         // Read config outside the closure - async-friendly
         let timeout_duration = if let Some(t) = timeout {
             t
@@ -66,7 +77,14 @@ impl IndiFocuser {
         // Start the move
         {
             let mut client = self.client.write().await;
-            client.set_number(&self.device_name, ABS_FOCUS_POSITION, "FOCUS_ABSOLUTE_POSITION", position as f64).await?;
+            client
+                .set_number(
+                    &self.device_name,
+                    ABS_FOCUS_POSITION,
+                    "FOCUS_ABSOLUTE_POSITION",
+                    position as f64,
+                )
+                .await?;
         }
 
         // Wait for move to complete
@@ -86,14 +104,27 @@ impl IndiFocuser {
         let abs_steps = steps.abs();
 
         // Set direction switch
-        client.set_switch(&self.device_name, FOCUS_MOTION, direction, true).await?;
+        client
+            .set_switch(&self.device_name, FOCUS_MOTION, direction, true)
+            .await?;
 
         // Set relative steps
-        client.set_number(&self.device_name, REL_FOCUS_POSITION, "FOCUS_RELATIVE_POSITION", abs_steps as f64).await
+        client
+            .set_number(
+                &self.device_name,
+                REL_FOCUS_POSITION,
+                "FOCUS_RELATIVE_POSITION",
+                abs_steps as f64,
+            )
+            .await
     }
 
     /// Move relative with timeout (inward/outward)
-    pub async fn move_relative_with_timeout(&self, steps: i32, timeout: Option<Duration>) -> Result<(), String> {
+    pub async fn move_relative_with_timeout(
+        &self,
+        steps: i32,
+        timeout: Option<Duration>,
+    ) -> Result<(), String> {
         // Read config outside the closure - async-friendly
         let timeout_duration = if let Some(t) = timeout {
             t
@@ -107,8 +138,17 @@ impl IndiFocuser {
             let mut client = self.client.write().await;
             let direction = if steps > 0 { "FOCUS_IN" } else { "FOCUS_OUT" };
             let abs_steps = steps.abs();
-            client.set_switch(&self.device_name, FOCUS_MOTION, direction, true).await?;
-            client.set_number(&self.device_name, REL_FOCUS_POSITION, "FOCUS_RELATIVE_POSITION", abs_steps as f64).await?;
+            client
+                .set_switch(&self.device_name, FOCUS_MOTION, direction, true)
+                .await?;
+            client
+                .set_number(
+                    &self.device_name,
+                    REL_FOCUS_POSITION,
+                    "FOCUS_RELATIVE_POSITION",
+                    abs_steps as f64,
+                )
+                .await?;
         }
 
         // Wait for move to complete
@@ -122,13 +162,20 @@ impl IndiFocuser {
     /// Abort motion
     pub async fn abort_motion(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_switch(&self.device_name, FOCUS_ABORT_MOTION, "ABORT", true).await
+        client
+            .set_switch(&self.device_name, FOCUS_ABORT_MOTION, "ABORT", true)
+            .await
     }
 
     /// Get current position
     pub async fn get_position(&self) -> Result<i32, String> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, ABS_FOCUS_POSITION, "FOCUS_ABSOLUTE_POSITION")
+        client
+            .get_number(
+                &self.device_name,
+                ABS_FOCUS_POSITION,
+                "FOCUS_ABSOLUTE_POSITION",
+            )
             .await
             .map(|p| p as i32)
             .ok_or_else(|| "Position not available".to_string())
@@ -137,16 +184,21 @@ impl IndiFocuser {
     /// Check if moving
     pub async fn is_moving(&self) -> bool {
         let client = self.client.read().await;
-        if let Some(state) = client.get_property_state(&self.device_name, ABS_FOCUS_POSITION).await {
-            return state == crate::IndiPropertyState::Busy;
+        for property in [ABS_FOCUS_POSITION, REL_FOCUS_POSITION, FOCUS_MOTION] {
+            if let Some(state) = client.get_property_state(&self.device_name, property).await {
+                if state == crate::IndiPropertyState::Busy {
+                    return true;
+                }
+            }
         }
-        false 
+        false
     }
 
     /// Get temperature
     pub async fn get_temperature(&self) -> Result<f64, String> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, FOCUS_TEMPERATURE, "TEMPERATURE")
+        client
+            .get_number(&self.device_name, FOCUS_TEMPERATURE, "TEMPERATURE")
             .await
             .ok_or_else(|| "Temperature not available".to_string())
     }
@@ -170,7 +222,9 @@ mod tests {
         let focuser = IndiFocuser::new(client, "TestFocuser");
 
         // This will fail since we're not connected
-        let result = focuser.move_to_with_timeout(5000, Some(Duration::from_millis(100))).await;
+        let result = focuser
+            .move_to_with_timeout(5000, Some(Duration::from_millis(100)))
+            .await;
 
         assert!(result.is_err());
         if let Err(e) = result {
@@ -185,7 +239,9 @@ mod tests {
         let focuser = IndiFocuser::new(client, "TestFocuser");
 
         // This will fail since we're not connected
-        let result = focuser.move_relative_with_timeout(100, Some(Duration::from_millis(100))).await;
+        let result = focuser
+            .move_relative_with_timeout(100, Some(Duration::from_millis(100)))
+            .await;
 
         assert!(result.is_err());
         if let Err(e) = result {
@@ -199,9 +255,11 @@ mod tests {
         let mut config = crate::IndiTimeoutConfig::default();
         config.focuser_move_timeout_secs = 240; // Custom timeout
 
-        let client = Arc::new(RwLock::new(
-            IndiClient::with_timeout_config("localhost", Some(7624), config)
-        ));
+        let client = Arc::new(RwLock::new(IndiClient::with_timeout_config(
+            "localhost",
+            Some(7624),
+            config,
+        )));
         let _focuser = IndiFocuser::new(client.clone(), "TestFocuser");
 
         // Verify the timeout config is accessible

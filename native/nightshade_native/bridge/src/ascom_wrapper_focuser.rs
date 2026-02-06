@@ -3,7 +3,7 @@ use nightshade_ascom::{init_com, uninit_com, AscomFocuser};
 use nightshade_native::traits::{NativeDevice, NativeError, NativeFocuser};
 use nightshade_native::NativeVendor;
 use std::fmt::Debug;
-use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -28,6 +28,7 @@ enum AscomFocuserCommand {
     GetTemperature(oneshot::Sender<Result<Option<f64>, String>>),
     GetMaxPosition(oneshot::Sender<Result<i32, String>>),
     GetStepSize(oneshot::Sender<Result<f64, String>>),
+    GetAbsolute(oneshot::Sender<Result<bool, String>>),
     // Version query commands
     GetInterfaceVersion(oneshot::Sender<Result<i32, String>>),
     GetDriverVersion(oneshot::Sender<Result<String, String>>),
@@ -44,6 +45,7 @@ pub struct AscomFocuserWrapper {
     // Use interior mutability since we update them in the async connect() method
     max_position: std::sync::atomic::AtomicI32,
     step_size: std::sync::atomic::AtomicU64, // Store f64 bits as u64
+    connected: AtomicBool,
 }
 
 impl Debug for AscomFocuserWrapper {
@@ -99,7 +101,7 @@ impl AscomFocuserWrapper {
                                     );
                                     e.to_string()
                                 })
-                                .unwrap_or(50000); // Reasonable default if query fails
+                                .unwrap_or(0);
                             let step_size = focuser
                                 .step_size()
                                 .map_err(|e| {
@@ -109,7 +111,7 @@ impl AscomFocuserWrapper {
                                     );
                                     e.to_string()
                                 })
-                                .unwrap_or(1.0);
+                                .unwrap_or(0.0);
 
                             Ok(FocuserConnectInfo {
                                 max_position: max_step,
@@ -155,6 +157,9 @@ impl AscomFocuserWrapper {
                     AscomFocuserCommand::GetStepSize(reply) => {
                         let _ = reply.send(focuser.step_size().map_err(|e| e.to_string()));
                     }
+                    AscomFocuserCommand::GetAbsolute(reply) => {
+                        let _ = reply.send(focuser.absolute().map_err(|e| e.to_string()));
+                    }
                     AscomFocuserCommand::GetInterfaceVersion(reply) => {
                         let _ = reply.send(focuser.interface_version());
                     }
@@ -184,8 +189,9 @@ impl AscomFocuserWrapper {
             sender: tx,
             _thread_handle: Arc::new(handle),
             // Initialize with defaults - real values are fetched after connect()
-            max_position: AtomicI32::new(50000),
-            step_size: AtomicU64::new(1.0f64.to_bits()),
+            max_position: AtomicI32::new(0),
+            step_size: AtomicU64::new(0.0f64.to_bits()),
+            connected: AtomicBool::new(false),
         })
     }
 
@@ -242,7 +248,7 @@ impl NativeDevice for AscomFocuserWrapper {
     }
 
     fn is_connected(&self) -> bool {
-        true // Placeholder, ideally we'd track this state
+        self.connected.load(Ordering::SeqCst)
     }
 
     async fn connect(&mut self) -> Result<(), NativeError> {
@@ -285,6 +291,7 @@ impl NativeDevice for AscomFocuserWrapper {
             }
         }
 
+        self.connected.store(true, Ordering::SeqCst);
         Ok(())
     }
 
@@ -294,7 +301,11 @@ impl NativeDevice for AscomFocuserWrapper {
             .send(AscomFocuserCommand::Disconnect(tx))
             .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
-        Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await
+        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await;
+        if result.is_ok() {
+            self.connected.store(false, Ordering::SeqCst);
+        }
+        result
     }
 }
 
@@ -366,6 +377,16 @@ impl NativeFocuser for AscomFocuserWrapper {
 
 // Version query methods
 impl AscomFocuserWrapper {
+    /// Whether this focuser supports absolute positioning.
+    pub async fn is_absolute(&self) -> Result<bool, NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomFocuserCommand::GetAbsolute(tx))
+            .await
+            .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "is_absolute").await
+    }
+
     /// Get the ASCOM interface version number
     pub async fn interface_version(&self) -> Result<i32, NativeError> {
         let (tx, rx) = oneshot::channel();
@@ -436,6 +457,7 @@ mod tests {
             _thread_handle: Arc::new(handle),
             max_position: AtomicI32::new(0),
             step_size: AtomicU64::new(1.0f64.to_bits()),
+            connected: AtomicBool::new(false),
         }
     }
 

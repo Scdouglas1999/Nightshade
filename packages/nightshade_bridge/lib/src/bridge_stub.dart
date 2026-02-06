@@ -75,6 +75,7 @@ typedef ObserverLocation = gen_storage.ObserverLocation;
 
 // From api.dart
 typedef AutofocusConfigApi = gen_api.AutofocusConfigApi;
+typedef AutofocusResultApi = gen_api.AutofocusResultApi;
 typedef CapturedImageResult = gen_api.CapturedImageResult;
 typedef ImageStatsResult = gen_api.ImageStatsResult;
 typedef Phd2Status = gen_api.Phd2Status;
@@ -2587,32 +2588,42 @@ class NativeBridge {
   }
 
   // =========================================================================
-  // Autofocus (Simulated/Stub)
+  // Autofocus
   // =========================================================================
 
   /// Run autofocus
-  static Future<double> apiRunAutofocus({
+  static Future<AutofocusResultApi> apiRunAutofocus({
     required String deviceId,
     required String cameraId,
     required AutofocusConfigApi config,
   }) async {
-    debugPrint('[Autofocus] Starting on $deviceId using camera $cameraId...');
-    debugPrint(
-        'Config: exposure=${config.exposureTime}s, step=${config.stepSize}, steps=${config.stepsOut}');
-
-    // Simulate autofocus process
-    for (int i = 0; i < config.stepsOut * 2 + 1; i++) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      // In a real implementation, we'd be emitting progress events here
+    if (_nativeAvailable) {
+      try {
+        return await gen_api.apiRunAutofocus(
+          deviceId: deviceId,
+          cameraId: cameraId,
+          config: config,
+        );
+      } catch (e) {
+        debugPrint('[Bridge] Error running autofocus via native: $e');
+        rethrow;
+      }
     }
-
-    debugPrint('[Autofocus] Complete. Best HFR: 1.5');
-    return 1.5;
+    throw UnsupportedError(_stubErrorMessage);
   }
 
   /// Cancel autofocus
   static Future<void> apiCancelAutofocus() async {
-    debugPrint('[Autofocus] Cancelling...');
+    if (_nativeAvailable) {
+      try {
+        await gen_api.apiCancelAutofocus();
+        return;
+      } catch (e) {
+        debugPrint('[Bridge] Error cancelling autofocus via native: $e');
+        rethrow;
+      }
+    }
+    throw UnsupportedError(_stubErrorMessage);
   }
 
   // =========================================================================

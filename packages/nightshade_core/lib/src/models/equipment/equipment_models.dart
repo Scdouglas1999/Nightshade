@@ -13,20 +13,28 @@ enum DeviceConnectionState { disconnected, connecting, connected, error }
 enum DeviceErrorType {
   /// Connection to device failed
   connectionFailed,
+
   /// Device was not found
   deviceNotFound,
+
   /// Operation timed out
   timeout,
+
   /// Device driver error
   driverError,
+
   /// Invalid parameter passed
   invalidParameter,
+
   /// Device is busy
   busy,
+
   /// Permission denied
   permissionDenied,
+
   /// Communication error
   communicationError,
+
   /// Unknown error
   unknown,
 }
@@ -219,6 +227,7 @@ class CameraState extends Equatable {
   final String? deviceName;
   final double? temperature;
   final double? coolerPower;
+
   /// User-set target temperature for cooling
   final double targetTemp;
   final int? gain;
@@ -228,8 +237,10 @@ class CameraState extends Equatable {
   final bool isExposing;
   final double? exposureProgress;
   final DeviceError? lastError;
+
   /// Last successful communication timestamp
   final DateTime? lastSuccessfulCommunication;
+
   /// Whether auto-reconnection is enabled for this device
   final bool autoReconnectEnabled;
 
@@ -257,8 +268,10 @@ class CameraState extends Equatable {
   /// Whether the device is healthy (communicated within last 30 seconds)
   bool get isHealthy {
     if (connectionState != DeviceConnectionState.connected) return false;
-    if (lastSuccessfulCommunication == null) return true; // Optimistic for new connections
-    return DateTime.now().difference(lastSuccessfulCommunication!).inSeconds < 30;
+    if (lastSuccessfulCommunication == null)
+      return true; // Optimistic for new connections
+    return DateTime.now().difference(lastSuccessfulCommunication!).inSeconds <
+        30;
   }
 
   /// Clear error and return a new state
@@ -296,7 +309,8 @@ class CameraState extends Equatable {
       isExposing: isExposing ?? this.isExposing,
       exposureProgress: exposureProgress ?? this.exposureProgress,
       lastError: clearError ? null : (lastError ?? this.lastError),
-      lastSuccessfulCommunication: lastSuccessfulCommunication ?? this.lastSuccessfulCommunication,
+      lastSuccessfulCommunication:
+          lastSuccessfulCommunication ?? this.lastSuccessfulCommunication,
       autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
     );
   }
@@ -419,6 +433,9 @@ class FocuserState extends Equatable {
   final String? deviceName;
   final int? position;
   final int? maxPosition;
+  final double? stepSize;
+  final bool isAbsolute;
+  final bool hasTemperature;
   final double? temperature;
   final bool isMoving;
   final DeviceError? lastError;
@@ -429,6 +446,9 @@ class FocuserState extends Equatable {
     this.deviceName,
     this.position,
     this.maxPosition,
+    this.stepSize,
+    this.isAbsolute = false,
+    this.hasTemperature = false,
     this.temperature,
     this.isMoving = false,
     this.lastError,
@@ -443,6 +463,9 @@ class FocuserState extends Equatable {
     String? deviceName,
     int? position,
     int? maxPosition,
+    double? stepSize,
+    bool? isAbsolute,
+    bool? hasTemperature,
     double? temperature,
     bool? isMoving,
     DeviceError? lastError,
@@ -454,6 +477,9 @@ class FocuserState extends Equatable {
       deviceName: deviceName ?? this.deviceName,
       position: position ?? this.position,
       maxPosition: maxPosition ?? this.maxPosition,
+      stepSize: stepSize ?? this.stepSize,
+      isAbsolute: isAbsolute ?? this.isAbsolute,
+      hasTemperature: hasTemperature ?? this.hasTemperature,
       temperature: temperature ?? this.temperature,
       isMoving: isMoving ?? this.isMoving,
       lastError: clearError ? null : (lastError ?? this.lastError),
@@ -467,6 +493,9 @@ class FocuserState extends Equatable {
         deviceName,
         position,
         maxPosition,
+        stepSize,
+        isAbsolute,
+        hasTemperature,
         temperature,
         isMoving,
         lastError,
@@ -974,4 +1003,3 @@ class CoverCalibratorState extends Equatable {
         lastError,
       ];
 }
-

@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/imaging_provider.dart' show temperatureHistoryProvider;
-import '../providers/profiles_provider.dart' show activeEquipmentProfileProvider;
+import '../providers/profiles_provider.dart'
+    show activeEquipmentProfileProvider;
 import '../providers/database_provider.dart';
 import '../providers/backend_provider.dart';
 import '../providers/sequence_provider.dart';
@@ -28,17 +29,28 @@ export '../models/backend/device_info.dart' show DeviceInfo;
 extension DeviceTypeDisplayExtension on DeviceType {
   String get displayName {
     switch (this) {
-      case DeviceType.camera: return 'Camera';
-      case DeviceType.mount: return 'Mount';
-      case DeviceType.focuser: return 'Focuser';
-      case DeviceType.filterWheel: return 'Filter Wheel';
-      case DeviceType.guider: return 'Guider';
-      case DeviceType.rotator: return 'Rotator';
-      case DeviceType.dome: return 'Dome';
-      case DeviceType.weather: return 'Weather';
-      case DeviceType.safetyMonitor: return 'Safety Monitor';
-      case DeviceType.switch_: return 'Switch';
-      case DeviceType.coverCalibrator: return 'Cover Calibrator';
+      case DeviceType.camera:
+        return 'Camera';
+      case DeviceType.mount:
+        return 'Mount';
+      case DeviceType.focuser:
+        return 'Focuser';
+      case DeviceType.filterWheel:
+        return 'Filter Wheel';
+      case DeviceType.guider:
+        return 'Guider';
+      case DeviceType.rotator:
+        return 'Rotator';
+      case DeviceType.dome:
+        return 'Dome';
+      case DeviceType.weather:
+        return 'Weather';
+      case DeviceType.safetyMonitor:
+        return 'Safety Monitor';
+      case DeviceType.switch_:
+        return 'Switch';
+      case DeviceType.coverCalibrator:
+        return 'Cover Calibrator';
     }
   }
 }
@@ -47,11 +59,16 @@ extension DeviceTypeDisplayExtension on DeviceType {
 extension DriverTypeDisplayExtension on DriverType {
   String get displayName {
     switch (this) {
-      case DriverType.ascom: return 'ASCOM';
-      case DriverType.alpaca: return 'Alpaca';
-      case DriverType.indi: return 'INDI';
-      case DriverType.native: return 'Native';
-      case DriverType.simulator: return 'Simulator';
+      case DriverType.ascom:
+        return 'ASCOM';
+      case DriverType.alpaca:
+        return 'Alpaca';
+      case DriverType.indi:
+        return 'INDI';
+      case DriverType.native:
+        return 'Native';
+      case DriverType.simulator:
+        return 'Simulator';
     }
   }
 }
@@ -79,7 +96,8 @@ class DeviceService {
   String? _connectedCameraId;
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
-  static const Duration _filterWheelVerifyPollInterval = Duration(milliseconds: 250);
+  static const Duration _filterWheelVerifyPollInterval =
+      Duration(milliseconds: 250);
 
   static const Duration _focuserMoveTimeout = Duration(seconds: 300);
   static const Duration _focuserMovePollInterval = Duration(milliseconds: 500);
@@ -92,7 +110,8 @@ class DeviceService {
   void _startTemperaturePolling(String deviceId) {
     _connectedCameraId = deviceId;
     _temperaturePollingTimer?.cancel();
-    _temperaturePollingTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+    _temperaturePollingTimer =
+        Timer.periodic(const Duration(seconds: 5), (_) async {
       await _pollCameraTemperature();
     });
     // Poll immediately on start
@@ -129,74 +148,25 @@ class DeviceService {
 
       if (temp != null) {
         // Update camera state
-        _ref.read(cameraStateProvider.notifier).updateTemperature(temp, power ?? 0.0);
+        _ref
+            .read(cameraStateProvider.notifier)
+            .updateTemperature(temp, power ?? 0.0);
 
         // Update temperature history for the graph
         _ref.read(temperatureHistoryProvider.notifier).addPoint(
-          temp,
-          targetTemp: targetTemp,
-          coolerPower: power,
-        );
+              temp,
+              targetTemp: targetTemp,
+              coolerPower: power,
+            );
       }
     } catch (e) {
       // Log polling errors for debugging
       try {
         final logger = _ref.read(loggingServiceProvider);
-        logger.warning('Temperature polling error: $e', source: 'DeviceService');
+        logger.warning('Temperature polling error: $e',
+            source: 'DeviceService');
       } catch (_) {}
     }
-  }
-
-  /// Extract temperature from status response (handles different backend formats)
-  double? _extractTemperature(dynamic status) {
-    if (status is Map<String, dynamic>) {
-      // Try various field names
-      final temp = status['temperature'] ?? status['ccdTemperature'] ?? status['sensorTemp'];
-      if (temp is num) return temp.toDouble();
-    }
-    // If status is a typed object from the bridge (CameraStatus has sensorTemp)
-    try {
-      return (status as dynamic).sensorTemp?.toDouble();
-    } catch (_) {}
-    try {
-      return (status as dynamic).ccdTemperature?.toDouble();
-    } catch (_) {}
-    try {
-      return (status as dynamic).temperature?.toDouble();
-    } catch (_) {}
-    return null;
-  }
-
-  /// Extract cooler power from status
-  double? _extractCoolerPower(dynamic status) {
-    if (status is Map<String, dynamic>) {
-      final power = status['coolerPower'] ?? status['coolerOn'];
-      if (power is num) return power.toDouble();
-      if (power is bool) return power ? 100.0 : 0.0;
-    }
-    try {
-      return (status as dynamic).coolerPower?.toDouble();
-    } catch (_) {}
-    return null;
-  }
-
-  /// Extract target temperature from status
-  double? _extractTargetTemperature(dynamic status) {
-    if (status is Map<String, dynamic>) {
-      final target = status['setccdTemperature'] ?? status['targetTemperature'] ?? status['setCcdTemperature'] ?? status['targetTemp'];
-      if (target is num) return target.toDouble();
-    }
-    // If status is a typed object from the bridge (CameraStatus has targetTemp)
-    try {
-      return (status as dynamic).targetTemp?.toDouble();
-    } catch (_) {}
-    try {
-      return (status as dynamic).setCcdTemperature?.toDouble();
-    } catch (_) {}
-    try {
-      return (status as dynamic).targetTemperature?.toDouble();
-    } catch (_) {}
-    return null;
   }
 
   void _initEventListening() {
@@ -235,13 +205,19 @@ class DeviceService {
         _ref.read(mountStateProvider.notifier).updatePosition(ra, dec, alt, az);
 
         if (data['isSlewing'] != null) {
-          _ref.read(mountStateProvider.notifier).setSlewing(data['isSlewing'] as bool);
+          _ref
+              .read(mountStateProvider.notifier)
+              .setSlewing(data['isSlewing'] as bool);
         }
         if (data['isTracking'] != null) {
-          _ref.read(mountStateProvider.notifier).setTracking(data['isTracking'] as bool);
+          _ref
+              .read(mountStateProvider.notifier)
+              .setTracking(data['isTracking'] as bool);
         }
         if (data['isParked'] != null) {
-          _ref.read(mountStateProvider.notifier).setParked(data['isParked'] as bool);
+          _ref
+              .read(mountStateProvider.notifier)
+              .setParked(data['isParked'] as bool);
         }
         break;
 
@@ -260,14 +236,20 @@ class DeviceService {
         final dec = (data['dec'] as num?)?.toDouble();
         _ref.read(mountStateProvider.notifier).setSlewing(false);
         if (ra != null && dec != null) {
-          _ref.read(mountStateProvider.notifier).updatePosition(ra, dec, 0.0, 0.0);
+          _ref
+              .read(mountStateProvider.notifier)
+              .updatePosition(ra, dec, 0.0, 0.0);
         }
         // Smart notification - only show if not on imaging/planetarium screens
         _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
-          message: 'Slew completed',
-          relevantScreens: [AppScreen.imaging, AppScreen.planetarium, AppScreen.sequencer],
-          title: 'Mount',
-        );
+              message: 'Slew completed',
+              relevantScreens: [
+                AppScreen.imaging,
+                AppScreen.planetarium,
+                AppScreen.sequencer
+              ],
+              title: 'Mount',
+            );
         break;
 
       // Mount Tracking Events
@@ -290,20 +272,20 @@ class DeviceService {
         _ref.read(mountStateProvider.notifier).setTracking(false);
         // Smart notification
         _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
-          message: 'Mount parked',
-          relevantScreens: [AppScreen.imaging, AppScreen.equipment],
-          title: 'Mount',
-        );
+              message: 'Mount parked',
+              relevantScreens: [AppScreen.imaging, AppScreen.equipment],
+              title: 'Mount',
+            );
         break;
 
       case 'MountUnparked':
         _ref.read(mountStateProvider.notifier).setParked(false);
         // Smart notification
         _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
-          message: 'Mount unparked',
-          relevantScreens: [AppScreen.imaging, AppScreen.equipment],
-          title: 'Mount',
-        );
+              message: 'Mount unparked',
+              relevantScreens: [AppScreen.imaging, AppScreen.equipment],
+              title: 'Mount',
+            );
         break;
 
       // Legacy focuser position event (keep for backward compatibility)
@@ -311,10 +293,14 @@ class DeviceService {
         final pos = data['position'] as int;
         _ref.read(focuserStateProvider.notifier).updatePosition(pos);
         if (data['isMoving'] != null) {
-          _ref.read(focuserStateProvider.notifier).setMoving(data['isMoving'] as bool);
+          _ref
+              .read(focuserStateProvider.notifier)
+              .setMoving(data['isMoving'] as bool);
         }
         if (data['temperature'] != null) {
-          _ref.read(focuserStateProvider.notifier).updateTemperature((data['temperature'] as num).toDouble());
+          _ref
+              .read(focuserStateProvider.notifier)
+              .updateTemperature((data['temperature'] as num).toDouble());
         }
         break;
 
@@ -334,7 +320,9 @@ class DeviceService {
       case 'FocuserTemperatureChanged':
         final temperature = (data['temperature'] as num?)?.toDouble();
         if (temperature != null) {
-          _ref.read(focuserStateProvider.notifier).updateTemperature(temperature);
+          _ref
+              .read(focuserStateProvider.notifier)
+              .updateTemperature(temperature);
         }
         break;
 
@@ -343,7 +331,9 @@ class DeviceService {
         final pos = data['position'] as int;
         _ref.read(filterWheelStateProvider.notifier).updatePosition(pos);
         if (data['isMoving'] != null) {
-          _ref.read(filterWheelStateProvider.notifier).setMoving(data['isMoving'] as bool);
+          _ref
+              .read(filterWheelStateProvider.notifier)
+              .setMoving(data['isMoving'] as bool);
         }
         break;
 
@@ -415,7 +405,8 @@ class DeviceService {
     }
 
     // Check if this is a critical device and sequence is running
-    final isCriticalDevice = deviceType.toLowerCase() == 'camera' || deviceType.toLowerCase() == 'mount';
+    final isCriticalDevice = deviceType.toLowerCase() == 'camera' ||
+        deviceType.toLowerCase() == 'mount';
     if (isCriticalDevice) {
       _handleCriticalDeviceDisconnect(deviceType, deviceId);
     }
@@ -744,7 +735,8 @@ class DeviceService {
       final notificationService = _ref.read(notificationServiceProvider);
       notificationService.notifyError(
         errorTitle: 'Device Reconnection Failed',
-        errorMessage: '${type.displayName} ($deviceId) could not be reconnected after $_maxReconnectAttempts attempts.\n\n'
+        errorMessage:
+            '${type.displayName} ($deviceId) could not be reconnected after $_maxReconnectAttempts attempts.\n\n'
             'Auto-reconnection has stopped. Manual intervention required.\n'
             'Check device power, connections, and drivers.',
         source: 'Device Monitor',
@@ -774,7 +766,8 @@ class DeviceService {
         final notificationService = _ref.read(notificationServiceProvider);
         notificationService.notifyCustom(
           title: 'Device Reconnected',
-          message: '${type.displayName} ($deviceId) has been reconnected successfully and is back online.',
+          message:
+              '${type.displayName} ($deviceId) has been reconnected successfully and is back online.',
           priority: NotificationPriority.normal,
         );
       } catch (e) {
@@ -793,7 +786,8 @@ class DeviceService {
   }
 
   /// Handle disconnection of critical devices (camera, mount) during sequence execution
-  Future<void> _handleCriticalDeviceDisconnect(String deviceType, String deviceId) async {
+  Future<void> _handleCriticalDeviceDisconnect(
+      String deviceType, String deviceId) async {
     // Check if sequence is currently running
     final sequenceState = _ref.read(sequenceExecutionStateProvider);
     if (sequenceState != SequenceExecutionState.running) {
@@ -819,28 +813,34 @@ class DeviceService {
       case 'SequenceStarted':
         final sequenceName = data['sequence_name'] as String? ?? 'Unknown';
         progressNotifier.updateState(SequenceExecutionState.running);
-        progressNotifier.updateProgress(message: 'Started sequence: $sequenceName');
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.running;
+        progressNotifier.updateProgress(
+            message: 'Started sequence: $sequenceName');
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.running;
         break;
 
       case 'SequencePaused':
         progressNotifier.updateState(SequenceExecutionState.paused);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.paused;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.paused;
         break;
 
       case 'SequenceResumed':
         progressNotifier.updateState(SequenceExecutionState.running);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.running;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.running;
         break;
 
       case 'SequenceStopped':
         progressNotifier.updateState(SequenceExecutionState.idle);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.idle;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.idle;
         break;
 
       case 'SequenceCompleted':
         progressNotifier.updateState(SequenceExecutionState.completed);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.completed;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.completed;
         break;
 
       case 'NodeStarted':
@@ -877,7 +877,8 @@ class DeviceService {
 
       case 'TargetCompleted':
         final targetName = data['target_name'] as String? ?? '';
-        progressNotifier.updateProgress(message: 'Completed target: $targetName');
+        progressNotifier.updateProgress(
+            message: 'Completed target: $targetName');
         break;
 
       case 'ExposureStarted':
@@ -887,14 +888,17 @@ class DeviceService {
         final durationSecs = (data['duration_secs'] as num?)?.toDouble() ?? 0.0;
         progressNotifier.updateProgress(
           currentFilter: filter,
-          message: 'Exposure $frame/$total - ${durationSecs}s${filter != null ? " ($filter)" : ""}',
+          message:
+              'Exposure $frame/$total - ${durationSecs}s${filter != null ? " ($filter)" : ""}',
         );
         break;
 
       case 'ExposureCompleted':
         final durationSecs = (data['duration_secs'] as num?)?.toDouble() ?? 0.0;
-        final currentCompleted = _ref.read(sequenceProgressProvider).completedExposures;
-        final currentIntegration = _ref.read(sequenceProgressProvider).completedIntegrationSecs;
+        final currentCompleted =
+            _ref.read(sequenceProgressProvider).completedExposures;
+        final currentIntegration =
+            _ref.read(sequenceProgressProvider).completedIntegrationSecs;
         progressNotifier.updateProgress(
           completedExposures: currentCompleted + 1,
           completedIntegrationSecs: currentIntegration + durationSecs,
@@ -913,7 +917,7 @@ class DeviceService {
     _temperaturePollingTimer?.cancel();
     _cancelAllReconnections();
   }
-  
+
   /// Discover available devices of a specific type
   ///
   /// Returns a list of [DeviceInfo] objects representing available devices.
@@ -930,7 +934,8 @@ class DeviceService {
   }
 
   /// Discover Alpaca devices at a specific server address
-  Future<List<DeviceInfo>> discoverAlpacaAtAddress(String host, int port) async {
+  Future<List<DeviceInfo>> discoverAlpacaAtAddress(
+      String host, int port) async {
     // Backend returns DeviceInfo directly
     return await _backend.discoverAlpacaAtAddress(host, port);
   }
@@ -938,16 +943,16 @@ class DeviceService {
   /// Connect to a camera
   Future<void> connectCamera(String deviceId) async {
     final notifier = _ref.read(cameraStateProvider.notifier);
-    
+
     // Find device info
     final devices = await discoverDevices(DeviceType.camera);
     final device = devices.firstWhere(
       (d) => d.id == deviceId,
       orElse: () => throw Exception('Camera not found: $deviceId'),
     );
-    
+
     notifier.setConnecting(deviceId, device.name);
-    
+
     try {
       // Connect via native bridge
       await _backend.connectDevice(DeviceType.camera, deviceId);
@@ -1035,7 +1040,7 @@ class DeviceService {
       targetTemp: targetTemp,
     );
   }
-  
+
   /// Disconnect camera
   Future<void> disconnectCamera() async {
     // Stop temperature polling first
@@ -1079,7 +1084,7 @@ class DeviceService {
     }
     notifier.setDisconnected();
   }
-  
+
   /// Connect to a mount
   Future<void> connectMount(String deviceId) async {
     final notifier = _ref.read(mountStateProvider.notifier);
@@ -1198,7 +1203,7 @@ class DeviceService {
     }
     notifier.setDisconnected();
   }
-  
+
   /// Connect to a focuser
   Future<void> connectFocuser(String deviceId) async {
     final notifier = _ref.read(focuserStateProvider.notifier);
@@ -1217,8 +1222,14 @@ class DeviceService {
       // Get actual focuser status from the backend (now typed FocuserStatus)
       final status = await _backend.getFocuserStatus(deviceId);
 
-      notifier.setConnected(maxPosition: status.maxPosition);
+      notifier.setConnected(
+        maxPosition: status.maxPosition,
+        stepSize: status.stepSize,
+        isAbsolute: status.isAbsolute,
+        hasTemperature: status.hasTemperature,
+      );
       notifier.updatePosition(status.position);
+      notifier.setMoving(status.moving);
       if (status.temperature != null) {
         notifier.updateTemperature(status.temperature!);
       }
@@ -1228,44 +1239,6 @@ class DeviceService {
     }
   }
 
-  /// Extract max position from focuser status
-  int _extractFocuserMaxPosition(dynamic status) {
-    if (status is Map<String, dynamic>) {
-      return (status['maxPosition'] as num?)?.toInt() ?? 50000;
-    }
-    try {
-      return (status as dynamic).maxPosition as int? ?? 50000;
-    } catch (_) {
-      return 50000;
-    }
-  }
-
-  /// Extract current position from focuser status
-  int _extractFocuserPosition(dynamic status) {
-    if (status is Map<String, dynamic>) {
-      return (status['position'] as num?)?.toInt() ?? 0;
-    }
-    try {
-      return (status as dynamic).position as int? ?? 0;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  /// Extract temperature from focuser status
-  double? _extractFocuserTemperature(dynamic status) {
-    if (status is Map<String, dynamic>) {
-      final temp = status['temperature'];
-      if (temp is num) return temp.toDouble();
-      return null;
-    }
-    try {
-      return (status as dynamic).temperature as double?;
-    } catch (_) {
-      return null;
-    }
-  }
-  
   /// Disconnect focuser
   Future<void> disconnectFocuser() async {
     final notifier = _ref.read(focuserStateProvider.notifier);
@@ -1281,7 +1254,7 @@ class DeviceService {
     }
     notifier.setDisconnected();
   }
-  
+
   /// Connect to a filter wheel
   Future<void> connectFilterWheel(String deviceId) async {
     final notifier = _ref.read(filterWheelStateProvider.notifier);
@@ -1299,7 +1272,8 @@ class DeviceService {
 
       // Fetch current filter wheel status (position + names) from backend
       final status = await _backend.getFilterWheelStatus(deviceId);
-      debugPrint('[DeviceService] connectFilterWheel: backend returned ${status.filterNames.length} filter names: ${status.filterNames}');
+      debugPrint(
+          '[DeviceService] connectFilterWheel: backend returned ${status.filterNames.length} filter names: ${status.filterNames}');
 
       notifier.setConnected(
         filterNames: status.filterNames,
@@ -1311,7 +1285,7 @@ class DeviceService {
       rethrow;
     }
   }
-  
+
   /// Disconnect filter wheel
   Future<void> disconnectFilterWheel() async {
     final notifier = _ref.read(filterWheelStateProvider.notifier);
@@ -1327,7 +1301,7 @@ class DeviceService {
     }
     notifier.setDisconnected();
   }
-  
+
   /// Connect to a guider
   Future<void> connectGuider(String deviceId) async {
     final notifier = _ref.read(guiderStateProvider.notifier);
@@ -1366,7 +1340,7 @@ class DeviceService {
       rethrow;
     }
   }
-  
+
   /// Disconnect guider
   Future<void> disconnectGuider() async {
     final notifier = _ref.read(guiderStateProvider.notifier);
@@ -1476,7 +1450,8 @@ class DeviceService {
     final notifier = _ref.read(safetyMonitorStateProvider.notifier);
     final state = _ref.read(safetyMonitorStateProvider);
     if (state.deviceId != null) {
-      await _backend.disconnectDevice(DeviceType.safetyMonitor, state.deviceId!);
+      await _backend.disconnectDevice(
+          DeviceType.safetyMonitor, state.deviceId!);
     }
     notifier.setDisconnected();
   }
@@ -1538,7 +1513,8 @@ class DeviceService {
     final notifier = _ref.read(coverCalibratorStateProvider.notifier);
     final state = _ref.read(coverCalibratorStateProvider);
     if (state.deviceId != null) {
-      await _backend.disconnectDevice(DeviceType.coverCalibrator, state.deviceId!);
+      await _backend.disconnectDevice(
+          DeviceType.coverCalibrator, state.deviceId!);
     }
     notifier.setDisconnected();
   }
@@ -1553,7 +1529,7 @@ class DeviceService {
   }) async {
     final futures = <Future>[];
     final errors = <String>[];
-    
+
     if (cameraId != null && cameraId.isNotEmpty) {
       futures.add(
         connectCamera(cameraId).catchError((e) {
@@ -1561,7 +1537,7 @@ class DeviceService {
         }),
       );
     }
-    
+
     if (mountId != null && mountId.isNotEmpty) {
       futures.add(
         connectMount(mountId).catchError((e) {
@@ -1569,7 +1545,7 @@ class DeviceService {
         }),
       );
     }
-    
+
     if (focuserId != null && focuserId.isNotEmpty) {
       futures.add(
         connectFocuser(focuserId).catchError((e) {
@@ -1577,7 +1553,7 @@ class DeviceService {
         }),
       );
     }
-    
+
     if (filterWheelId != null && filterWheelId.isNotEmpty) {
       futures.add(
         connectFilterWheel(filterWheelId).catchError((e) {
@@ -1585,7 +1561,7 @@ class DeviceService {
         }),
       );
     }
-    
+
     if (guiderId != null && guiderId.isNotEmpty) {
       futures.add(
         connectGuider(guiderId).catchError((e) {
@@ -1593,23 +1569,23 @@ class DeviceService {
         }),
       );
     }
-    
+
     await Future.wait(futures);
-    
+
     if (errors.isNotEmpty) {
       throw Exception('Some devices failed to connect:\n${errors.join('\n')}');
     }
   }
-  
+
   /// Connect all devices from the active equipment profile
   Future<void> connectActiveProfile() async {
     final profilesDao = _ref.read(equipmentProfilesDaoProvider);
     final activeProfile = await profilesDao.getActiveProfile();
-    
+
     if (activeProfile == null) {
       throw Exception('No active equipment profile selected');
     }
-    
+
     await connectProfile(
       cameraId: activeProfile.cameraId,
       mountId: activeProfile.mountId,
@@ -1618,7 +1594,7 @@ class DeviceService {
       guiderId: activeProfile.guiderId,
     );
   }
-  
+
   /// Disconnect all devices
   Future<void> disconnectAll() async {
     await Future.wait([
@@ -1629,11 +1605,11 @@ class DeviceService {
       disconnectGuider(),
     ]);
   }
-  
+
   // ===========================================================================
   // Mount Control
   // ===========================================================================
-  
+
   /// Get the connected mount device ID from mount state (preferred) or active profile
   Future<String?> _getMountDeviceId() async {
     // First check if a mount is currently connected via state provider
@@ -1649,7 +1625,7 @@ class DeviceService {
     final activeProfile = await profilesDao.getActiveProfile();
     return activeProfile?.mountId;
   }
-  
+
   /// Slew mount to coordinates
   Future<void> slewMountToCoordinates(double ra, double dec) async {
     final deviceId = await _getMountDeviceId();
@@ -1696,14 +1672,14 @@ class DeviceService {
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No mount connected');
     }
-    
+
     await _backend.mountSync(deviceId, ra, dec);
-    
+
     // Update local state
     final mountNotifier = _ref.read(mountStateProvider.notifier);
     mountNotifier.updatePosition(ra, dec, 0.0, 0.0);
   }
-  
+
   /// Park the mount
   Future<void> parkMount() async {
     final deviceId = await _getMountDeviceId();
@@ -1729,7 +1705,7 @@ class DeviceService {
       operationsNotifier.completeOperation(OperationType.parkMount);
     }
   }
-  
+
   /// Unpark the mount
   Future<void> unparkMount() async {
     final deviceId = await _getMountDeviceId();
@@ -1847,7 +1823,7 @@ class DeviceService {
     final activeProfile = await profilesDao.getActiveProfile();
     return activeProfile?.focuserId;
   }
-  
+
   /// Move focuser to absolute position
   Future<void> moveFocuserTo(int position) async {
     final deviceId = await _getFocuserDeviceId();
@@ -1944,6 +1920,10 @@ class DeviceService {
     while (true) {
       final status = await _backend.getFocuserStatus(deviceId);
       focuserNotifier.updatePosition(status.position);
+      focuserNotifier.setMoving(status.moving);
+      if (status.temperature != null) {
+        focuserNotifier.updateTemperature(status.temperature!);
+      }
 
       // Check if we've reached the target (within 1 step tolerance)
       if ((status.position - targetPosition).abs() <= 1) {
@@ -2016,10 +1996,14 @@ class DeviceService {
       // Smart notification for autofocus completion
       final hfrText = result.bestHfr.toStringAsFixed(2);
       _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
-        message: 'Autofocus complete (HFR: $hfrText)',
-        relevantScreens: [AppScreen.imaging, AppScreen.equipment, AppScreen.sequencer],
-        title: 'Autofocus',
-      );
+            message: 'Autofocus complete (HFR: $hfrText)',
+            relevantScreens: [
+              AppScreen.imaging,
+              AppScreen.equipment,
+              AppScreen.sequencer
+            ],
+            title: 'Autofocus',
+          );
 
       return result;
     } finally {
@@ -2027,11 +2011,11 @@ class DeviceService {
       operationsNotifier.completeOperation(OperationType.autofocus);
     }
   }
-  
+
   // ===========================================================================
   // Filter Wheel Control
   // ===========================================================================
-  
+
   /// Get the connected filter wheel device ID
   /// First checks the currently connected filter wheel state, then falls back to active profile
   Future<String?> _getFilterWheelDeviceId() async {
@@ -2048,13 +2032,14 @@ class DeviceService {
     final activeProfile = await profilesDao.getActiveProfile();
     return activeProfile?.filterWheelId;
   }
-  
+
   /// Set filter wheel position
   ///
   /// Changes the filter wheel to the specified position and automatically
   /// applies focus offset if configured for the selected filter.
   Future<void> setFilterWheelPosition(int position) async {
-    debugPrint('[DeviceService] setFilterWheelPosition called with position: $position');
+    debugPrint(
+        '[DeviceService] setFilterWheelPosition called with position: $position');
     final deviceId = await _getFilterWheelDeviceId();
     debugPrint('[DeviceService] Filter wheel deviceId: $deviceId');
     if (deviceId == null || deviceId.isEmpty) {
@@ -2079,7 +2064,8 @@ class DeviceService {
 
     try {
       // Move the filter wheel
-      debugPrint('[DeviceService] Calling backend.filterWheelSetPosition($deviceId, $position)');
+      debugPrint(
+          '[DeviceService] Calling backend.filterWheelSetPosition($deviceId, $position)');
       await _backend.filterWheelSetPosition(deviceId, position);
       debugPrint('[DeviceService] Backend call completed, verifying position');
 
@@ -2188,22 +2174,22 @@ class DeviceService {
         // Log the offset application
         final loggingService = _ref.read(loggingServiceProvider);
         loggingService.info(
-          'Applied focus offset for filter "$filterName": $offset steps (moved to position $targetPosition)'
-        );
+            'Applied focus offset for filter "$filterName": $offset steps (moved to position $targetPosition)');
       } finally {
         focuserNotifier.setMoving(false);
       }
     } catch (e) {
       // Don't fail filter change if focus offset fails
       final loggingService = _ref.read(loggingServiceProvider);
-      loggingService.error('Failed to apply focus offset for filter "$filterName": $e');
+      loggingService
+          .error('Failed to apply focus offset for filter "$filterName": $e');
     }
   }
-  
+
   // ===========================================================================
   // Guiding Control
   // ===========================================================================
-  
+
   /// Get the connected guider device ID
   /// First checks the currently connected guider state, then falls back to active profile
   Future<String?> _getGuiderDeviceId() async {
@@ -2220,7 +2206,7 @@ class DeviceService {
     final activeProfile = await profilesDao.getActiveProfile();
     return activeProfile?.guiderId;
   }
-  
+
   /// Start guiding
   Future<void> startGuiding({
     double settlePixels = 1.0,
@@ -2253,20 +2239,20 @@ class DeviceService {
       operationsNotifier.completeOperation(OperationType.guideSettle);
     }
   }
-  
+
   /// Stop guiding
   Future<void> stopGuiding() async {
     final deviceId = await _getGuiderDeviceId();
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No guider connected');
     }
-    
+
     await _backend.guiderStopGuiding(deviceId: deviceId);
-    
+
     final guiderNotifier = _ref.read(guiderStateProvider.notifier);
     guiderNotifier.setGuiding(false);
   }
-  
+
   /// Dither
   Future<void> dither({
     double amount = 5.0,
@@ -2355,7 +2341,9 @@ final availableFocusersProvider = FutureProvider<List<DeviceInfo>>((ref) {
 
 /// Provider for available filter wheels
 final availableFilterWheelsProvider = FutureProvider<List<DeviceInfo>>((ref) {
-  return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.filterWheel);
+  return ref
+      .watch(deviceServiceProvider)
+      .discoverDevices(DeviceType.filterWheel);
 });
 
 /// Provider for available guiders
@@ -2380,5 +2368,7 @@ final availableWeatherProvider = FutureProvider<List<DeviceInfo>>((ref) {
 
 /// Provider for available safety monitors
 final availableSafetyMonitorsProvider = FutureProvider<List<DeviceInfo>>((ref) {
-  return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.safetyMonitor);
+  return ref
+      .watch(deviceServiceProvider)
+      .discoverDevices(DeviceType.safetyMonitor);
 });

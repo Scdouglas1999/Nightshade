@@ -57,18 +57,25 @@ class CameraStatus {
     return CameraStatus(
       connected: json['connected'] as bool? ?? false,
       state: _parseCameraState(json['state']),
-      sensorTemp: (json['sensor_temp'] ?? json['sensorTemp'] ?? json['temperature'])?.toDouble(),
+      sensorTemp:
+          (json['sensor_temp'] ?? json['sensorTemp'] ?? json['temperature'])
+              ?.toDouble(),
       coolerPower: (json['cooler_power'] ?? json['coolerPower'])?.toDouble(),
-      targetTemp: (json['target_temp'] ?? json['targetTemp'] ?? json['setpoint'])?.toDouble(),
+      targetTemp:
+          (json['target_temp'] ?? json['targetTemp'] ?? json['setpoint'])
+              ?.toDouble(),
       coolerOn: json['cooler_on'] ?? json['coolerOn'] ?? false,
       gain: json['gain'] as int? ?? 0,
       offset: json['offset'] as int? ?? 0,
       binX: (json['bin_x'] ?? json['binX']) as int? ?? 1,
       binY: (json['bin_y'] ?? json['binY']) as int? ?? 1,
       sensorWidth: (json['sensor_width'] ?? json['sensorWidth']) as int? ?? 0,
-      sensorHeight: (json['sensor_height'] ?? json['sensorHeight']) as int? ?? 0,
-      pixelSizeX: (json['pixel_size_x'] ?? json['pixelSizeX'])?.toDouble() ?? 0.0,
-      pixelSizeY: (json['pixel_size_y'] ?? json['pixelSizeY'])?.toDouble() ?? 0.0,
+      sensorHeight:
+          (json['sensor_height'] ?? json['sensorHeight']) as int? ?? 0,
+      pixelSizeX:
+          (json['pixel_size_x'] ?? json['pixelSizeX'])?.toDouble() ?? 0.0,
+      pixelSizeY:
+          (json['pixel_size_y'] ?? json['pixelSizeY'])?.toDouble() ?? 0.0,
       maxAdu: (json['max_adu'] ?? json['maxAdu']) as int? ?? 65535,
       canCool: json['can_cool'] ?? json['canCool'] ?? false,
       canSetGain: json['can_set_gain'] ?? json['canSetGain'] ?? false,
@@ -162,17 +169,25 @@ class MountStatus {
       parked: json['parked'] as bool? ?? false,
       atHome: json['at_home'] ?? json['atHome'] ?? false,
       sideOfPier: _parsePierSide(json['side_of_pier'] ?? json['sideOfPier']),
-      rightAscension: (json['right_ascension'] ?? json['rightAscension'] ?? json['ra'])?.toDouble() ?? 0.0,
+      rightAscension:
+          (json['right_ascension'] ?? json['rightAscension'] ?? json['ra'])
+                  ?.toDouble() ??
+              0.0,
       declination: (json['declination'] ?? json['dec'])?.toDouble() ?? 0.0,
       altitude: (json['altitude'] ?? json['alt'])?.toDouble() ?? 0.0,
       azimuth: (json['azimuth'] ?? json['az'])?.toDouble() ?? 0.0,
-      siderealTime: (json['sidereal_time'] ?? json['siderealTime'] ?? json['lst'])?.toDouble() ?? 0.0,
-      trackingRate: _parseTrackingRate(json['tracking_rate'] ?? json['trackingRate']),
+      siderealTime:
+          (json['sidereal_time'] ?? json['siderealTime'] ?? json['lst'])
+                  ?.toDouble() ??
+              0.0,
+      trackingRate:
+          _parseTrackingRate(json['tracking_rate'] ?? json['trackingRate']),
       canPark: json['can_park'] ?? json['canPark'] ?? false,
       canSlew: json['can_slew'] ?? json['canSlew'] ?? false,
       canSync: json['can_sync'] ?? json['canSync'] ?? false,
       canPulseGuide: json['can_pulse_guide'] ?? json['canPulseGuide'] ?? false,
-      canSetTrackingRate: json['can_set_tracking_rate'] ?? json['canSetTrackingRate'] ?? false,
+      canSetTrackingRate:
+          json['can_set_tracking_rate'] ?? json['canSetTrackingRate'] ?? false,
     );
   }
 
@@ -249,12 +264,14 @@ class FocuserStatus {
     return FocuserStatus(
       connected: json['connected'] as bool? ?? false,
       position: json['position'] as int? ?? 0,
-      moving: json['moving'] as bool? ?? false,
+      moving: (json['moving'] ?? json['isMoving']) as bool? ?? false,
       temperature: json['temperature']?.toDouble(),
-      maxPosition: (json['max_position'] ?? json['maxPosition']) as int? ?? 100000,
-      stepSize: (json['step_size'] ?? json['stepSize'])?.toDouble() ?? 1.0,
-      isAbsolute: json['is_absolute'] ?? json['isAbsolute'] ?? true,
-      hasTemperature: json['has_temperature'] ?? json['hasTemperature'] ?? false,
+      maxPosition: (json['max_position'] ?? json['maxPosition']) as int? ?? 0,
+      stepSize: (json['step_size'] ?? json['stepSize'])?.toDouble() ?? 0.0,
+      isAbsolute: json['is_absolute'] ?? json['isAbsolute'] ?? false,
+      hasTemperature: json['has_temperature'] ??
+          json['hasTemperature'] ??
+          (json['temperature'] != null),
     );
   }
 
@@ -348,7 +365,10 @@ class RotatorStatus {
       connected: json['connected'] as bool? ?? false,
       position: json['position']?.toDouble() ?? 0.0,
       moving: json['moving'] as bool? ?? false,
-      mechanicalPosition: (json['mechanical_position'] ?? json['mechanicalPosition'])?.toDouble() ?? 0.0,
+      mechanicalPosition:
+          (json['mechanical_position'] ?? json['mechanicalPosition'])
+                  ?.toDouble() ??
+              0.0,
       isMoving: json['is_moving'] ?? json['isMoving'] ?? false,
       canReverse: json['can_reverse'] ?? json['canReverse'] ?? false,
     );

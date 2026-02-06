@@ -3,24 +3,27 @@
 //! This module contains all the functions that can be called from Dart.
 //! Each function is marked with the appropriate flutter_rust_bridge attributes.
 
+use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
+use crate::devices::DeviceManager;
 use crate::error::*;
 use crate::event::*;
 use crate::state::*;
+use crate::storage::{AppSettings, ObserverLocation};
+use crate::unified_device_ops::create_unified_device_ops;
+use nightshade_imaging::{
+    calculate_airmass, validate_fits_header, validate_image, write_fits, BayerPattern,
+    DebayerAlgorithm, FitsHeader, ImageData,
+};
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
-use crate::devices::DeviceManager;
-use crate::unified_device_ops::create_unified_device_ops;
-use nightshade_imaging::{ImageData, write_fits, FitsHeader, BayerPattern, DebayerAlgorithm, validate_image, calculate_airmass, validate_fits_header};
-use rayon::prelude::*;
-use crate::storage::{AppSettings, ObserverLocation};
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
-use serde::{Serialize, Deserialize};
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 /// Global application state singleton
 static APP_STATE: OnceLock<SharedAppState> = OnceLock::new();
@@ -172,9 +175,13 @@ pub fn api_export_logs(output_path: String) -> Result<(), NightshadeError> {
 /// the event stream will skip lagged events and send an `EventsDropped` notification
 /// so the Dart side knows to refresh its state. The total number of dropped events
 /// is tracked for diagnostics.
-pub async fn api_event_stream(sink: crate::frb_generated::StreamSink<NightshadeEvent>) -> anyhow::Result<()> {
-    tracing::info!("[API_EVENT_STREAM] Starting event stream function (buffer size: {})",
-        crate::event::DEFAULT_EVENT_BUFFER_SIZE);
+pub async fn api_event_stream(
+    sink: crate::frb_generated::StreamSink<NightshadeEvent>,
+) -> anyhow::Result<()> {
+    tracing::info!(
+        "[API_EVENT_STREAM] Starting event stream function (buffer size: {})",
+        crate::event::DEFAULT_EVENT_BUFFER_SIZE
+    );
 
     let mut rx = get_state().event_bus.subscribe();
     tracing::info!("[API_EVENT_STREAM] Subscribed to event bus");
@@ -198,7 +205,10 @@ pub async fn api_event_stream(sink: crate::frb_generated::StreamSink<NightshadeE
     loop {
         match rx.recv().await {
             Ok(event) => {
-                tracing::debug!("[API_EVENT_STREAM] Forwarding event to Dart: {:?}", std::mem::discriminant(&event.payload));
+                tracing::debug!(
+                    "[API_EVENT_STREAM] Forwarding event to Dart: {:?}",
+                    std::mem::discriminant(&event.payload)
+                );
                 if let Err(err) = sink.add(event) {
                     tracing::warn!("[API_EVENT_STREAM] Failed to send event to Dart: {}", err);
                     break;
@@ -225,7 +235,10 @@ pub async fn api_event_stream(sink: crate::frb_generated::StreamSink<NightshadeE
                         total_dropped: new_total,
                     }),
                 )) {
-                    tracing::warn!("[API_EVENT_STREAM] Failed to send dropped-events notice: {}", err);
+                    tracing::warn!(
+                        "[API_EVENT_STREAM] Failed to send dropped-events notice: {}",
+                        err
+                    );
                     break;
                 }
             }
@@ -254,9 +267,9 @@ pub fn api_get_dropped_event_count() -> u64 {
 pub async fn api_discover_alpaca_devices() -> Result<Vec<DeviceInfo>, NightshadeError> {
     use nightshade_alpaca::{discover_all_devices, AlpacaDeviceType};
     use std::time::Duration;
-    
+
     tracing::info!("Discovering Alpaca devices on network...");
-    
+
     let alpaca_devices = discover_all_devices(Duration::from_secs(3)).await;
 
     let mut devices = Vec::new();
@@ -274,11 +287,19 @@ pub async fn api_discover_alpaca_devices() -> Result<Vec<DeviceInfo>, Nightshade
             AlpacaDeviceType::CoverCalibrator => DeviceType::CoverCalibrator,
         };
 
-        tracing::info!("Found Alpaca device: {} at {} (unique_id: {})",
-            alpaca_dev.device_name, alpaca_dev.base_url, alpaca_dev.unique_id);
+        tracing::info!(
+            "Found Alpaca device: {} at {} (unique_id: {})",
+            alpaca_dev.device_name,
+            alpaca_dev.base_url,
+            alpaca_dev.unique_id
+        );
 
         // Generate display name using unique_id for disambiguation
-        let unique_id = if alpaca_dev.unique_id.is_empty() { None } else { Some(alpaca_dev.unique_id.clone()) };
+        let unique_id = if alpaca_dev.unique_id.is_empty() {
+            None
+        } else {
+            Some(alpaca_dev.unique_id.clone())
+        };
         let display_name = DeviceInfo::generate_display_name(
             &alpaca_dev.device_name,
             None, // No serial number from Alpaca
@@ -304,16 +325,20 @@ pub async fn api_discover_alpaca_devices() -> Result<Vec<DeviceInfo>, Nightshade
 }
 
 /// Discover Alpaca devices at a specific server address
-pub async fn api_discover_alpaca_at_address(host: String, port: u16) -> Result<Vec<DeviceInfo>, NightshadeError> {
+pub async fn api_discover_alpaca_at_address(
+    host: String,
+    port: u16,
+) -> Result<Vec<DeviceInfo>, NightshadeError> {
     use nightshade_alpaca::{get_configured_devices, AlpacaDeviceType};
-    
+
     tracing::info!("Discovering Alpaca devices at {}:{}", host, port);
-    
-    let alpaca_devices = get_configured_devices(&host, port).await
-        .map_err(|e| NightshadeError::connection_failed(
+
+    let alpaca_devices = get_configured_devices(&host, port).await.map_err(|e| {
+        NightshadeError::connection_failed(
             format!("{}:{}", host, port),
-            format!("Failed to connect to Alpaca server: {}", e)
-        ))?;
+            format!("Failed to connect to Alpaca server: {}", e),
+        )
+    })?;
 
     let mut devices = Vec::new();
     for alpaca_dev in alpaca_devices {
@@ -331,7 +356,11 @@ pub async fn api_discover_alpaca_at_address(host: String, port: u16) -> Result<V
         };
 
         // Generate display name using unique_id for disambiguation
-        let unique_id = if alpaca_dev.unique_id.is_empty() { None } else { Some(alpaca_dev.unique_id.clone()) };
+        let unique_id = if alpaca_dev.unique_id.is_empty() {
+            None
+        } else {
+            Some(alpaca_dev.unique_id.clone())
+        };
         let display_name = DeviceInfo::generate_display_name(
             &alpaca_dev.device_name,
             None,
@@ -356,14 +385,21 @@ pub async fn api_discover_alpaca_at_address(host: String, port: u16) -> Result<V
 }
 
 /// Discover INDI devices at a specific server address
-pub async fn api_discover_indi_at_address(host: String, port: u16) -> Result<Vec<DeviceInfo>, NightshadeError> {
+pub async fn api_discover_indi_at_address(
+    host: String,
+    port: u16,
+) -> Result<Vec<DeviceInfo>, NightshadeError> {
     tracing::info!("Discovering INDI devices at {}:{}", host, port);
 
-    get_device_manager().discover_indi_devices(&host, port).await
-        .map_err(|e| NightshadeError::connection_failed(
-            format!("{}:{}", host, port),
-            format!("Failed to connect to INDI server: {}", e)
-        ))
+    get_device_manager()
+        .discover_indi_devices(&host, port)
+        .await
+        .map_err(|e| {
+            NightshadeError::connection_failed(
+                format!("{}:{}", host, port),
+                format!("Failed to connect to INDI server: {}", e),
+            )
+        })
 }
 
 /// Auto-discover INDI servers on localhost
@@ -375,8 +411,12 @@ pub async fn api_discover_indi_localhost() -> Result<Vec<DeviceInfo>, Nightshade
     let mut all_devices = Vec::new();
 
     if let Some(server) = discover_localhost().await {
-        tracing::info!("Found INDI server at {}:{} with {} devices",
-            server.host, server.port, server.devices.len());
+        tracing::info!(
+            "Found INDI server at {}:{} with {} devices",
+            server.host,
+            server.port,
+            server.devices.len()
+        );
 
         for device in server.devices {
             let device_type = match device.device_type {
@@ -514,7 +554,9 @@ pub async fn api_discover_indi_network() -> Result<Vec<DeviceInfo>, NightshadeEr
 /// Discover available devices of a specific type
 /// Queries ASCOM drivers on Windows via COM, Alpaca cross-platform, plus includes simulators.
 /// Results are cached for 60 seconds to avoid redundant discovery operations.
-pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceInfo>, NightshadeError> {
+pub async fn api_discover_devices(
+    device_type: DeviceType,
+) -> Result<Vec<DeviceInfo>, NightshadeError> {
     tracing::info!("Discovering {} devices", device_type.as_str());
 
     let mut devices = Vec::new();
@@ -575,7 +617,7 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
             // ASCOM discovery (Windows only) - discover ALL types at once
             #[cfg(windows)]
             {
-                use nightshade_ascom::{AscomDeviceType, discover_devices as ascom_discover};
+                use nightshade_ascom::{discover_devices as ascom_discover, AscomDeviceType};
 
                 let ascom_types = [
                     (AscomDeviceType::Camera, DeviceType::Camera),
@@ -586,7 +628,10 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
                     (AscomDeviceType::Dome, DeviceType::Dome),
                     (AscomDeviceType::ObservingConditions, DeviceType::Weather),
                     (AscomDeviceType::SafetyMonitor, DeviceType::SafetyMonitor),
-                    (AscomDeviceType::CoverCalibrator, DeviceType::CoverCalibrator),
+                    (
+                        AscomDeviceType::CoverCalibrator,
+                        DeviceType::CoverCalibrator,
+                    ),
                 ];
 
                 for (ascom_type, dev_type) in ascom_types {
@@ -617,7 +662,11 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
                             || prog_id_lower.starts_with("poth.");
 
                         if is_simulator || is_diagnostic {
-                            tracing::debug!("Filtering out ASCOM device: {} ({})", ascom_dev.name, ascom_dev.prog_id);
+                            tracing::debug!(
+                                "Filtering out ASCOM device: {} ({})",
+                                ascom_dev.name,
+                                ascom_dev.prog_id
+                            );
                             continue;
                         }
                         all_ascom.push(DeviceInfo {
@@ -633,7 +682,10 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
                         });
                     }
                 }
-                tracing::info!("ASCOM discovery complete: found {} drivers", all_ascom.len());
+                tracing::info!(
+                    "ASCOM discovery complete: found {} drivers",
+                    all_ascom.len()
+                );
             }
 
             // Alpaca discovery - discovers ALL device types in one broadcast
@@ -655,7 +707,11 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
                         _ => continue,
                     };
 
-                    let unique_id = if alpaca_dev.unique_id.is_empty() { None } else { Some(alpaca_dev.unique_id.clone()) };
+                    let unique_id = if alpaca_dev.unique_id.is_empty() {
+                        None
+                    } else {
+                        Some(alpaca_dev.unique_id.clone())
+                    };
                     let display_name = DeviceInfo::generate_display_name(
                         &alpaca_dev.device_name,
                         None,
@@ -675,7 +731,10 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
                         display_name,
                     });
                 }
-                tracing::info!("Alpaca discovery complete: found {} devices", all_alpaca.len());
+                tracing::info!(
+                    "Alpaca discovery complete: found {} devices",
+                    all_alpaca.len()
+                );
             }
 
             // Cache the results
@@ -712,7 +771,9 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
     // Native discovery has its own cache in nightshade_native
     // =====================================================
     {
-        use nightshade_native::{discover_devices as native_discover, DeviceType as NativeDeviceType};
+        use nightshade_native::{
+            discover_devices as native_discover, DeviceType as NativeDeviceType,
+        };
 
         let native_device_type = match device_type {
             DeviceType::Camera => Some(NativeDeviceType::Camera),
@@ -726,14 +787,20 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
         if let Some(native_type) = native_device_type {
             if let Ok(native_devices) = native_discover(native_type).await {
                 for native_dev in native_devices {
-                    tracing::info!("Found native device: {} ({})", native_dev.display_name, native_dev.vendor.as_str());
+                    tracing::info!(
+                        "Found native device: {} ({})",
+                        native_dev.display_name,
+                        native_dev.vendor.as_str()
+                    );
                     devices.push(DeviceInfo {
                         id: native_dev.id,
                         name: native_dev.name.clone(),
                         device_type,
                         driver_type: DriverType::Native,
                         description: format!("{} native driver", native_dev.vendor.as_str()),
-                        driver_version: native_dev.sdk_version.unwrap_or_else(|| "Native".to_string()),
+                        driver_version: native_dev
+                            .sdk_version
+                            .unwrap_or_else(|| "Native".to_string()),
                         serial_number: native_dev.serial_number,
                         unique_id: None,
                         display_name: native_dev.display_name,
@@ -764,13 +831,22 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
         let is_installed = nightshade_imaging::is_phd2_installed();
 
         if is_running || is_installed {
-            tracing::info!("Found PHD2 Guiding (Running: {}, Installed: {})", is_running, is_installed);
+            tracing::info!(
+                "Found PHD2 Guiding (Running: {}, Installed: {})",
+                is_running,
+                is_installed
+            );
             devices.push(DeviceInfo {
                 id: "phd2_guider".to_string(),
                 name: "PHD2 Guiding".to_string(),
                 device_type: DeviceType::Guider,
                 driver_type: DriverType::Native,
-                description: if is_running { "PHD2 Guiding (Running)" } else { "PHD2 Guiding (Installed)" }.to_string(),
+                description: if is_running {
+                    "PHD2 Guiding (Running)"
+                } else {
+                    "PHD2 Guiding (Installed)"
+                }
+                .to_string(),
                 driver_version: "PHD2".to_string(),
                 serial_number: None,
                 unique_id: None,
@@ -804,24 +880,39 @@ pub async fn api_discover_devices(device_type: DeviceType) -> Result<Vec<DeviceI
 // =============================================================================
 
 /// Connect to a device
-pub async fn api_connect_device(device_type: DeviceType, device_id: String) -> Result<(), NightshadeError> {
-    tracing::info!("Connecting to {} device: {}", device_type.as_str(), device_id);
-    
-    tracing::info!("Connecting to {} device: {}", device_type.as_str(), device_id);
-    
+pub async fn api_connect_device(
+    device_type: DeviceType,
+    device_id: String,
+) -> Result<(), NightshadeError> {
+    tracing::info!(
+        "Connecting to {} device: {}",
+        device_type.as_str(),
+        device_id
+    );
+
+    tracing::info!(
+        "Connecting to {} device: {}",
+        device_type.as_str(),
+        device_id
+    );
+
     // Special handling for PHD2 auto-launch
     if device_id == "phd2_guider" {
         if !nightshade_imaging::is_phd2_running() {
             tracing::info!("PHD2 not running, attempting to launch...");
             if let Err(e) = nightshade_imaging::launch_phd2() {
                 tracing::error!("Failed to launch PHD2: {}", e);
-                return Err(NightshadeError::connection_failed(&device_id, format!("Failed to launch PHD2: {}", e)));
+                return Err(NightshadeError::connection_failed(
+                    &device_id,
+                    format!("Failed to launch PHD2: {}", e),
+                ));
             }
 
             // Wait for it to start
             tracing::info!("Waiting for PHD2 to start...");
             let mut started = false;
-            for _ in 0..20 { // Wait up to 10 seconds
+            for _ in 0..20 {
+                // Wait up to 10 seconds
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 if nightshade_imaging::is_phd2_running() {
                     started = true;
@@ -830,7 +921,10 @@ pub async fn api_connect_device(device_type: DeviceType, device_id: String) -> R
             }
 
             if !started {
-                return Err(NightshadeError::connection_failed(&device_id, "Timed out waiting for PHD2 to start"));
+                return Err(NightshadeError::connection_failed(
+                    &device_id,
+                    "Timed out waiting for PHD2 to start",
+                ));
             }
         }
     }
@@ -843,7 +937,10 @@ pub async fn api_connect_device(device_type: DeviceType, device_id: String) -> R
 
     // If not registered, discover and register the device
     if !is_registered {
-        tracing::info!("Device {} not registered, discovering and registering...", device_id);
+        tracing::info!(
+            "Device {} not registered, discovering and registering...",
+            device_id
+        );
 
         // Discover devices of this type to find the one we want
         let discovered_devices = api_discover_devices(device_type.clone()).await?;
@@ -851,32 +948,54 @@ pub async fn api_connect_device(device_type: DeviceType, device_id: String) -> R
         // Find the device we're trying to connect to
         if let Some(device_info) = discovered_devices.iter().find(|d| d.id == device_id) {
             // Register the device before connecting
-            device_manager.register_device(device_info.clone(), false).await;
+            device_manager
+                .register_device(device_info.clone(), false)
+                .await;
             tracing::info!("Registered device: {} ({})", device_info.name, device_id);
         } else {
-            return Err(NightshadeError::connection_failed(&device_id, "Device not found during discovery"));
+            return Err(NightshadeError::connection_failed(
+                &device_id,
+                "Device not found during discovery",
+            ));
         }
     }
 
     // Use the DeviceManager to handle the connection
-    device_manager.connect_device(&device_id).await
+    device_manager
+        .connect_device(&device_id)
+        .await
         .map_err(|e| NightshadeError::connection_failed(&device_id, e))
 }
 
 /// Disconnect from a device
-pub async fn api_disconnect_device(device_type: DeviceType, device_id: String) -> Result<(), NightshadeError> {
-    tracing::info!("Disconnecting from {} device: {}", device_type.as_str(), device_id);
-    
-    tracing::info!("Disconnecting from {} device: {}", device_type.as_str(), device_id);
-    
+pub async fn api_disconnect_device(
+    device_type: DeviceType,
+    device_id: String,
+) -> Result<(), NightshadeError> {
+    tracing::info!(
+        "Disconnecting from {} device: {}",
+        device_type.as_str(),
+        device_id
+    );
+
+    tracing::info!(
+        "Disconnecting from {} device: {}",
+        device_type.as_str(),
+        device_id
+    );
+
     // Use the DeviceManager to handle disconnection
-    get_device_manager().disconnect_device(&device_id).await
+    get_device_manager()
+        .disconnect_device(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Check if a device is connected
 pub async fn api_is_device_connected(device_type: DeviceType, device_id: String) -> bool {
-    get_state().is_device_connected(device_type, &device_id).await
+    get_state()
+        .is_device_connected(device_type, &device_id)
+        .await
 }
 
 /// Get list of connected devices
@@ -1011,9 +1130,7 @@ pub async fn api_start_device_heartbeat_with_config(
 ///
 /// # Returns
 /// A tuple of (interval_secs, max_interval_secs, failure_threshold, auto_reconnect)
-pub fn api_get_heartbeat_config_for_type(
-    device_type: DeviceType,
-) -> (u64, u64, u32, bool) {
+pub fn api_get_heartbeat_config_for_type(device_type: DeviceType) -> (u64, u64, u32, bool) {
     let config = match device_type {
         DeviceType::Camera => crate::devices::HeartbeatConfig::for_camera(),
         DeviceType::Mount => crate::devices::HeartbeatConfig::for_mount(),
@@ -1086,11 +1203,15 @@ pub struct DeviceHeartbeatInfo {
 ///
 /// # Returns
 /// DeviceHeartbeatInfo with all heartbeat details
-pub async fn api_get_device_heartbeat_info(device_id: String) -> Result<DeviceHeartbeatInfo, NightshadeError> {
+pub async fn api_get_device_heartbeat_info(
+    device_id: String,
+) -> Result<DeviceHeartbeatInfo, NightshadeError> {
     let manager = get_device_manager();
 
     // Check if device exists and get its info using the public API
-    let device = manager.get_device(&device_id).await
+    let device = manager
+        .get_device(&device_id)
+        .await
         .ok_or_else(|| NightshadeError::DeviceNotFound(device_id.clone()))?;
 
     let device_type_enum = device.info.device_type.clone();
@@ -1129,9 +1250,14 @@ pub async fn api_is_heartbeat_active(device_id: String) -> Result<bool, Nightsha
 ///
 /// Returns cached version info if available and fresh (less than 5 minutes old),
 /// otherwise queries the device directly.
-pub async fn api_get_device_api_version(device_id: String) -> Result<DeviceApiVersion, NightshadeError> {
+pub async fn api_get_device_api_version(
+    device_id: String,
+) -> Result<DeviceApiVersion, NightshadeError> {
     // First check cached version
-    if let Some(cached) = get_device_manager().get_device_api_version(&device_id).await {
+    if let Some(cached) = get_device_manager()
+        .get_device_api_version(&device_id)
+        .await
+    {
         if cached.is_fresh() {
             return Ok(cached);
         }
@@ -1149,16 +1275,26 @@ pub async fn api_get_device_api_version(device_id: String) -> Result<DeviceApiVe
 /// This is useful for checking if newer API methods are available before calling them.
 /// Returns true if the device reports an interface version >= the required version,
 /// or true if no version info is available (optimistic fallback).
-pub async fn api_device_supports_version(device_id: String, required_version: u32) -> Result<bool, NightshadeError> {
-    Ok(get_device_manager().device_supports_version(&device_id, required_version).await)
+pub async fn api_device_supports_version(
+    device_id: String,
+    required_version: u32,
+) -> Result<bool, NightshadeError> {
+    Ok(get_device_manager()
+        .device_supports_version(&device_id, required_version)
+        .await)
 }
 
 /// Check if a device supports a specific action.
 ///
 /// For ASCOM/Alpaca devices, checks the SupportedActions list.
 /// Returns true if the action is supported or if the device doesn't report supported actions.
-pub async fn api_device_supports_action(device_id: String, action: String) -> Result<bool, NightshadeError> {
-    Ok(get_device_manager().device_supports_action(&device_id, &action).await)
+pub async fn api_device_supports_action(
+    device_id: String,
+    action: String,
+) -> Result<bool, NightshadeError> {
+    Ok(get_device_manager()
+        .device_supports_action(&device_id, &action)
+        .await)
 }
 
 // =============================================================================
@@ -1214,12 +1350,17 @@ pub async fn api_get_camera_status(device_id: String) -> Result<CameraStatus, Ni
 
     // Route real devices through the DeviceManager
     let mgr = get_device_manager();
-    mgr.camera_get_status(&device_id).await
+    mgr.camera_get_status(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Set camera cooling target
-pub async fn api_set_camera_cooler(device_id: String, enabled: u8, target_temp: Option<f64>) -> Result<(), NightshadeError> {
+pub async fn api_set_camera_cooler(
+    device_id: String,
+    enabled: u8,
+    target_temp: Option<f64>,
+) -> Result<(), NightshadeError> {
     // Handle simulator devices with local simulated state
     if device_id.starts_with("sim_") {
         let mut camera = get_sim_camera().write().await;
@@ -1227,14 +1368,24 @@ pub async fn api_set_camera_cooler(device_id: String, enabled: u8, target_temp: 
         if let Some(temp) = target_temp {
             camera.status.target_temp = Some(temp);
         }
-        tracing::info!("Simulator camera cooler: enabled={}, target={:?}", enabled, target_temp);
+        tracing::info!(
+            "Simulator camera cooler: enabled={}, target={:?}",
+            enabled,
+            target_temp
+        );
         return Ok(());
     }
 
     // Route real devices through the DeviceManager
-    tracing::info!("Setting camera cooler for {}: enabled={}, target={:?}", device_id, enabled, target_temp);
+    tracing::info!(
+        "Setting camera cooler for {}: enabled={}, target={:?}",
+        device_id,
+        enabled,
+        target_temp
+    );
     let mgr = get_device_manager();
-    mgr.camera_set_cooler(&device_id, enabled != 0, target_temp).await
+    mgr.camera_set_cooler(&device_id, enabled != 0, target_temp)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1251,7 +1402,8 @@ pub async fn api_set_camera_gain(device_id: String, gain: i32) -> Result<(), Nig
     // Route real devices through the DeviceManager
     tracing::info!("Setting camera gain for {}: {}", device_id, gain);
     let mgr = get_device_manager();
-    mgr.camera_set_gain(&device_id, gain).await
+    mgr.camera_set_gain(&device_id, gain)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1268,7 +1420,8 @@ pub async fn api_set_camera_offset(device_id: String, offset: i32) -> Result<(),
     // Route real devices through the DeviceManager
     tracing::info!("Setting camera offset for {}: {}", device_id, offset);
     let mgr = get_device_manager();
-    mgr.camera_set_offset(&device_id, offset).await
+    mgr.camera_set_offset(&device_id, offset)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1287,7 +1440,11 @@ pub async fn start_exposure(
     bin_x: i32,
     bin_y: i32,
 ) -> Result<(), NightshadeError> {
-    tracing::info!("API: start_exposure called for {} duration={}", device_id, duration_secs);
+    tracing::info!(
+        "API: start_exposure called for {} duration={}",
+        device_id,
+        duration_secs
+    );
 
     // Delegate to the full implementation which handles:
     // - Starting the exposure
@@ -1303,7 +1460,8 @@ pub async fn cancel_exposure(device_id: String) -> Result<(), NightshadeError> {
     tracing::info!("API: cancel_exposure called for {}", device_id);
 
     let mgr = get_device_manager();
-    mgr.camera_abort_exposure(&device_id).await
+    mgr.camera_abort_exposure(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))?;
 
     // Publish ExposureCancelled event
@@ -1321,14 +1479,20 @@ pub async fn cancel_exposure(device_id: String) -> Result<(), NightshadeError> {
 /// Get camera status
 pub async fn get_camera_status(device_id: String) -> Result<CameraStatus, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.camera_get_status(&device_id).await
+    mgr.camera_get_status(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Set camera cooler
-pub async fn set_camera_cooler(device_id: String, enabled: u8, target_temp: Option<f64>) -> Result<(), NightshadeError> {
+pub async fn set_camera_cooler(
+    device_id: String,
+    enabled: u8,
+    target_temp: Option<f64>,
+) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.camera_set_cooler(&device_id, enabled != 0, target_temp).await
+    mgr.camera_set_cooler(&device_id, enabled != 0, target_temp)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1339,100 +1503,122 @@ pub async fn set_camera_cooler(device_id: String, enabled: u8, target_temp: Opti
 /// Slew mount to coordinates
 pub async fn mount_slew(device_id: String, ra: f64, dec: f64) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_slew(&device_id, ra, dec).await
+    mgr.mount_slew(&device_id, ra, dec)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Sync mount to coordinates
 pub async fn mount_sync(device_id: String, ra: f64, dec: f64) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_sync(&device_id, ra, dec).await
+    mgr.mount_sync(&device_id, ra, dec)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Park mount
 pub async fn mount_park(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_park(&device_id).await
+    mgr.mount_park(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Unpark mount
 pub async fn mount_unpark(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_unpark(&device_id).await
+    mgr.mount_unpark(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get mount coordinates
 pub async fn mount_get_coordinates(device_id: String) -> Result<(f64, f64), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_get_coordinates(&device_id).await
+    mgr.mount_get_coordinates(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Abort mount slew
 pub async fn mount_abort(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_abort(&device_id).await
+    mgr.mount_abort(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Stop mount motion (abort slew without disconnecting)
 pub async fn mount_stop(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_stop(&device_id).await
+    mgr.mount_stop(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Query whether a mount supports parking
 pub async fn mount_can_park(device_id: String) -> Result<bool, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_can_park(&device_id).await
+    mgr.mount_can_park(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Set mount tracking
 pub async fn mount_set_tracking(device_id: String, enabled: u8) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_set_tracking(&device_id, enabled != 0).await
+    mgr.mount_set_tracking(&device_id, enabled != 0)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Set mount tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
 pub async fn mount_set_tracking_rate(device_id: String, rate: i32) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_set_tracking_rate(&device_id, rate).await
+    mgr.mount_set_tracking_rate(&device_id, rate)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Pulse guide mount
-pub async fn mount_pulse_guide(device_id: String, direction: String, duration_ms: u32) -> Result<(), NightshadeError> {
+pub async fn mount_pulse_guide(
+    device_id: String,
+    direction: String,
+    duration_ms: u32,
+) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_pulse_guide(&device_id, direction, duration_ms).await
+    mgr.mount_pulse_guide(&device_id, direction, duration_ms)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get mount status
 pub async fn mount_get_status(device_id: String) -> Result<MountStatus, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_get_status(&device_id).await
+    mgr.mount_get_status(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get mount tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
 pub async fn mount_get_tracking_rate(device_id: String) -> Result<i32, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_get_tracking_rate(&device_id).await
+    mgr.mount_get_tracking_rate(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Move mount axis at specified rate (degrees/second)
 /// axis: 0=RA/Azimuth (primary), 1=Dec/Altitude (secondary)
 /// rate: degrees per second (positive = N/E, negative = S/W), 0 to stop
-pub async fn mount_move_axis(device_id: String, axis: i32, rate: f64) -> Result<(), NightshadeError> {
+pub async fn mount_move_axis(
+    device_id: String,
+    axis: i32,
+    rate: f64,
+) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.mount_move_axis(&device_id, axis, rate).await
+    mgr.mount_move_axis(&device_id, axis, rate)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1443,42 +1629,48 @@ pub async fn mount_move_axis(device_id: String, axis: i32, rate: f64) -> Result<
 /// Move focuser to absolute position
 pub async fn focuser_move_abs(device_id: String, position: i32) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.focuser_move_abs(&device_id, position).await
+    mgr.focuser_move_abs(&device_id, position)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Move focuser relative
 pub async fn focuser_move_rel(device_id: String, steps: i32) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.focuser_move_rel(&device_id, steps).await
+    mgr.focuser_move_rel(&device_id, steps)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Halt focuser
 pub async fn focuser_halt(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.focuser_halt(&device_id).await
+    mgr.focuser_halt(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get focuser position
 pub async fn focuser_get_position(device_id: String) -> Result<i32, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.focuser_get_position(&device_id).await
+    mgr.focuser_get_position(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get focuser temperature
 pub async fn focuser_get_temp(device_id: String) -> Result<Option<f64>, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.focuser_get_temp(&device_id).await
+    mgr.focuser_get_temp(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get focuser details (max pos, step size)
 pub async fn focuser_get_details(device_id: String) -> Result<(i32, f64), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.focuser_get_details(&device_id).await
+    mgr.focuser_get_details(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1487,14 +1679,18 @@ pub async fn focuser_get_details(device_id: String) -> Result<(i32, f64), Nights
 // =============================================================================
 
 /// Set filter wheel position
-pub async fn filter_wheel_set_position(device_id: String, position: i32) -> Result<(), NightshadeError> {
+pub async fn filter_wheel_set_position(
+    device_id: String,
+    position: i32,
+) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
         let mut fw = get_sim_filterwheel().write().await;
         fw.status.position = position;
         Ok(())
     } else {
         let mgr = get_device_manager();
-        mgr.filter_wheel_set_position(&device_id, position).await
+        mgr.filter_wheel_set_position(&device_id, position)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -1506,35 +1702,40 @@ pub async fn filter_wheel_get_position(device_id: String) -> Result<i32, Nightsh
         Ok(fw.status.position)
     } else {
         let mgr = get_device_manager();
-        mgr.filter_wheel_get_position(&device_id).await
+        mgr.filter_wheel_get_position(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
 
 /// Get filter wheel configuration (count, names)
-pub async fn filter_wheel_get_config(device_id: String) -> Result<(i32, Vec<String>), NightshadeError> {
+pub async fn filter_wheel_get_config(
+    device_id: String,
+) -> Result<(i32, Vec<String>), NightshadeError> {
     if device_id.starts_with("sim_") {
         let fw = get_sim_filterwheel().read().await;
         Ok((fw.status.filter_count, fw.status.filter_names.clone()))
     } else {
         let mgr = get_device_manager();
-        mgr.filter_wheel_get_config(&device_id).await
+        mgr.filter_wheel_get_config(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
 
-
 /// Set camera gain
 pub async fn set_camera_gain(device_id: String, gain: i32) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.camera_set_gain(&device_id, gain).await
+    mgr.camera_set_gain(&device_id, gain)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Set camera offset
 pub async fn set_camera_offset(device_id: String, offset: i32) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.camera_set_offset(&device_id, offset).await
+    mgr.camera_set_offset(&device_id, offset)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1542,9 +1743,12 @@ pub async fn set_camera_offset(device_id: String, offset: i32) -> Result<(), Nig
 // Camera Binning (Legacy API - keeping for compatibility)
 // =============================================================================
 
-
 /// Set camera binning
-pub async fn api_set_camera_binning(device_id: String, bin_x: i32, bin_y: i32) -> Result<(), NightshadeError> {
+pub async fn api_set_camera_binning(
+    device_id: String,
+    bin_x: i32,
+    bin_y: i32,
+) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
         let mut camera = get_sim_camera().write().await;
         camera.status.bin_x = bin_x;
@@ -1554,7 +1758,12 @@ pub async fn api_set_camera_binning(device_id: String, bin_x: i32, bin_y: i32) -
     } else {
         // Real devices - binning is typically set as part of exposure parameters
         // For now, log and succeed since binning is usually applied at exposure time
-        tracing::info!("Camera binning request: {}x{} for device {}", bin_x, bin_y, device_id);
+        tracing::info!(
+            "Camera binning request: {}x{} for device {}",
+            bin_x,
+            bin_y,
+            device_id
+        );
         Ok(())
     }
 }
@@ -1566,56 +1775,67 @@ pub async fn api_set_camera_binning(device_id: String, bin_x: i32, bin_y: i32) -
 /// Get dome status
 pub async fn api_get_dome_status(device_id: String) -> Result<DomeStatus, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.dome_get_status(&device_id).await
+    mgr.dome_get_status(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Open dome shutter
 pub async fn api_dome_open_shutter(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.dome_open_shutter(&device_id).await
+    mgr.dome_open_shutter(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Close dome shutter
 pub async fn api_dome_close_shutter(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.dome_close_shutter(&device_id).await
+    mgr.dome_close_shutter(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Slew dome to azimuth
-pub async fn api_dome_slew_to_azimuth(device_id: String, azimuth: f64) -> Result<(), NightshadeError> {
+pub async fn api_dome_slew_to_azimuth(
+    device_id: String,
+    azimuth: f64,
+) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.dome_slew_to_azimuth(&device_id, azimuth).await
+    mgr.dome_slew_to_azimuth(&device_id, azimuth)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Park dome
 pub async fn api_dome_park(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.dome_park(&device_id).await
+    mgr.dome_park(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get dome azimuth
 pub async fn api_dome_get_azimuth(device_id: String) -> Result<f64, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.dome_get_azimuth(&device_id).await
+    mgr.dome_get_azimuth(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get dome shutter status
 pub async fn api_dome_get_shutter_status(device_id: String) -> Result<i32, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.dome_get_shutter_status(&device_id).await
+    mgr.dome_get_shutter_status(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Check if dome is slewing
 pub async fn api_dome_is_slewing(device_id: String) -> Result<bool, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.dome_is_slewing(&device_id).await
+    mgr.dome_is_slewing(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1626,70 +1846,109 @@ pub async fn api_dome_is_slewing(device_id: String) -> Result<bool, NightshadeEr
 /// Get the number of switches exposed by a switch device
 pub async fn api_switch_get_max(device_id: String) -> Result<i32, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_get_max(&device_id).await
+    mgr.switch_get_max(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get the boolean state of a switch
-pub async fn api_switch_get_state(device_id: String, switch_id: i32) -> Result<bool, NightshadeError> {
+pub async fn api_switch_get_state(
+    device_id: String,
+    switch_id: i32,
+) -> Result<bool, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_get_state(&device_id, switch_id).await
+    mgr.switch_get_state(&device_id, switch_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Set the boolean state of a switch
-pub async fn api_switch_set_state(device_id: String, switch_id: i32, state: bool) -> Result<(), NightshadeError> {
+pub async fn api_switch_set_state(
+    device_id: String,
+    switch_id: i32,
+    state: bool,
+) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_set_state(&device_id, switch_id, state).await
+    mgr.switch_set_state(&device_id, switch_id, state)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get the name of a switch
-pub async fn api_switch_get_name(device_id: String, switch_id: i32) -> Result<String, NightshadeError> {
+pub async fn api_switch_get_name(
+    device_id: String,
+    switch_id: i32,
+) -> Result<String, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_get_name(&device_id, switch_id).await
+    mgr.switch_get_name(&device_id, switch_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get the description of a switch
-pub async fn api_switch_get_description(device_id: String, switch_id: i32) -> Result<String, NightshadeError> {
+pub async fn api_switch_get_description(
+    device_id: String,
+    switch_id: i32,
+) -> Result<String, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_get_description(&device_id, switch_id).await
+    mgr.switch_get_description(&device_id, switch_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get the numeric value of a switch
-pub async fn api_switch_get_value(device_id: String, switch_id: i32) -> Result<f64, NightshadeError> {
+pub async fn api_switch_get_value(
+    device_id: String,
+    switch_id: i32,
+) -> Result<f64, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_get_value(&device_id, switch_id).await
+    mgr.switch_get_value(&device_id, switch_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Set the numeric value of a switch
-pub async fn api_switch_set_value(device_id: String, switch_id: i32, value: f64) -> Result<(), NightshadeError> {
+pub async fn api_switch_set_value(
+    device_id: String,
+    switch_id: i32,
+    value: f64,
+) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_set_value(&device_id, switch_id, value).await
+    mgr.switch_set_value(&device_id, switch_id, value)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get the minimum value for a switch
-pub async fn api_switch_get_min_value(device_id: String, switch_id: i32) -> Result<f64, NightshadeError> {
+pub async fn api_switch_get_min_value(
+    device_id: String,
+    switch_id: i32,
+) -> Result<f64, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_get_min_value(&device_id, switch_id).await
+    mgr.switch_get_min_value(&device_id, switch_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get the maximum value for a switch
-pub async fn api_switch_get_max_value(device_id: String, switch_id: i32) -> Result<f64, NightshadeError> {
+pub async fn api_switch_get_max_value(
+    device_id: String,
+    switch_id: i32,
+) -> Result<f64, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_get_max_value(&device_id, switch_id).await
+    mgr.switch_get_max_value(&device_id, switch_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Check if a switch can be written to
-pub async fn api_switch_can_write(device_id: String, switch_id: i32) -> Result<bool, NightshadeError> {
+pub async fn api_switch_can_write(
+    device_id: String,
+    switch_id: i32,
+) -> Result<bool, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.switch_can_write(&device_id, switch_id).await
+    mgr.switch_can_write(&device_id, switch_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1700,70 +1959,93 @@ pub async fn api_switch_can_write(device_id: String, switch_id: i32) -> Result<b
 /// Open cover calibrator dust cover
 pub async fn api_cover_calibrator_open_cover(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_open_cover(&device_id).await
+    mgr.cover_calibrator_open_cover(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Close cover calibrator dust cover
 pub async fn api_cover_calibrator_close_cover(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_close_cover(&device_id).await
+    mgr.cover_calibrator_close_cover(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Halt cover calibrator cover movement
 pub async fn api_cover_calibrator_halt_cover(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_halt_cover(&device_id).await
+    mgr.cover_calibrator_halt_cover(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Turn on cover calibrator light at specified brightness
-pub async fn api_cover_calibrator_calibrator_on(device_id: String, brightness: i32) -> Result<(), NightshadeError> {
+pub async fn api_cover_calibrator_calibrator_on(
+    device_id: String,
+    brightness: i32,
+) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_calibrator_on(&device_id, brightness).await
+    mgr.cover_calibrator_calibrator_on(&device_id, brightness)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Turn off cover calibrator light
 pub async fn api_cover_calibrator_calibrator_off(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_calibrator_off(&device_id).await
+    mgr.cover_calibrator_calibrator_off(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get cover calibrator cover state (0=NotPresent, 1=Closed, 2=Moving, 3=Open, 4=Unknown, 5=Error)
-pub async fn api_cover_calibrator_get_cover_state(device_id: String) -> Result<i32, NightshadeError> {
+pub async fn api_cover_calibrator_get_cover_state(
+    device_id: String,
+) -> Result<i32, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_get_cover_state(&device_id).await
+    mgr.cover_calibrator_get_cover_state(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get cover calibrator calibrator state (0=NotPresent, 1=Off, 2=NotReady, 3=Ready, 4=Unknown, 5=Error)
-pub async fn api_cover_calibrator_get_calibrator_state(device_id: String) -> Result<i32, NightshadeError> {
+pub async fn api_cover_calibrator_get_calibrator_state(
+    device_id: String,
+) -> Result<i32, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_get_calibrator_state(&device_id).await
+    mgr.cover_calibrator_get_calibrator_state(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get cover calibrator current brightness
-pub async fn api_cover_calibrator_get_brightness(device_id: String) -> Result<i32, NightshadeError> {
+pub async fn api_cover_calibrator_get_brightness(
+    device_id: String,
+) -> Result<i32, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_get_brightness(&device_id).await
+    mgr.cover_calibrator_get_brightness(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get cover calibrator maximum brightness
-pub async fn api_cover_calibrator_get_max_brightness(device_id: String) -> Result<i32, NightshadeError> {
+pub async fn api_cover_calibrator_get_max_brightness(
+    device_id: String,
+) -> Result<i32, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_get_max_brightness(&device_id).await
+    mgr.cover_calibrator_get_max_brightness(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get cover calibrator full status
-pub async fn api_cover_calibrator_get_status(device_id: String) -> Result<crate::device::CoverCalibratorStatus, NightshadeError> {
+pub async fn api_cover_calibrator_get_status(
+    device_id: String,
+) -> Result<crate::device::CoverCalibratorStatus, NightshadeError> {
     let mgr = get_device_manager();
-    mgr.cover_calibrator_get_status(&device_id).await
+    mgr.cover_calibrator_get_status(&device_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -1817,13 +2099,18 @@ pub async fn api_get_mount_status(device_id: String) -> Result<MountStatus, Nigh
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.mount_get_status(&device_id).await
+        mgr.mount_get_status(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
 
 /// Slew mount to coordinates
-pub async fn api_mount_slew_to_coordinates(device_id: String, ra: f64, dec: f64) -> Result<(), NightshadeError> {
+pub async fn api_mount_slew_to_coordinates(
+    device_id: String,
+    ra: f64,
+    dec: f64,
+) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
         tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
 
@@ -1848,13 +2135,18 @@ pub async fn api_mount_slew_to_coordinates(device_id: String, ra: f64, dec: f64)
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.mount_slew(&device_id, ra, dec).await
+        mgr.mount_slew(&device_id, ra, dec)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
 
 /// Sync mount to coordinates
-pub async fn api_mount_sync_to_coordinates(device_id: String, ra: f64, dec: f64) -> Result<(), NightshadeError> {
+pub async fn api_mount_sync_to_coordinates(
+    device_id: String,
+    ra: f64,
+    dec: f64,
+) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
         tracing::info!("Syncing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
 
@@ -1866,7 +2158,8 @@ pub async fn api_mount_sync_to_coordinates(device_id: String, ra: f64, dec: f64)
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.mount_sync(&device_id, ra, dec).await
+        mgr.mount_sync(&device_id, ra, dec)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -1896,7 +2189,8 @@ pub async fn api_mount_park(device_id: String) -> Result<(), NightshadeError> {
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.mount_park(&device_id).await
+        mgr.mount_park(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -1912,7 +2206,8 @@ pub async fn api_mount_unpark(device_id: String) -> Result<(), NightshadeError> 
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.mount_unpark(&device_id).await
+        mgr.mount_unpark(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -1928,19 +2223,34 @@ pub async fn api_mount_set_tracking(device_id: String, enabled: u8) -> Result<()
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.mount_set_tracking(&device_id, enabled != 0).await
+        mgr.mount_set_tracking(&device_id, enabled != 0)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
 
 /// Pulse guide the mount in a direction for a duration
-pub async fn api_mount_pulse_guide(device_id: String, direction: String, duration_ms: i32) -> Result<(), NightshadeError> {
-    tracing::info!("Pulse guiding {} for {}ms in direction {}", device_id, duration_ms, direction);
+pub async fn api_mount_pulse_guide(
+    device_id: String,
+    direction: String,
+    duration_ms: i32,
+) -> Result<(), NightshadeError> {
+    tracing::info!(
+        "Pulse guiding {} for {}ms in direction {}",
+        device_id,
+        duration_ms,
+        direction
+    );
 
     // Validate direction
     match direction.to_lowercase().as_str() {
-        "north" | "n" | "south" | "s" | "east" | "e" | "west" | "w" => {},
-        _ => return Err(NightshadeError::InvalidParameter(format!("Unknown direction: {}", direction))),
+        "north" | "n" | "south" | "s" | "east" | "e" | "west" | "w" => {}
+        _ => {
+            return Err(NightshadeError::InvalidParameter(format!(
+                "Unknown direction: {}",
+                direction
+            )))
+        }
     };
 
     // For simulator, just wait the duration
@@ -1952,7 +2262,8 @@ pub async fn api_mount_pulse_guide(device_id: String, direction: String, duratio
 
     // Route real devices through DeviceManager
     let mgr = get_device_manager();
-    mgr.mount_pulse_guide(&device_id, direction, duration_ms as u32).await
+    mgr.mount_pulse_guide(&device_id, direction, duration_ms as u32)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -2000,19 +2311,24 @@ pub async fn api_get_focuser_status(device_id: String) -> Result<FocuserStatus, 
         let mgr = get_device_manager();
 
         // Get all focuser status components
-        let position = mgr.focuser_get_position(&device_id).await
+        let position = mgr
+            .focuser_get_position(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
-        let moving = mgr.focuser_is_moving(&device_id).await
-            .unwrap_or(false);
-        let temperature = mgr.focuser_get_temp(&device_id).await
-            .unwrap_or(None);
+        let moving = mgr.focuser_is_moving(&device_id).await.unwrap_or(false);
+        let temperature = mgr.focuser_get_temp(&device_id).await.unwrap_or(None);
         let (max_position, step_size) = match mgr.focuser_get_details(&device_id).await {
             Ok(details) => details,
             Err(e) => {
-                tracing::warn!("Failed to get focuser details for {}: {:?}, using defaults", device_id, e);
-                (100000, 1.0)
+                tracing::warn!(
+                    "Failed to get focuser details for {}: {:?}. Returning unknown max/step values.",
+                    device_id,
+                    e
+                );
+                (0, 0.0)
             }
         };
+        let is_absolute = mgr.focuser_is_absolute(&device_id).await.unwrap_or(false);
 
         Ok(FocuserStatus {
             connected: true,
@@ -2021,7 +2337,7 @@ pub async fn api_get_focuser_status(device_id: String) -> Result<FocuserStatus, 
             temperature,
             max_position,
             step_size,
-            is_absolute: true,
+            is_absolute,
             has_temperature: temperature.is_some(),
         })
     }
@@ -2031,12 +2347,12 @@ pub async fn api_get_focuser_status(device_id: String) -> Result<FocuserStatus, 
 pub async fn api_focuser_move_to(device_id: String, position: i32) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
         tracing::info!("Moving simulator focuser to position: {}", position);
-        
+
         {
             let mut focuser = get_sim_focuser().write().await;
             focuser.status.moving = true;
         }
-        
+
         // Simulate move time based on distance
         let current_pos = {
             let focuser = get_sim_focuser().read().await;
@@ -2044,27 +2360,31 @@ pub async fn api_focuser_move_to(device_id: String, position: i32) -> Result<(),
         };
         let distance = (position - current_pos).abs();
         let move_time = (distance as f64 / 1000.0).max(0.5);
-        
+
         tokio::time::sleep(tokio::time::Duration::from_secs_f64(move_time)).await;
-        
+
         {
             let mut focuser = get_sim_focuser().write().await;
             focuser.status.moving = false;
             focuser.status.position = position;
         }
-        
+
         tracing::info!("Focuser move complete");
         Ok(())
     } else {
         // Real device - use DeviceManager for proper driver routing
         let mgr = get_device_manager();
-        mgr.focuser_move_abs(&device_id, position).await
+        mgr.focuser_move_abs(&device_id, position)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
 
 /// Move focuser by relative amount
-pub async fn api_focuser_move_relative(device_id: String, delta: i32) -> Result<(), NightshadeError> {
+pub async fn api_focuser_move_relative(
+    device_id: String,
+    delta: i32,
+) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
         // Atomically read current position and set target while under write lock
         // This prevents race conditions where two relative moves could read the same position
@@ -2091,12 +2411,18 @@ pub async fn api_focuser_move_relative(device_id: String, delta: i32) -> Result<
             // Position was already set above, no need to set again
         }
 
-        tracing::info!("Focuser relative move complete: {} + {} = {}", current_pos, delta, target_pos);
+        tracing::info!(
+            "Focuser relative move complete: {} + {} = {}",
+            current_pos,
+            delta,
+            target_pos
+        );
         Ok(())
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.focuser_move_rel(&device_id, delta).await
+        mgr.focuser_move_rel(&device_id, delta)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -2111,7 +2437,8 @@ pub async fn api_focuser_halt(device_id: String) -> Result<(), NightshadeError> 
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.focuser_halt(&device_id).await
+        mgr.focuser_halt(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -2155,18 +2482,26 @@ fn get_sim_filterwheel() -> &'static Arc<RwLock<SimulatedFilterWheel>> {
 }
 
 /// Get filter wheel status
-pub async fn api_get_filterwheel_status(device_id: String) -> Result<FilterWheelStatus, NightshadeError> {
+pub async fn api_get_filterwheel_status(
+    device_id: String,
+) -> Result<FilterWheelStatus, NightshadeError> {
     if device_id.starts_with("sim_") {
         let fw = get_sim_filterwheel().read().await;
         Ok(fw.status.clone())
     } else {
         // Real device - use DeviceManager for proper driver routing
         let mgr = get_device_manager();
-        let position = mgr.filter_wheel_get_position(&device_id).await
+        let position = mgr
+            .filter_wheel_get_position(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
-        let is_moving = mgr.filter_wheel_is_moving(&device_id).await
+        let is_moving = mgr
+            .filter_wheel_is_moving(&device_id)
+            .await
             .unwrap_or(false);
-        let (filter_count, filter_names) = mgr.filter_wheel_get_config(&device_id).await
+        let (filter_count, filter_names) = mgr
+            .filter_wheel_get_config(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
 
         Ok(FilterWheelStatus {
@@ -2180,8 +2515,15 @@ pub async fn api_get_filterwheel_status(device_id: String) -> Result<FilterWheel
 }
 
 /// Set filter wheel position
-pub async fn api_filterwheel_set_position(device_id: String, position: i32) -> Result<(), NightshadeError> {
-    tracing::info!("[API] api_filterwheel_set_position called: device_id={}, position={}", device_id, position);
+pub async fn api_filterwheel_set_position(
+    device_id: String,
+    position: i32,
+) -> Result<(), NightshadeError> {
+    tracing::info!(
+        "[API] api_filterwheel_set_position called: device_id={}, position={}",
+        device_id,
+        position
+    );
     if device_id.starts_with("sim_") {
         tracing::info!("[API] Using simulator filter wheel");
         let mut fw = get_sim_filterwheel().write().await;
@@ -2199,7 +2541,9 @@ pub async fn api_filterwheel_set_position(device_id: String, position: i32) -> R
         // Real device - use DeviceManager for proper driver routing
         tracing::info!("[API] Using real device via DeviceManager");
         let mgr = get_device_manager();
-        let result = mgr.filter_wheel_set_position(&device_id, position).await
+        let result = mgr
+            .filter_wheel_set_position(&device_id, position)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e));
         match &result {
             Ok(_) => tracing::info!("[API] Filter wheel position set successfully"),
@@ -2217,14 +2561,19 @@ pub async fn api_filterwheel_get_names(device_id: String) -> Result<Vec<String>,
     } else {
         // Real device - use DeviceManager for proper driver routing
         let mgr = get_device_manager();
-        let (_, filter_names) = mgr.filter_wheel_get_config(&device_id).await
+        let (_, filter_names) = mgr
+            .filter_wheel_get_config(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
         Ok(filter_names)
     }
 }
 
 /// Set filter by name
-pub async fn api_filterwheel_set_by_name(device_id: String, name: String) -> Result<(), NightshadeError> {
+pub async fn api_filterwheel_set_by_name(
+    device_id: String,
+    name: String,
+) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
         let position = {
             let fw = get_sim_filterwheel().read().await;
@@ -2234,27 +2583,38 @@ pub async fn api_filterwheel_set_by_name(device_id: String, name: String) -> Res
         if let Some(pos) = position {
             api_filterwheel_set_position(device_id, (pos + 1) as i32).await
         } else {
-            Err(NightshadeError::OperationFailed(format!("Filter {} not found", name)))
+            Err(NightshadeError::OperationFailed(format!(
+                "Filter {} not found",
+                name
+            )))
         }
     } else {
         // Real device - find position by name and use DeviceManager
         let mgr = get_device_manager();
 
         // Get filter names from device
-        let (_, filter_names) = mgr.filter_wheel_get_config(&device_id)
-            .await
-            .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get filter config: {}", e)))?;
+        let (_, filter_names) = mgr.filter_wheel_get_config(&device_id).await.map_err(|e| {
+            NightshadeError::OperationFailed(format!("Failed to get filter config: {}", e))
+        })?;
 
         // Find filter position by name (case-insensitive)
-        let position = filter_names.iter()
+        let position = filter_names
+            .iter()
             .position(|n| n.eq_ignore_ascii_case(&name))
             .map(|p| (p + 1) as i32)
-            .ok_or_else(|| NightshadeError::OperationFailed(format!("Filter '{}' not found. Available: {:?}", name, filter_names)))?;
+            .ok_or_else(|| {
+                NightshadeError::OperationFailed(format!(
+                    "Filter '{}' not found. Available: {:?}",
+                    name, filter_names
+                ))
+            })?;
 
         // Set the filter position
         mgr.filter_wheel_set_position(&device_id, position)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(format!("Failed to set filter: {}", e)))?;
+            .map_err(|e| {
+                NightshadeError::OperationFailed(format!("Failed to set filter: {}", e))
+            })?;
 
         Ok(())
     }
@@ -2262,7 +2622,10 @@ pub async fn api_filterwheel_set_by_name(device_id: String, name: String) -> Res
 
 /// Set filter names on a filter wheel
 /// This pushes user-defined filter names from the equipment profile to the hardware driver.
-pub async fn api_filterwheel_set_filter_names(device_id: String, names: Vec<String>) -> Result<(), NightshadeError> {
+pub async fn api_filterwheel_set_filter_names(
+    device_id: String,
+    names: Vec<String>,
+) -> Result<(), NightshadeError> {
     tracing::info!("API: Setting filter names for '{}': {:?}", device_id, names);
 
     if device_id.starts_with("sim_") {
@@ -2280,7 +2643,9 @@ pub async fn api_filterwheel_set_filter_names(device_id: String, names: Vec<Stri
         let mgr = get_device_manager();
         mgr.filter_wheel_set_filter_names(&device_id, names)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(format!("Failed to set filter names: {}", e)))?;
+            .map_err(|e| {
+                NightshadeError::OperationFailed(format!("Failed to set filter names: {}", e))
+            })?;
         Ok(())
     }
 }
@@ -2326,10 +2691,11 @@ pub async fn api_get_rotator_status(device_id: String) -> Result<RotatorStatus, 
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
 
-        let position = mgr.rotator_get_position(&device_id).await
+        let position = mgr
+            .rotator_get_position(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
-        let is_moving = mgr.rotator_is_moving(&device_id).await
-            .unwrap_or(false);
+        let is_moving = mgr.rotator_is_moving(&device_id).await.unwrap_or(false);
 
         Ok(RotatorStatus {
             connected: true,
@@ -2368,13 +2734,17 @@ pub async fn api_rotator_move_to(device_id: String, angle: f64) -> Result<(), Ni
     } else {
         // Real device - use DeviceManager for proper driver routing
         let mgr = get_device_manager();
-        mgr.rotator_move_absolute(&device_id, angle).await
+        mgr.rotator_move_absolute(&device_id, angle)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
 
 /// Move rotator relative
-pub async fn api_rotator_move_relative(device_id: String, delta: f64) -> Result<(), NightshadeError> {
+pub async fn api_rotator_move_relative(
+    device_id: String,
+    delta: f64,
+) -> Result<(), NightshadeError> {
     if device_id.starts_with("sim_") {
         let current = {
             let rotator = get_sim_rotator().read().await;
@@ -2387,11 +2757,14 @@ pub async fn api_rotator_move_relative(device_id: String, delta: f64) -> Result<
     } else {
         // Real device - calculate target angle and use DeviceManager
         let mgr = get_device_manager();
-        let current = mgr.rotator_get_position(&device_id).await
+        let current = mgr
+            .rotator_get_position(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
         let target = (current + delta) % 360.0;
         let target = if target < 0.0 { target + 360.0 } else { target };
-        mgr.rotator_move_absolute(&device_id, target).await
+        mgr.rotator_move_absolute(&device_id, target)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -2407,7 +2780,8 @@ pub async fn api_rotator_halt(device_id: String) -> Result<(), NightshadeError> 
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.rotator_halt(&device_id).await
+        mgr.rotator_halt(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -2464,13 +2838,26 @@ pub struct AutofocusResultApi {
 pub async fn api_run_autofocus(
     device_id: String, // Focuser ID
     camera_id: String,
-    config: AutofocusConfigApi
+    config: AutofocusConfigApi,
 ) -> Result<AutofocusResultApi, NightshadeError> {
-    tracing::info!("Starting autofocus with camera {} and focuser {}", camera_id, device_id);
+    tracing::info!(
+        "Starting autofocus with camera {} and focuser {}",
+        camera_id,
+        device_id
+    );
 
     use nightshade_sequencer::instructions::{execute_autofocus, InstructionContext};
     use nightshade_sequencer::{AutofocusConfig, AutofocusMethod, Binning, NodeStatus};
+    use serde::Deserialize;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[derive(Debug, Deserialize)]
+    struct LegacyAutofocusPayload {
+        best_position: i32,
+        best_hfr: f64,
+        r_squared: f64,
+        focus_data: Vec<(i32, f64)>,
+    }
 
     // Reset cancellation token
     let cancel_token = get_autofocus_cancel_token();
@@ -2507,7 +2894,11 @@ pub async fn api_run_autofocus(
     let device_ops = create_unified_device_ops();
 
     // Try to get focuser temperature before autofocus
-    let temperature = device_ops.focuser_get_temperature(&device_id).await.ok().flatten();
+    let temperature = device_ops
+        .focuser_get_temperature(&device_id)
+        .await
+        .ok()
+        .flatten();
 
     let ctx = InstructionContext {
         target_ra: None,
@@ -2541,52 +2932,74 @@ pub async fn api_run_autofocus(
 
     match result.status {
         NodeStatus::Success => {
-            // Extract AutofocusResult from serde_json::Value
-            if let Some(data) = result.data {
-                // Try to deserialize as AutofocusResult
-                if let Ok(af_result) = serde_json::from_value::<nightshade_sequencer::AutofocusResult>(data) {
-                    // Convert to API result
-                    let focus_data: Vec<FocusDataPoint> = af_result.data_points.iter().map(|dp| {
-                        FocusDataPoint {
-                            position: dp.position,
-                            hfr: dp.hfr,
-                            fwhm: dp.fwhm,
-                            star_count: dp.star_count,
-                        }
-                    }).collect();
+            let data = result.data.ok_or_else(|| {
+                NightshadeError::OperationFailed(
+                    "Autofocus completed without a result payload".to_string(),
+                )
+            })?;
 
-                    return Ok(AutofocusResultApi {
-                        best_position: af_result.best_position,
-                        best_hfr: af_result.best_hfr,
-                        focus_data,
-                        method: method_str,
-                        temperature: af_result.temperature_celsius,
-                        timestamp,
-                        curve_fit_quality: af_result.curve_fit_quality,
-                        backlash_applied: af_result.backlash_applied,
-                    });
-                }
+            // Canonical payload (nightshade_sequencer::AutofocusResult)
+            if let Ok(af_result) =
+                serde_json::from_value::<nightshade_sequencer::AutofocusResult>(data.clone())
+            {
+                let focus_data: Vec<FocusDataPoint> = af_result
+                    .data_points
+                    .iter()
+                    .map(|dp| FocusDataPoint {
+                        position: dp.position,
+                        hfr: dp.hfr,
+                        fwhm: dp.fwhm,
+                        star_count: dp.star_count,
+                    })
+                    .collect();
+
+                return Ok(AutofocusResultApi {
+                    best_position: af_result.best_position,
+                    best_hfr: af_result.best_hfr,
+                    focus_data,
+                    method: method_str,
+                    temperature: af_result.temperature_celsius.or(temperature),
+                    timestamp,
+                    curve_fit_quality: af_result.curve_fit_quality,
+                    backlash_applied: af_result.backlash_applied,
+                });
             }
 
-            // Fallback if no data or deserialization failed
-            Ok(AutofocusResultApi {
-                best_position: 0,
-                best_hfr: 0.0,
-                focus_data: vec![],
-                method: method_str,
-                temperature,
-                timestamp,
-                curve_fit_quality: 0.0,
-                backlash_applied: false,
-            })
-        },
-        NodeStatus::Failure => {
-            Err(NightshadeError::OperationFailed(result.message.unwrap_or("Autofocus failed".to_string())))
-        },
-        NodeStatus::Cancelled => {
-            Err(NightshadeError::Cancelled)
-        },
-        _ => Err(NightshadeError::OperationFailed("Unknown error".to_string())),
+            // Backward compatibility for legacy tuple payloads
+            if let Ok(legacy) = serde_json::from_value::<LegacyAutofocusPayload>(data.clone()) {
+                let focus_data = legacy
+                    .focus_data
+                    .into_iter()
+                    .map(|(position, hfr)| FocusDataPoint {
+                        position,
+                        hfr,
+                        fwhm: None,
+                        star_count: 0,
+                    })
+                    .collect();
+                return Ok(AutofocusResultApi {
+                    best_position: legacy.best_position,
+                    best_hfr: legacy.best_hfr,
+                    focus_data,
+                    method: method_str,
+                    temperature,
+                    timestamp,
+                    curve_fit_quality: legacy.r_squared,
+                    backlash_applied: false,
+                });
+            }
+
+            Err(NightshadeError::OperationFailed(
+                "Autofocus completed but returned an unrecognized payload format".to_string(),
+            ))
+        }
+        NodeStatus::Failure => Err(NightshadeError::OperationFailed(
+            result.message.unwrap_or("Autofocus failed".to_string()),
+        )),
+        NodeStatus::Cancelled => Err(NightshadeError::Cancelled),
+        _ => Err(NightshadeError::OperationFailed(
+            "Unknown error".to_string(),
+        )),
     }
 }
 
@@ -2607,12 +3020,12 @@ pub async fn api_cancel_autofocus() -> Result<(), NightshadeError> {
 pub struct CapturedImageResult {
     pub width: u32,
     pub height: u32,
-    pub display_data: Vec<u8>,  // RGB (width*height*3) if is_color=true, grayscale (width*height) if is_color=false
-    pub histogram: Vec<u32>,    // 256-bin histogram
+    pub display_data: Vec<u8>, // RGB (width*height*3) if is_color=true, grayscale (width*height) if is_color=false
+    pub histogram: Vec<u32>,   // 256-bin histogram
     pub stats: ImageStatsResult,
     pub exposure_time: f64,
     pub timestamp: String,
-    pub is_color: bool,  // true if display_data is RGB, false if grayscale
+    pub is_color: bool, // true if display_data is RGB, false if grayscale
 }
 
 /// Image statistics
@@ -2633,8 +3046,8 @@ pub struct ImageStatsResult {
 pub struct RawImageInfo {
     pub width: u32,
     pub height: u32,
-    pub data: Vec<u16>,              // Raw 16-bit sensor data
-    pub sensor_type: Option<String>, // "Monochrome" or "Color"
+    pub data: Vec<u16>,                   // Raw 16-bit sensor data
+    pub sensor_type: Option<String>,      // "Monochrome" or "Color"
     pub bayer_offset: Option<(i32, i32)>, // Bayer pattern offset for color sensors
 }
 
@@ -2651,7 +3064,8 @@ pub struct CapturedImageData {
 /// Per-device image storage - keyed by device ID to support multi-camera operation
 /// Each camera's image data is stored independently, preventing race conditions
 /// where concurrent cameras could overwrite each other's captured images.
-static UNIFIED_IMAGE_STORAGE: OnceLock<Arc<RwLock<HashMap<String, CapturedImageData>>>> = OnceLock::new();
+static UNIFIED_IMAGE_STORAGE: OnceLock<Arc<RwLock<HashMap<String, CapturedImageData>>>> =
+    OnceLock::new();
 
 fn get_unified_image_storage() -> &'static Arc<RwLock<HashMap<String, CapturedImageData>>> {
     UNIFIED_IMAGE_STORAGE.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
@@ -2666,10 +3080,10 @@ pub(crate) async fn store_captured_image_atomically(
     raw_info: RawImageInfo,
 ) {
     let mut storage = get_unified_image_storage().write().await;
-    storage.insert(device_id.to_string(), CapturedImageData {
-        display,
-        raw_info,
-    });
+    storage.insert(
+        device_id.to_string(),
+        CapturedImageData { display, raw_info },
+    );
 }
 
 /// Start a camera exposure
@@ -2682,9 +3096,15 @@ pub async fn api_camera_start_exposure(
     bin_x: i32,
     bin_y: i32,
 ) -> Result<(), NightshadeError> {
-    tracing::info!("Starting {}s exposure with gain={}, offset={}, bin={}x{}", 
-        duration_secs, gain, offset, bin_x, bin_y);
-    
+    tracing::info!(
+        "Starting {}s exposure with gain={}, offset={}, bin={}x{}",
+        duration_secs,
+        gain,
+        offset,
+        bin_x,
+        bin_y
+    );
+
     // Check if simulator or real device
     if device_id.starts_with("sim_") {
         // Simulator path (existing code)
@@ -2693,7 +3113,7 @@ pub async fn api_camera_start_exposure(
             let mut camera = get_sim_camera().write().await;
             camera.status.state = CameraState::Exposing;
         }
-        
+
         // Publish exposure started event
         get_state().publish_imaging_event(
             ImagingEvent::ExposureStarted {
@@ -2702,13 +3122,14 @@ pub async fn api_camera_start_exposure(
             },
             EventSeverity::Info,
         );
-        
+
         // Simulate exposure with progress updates using adaptive polling
         // This reduces CPU overhead for long simulated exposures while maintaining
         // responsiveness for progress updates
         let start_time = std::time::Instant::now();
         let duration = std::time::Duration::from_secs_f64(duration_secs);
-        let mut poller: AdaptivePoller<String> = AdaptivePoller::from_preset(PollerPreset::Exposure);
+        let mut poller: AdaptivePoller<String> =
+            AdaptivePoller::from_preset(PollerPreset::Exposure);
 
         while start_time.elapsed() < duration {
             let progress = start_time.elapsed().as_secs_f64() / duration_secs;
@@ -2726,13 +3147,13 @@ pub async fn api_camera_start_exposure(
             let poll_interval = poller.tick(&progress_bucket);
             tokio::time::sleep(poll_interval).await;
         }
-        
+
         // Update camera state to reading
         {
             let mut camera = get_sim_camera().write().await;
             camera.status.state = CameraState::Reading;
         }
-        
+
         // Generate simulated image
         let sensor_width = 4144 / bin_x as u32;
         let sensor_height = 2822 / bin_y as u32;
@@ -2758,7 +3179,7 @@ pub async fn api_camera_start_exposure(
             },
             exposure_time: duration_secs,
             timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
-            is_color: false,  // Simulated images are grayscale
+            is_color: false, // Simulated images are grayscale
         };
 
         let raw_info = RawImageInfo {
@@ -2779,12 +3200,10 @@ pub async fn api_camera_start_exposure(
 
         // Publish exposure complete event
         get_state().publish_imaging_event(
-            ImagingEvent::ExposureComplete {
-                success: true,
-            },
+            ImagingEvent::ExposureComplete { success: true },
             EventSeverity::Info,
         );
-        
+
         tracing::info!("Exposure complete");
         Ok(())
     } else {
@@ -2793,22 +3212,20 @@ pub async fn api_camera_start_exposure(
         let device_ops = create_unified_device_ops();
 
         // Start exposure and get raw data (blocks until complete, events published by UnifiedDeviceOps)
-        let seq_image = device_ops.camera_start_exposure(
-            &device_id,
-            duration_secs,
-            Some(gain),
-            Some(offset),
-            bin_x,
-            bin_y,
-        ).await.map_err(|e| NightshadeError::OperationFailed(e.to_string()))?;
-        
+        let seq_image = device_ops
+            .camera_start_exposure(
+                &device_id,
+                duration_secs,
+                Some(gain),
+                Some(offset),
+                bin_x,
+                bin_y,
+            )
+            .await
+            .map_err(|e| NightshadeError::OperationFailed(e.to_string()))?;
+
         // Convert SeqImageData to ImageData for processing
-        let image = ImageData::from_u16(
-            seq_image.width,
-            seq_image.height,
-            1,
-            &seq_image.data,
-        );
+        let image = ImageData::from_u16(seq_image.width, seq_image.height, 1, &seq_image.data);
 
         // DIAGNOSTIC: Log raw data statistics to debug mid-gray image issue
         {
@@ -2818,7 +3235,8 @@ pub async fn api_camera_start_exposure(
                 let max_val = raw_data.iter().max().copied().unwrap_or(0);
                 let sum: u64 = raw_data.iter().map(|&v| v as u64).sum();
                 let mean_val = sum / raw_data.len() as u64;
-                let unique_vals: std::collections::HashSet<_> = raw_data.iter().take(10000).collect();
+                let unique_vals: std::collections::HashSet<_> =
+                    raw_data.iter().take(10000).collect();
                 tracing::info!(
                     "[DIAGNOSTIC] Raw image data: size={}, min={}, max={}, mean={}, unique_sample_count={}",
                     raw_data.len(), min_val, max_val, mean_val, unique_vals.len()
@@ -2834,40 +3252,38 @@ pub async fn api_camera_start_exposure(
                 tracing::error!("[DIAGNOSTIC] WARNING: Raw data is empty!");
             }
         }
-        
+
         // Automatic color detection from camera metadata
-        let is_color = seq_image.sensor_type.as_deref() == Some("Color") && seq_image.bayer_offset.is_some();
-        
+        let is_color =
+            seq_image.sensor_type.as_deref() == Some("Color") && seq_image.bayer_offset.is_some();
+
         // Determine Bayer pattern from offsets (if color)
         let bayer_pattern = if is_color {
             match seq_image.bayer_offset {
-                Some((0, 0)) => BayerPattern::RGGB,  // RGGB
-                Some((1, 0)) => BayerPattern::GRBG,  // GRBG  
-                Some((0, 1)) => BayerPattern::GBRG,  // GBRG
-                Some((1, 1)) => BayerPattern::BGGR,  // BGGR
-                _ => BayerPattern::RGGB,  // Default
+                Some((0, 0)) => BayerPattern::RGGB, // RGGB
+                Some((1, 0)) => BayerPattern::GRBG, // GRBG
+                Some((0, 1)) => BayerPattern::GBRG, // GBRG
+                Some((1, 1)) => BayerPattern::BGGR, // BGGR
+                _ => BayerPattern::RGGB,            // Default
             }
         } else {
-            BayerPattern::RGGB  // Doesn't matter for mono
+            BayerPattern::RGGB // Doesn't matter for mono
         };
-        
+
         let display_data: Vec<u8>;
-        
+
         if is_color {
             // Color debayering path
             let algorithm = DebayerAlgorithm::Bilinear;
-            
+
             tracing::info!("Debayering color image with pattern {:?}", bayer_pattern);
-            
+
             // 2. Debayer to RGB16 (if color)
             // Cast u8 buffer to u16 slice (unsafe but fast)
             let u16_data = unsafe {
-                std::slice::from_raw_parts(
-                    image.data.as_ptr() as *const u16,
-                    image.data.len() / 2
-                )
+                std::slice::from_raw_parts(image.data.as_ptr() as *const u16, image.data.len() / 2)
             };
-            
+
             let mut rgb_data = nightshade_imaging::debayer_to_rgb16(
                 u16_data,
                 seq_image.width,
@@ -2875,27 +3291,24 @@ pub async fn api_camera_start_exposure(
                 bayer_pattern,
                 algorithm,
             );
-            
+
             // 2.5. Apply Auto White Balance (Histogram Peak Alignment)
             apply_auto_white_balance(&mut rgb_data);
-            
+
             // 3. Auto-stretch RGB (unified params for simplicity)
-            let rgb_pixels: Vec<f64> = rgb_data.par_iter()
-                .map(|&v| v as f64 / 65535.0)
-                .collect();
+            let rgb_pixels: Vec<f64> = rgb_data.par_iter().map(|&v| v as f64 / 65535.0).collect();
             let mut sorted = rgb_pixels.clone();
             // Use unwrap_or for float comparison to handle NaN safely
             // NaN values are treated as equal to avoid panics
-            sorted.par_sort_unstable_by(|a, b| {
-                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
-            });
+            sorted
+                .par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             let median = sorted[sorted.len() / 2];
             let unified_params = nightshade_imaging::StretchParams {
                 shadows: (median - 0.1).max(0.0),
                 highlights: (median + 0.3).min(1.0),
                 midtones: 0.5,
             };
-            
+
             // 4. Apply stretch to convert RGB u16 -> RGB u8
             display_data = nightshade_imaging::apply_stretch_rgb(
                 &rgb_data,
@@ -2908,7 +3321,9 @@ pub async fn api_camera_start_exposure(
             let stretch_params = nightshade_imaging::auto_stretch_stf(&image);
             tracing::info!(
                 "[DIAGNOSTIC] Stretch params: shadows={:.6}, highlights={:.6}, midtones={:.6}",
-                stretch_params.shadows, stretch_params.highlights, stretch_params.midtones
+                stretch_params.shadows,
+                stretch_params.highlights,
+                stretch_params.midtones
             );
             display_data = nightshade_imaging::apply_stretch(&image, &stretch_params);
 
@@ -2919,15 +3334,20 @@ pub async fn api_camera_start_exposure(
             let display_mean = display_sum / display_data.len() as u64;
             tracing::info!(
                 "[DIAGNOSTIC] Display data after stretch: min={}, max={}, mean={}",
-                display_min, display_max, display_mean
+                display_min,
+                display_max,
+                display_mean
             );
         }
-        
+
         // Calculate statistics
         let stats = nightshade_imaging::calculate_stats_u16(&image);
-        let stars = nightshade_imaging::detect_stars(&image, &nightshade_imaging::StarDetectionConfig::default());
+        let stars = nightshade_imaging::detect_stars(
+            &image,
+            &nightshade_imaging::StarDetectionConfig::default(),
+        );
         let star_count = stars.len() as u32;
-        
+
         // Calculate histogram (256 bins for u8 display data)
         let mut histogram = vec![0u32; 256];
         for &pixel in &display_data {
@@ -2966,7 +3386,10 @@ pub async fn api_camera_start_exposure(
         store_captured_image_atomically(&device_id, display_result, raw_info).await;
 
         // Note: ExposureComplete event is published by UnifiedDeviceOps
-        tracing::info!("Real camera exposure complete, {} stars detected", star_count);
+        tracing::info!(
+            "Real camera exposure complete, {} stars detected",
+            star_count
+        );
         Ok(())
     }
 }
@@ -2978,8 +3401,12 @@ pub async fn api_get_last_image(device_id: String) -> Result<CapturedImageResult
     let storage = get_unified_image_storage().read().await;
     match storage.get(&device_id) {
         Some(data) => {
-            tracing::info!("API: Returning stored image {}x{}, display_data size: {} bytes",
-                data.display.width, data.display.height, data.display.display_data.len());
+            tracing::info!(
+                "API: Returning stored image {}x{}, display_data size: {} bytes",
+                data.display.width,
+                data.display.height,
+                data.display.display_data.len()
+            );
             Ok(data.display.clone())
         }
         None => {
@@ -2994,7 +3421,8 @@ pub async fn api_get_last_image(device_id: String) -> Result<CapturedImageResult
 /// Reads from per-device atomic storage to ensure consistency with display data
 pub async fn api_get_last_raw_image_data(device_id: String) -> Result<Vec<u16>, NightshadeError> {
     let storage = get_unified_image_storage().read().await;
-    storage.get(&device_id)
+    storage
+        .get(&device_id)
         .map(|data| data.raw_info.data.clone())
         .ok_or(NightshadeError::NoImageAvailable)
 }
@@ -3004,7 +3432,9 @@ pub async fn api_get_last_raw_image_data(device_id: String) -> Result<Vec<u16>, 
 /// that requires original 16-bit sensor data (not display-stretched 8-bit data)
 /// Reads from per-device atomic storage to ensure consistency with display data
 #[flutter_rust_bridge::frb(ignore)]
-pub async fn get_last_raw_image_info(device_id: &str) -> Result<Option<RawImageInfo>, NightshadeError> {
+pub async fn get_last_raw_image_info(
+    device_id: &str,
+) -> Result<Option<RawImageInfo>, NightshadeError> {
     let storage = get_unified_image_storage().read().await;
     Ok(storage.get(device_id).map(|data| data.raw_info.clone()))
 }
@@ -3028,7 +3458,8 @@ pub async fn api_camera_cancel_exposure(device_id: String) -> Result<(), Nightsh
     } else {
         // Route real devices through DeviceManager
         let mgr = get_device_manager();
-        mgr.camera_abort_exposure(&device_id).await
+        mgr.camera_abort_exposure(&device_id)
+            .await
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -3039,47 +3470,51 @@ fn generate_simulated_image(
     height: u32,
     gain: i32,
     exposure_time: f64,
-) -> (Vec<u16>, Vec<u8>, Vec<u32>, nightshade_imaging::ImageStats, u32) {
-    
-    
+) -> (
+    Vec<u16>,
+    Vec<u8>,
+    Vec<u32>,
+    nightshade_imaging::ImageStats,
+    u32,
+) {
     let mut rng = rand::thread_rng();
     let pixel_count = (width * height) as usize;
-    
+
     // Create raw 16-bit image data
     let mut raw_data: Vec<u16> = vec![0u16; pixel_count];
-    
+
     // Background level based on gain and exposure
     let base_background = 500 + (gain as f64 * 5.0 + exposure_time * 10.0) as u16;
     let noise_level = (50.0 + gain as f64 * 0.5) as u16;
-    
+
     // Fill with background + noise
     for pixel in &mut raw_data {
         let noise = (rng.gen::<f64>() * noise_level as f64) as i32;
         *pixel = (base_background as i32 + noise - noise_level as i32 / 2).clamp(0, 65535) as u16;
     }
-    
+
     // Add stars (more with longer exposure)
     let num_stars = (100.0 + exposure_time * 50.0).min(500.0) as u32;
     let mut star_count = 0u32;
-    
+
     for _ in 0..num_stars {
         let x = rng.gen_range(5..width - 5);
         let y = rng.gen_range(5..height - 5);
         let brightness = rng.gen_range(5000u16..60000u16);
         let size = rng.gen_range(1.5f64..4.0f64);
-        
+
         // Draw Gaussian star profile
         let radius = (size * 3.0) as i32;
         for dy in -radius..=radius {
             for dx in -radius..=radius {
                 let px = (x as i32 + dx) as u32;
                 let py = (y as i32 + dy) as u32;
-                
+
                 if px < width && py < height {
                     let dist_sq = (dx * dx + dy * dy) as f64;
                     let sigma_sq = size * size;
                     let intensity = brightness as f64 * (-dist_sq / (2.0 * sigma_sq)).exp();
-                    
+
                     let idx = (py * width + px) as usize;
                     raw_data[idx] = (raw_data[idx] as f64 + intensity).min(65535.0) as u16;
                 }
@@ -3087,18 +3522,16 @@ fn generate_simulated_image(
         }
         star_count += 1;
     }
-    
+
     // Add some hot pixels
     for _ in 0..20 {
         let idx = rng.gen_range(0..pixel_count);
         raw_data[idx] = rng.gen_range(40000u16..65535u16);
     }
-    
+
     // Create ImageData for stats calculation
-    let image_bytes: Vec<u8> = raw_data.iter()
-        .flat_map(|&val| val.to_le_bytes())
-        .collect();
-    
+    let image_bytes: Vec<u8> = raw_data.iter().flat_map(|&val| val.to_le_bytes()).collect();
+
     let image_data = nightshade_imaging::ImageData {
         width,
         height,
@@ -3106,20 +3539,20 @@ fn generate_simulated_image(
         pixel_type: nightshade_imaging::PixelType::U16,
         data: image_bytes.clone(),
     };
-    
+
     // Calculate stats
     let stats = nightshade_imaging::calculate_stats_u16(&image_data);
-    
+
     // Auto stretch for display
     let stretch_params = nightshade_imaging::auto_stretch_stf(&image_data);
     let display_data = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
-    
+
     // Calculate histogram from display data
     let mut histogram = vec![0u32; 256];
     for &pixel in &display_data {
         histogram[pixel as usize] += 1;
     }
-    
+
     (raw_data, display_data, histogram, stats, star_count)
 }
 
@@ -3151,11 +3584,13 @@ pub mod rand {
                 .unwrap_or(std::time::Duration::from_secs(0))
                 .as_nanos() as u64;
             // Simple LCG - even with seed=0, this produces valid output
-            let x = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let x = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             (x as f64) / (u64::MAX as f64)
         }
     }
-    
+
     #[flutter_rust_bridge::frb(ignore)]
     pub struct Rng {
         pub state: u64,
@@ -3173,7 +3608,10 @@ pub mod rand {
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or(std::time::Duration::from_secs(0))
                 .as_nanos() as u64;
-            self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(seed);
+            self.state = self
+                .state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(seed);
             T::in_range(self.state, range)
         }
     }
@@ -3236,7 +3674,11 @@ pub async fn api_get_session_state() -> SessionState {
 }
 
 /// Start a new imaging session
-pub async fn api_start_session(target_name: Option<String>, ra: Option<f64>, dec: Option<f64>) -> Result<(), NightshadeError> {
+pub async fn api_start_session(
+    target_name: Option<String>,
+    ra: Option<f64>,
+    dec: Option<f64>,
+) -> Result<(), NightshadeError> {
     get_state().start_session(target_name, ra, dec).await;
     tracing::info!("Session started");
     Ok(())
@@ -3315,8 +3757,7 @@ fn image_data_to_linear_f64(image_data: &ImageData) -> Vec<f64> {
             .chunks_exact(8)
             .map(|chunk| {
                 f64::from_be_bytes([
-                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
-                    chunk[7],
+                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
                 ])
             })
             .collect::<Vec<f64>>(),
@@ -3326,18 +3767,21 @@ fn image_data_to_linear_f64(image_data: &ImageData) -> Vec<f64> {
 /// Read a FITS file from disk
 pub async fn api_read_fits_file(file_path: String) -> Result<FitsReadResult, NightshadeError> {
     use std::path::Path;
-    
+
     tracing::info!("Reading FITS file: {}", file_path);
-    
+
     let path = Path::new(&file_path);
     if !path.exists() {
-        return Err(NightshadeError::IoError(format!("File not found: {}", file_path)));
+        return Err(NightshadeError::IoError(format!(
+            "File not found: {}",
+            file_path
+        )));
     }
-    
+
     // Read the actual FITS file
     let (image_data, header) = nightshade_imaging::read_fits(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
-    
+
     // Extract header keywords
     let object_name = header.get_string("OBJECT").map(|s| s.to_string());
     let exposure_time = header.get_float("EXPTIME");
@@ -3347,23 +3791,27 @@ pub async fn api_read_fits_file(file_path: String) -> Result<FitsReadResult, Nig
     let date_obs = header.get_string("DATE-OBS").map(|s| s.to_string());
     let bitpix = header.get_int("BITPIX").unwrap_or(16) as i32;
     let bayer_pattern = header.get_string("BAYERPAT").map(|s| s.to_string());
-    
+
     // Calculate statistics
     let stats = nightshade_imaging::calculate_stats_u16(&image_data);
-    
+
     // Auto stretch for display
     let stretch_params = nightshade_imaging::auto_stretch_stf(&image_data);
     let display_data = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
-    
+
     // Calculate histogram
     let mut histogram = vec![0u32; 256];
     for &pixel in &display_data {
         histogram[pixel as usize] += 1;
     }
-    
-    tracing::info!("FITS file loaded: {}x{}, {} pixels", image_data.width, image_data.height, 
-        image_data.width * image_data.height);
-    
+
+    tracing::info!(
+        "FITS file loaded: {}x{}, {} pixels",
+        image_data.width,
+        image_data.height,
+        image_data.width * image_data.height
+    );
+
     Ok(FitsReadResult {
         width: image_data.width,
         height: image_data.height,
@@ -3399,7 +3847,10 @@ pub async fn api_read_fits_linear_data(
 
     let path = Path::new(&file_path);
     if !path.exists() {
-        return Err(NightshadeError::IoError(format!("File not found: {}", file_path)));
+        return Err(NightshadeError::IoError(format!(
+            "File not found: {}",
+            file_path
+        )));
     }
 
     let (image_data, header) = nightshade_imaging::read_fits(path)
@@ -3485,14 +3936,14 @@ pub struct StarDetectionConfigApi {
 impl Default for StarDetectionConfigApi {
     fn default() -> Self {
         Self {
-            detection_sigma: 5.0,   // Increased from 3.0 - more conservative
-            min_area: 9,            // Increased from 5 - hot pixels rarely exceed this
+            detection_sigma: 5.0, // Increased from 3.0 - more conservative
+            min_area: 9,          // Increased from 5 - hot pixels rarely exceed this
             max_area: 10000,
-            max_eccentricity: 0.7,  // Slightly tighter - real stars are round
+            max_eccentricity: 0.7, // Slightly tighter - real stars are round
             saturation_limit: 60000,
             hfr_radius: 20,
-            min_hfr: Some(1.2),     // Real stars have HFR > 1.2 typically
-            min_snr: Some(10.0),    // Require decent signal-to-noise
+            min_hfr: Some(1.2),       // Real stars have HFR > 1.2 typically
+            min_snr: Some(10.0),      // Require decent signal-to-noise
             max_sharpness: Some(0.7), // Hot pixels have sharpness > 0.8
         }
     }
@@ -3504,13 +3955,13 @@ pub async fn api_detect_stars_in_file(
     config: Option<StarDetectionConfigApi>,
 ) -> Result<StarDetectionResultApi, NightshadeError> {
     use std::path::Path;
-    
+
     tracing::info!("Detecting stars in: {}", file_path);
-    
+
     let path = Path::new(&file_path);
     let (image_data, _header) = nightshade_imaging::read_fits(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
-    
+
     let config = config.unwrap_or_default();
     let detection_config = nightshade_imaging::StarDetectionConfig {
         detection_sigma: config.detection_sigma,
@@ -3523,24 +3974,32 @@ pub async fn api_detect_stars_in_file(
         min_snr: config.min_snr.unwrap_or(10.0),
         max_sharpness: config.max_sharpness.unwrap_or(0.7),
     };
-    
+
     let result = nightshade_imaging::detect_stars_with_stats(&image_data, &detection_config);
-    
-    let stars: Vec<DetectedStarInfo> = result.stars.iter().map(|s| DetectedStarInfo {
-        x: s.x,
-        y: s.y,
-        flux: s.flux,
-        hfr: s.hfr,
-        fwhm: s.fwhm,
-        peak: s.peak,
-        background: s.background,
-        snr: s.snr,
-        eccentricity: s.eccentricity,
-        sharpness: s.sharpness,
-    }).collect();
-    
-    tracing::info!("Detected {} stars, median HFR: {:.2}", result.star_count, result.median_hfr);
-    
+
+    let stars: Vec<DetectedStarInfo> = result
+        .stars
+        .iter()
+        .map(|s| DetectedStarInfo {
+            x: s.x,
+            y: s.y,
+            flux: s.flux,
+            hfr: s.hfr,
+            fwhm: s.fwhm,
+            peak: s.peak,
+            background: s.background,
+            snr: s.snr,
+            eccentricity: s.eccentricity,
+            sharpness: s.sharpness,
+        })
+        .collect();
+
+    tracing::info!(
+        "Detected {} stars, median HFR: {:.2}",
+        result.star_count,
+        result.median_hfr
+    );
+
     Ok(StarDetectionResultApi {
         stars,
         star_count: result.star_count,
@@ -3576,13 +4035,18 @@ pub async fn api_get_star_crops_from_last_image(
     device_id: String,
     max_crops: u32,
 ) -> Result<Vec<StarCropApi>, NightshadeError> {
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 
-    tracing::info!("API: api_get_star_crops_from_last_image for device: {}, max_crops: {}", device_id, max_crops);
+    tracing::info!(
+        "API: api_get_star_crops_from_last_image for device: {}, max_crops: {}",
+        device_id,
+        max_crops
+    );
 
     // Get the last raw image for this device
     let storage = get_unified_image_storage().read().await;
-    let image_data = storage.get(&device_id)
+    let image_data = storage
+        .get(&device_id)
         .ok_or(NightshadeError::NoImageAvailable)?;
 
     // Convert to imaging format
@@ -3590,7 +4054,7 @@ pub async fn api_get_star_crops_from_last_image(
         image_data.raw_info.width,
         image_data.raw_info.height,
         1,
-        &image_data.raw_info.data
+        &image_data.raw_info.data,
     );
 
     // Detect stars
@@ -3606,15 +4070,16 @@ pub async fn api_get_star_crops_from_last_image(
     let crops = nightshade_imaging::extract_top_star_crops(&img, &stars, max_crops as usize, 80);
 
     // Convert to API format
-    let result: Vec<StarCropApi> = crops.iter().map(|crop| {
-        StarCropApi {
+    let result: Vec<StarCropApi> = crops
+        .iter()
+        .map(|crop| StarCropApi {
             pixels_base64: BASE64.encode(&crop.pixels),
             width: crop.width,
             height: crop.height,
             hfr: crop.hfr,
             snr: crop.snr,
-        }
-    }).collect();
+        })
+        .collect();
 
     tracing::info!("Extracted {} star crops", result.len());
     Ok(result)
@@ -3638,11 +4103,11 @@ pub async fn api_calculate_histogram(
     logarithmic: u8,
 ) -> Result<Vec<f32>, NightshadeError> {
     use std::path::Path;
-    
+
     let path = Path::new(&file_path);
     let (image_data, _header) = nightshade_imaging::read_fits(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
-    
+
     let logarithmic_bool = logarithmic != 0;
     let histogram = nightshade_imaging::calculate_display_histogram(&image_data, logarithmic_bool);
     Ok(histogram)
@@ -3657,15 +4122,17 @@ pub struct StretchParamsApi {
 }
 
 /// Auto-calculate stretch parameters for an image
-pub async fn api_calculate_auto_stretch(file_path: String) -> Result<StretchParamsApi, NightshadeError> {
+pub async fn api_calculate_auto_stretch(
+    file_path: String,
+) -> Result<StretchParamsApi, NightshadeError> {
     use std::path::Path;
-    
+
     let path = Path::new(&file_path);
     let (image_data, _header) = nightshade_imaging::read_fits(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
-    
+
     let params = nightshade_imaging::auto_stretch_stf(&image_data);
-    
+
     Ok(StretchParamsApi {
         shadows: params.shadows,
         highlights: params.highlights,
@@ -3679,17 +4146,17 @@ pub async fn api_apply_stretch(
     params: StretchParamsApi,
 ) -> Result<Vec<u8>, NightshadeError> {
     use std::path::Path;
-    
+
     let path = Path::new(&file_path);
     let (image_data, _header) = nightshade_imaging::read_fits(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
-    
+
     let stretch_params = nightshade_imaging::StretchParams {
         shadows: params.shadows,
         highlights: params.highlights,
         midtones: params.midtones,
     };
-    
+
     let display_data = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
     Ok(display_data)
 }
@@ -3723,24 +4190,24 @@ pub async fn api_debayer_fits_file(
     algorithm: DebayerAlgorithmApi,
 ) -> Result<Vec<u8>, NightshadeError> {
     use std::path::Path;
-    
+
     let path = Path::new(&file_path);
     let (image_data, _header) = nightshade_imaging::read_fits(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
-    
+
     let bayer_pattern = match pattern {
         BayerPatternApi::RGGB => nightshade_imaging::BayerPattern::RGGB,
         BayerPatternApi::BGGR => nightshade_imaging::BayerPattern::BGGR,
         BayerPatternApi::GRBG => nightshade_imaging::BayerPattern::GRBG,
         BayerPatternApi::GBRG => nightshade_imaging::BayerPattern::GBRG,
     };
-    
+
     let debayer_alg = match algorithm {
         DebayerAlgorithmApi::Bilinear => nightshade_imaging::DebayerAlgorithm::Bilinear,
         DebayerAlgorithmApi::VNG => nightshade_imaging::DebayerAlgorithm::VNG,
         DebayerAlgorithmApi::SuperPixel => nightshade_imaging::DebayerAlgorithm::SuperPixel,
     };
-    
+
     let rgb_image = nightshade_imaging::debayer(
         &image_data.data,
         image_data.width,
@@ -3748,7 +4215,7 @@ pub async fn api_debayer_fits_file(
         bayer_pattern,
         debayer_alg,
     );
-    
+
     // Return RGBA8 for Flutter display
     Ok(rgb_image.to_rgba8())
 }
@@ -3772,38 +4239,53 @@ pub struct XisfReadResult {
 /// Read an XISF file
 pub async fn api_read_xisf_file(file_path: String) -> Result<XisfReadResult, NightshadeError> {
     use std::path::Path;
-    
+
     tracing::info!("Reading XISF file: {}", file_path);
-    
+
     let path = Path::new(&file_path);
     if !path.exists() {
-        return Err(NightshadeError::IoError(format!("File not found: {}", file_path)));
+        return Err(NightshadeError::IoError(format!(
+            "File not found: {}",
+            file_path
+        )));
     }
-    
+
     let (image_data, metadata) = nightshade_imaging::read_xisf(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read XISF: {}", e)))?;
-    
+
     // Calculate statistics
     let stats = nightshade_imaging::calculate_stats_u16(&image_data);
-    
+
     // Auto stretch for display
     let stretch_params = nightshade_imaging::auto_stretch_stf(&image_data);
     let display_data = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
-    
+
     // Calculate histogram
     let mut histogram = vec![0u32; 256];
     for &pixel in &display_data {
         histogram[pixel as usize] += 1;
     }
-    
+
     // Convert properties to strings
-    let properties: Vec<(String, String)> = metadata.properties.iter()
+    let properties: Vec<(String, String)> = metadata
+        .properties
+        .iter()
         .map(|(k, v)| (k.clone(), format!("{:?}", v)))
-        .chain(metadata.fits_keywords.iter().map(|(k, v)| (k.clone(), v.clone())))
+        .chain(
+            metadata
+                .fits_keywords
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone())),
+        )
         .collect();
-    
-    tracing::info!("XISF file loaded: {}x{}x{}", image_data.width, image_data.height, image_data.channels);
-    
+
+    tracing::info!(
+        "XISF file loaded: {}x{}x{}",
+        image_data.width,
+        image_data.height,
+        image_data.channels
+    );
+
     Ok(XisfReadResult {
         width: image_data.width,
         height: image_data.height,
@@ -3832,16 +4314,16 @@ pub async fn api_save_xisf_file(
     properties: Vec<(String, String)>,
 ) -> Result<(), NightshadeError> {
     use std::path::Path;
-    
+
     tracing::info!("Saving XISF file: {}", file_path);
-    
+
     let image_data = nightshade_imaging::ImageData::from_u16(width, height, 1, &data);
-    
+
     let mut metadata = nightshade_imaging::XisfMetadata::default();
     for (key, value) in properties {
         metadata.fits_keywords.insert(key, value);
     }
-    
+
     let path = Path::new(&file_path);
     nightshade_imaging::write_xisf(path, &image_data, &metadata)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to write XISF: {}", e)))?;
@@ -3955,14 +4437,14 @@ pub async fn api_generate_filename(
         FrameTypeApi::DarkFlat => nightshade_imaging::FrameType::DarkFlat,
         FrameTypeApi::Snapshot => nightshade_imaging::FrameType::Snapshot,
     };
-    
+
     let mut context = nightshade_imaging::NamingContext::new()
         .with_current_time()
         .with_exposure(exposure_time)
         .with_frame_type(frame_type_impl)
         .with_frame_number(frame_number)
         .with_binning(binning_x, binning_y);
-    
+
     if let Some(t) = target {
         context = context.with_target(t);
     }
@@ -3984,12 +4466,15 @@ pub async fn api_generate_filename(
     if let Some(t) = telescope {
         context = context.with_telescope(t);
     }
-    
+
     let naming_pattern = nightshade_imaging::NamingPattern::new(pattern)
         .with_base_dir(base_dir)
         .with_extension(extension);
-    
-    naming_pattern.generate(&context).to_string_lossy().to_string()
+
+    naming_pattern
+        .generate(&context)
+        .to_string_lossy()
+        .to_string()
 }
 
 /// Get the next frame number for a directory
@@ -4001,7 +4486,7 @@ pub async fn api_get_next_frame_number(
     frame_type: FrameTypeApi,
 ) -> u32 {
     use std::path::Path;
-    
+
     let frame_type_impl = match frame_type {
         FrameTypeApi::Light => nightshade_imaging::FrameType::Light,
         FrameTypeApi::Dark => nightshade_imaging::FrameType::Dark,
@@ -4010,20 +4495,19 @@ pub async fn api_get_next_frame_number(
         FrameTypeApi::DarkFlat => nightshade_imaging::FrameType::DarkFlat,
         FrameTypeApi::Snapshot => nightshade_imaging::FrameType::Snapshot,
     };
-    
-    let mut context = nightshade_imaging::NamingContext::new()
-        .with_frame_type(frame_type_impl);
-    
+
+    let mut context = nightshade_imaging::NamingContext::new().with_frame_type(frame_type_impl);
+
     if let Some(t) = target {
         context = context.with_target(t);
     }
     if let Some(f) = filter {
         context = context.with_filter(f);
     }
-    
+
     let naming_pattern = nightshade_imaging::NamingPattern::new(pattern);
     let base_path = Path::new(&base_dir);
-    
+
     nightshade_imaging::scan_for_next_frame_number(base_path, &naming_pattern, &context)
 }
 
@@ -4035,12 +4519,12 @@ pub async fn api_get_next_frame_number(
 #[derive(Debug, Clone)]
 pub struct PlateSolveResult {
     pub success: bool,
-    pub ra: f64,          // degrees
-    pub dec: f64,         // degrees
-    pub pixel_scale: f64, // arcsec/pixel
-    pub rotation: f64,    // degrees, East of North
-    pub field_width: f64, // degrees
-    pub field_height: f64,// degrees
+    pub ra: f64,           // degrees
+    pub dec: f64,          // degrees
+    pub pixel_scale: f64,  // arcsec/pixel
+    pub rotation: f64,     // degrees, East of North
+    pub field_width: f64,  // degrees
+    pub field_height: f64, // degrees
     pub solve_time_secs: f64,
     pub error: Option<String>,
 }
@@ -4060,17 +4544,20 @@ pub fn api_get_plate_solver_path() -> Option<String> {
 /// Plate solve an image file (blind solve)
 pub async fn api_plate_solve_blind(file_path: String) -> Result<PlateSolveResult, NightshadeError> {
     use std::path::Path;
-    
+
     tracing::info!("Blind plate solving: {}", file_path);
-    
+
     let path = Path::new(&file_path);
     if !path.exists() {
-        return Err(NightshadeError::IoError(format!("File not found: {}", file_path)));
+        return Err(NightshadeError::IoError(format!(
+            "File not found: {}",
+            file_path
+        )));
     }
-    
+
     // Run actual plate solve using ASTAP
     let result = nightshade_imaging::blind_solve(path);
-    
+
     Ok(PlateSolveResult {
         success: result.success,
         ra: result.ra,
@@ -4092,17 +4579,25 @@ pub async fn api_plate_solve_near(
     search_radius: f64,
 ) -> Result<PlateSolveResult, NightshadeError> {
     use std::path::Path;
-    
-    tracing::info!("Plate solving near RA:{:.2}°, Dec:{:.2}°: {}", hint_ra, hint_dec, file_path);
-    
+
+    tracing::info!(
+        "Plate solving near RA:{:.2}°, Dec:{:.2}°: {}",
+        hint_ra,
+        hint_dec,
+        file_path
+    );
+
     let path = Path::new(&file_path);
     if !path.exists() {
-        return Err(NightshadeError::IoError(format!("File not found: {}", file_path)));
+        return Err(NightshadeError::IoError(format!(
+            "File not found: {}",
+            file_path
+        )));
     }
-    
+
     // Run actual plate solve using ASTAP with hints
     let result = nightshade_imaging::solve_near(path, hint_ra, hint_dec, search_radius);
-    
+
     Ok(PlateSolveResult {
         success: result.success,
         ra: result.ra,
@@ -4124,7 +4619,7 @@ pub async fn api_plate_solve_near(
 #[derive(Debug, Clone)]
 pub struct Phd2Status {
     pub connected: bool,
-    pub state: String,  // "Disconnected", "Connected", "Calibrating", "Guiding", "Looping", "Paused"
+    pub state: String, // "Disconnected", "Connected", "Calibrating", "Guiding", "Looping", "Paused"
     pub rms_ra: f64,
     pub rms_dec: f64,
     pub rms_total: f64,
@@ -4189,7 +4684,10 @@ pub fn get_phd2_storage() -> &'static Arc<RwLock<Option<nightshade_imaging::Phd2
 }
 
 /// Connect to PHD2
-pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result<(), NightshadeError> {
+pub async fn api_phd2_connect(
+    host: Option<String>,
+    port: Option<u16>,
+) -> Result<(), NightshadeError> {
     let host = host.unwrap_or_else(|| "127.0.0.1".to_string());
     let port = port.unwrap_or(4400);
 
@@ -4202,7 +4700,12 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
         tracing::trace!("PHD2 event callback received: {:?}", event);
         match event {
             nightshade_imaging::Phd2Event::GuideStep(ref frame) => {
-                tracing::trace!("PHD2 GuideStep: RA={:.3}, Dec={:.3}, SNR={:.1}", frame.ra_distance, frame.dec_distance, frame.snr);
+                tracing::trace!(
+                    "PHD2 GuideStep: RA={:.3}, Dec={:.3}, SNR={:.1}",
+                    frame.ra_distance,
+                    frame.dec_distance,
+                    frame.snr
+                );
                 // Forward guide step correction data
                 get_state().publish_guiding_event(
                     GuidingEvent::Correction {
@@ -4245,42 +4748,29 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
                         );
                     }
                     nightshade_imaging::Phd2State::Paused => {
-                        get_state().publish_guiding_event(
-                            GuidingEvent::Paused,
-                            EventSeverity::Info,
-                        );
+                        get_state()
+                            .publish_guiding_event(GuidingEvent::Paused, EventSeverity::Info);
                     }
                     nightshade_imaging::Phd2State::LostLock => {
-                        get_state().publish_guiding_event(
-                            GuidingEvent::LostStar,
-                            EventSeverity::Warning,
-                        );
+                        get_state()
+                            .publish_guiding_event(GuidingEvent::LostStar, EventSeverity::Warning);
                     }
                     nightshade_imaging::Phd2State::Looping => {
-                        get_state().publish_guiding_event(
-                            GuidingEvent::Looping,
-                            EventSeverity::Info,
-                        );
+                        get_state()
+                            .publish_guiding_event(GuidingEvent::Looping, EventSeverity::Info);
                     }
                     nightshade_imaging::Phd2State::Calibrating => {
-                        get_state().publish_guiding_event(
-                            GuidingEvent::Calibrating,
-                            EventSeverity::Info,
-                        );
+                        get_state()
+                            .publish_guiding_event(GuidingEvent::Calibrating, EventSeverity::Info);
                     }
                     nightshade_imaging::Phd2State::Settling => {
-                        get_state().publish_guiding_event(
-                            GuidingEvent::Settling,
-                            EventSeverity::Info,
-                        );
+                        get_state()
+                            .publish_guiding_event(GuidingEvent::Settling, EventSeverity::Info);
                     }
                 }
             }
             nightshade_imaging::Phd2Event::StarLost => {
-                get_state().publish_guiding_event(
-                    GuidingEvent::LostStar,
-                    EventSeverity::Warning,
-                );
+                get_state().publish_guiding_event(GuidingEvent::LostStar, EventSeverity::Warning);
             }
             nightshade_imaging::Phd2Event::StarSelected { x, y } => {
                 get_state().publish_guiding_event(
@@ -4289,32 +4779,29 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
                 );
             }
             nightshade_imaging::Phd2Event::SettleBegin => {
-                get_state().publish_guiding_event(
-                    GuidingEvent::Settling,
-                    EventSeverity::Info,
-                );
+                get_state().publish_guiding_event(GuidingEvent::Settling, EventSeverity::Info);
             }
-            nightshade_imaging::Phd2Event::SettleDone { total_frames: _, dropped_frames: _ } => {
+            nightshade_imaging::Phd2Event::SettleDone {
+                total_frames: _,
+                dropped_frames: _,
+            } => {
                 // Settling complete - report with estimated RMS from AvgDist in last frame
-                get_state().publish_guiding_event(
-                    GuidingEvent::Settled { rms: 0.0 },
-                    EventSeverity::Info,
-                );
+                get_state()
+                    .publish_guiding_event(GuidingEvent::Settled { rms: 0.0 }, EventSeverity::Info);
             }
             nightshade_imaging::Phd2Event::CalibrationComplete => {
                 tracing::info!("PHD2: Calibration complete");
-                get_state().publish_guiding_event(
-                    GuidingEvent::CalibrationComplete,
-                    EventSeverity::Info,
-                );
+                get_state()
+                    .publish_guiding_event(GuidingEvent::CalibrationComplete, EventSeverity::Info);
             }
             nightshade_imaging::Phd2Event::Disconnected => {
-                get_state().publish_guiding_event(
-                    GuidingEvent::Disconnected,
-                    EventSeverity::Warning,
-                );
+                get_state()
+                    .publish_guiding_event(GuidingEvent::Disconnected, EventSeverity::Warning);
             }
-            nightshade_imaging::Phd2Event::Alert { message, alert_type } => {
+            nightshade_imaging::Phd2Event::Alert {
+                message,
+                alert_type,
+            } => {
                 tracing::warn!("PHD2 Alert [{}]: {}", alert_type, message);
                 // Alerts are logged but not sent as GuidingEvent - could add later if needed
             }
@@ -4325,7 +4812,8 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
         }
     });
 
-    client.connect()
+    client
+        .connect()
         .map_err(|e| NightshadeError::connection_failed("phd2_guider", format!("PHD2: {}", e)))?;
 
     // Store the client
@@ -4345,13 +4833,12 @@ pub async fn api_phd2_connect(host: Option<String>, port: Option<u16>) -> Result
         unique_id: None,
         display_name: "PHD2 Guiding".to_string(),
     };
-    get_state().register_device(phd2_device_info, ConnectionState::Connected).await;
+    get_state()
+        .register_device(phd2_device_info, ConnectionState::Connected)
+        .await;
 
     // Publish event
-    get_state().publish_guiding_event(
-        GuidingEvent::Connected,
-        EventSeverity::Info,
-    );
+    get_state().publish_guiding_event(GuidingEvent::Connected, EventSeverity::Info);
 
     Ok(())
 }
@@ -4364,12 +4851,11 @@ pub async fn api_phd2_disconnect() -> Result<(), NightshadeError> {
     }
 
     // Remove PHD2 from connected devices in AppState
-    get_state().remove_device(DeviceType::Guider, "phd2_guider").await;
+    get_state()
+        .remove_device(DeviceType::Guider, "phd2_guider")
+        .await;
 
-    get_state().publish_guiding_event(
-        GuidingEvent::Disconnected,
-        EventSeverity::Info,
-    );
+    get_state().publish_guiding_event(GuidingEvent::Disconnected, EventSeverity::Info);
 
     Ok(())
 }
@@ -4381,34 +4867,32 @@ pub async fn api_phd2_start_guiding(
     settle_timeout: f64,
 ) -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
-    
-    client.guide(settle_pixels, settle_time, settle_timeout)
+
+    client
+        .guide(settle_pixels, settle_time, settle_timeout)
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to start guiding: {}", e)))?;
-    
-    get_state().publish_guiding_event(
-        GuidingEvent::GuidingStarted,
-        EventSeverity::Info,
-    );
-    
+
+    get_state().publish_guiding_event(GuidingEvent::GuidingStarted, EventSeverity::Info);
+
     Ok(())
 }
 
 /// Stop guiding in PHD2
 pub async fn api_phd2_stop_guiding() -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
-    
-    client.stop_capture()
+
+    client
+        .stop_capture()
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to stop guiding: {}", e)))?;
-    
-    get_state().publish_guiding_event(
-        GuidingEvent::GuidingStopped,
-        EventSeverity::Info,
-    );
-    
+
+    get_state().publish_guiding_event(GuidingEvent::GuidingStopped, EventSeverity::Info);
+
     Ok(())
 }
 
@@ -4421,32 +4905,42 @@ pub async fn api_phd2_dither(
     settle_timeout: f64,
 ) -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
-    
+
     let ra_only_bool = ra_only != 0;
-    client.dither(amount, ra_only_bool, settle_pixels, settle_time, settle_timeout)
+    client
+        .dither(
+            amount,
+            ra_only_bool,
+            settle_pixels,
+            settle_time,
+            settle_timeout,
+        )
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to dither: {}", e)))?;
-    
+
     get_state().publish_guiding_event(
         GuidingEvent::DitherStarted { pixels: amount },
         EventSeverity::Info,
     );
-    
+
     Ok(())
 }
 
 /// Get PHD2 status
 pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
-    
-    let state = client.get_app_state()
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get PHD2 state: {}", e)))?;
-    
+
+    let state = client.get_app_state().map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to get PHD2 state: {}", e))
+    })?;
+
     let pixel_scale = client.get_pixel_scale().unwrap_or(0.0);
-    
+
     let state_str = match state {
         nightshade_imaging::Phd2State::Disconnected => "Disconnected",
         nightshade_imaging::Phd2State::Connected => "Connected",
@@ -4457,11 +4951,11 @@ pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
         nightshade_imaging::Phd2State::Settling => "Settling",
         nightshade_imaging::Phd2State::LostLock => "LostLock",
     };
-    
+
     Ok(Phd2Status {
         connected: true,
         state: state_str.to_string(),
-        rms_ra: 0.0,  // Would need to track from events
+        rms_ra: 0.0, // Would need to track from events
         rms_dec: 0.0,
         rms_total: 0.0,
         snr: 0.0,
@@ -4473,11 +4967,13 @@ pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
 /// Get PHD2 star image with metadata
 pub async fn api_phd2_get_star_image(size: u32) -> Result<Phd2StarImage, NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    let image_data = client.get_star_image_data(size)
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get star image: {}", e)))?;
+    let image_data = client.get_star_image_data(size).map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to get star image: {}", e))
+    })?;
 
     Ok(Phd2StarImage {
         frame: image_data.frame,
@@ -4492,59 +4988,82 @@ pub async fn api_phd2_get_star_image(size: u32) -> Result<Phd2StarImage, Nightsh
 /// Get PHD2 algorithm parameter names for an axis
 pub async fn api_phd2_get_algo_param_names(axis: String) -> Result<Vec<String>, NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.get_algo_param_names(&axis)
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get algo param names: {}", e)))
+    client.get_algo_param_names(&axis).map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to get algo param names: {}", e))
+    })
 }
 
 /// Get PHD2 algorithm parameter value
 pub async fn api_phd2_get_algo_param(axis: String, name: String) -> Result<f64, NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.get_algo_param(&axis, &name)
+    client
+        .get_algo_param(&axis, &name)
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get algo param: {}", e)))
 }
 
 /// Set PHD2 algorithm parameter value
-pub async fn api_phd2_set_algo_param(axis: String, name: String, value: f64) -> Result<(), NightshadeError> {
+pub async fn api_phd2_set_algo_param(
+    axis: String,
+    name: String,
+    value: f64,
+) -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.set_algo_param(&axis, &name, value)
+    client
+        .set_algo_param(&axis, &name, value)
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to set algo param: {}", e)))
 }
 
 /// Get all PHD2 algorithm parameters for an axis
-pub async fn api_phd2_get_all_algo_params(axis: String) -> Result<Vec<Phd2AlgoParam>, NightshadeError> {
+pub async fn api_phd2_get_all_algo_params(
+    axis: String,
+) -> Result<Vec<Phd2AlgoParam>, NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    let params = client.get_all_algo_params(&axis)
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get all algo params: {}", e)))?;
+    let params = client.get_all_algo_params(&axis).map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to get all algo params: {}", e))
+    })?;
 
-    Ok(params.into_iter().map(|p| Phd2AlgoParam {
-        name: p.name,
-        value: p.value,
-    }).collect())
+    Ok(params
+        .into_iter()
+        .map(|p| Phd2AlgoParam {
+            name: p.name,
+            value: p.value,
+        })
+        .collect())
 }
 
 /// Pause or resume PHD2 guiding
 pub async fn api_phd2_set_paused(paused: bool) -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.set_paused(paused)
+    client
+        .set_paused(paused)
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to set paused: {}", e)))?;
 
     get_state().publish_guiding_event(
-        if paused { GuidingEvent::Paused } else { GuidingEvent::Resumed },
+        if paused {
+            GuidingEvent::Paused
+        } else {
+            GuidingEvent::Resumed
+        },
         EventSeverity::Info,
     );
 
@@ -4554,20 +5073,24 @@ pub async fn api_phd2_set_paused(paused: bool) -> Result<(), NightshadeError> {
 /// Clear PHD2 calibration
 pub async fn api_phd2_clear_calibration(which: String) -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.clear_calibration(&which)
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to clear calibration: {}", e)))
+    client.clear_calibration(&which).map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to clear calibration: {}", e))
+    })
 }
 
 /// Flip PHD2 calibration (after meridian flip)
 pub async fn api_phd2_flip_calibration() -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.flip_calibration()
+    client
+        .flip_calibration()
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to flip calibration: {}", e)))
 }
 
@@ -4575,12 +5098,14 @@ pub async fn api_phd2_flip_calibration() -> Result<(), NightshadeError> {
 /// Returns calibration info including whether calibrated and calibration parameters
 pub async fn api_phd2_get_calibration_data() -> Result<Phd2CalibrationData, NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
     // Get calibration data for both axes - "both" returns combined info
-    let result = client.get_calibration_data("both")
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get calibration data: {}", e)))?;
+    let result = client.get_calibration_data("both").map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to get calibration data: {}", e))
+    })?;
 
     // PHD2 returns null if not calibrated, otherwise returns calibration parameters
     let is_calibrated = !result.is_null();
@@ -4608,80 +5133,100 @@ pub async fn api_phd2_get_calibration_data() -> Result<Phd2CalibrationData, Nigh
 /// Find a guide star automatically
 pub async fn api_phd2_find_star() -> Result<(f64, f64), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.find_star()
+    client
+        .find_star()
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to find star: {}", e)))
 }
 
 /// Set guide star lock position
-pub async fn api_phd2_set_lock_position(x: f64, y: f64, exact: bool) -> Result<(), NightshadeError> {
+pub async fn api_phd2_set_lock_position(
+    x: f64,
+    y: f64,
+    exact: bool,
+) -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.set_lock_position(x, y, exact)
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to set lock position: {}", e)))
+    client.set_lock_position(x, y, exact).map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to set lock position: {}", e))
+    })
 }
 
 /// Get current guide star lock position
 pub async fn api_phd2_get_lock_position() -> Result<(f64, f64), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.get_lock_position()
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get lock position: {}", e)))
+    client.get_lock_position().map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to get lock position: {}", e))
+    })
 }
 
 /// Start looping exposures (without guiding)
 pub async fn api_phd2_loop() -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.loop_exposures()
+    client
+        .loop_exposures()
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to start looping: {}", e)))
 }
 
 /// Deselect the current guide star
 pub async fn api_phd2_deselect_star() -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.deselect_star()
+    client
+        .deselect_star()
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to deselect star: {}", e)))
 }
 
 /// Get PHD2 guide exposure time (ms)
 pub async fn api_phd2_get_exposure() -> Result<u32, NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.get_exposure()
+    client
+        .get_exposure()
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get exposure: {}", e)))
 }
 
 /// Set PHD2 guide exposure time (ms)
 pub async fn api_phd2_set_exposure(exposure_ms: u32) -> Result<(), NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.set_exposure(exposure_ms)
+    client
+        .set_exposure(exposure_ms)
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to set exposure: {}", e)))
 }
 
 /// Get current PHD2 profile name
 pub async fn api_phd2_get_profile() -> Result<String, NightshadeError> {
     let mut storage = get_phd2_storage().write().await;
-    let client = storage.as_mut()
+    let client = storage
+        .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    client.get_profile()
+    client
+        .get_profile()
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to get profile: {}", e)))
 }
 
@@ -4701,41 +5246,47 @@ pub mod alpaca_connections {
     pub use nightshade_alpaca::AlpacaClient;
     use nightshade_alpaca::{AlpacaDevice, AlpacaDeviceType};
     use std::collections::HashMap;
-    
+
     // Storage for active Alpaca connections using Arc to share ownership
-    static ALPACA_CLIENTS: OnceLock<Arc<RwLock<HashMap<String, Arc<AlpacaClient>>>>> = OnceLock::new();
-    
+    static ALPACA_CLIENTS: OnceLock<Arc<RwLock<HashMap<String, Arc<AlpacaClient>>>>> =
+        OnceLock::new();
+
     fn get_alpaca_clients() -> &'static Arc<RwLock<HashMap<String, Arc<AlpacaClient>>>> {
         ALPACA_CLIENTS.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
     }
-    
+
     /// Parse an Alpaca device ID into its components
     /// Format: "alpaca:{base_url}:{device_type}:{device_number}"
     fn parse_alpaca_id(device_id: &str) -> Option<(String, AlpacaDeviceType, u32)> {
         let id_part = device_id.strip_prefix("alpaca:")?;
-        
+
         // The format is: http://host:port:device_type:device_number
         // We need to carefully parse this since base_url contains colons
-        
+
         // Find the last two colons which separate device_type and device_number
         let mut parts: Vec<&str> = id_part.rsplitn(3, ':').collect();
         parts.reverse();
-        
+
         if parts.len() < 3 {
             return None;
         }
-        
+
         let base_url = parts[0].to_string();
         let device_type = AlpacaDeviceType::from_str(parts[1])?;
         let device_number: u32 = parts[2].parse().ok()?;
-        
+
         Some((base_url, device_type, device_number))
     }
-    
+
     /// Connect to an Alpaca device
-    pub async fn connect_alpaca_device(device_type: DeviceType, device_id: &str) -> Result<(), NightshadeError> {
-        let (base_url, alpaca_type, device_number) = parse_alpaca_id(device_id)
-            .ok_or_else(|| NightshadeError::invalid_device_id(device_id, "Failed to parse Alpaca device ID"))?;
+    pub async fn connect_alpaca_device(
+        device_type: DeviceType,
+        device_id: &str,
+    ) -> Result<(), NightshadeError> {
+        let (base_url, alpaca_type, device_number) =
+            parse_alpaca_id(device_id).ok_or_else(|| {
+                NightshadeError::invalid_device_id(device_id, "Failed to parse Alpaca device ID")
+            })?;
 
         // Create the device struct
         let device = AlpacaDevice {
@@ -4751,38 +5302,46 @@ pub mod alpaca_connections {
         // Create and connect the client
         let client = AlpacaClient::new(&device);
 
-        client.connect().await
-            .map_err(|e| NightshadeError::connection_failed(device_id, format!("Alpaca connection failed: {}", e)))?;
-        
-        let name = client.get_name().await.unwrap_or_else(|_| device_id.to_string());
+        client.connect().await.map_err(|e| {
+            NightshadeError::connection_failed(
+                device_id,
+                format!("Alpaca connection failed: {}", e),
+            )
+        })?;
+
+        let name = client
+            .get_name()
+            .await
+            .unwrap_or_else(|_| device_id.to_string());
         tracing::info!("Connected to Alpaca device: {}", name);
-        
+
         // Store the client wrapped in Arc
         let mut clients = get_alpaca_clients().write().await;
         clients.insert(device_id.to_string(), Arc::new(client));
-        
+
         Ok(())
     }
-    
+
     /// Disconnect from an Alpaca device
     pub async fn disconnect_alpaca_device(device_id: &str) -> Result<(), NightshadeError> {
         let mut clients = get_alpaca_clients().write().await;
-        
+
         if let Some(client) = clients.get(device_id) {
-            client.disconnect().await
-                .map_err(|e| NightshadeError::OperationFailed(format!("Alpaca disconnect failed: {}", e)))?;
+            client.disconnect().await.map_err(|e| {
+                NightshadeError::OperationFailed(format!("Alpaca disconnect failed: {}", e))
+            })?;
         }
-        
+
         clients.remove(device_id);
         Ok(())
     }
-    
+
     /// Get an Alpaca client
     pub async fn get_alpaca_client(device_id: &str) -> Option<Arc<AlpacaClient>> {
         let clients = get_alpaca_clients().read().await;
         clients.get(device_id).cloned()
     }
-    
+
     /// Check if Alpaca is connected
     pub async fn is_connected(device_id: &str) -> bool {
         let clients = get_alpaca_clients().read().await;
@@ -4803,18 +5362,17 @@ pub mod alpaca_connections {
 // =============================================================================
 
 use nightshade_sequencer::{
-    SequenceDefinition, NodeDefinition, NodeType, NodeStatus,
-    ExecutorState, SequenceProgress, ExecutorEvent,
-    SlewConfig, CenterConfig, ExposureConfig, AutofocusConfig,
-    DitherConfig, FilterConfig, CoolConfig, WarmConfig,
-    RotatorConfig, WaitTimeConfig, DelayConfig, NotificationConfig,
-    ScriptConfig, TargetGroupConfig, TargetHeaderConfig, LoopConfig, Binning, AutofocusMethod,
-    TwilightType, LoopCondition, NotificationLevel,
-    MosaicConfig, mosaic::calculate_mosaic_panels, mosaic::MosaicPanel,
+    mosaic::calculate_mosaic_panels, mosaic::MosaicPanel, AutofocusConfig, AutofocusMethod,
+    Binning, CenterConfig, CoolConfig, DelayConfig, DitherConfig, ExecutorEvent, ExecutorState,
+    ExposureConfig, FilterConfig, LoopCondition, LoopConfig, MosaicConfig, NodeDefinition,
+    NodeStatus, NodeType, NotificationConfig, NotificationLevel, RotatorConfig, ScriptConfig,
+    SequenceDefinition, SequenceProgress, SlewConfig, TargetGroupConfig, TargetHeaderConfig,
+    TwilightType, WaitTimeConfig, WarmConfig,
 };
 
 /// Get the global sequence executor instance
-fn get_sequence_executor() -> &'static std::sync::Arc<tokio::sync::RwLock<nightshade_sequencer::SequenceExecutor>> {
+fn get_sequence_executor(
+) -> &'static std::sync::Arc<tokio::sync::RwLock<nightshade_sequencer::SequenceExecutor>> {
     nightshade_sequencer::get_executor()
 }
 
@@ -4920,9 +5478,9 @@ impl From<&NodeDefinition> for NodeDefinitionApi {
             NodeType::CalibratorOn(_) => "calibrator_on",
             NodeType::CalibratorOff(_) => "calibrator_off",
         };
-        
+
         let config_json = serde_json::to_string(&n.node_type).unwrap_or_default();
-        
+
         Self {
             id: n.id.clone(),
             name: n.name.clone(),
@@ -4937,14 +5495,16 @@ impl From<&NodeDefinition> for NodeDefinitionApi {
 /// Load a sequence from JSON
 pub async fn api_sequencer_load_json(json: String) -> Result<(), NightshadeError> {
     tracing::info!("Loading sequence from JSON");
-    
-    let definition: SequenceDefinition = serde_json::from_str(&json)
-        .map_err(|e| NightshadeError::InvalidInput(format!("Failed to parse sequence JSON: {}", e)))?;
-    
+
+    let definition: SequenceDefinition = serde_json::from_str(&json).map_err(|e| {
+        NightshadeError::InvalidInput(format!("Failed to parse sequence JSON: {}", e))
+    })?;
+
     let mut executor = get_sequence_executor().write().await;
-    executor.load_sequence(definition)
+    executor
+        .load_sequence(definition)
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to load sequence: {}", e)))?;
-    
+
     tracing::info!("Sequence loaded successfully");
     Ok(())
 }
@@ -4952,13 +5512,16 @@ pub async fn api_sequencer_load_json(json: String) -> Result<(), NightshadeError
 /// Load a sequence from a definition struct
 pub async fn api_sequencer_load(definition: SequenceDefinitionApi) -> Result<(), NightshadeError> {
     tracing::info!("Loading sequence: {}", definition.name);
-    
+
     // Convert API nodes to internal nodes
-    let nodes: Result<Vec<NodeDefinition>, NightshadeError> = definition.nodes.iter()
+    let nodes: Result<Vec<NodeDefinition>, NightshadeError> = definition
+        .nodes
+        .iter()
         .map(|n| {
-            let node_type: NodeType = serde_json::from_str(&n.config_json)
-                .map_err(|e| NightshadeError::InvalidInput(format!("Invalid node config: {}", e)))?;
-            
+            let node_type: NodeType = serde_json::from_str(&n.config_json).map_err(|e| {
+                NightshadeError::InvalidInput(format!("Invalid node config: {}", e))
+            })?;
+
             Ok(NodeDefinition {
                 id: n.id.clone(),
                 name: n.name.clone(),
@@ -4968,7 +5531,7 @@ pub async fn api_sequencer_load(definition: SequenceDefinitionApi) -> Result<(),
             })
         })
         .collect();
-    
+
     let internal_definition = SequenceDefinition {
         id: definition.id,
         name: definition.name,
@@ -4977,9 +5540,10 @@ pub async fn api_sequencer_load(definition: SequenceDefinitionApi) -> Result<(),
         root_node_id: definition.root_node_id,
         metadata: std::collections::HashMap::new(),
     };
-    
+
     let mut executor = get_sequence_executor().write().await;
-    executor.load_sequence(internal_definition)
+    executor
+        .load_sequence(internal_definition)
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to load sequence: {}", e)))?;
 
     Ok(())
@@ -4988,92 +5552,99 @@ pub async fn api_sequencer_load(definition: SequenceDefinitionApi) -> Result<(),
 /// Start the sequence executor
 pub async fn api_sequencer_start() -> Result<(), NightshadeError> {
     tracing::info!("Starting sequence execution");
-    
+
     let mut executor = get_sequence_executor().write().await;
-    executor.start().await
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to start sequence: {}", e)))?;
-    
+    executor.start().await.map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to start sequence: {}", e))
+    })?;
+
     // Publish event
     get_state().publish_event(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::Sequencer,
         EventPayload::Sequencer(SequencerEvent::Started {
-            sequence_name: "Sequence".to_string()
+            sequence_name: "Sequence".to_string(),
         }),
     ));
-    
+
     Ok(())
 }
 
 /// Pause the sequence executor
 pub async fn api_sequencer_pause() -> Result<(), NightshadeError> {
     tracing::info!("Pausing sequence execution");
-    
+
     let executor = get_sequence_executor().read().await;
-    executor.pause().await
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to pause sequence: {}", e)))?;
-    
+    executor.pause().await.map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to pause sequence: {}", e))
+    })?;
+
     get_state().publish_event(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::Sequencer,
         EventPayload::Sequencer(SequencerEvent::Paused),
     ));
-    
+
     Ok(())
 }
 
 /// Resume the sequence executor
 pub async fn api_sequencer_resume() -> Result<(), NightshadeError> {
     tracing::info!("Resuming sequence execution");
-    
+
     let executor = get_sequence_executor().read().await;
-    executor.resume().await
-        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to resume sequence: {}", e)))?;
-    
+    executor.resume().await.map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to resume sequence: {}", e))
+    })?;
+
     get_state().publish_event(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::Sequencer,
         EventPayload::Sequencer(SequencerEvent::Resumed),
     ));
-    
+
     Ok(())
 }
 
 /// Stop the sequence executor
 pub async fn api_sequencer_stop() -> Result<(), NightshadeError> {
     tracing::info!("Stopping sequence execution");
-    
+
     let mut executor = get_sequence_executor().write().await;
-    executor.stop().await
+    executor
+        .stop()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to stop sequence: {}", e)))?;
-    
+
     get_state().publish_event(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::Sequencer,
         EventPayload::Sequencer(SequencerEvent::Stopped),
     ));
-    
+
     Ok(())
 }
 
 /// Skip to the next instruction
 pub async fn api_sequencer_skip() -> Result<(), NightshadeError> {
     tracing::info!("Skipping current instruction");
-    
+
     let executor = get_sequence_executor().read().await;
-    executor.skip().await
+    executor
+        .skip()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to skip: {}", e)))?;
-    
+
     Ok(())
 }
 
 /// Reset the sequence executor
 pub async fn api_sequencer_reset() -> Result<(), NightshadeError> {
     tracing::info!("Resetting sequence executor");
-    
+
     let mut executor = get_sequence_executor().write().await;
     executor.reset().await;
-    
+
     Ok(())
 }
 
@@ -5095,7 +5666,10 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
     tokio::spawn(async move {
         tracing::info!("[EVENT_SUB] Event listener task spawned");
         while let Ok(event) = rx.recv().await {
-            tracing::debug!("[EVENT_SUB] Received event: {:?}", std::mem::discriminant(&event));
+            tracing::debug!(
+                "[EVENT_SUB] Received event: {:?}",
+                std::mem::discriminant(&event)
+            );
             let nightshade_event = match &event {
                 ExecutorEvent::StateChanged(s) => {
                     let _state_str = match s {
@@ -5114,53 +5688,47 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                         }),
                     ))
                 }
-                ExecutorEvent::NodeStarted { id, name } => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Info,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::NodeStarted {
-                            node_id: id.clone(),
-                            node_type: name.clone(),
-                        }),
-                    ))
-                }
-                ExecutorEvent::NodeCompleted { id, status } => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Info,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::NodeCompleted {
-                            node_id: id.clone(),
-                            success: *status == NodeStatus::Success,
-                        }),
-                    ))
-                }
-                ExecutorEvent::ProgressUpdated(progress) => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Info,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::Progress {
-                            current: progress.completed_exposures,
-                            total: progress.total_exposures,
-                        }),
-                    ))
-                }
-                ExecutorEvent::SequenceCompleted => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Info,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::Completed),
-                    ))
-                }
-                ExecutorEvent::SequenceFailed { error } => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Error,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::Error {
-                            message: error.clone(),
-                        }),
-                    ))
-                }
-                ExecutorEvent::ExposureStarted { frame, total, filter } => {
+                ExecutorEvent::NodeStarted { id, name } => Some(create_event_auto_id(
+                    EventSeverity::Info,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::NodeStarted {
+                        node_id: id.clone(),
+                        node_type: name.clone(),
+                    }),
+                )),
+                ExecutorEvent::NodeCompleted { id, status } => Some(create_event_auto_id(
+                    EventSeverity::Info,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::NodeCompleted {
+                        node_id: id.clone(),
+                        success: *status == NodeStatus::Success,
+                    }),
+                )),
+                ExecutorEvent::ProgressUpdated(progress) => Some(create_event_auto_id(
+                    EventSeverity::Info,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::Progress {
+                        current: progress.completed_exposures,
+                        total: progress.total_exposures,
+                    }),
+                )),
+                ExecutorEvent::SequenceCompleted => Some(create_event_auto_id(
+                    EventSeverity::Info,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::Completed),
+                )),
+                ExecutorEvent::SequenceFailed { error } => Some(create_event_auto_id(
+                    EventSeverity::Error,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::Error {
+                        message: error.clone(),
+                    }),
+                )),
+                ExecutorEvent::ExposureStarted {
+                    frame,
+                    total,
+                    filter,
+                } => {
                     Some(create_event_auto_id(
                         EventSeverity::Info,
                         EventCategory::Sequencer,
@@ -5183,27 +5751,36 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                         }),
                     ))
                 }
-                ExecutorEvent::TargetStarted { name, ra: _, dec: _ } => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Info,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::TargetChanged {
-                            target_name: name.clone(),
-                        }),
-                    ))
-                }
-                ExecutorEvent::TargetCompleted { name } => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Info,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::TargetCompleted {
-                            target_name: name.clone(),
-                        }),
-                    ))
-                }
-                ExecutorEvent::NodeProgress { node_id, instruction, progress_percent, detail } => {
-                    tracing::info!("[EVENT_SUB] NodeProgress received: node={}, instruction={}, progress={}%",
-                        node_id, instruction, progress_percent);
+                ExecutorEvent::TargetStarted {
+                    name,
+                    ra: _,
+                    dec: _,
+                } => Some(create_event_auto_id(
+                    EventSeverity::Info,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::TargetChanged {
+                        target_name: name.clone(),
+                    }),
+                )),
+                ExecutorEvent::TargetCompleted { name } => Some(create_event_auto_id(
+                    EventSeverity::Info,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::TargetCompleted {
+                        target_name: name.clone(),
+                    }),
+                )),
+                ExecutorEvent::NodeProgress {
+                    node_id,
+                    instruction,
+                    progress_percent,
+                    detail,
+                } => {
+                    tracing::info!(
+                        "[EVENT_SUB] NodeProgress received: node={}, instruction={}, progress={}%",
+                        node_id,
+                        instruction,
+                        progress_percent
+                    );
                     Some(create_event_auto_id(
                         EventSeverity::Info,
                         EventCategory::Sequencer,
@@ -5215,17 +5792,24 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                         }),
                     ))
                 }
-                ExecutorEvent::Error { message } => {
-                    Some(create_event_auto_id(
-                        EventSeverity::Error,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::Error {
-                            message: message.clone(),
-                        }),
-                    ))
-                }
-                ExecutorEvent::TriggerFired { trigger_id, trigger_name, action } => {
-                    tracing::info!("Trigger fired: {} ({}) - {}", trigger_name, trigger_id, action);
+                ExecutorEvent::Error { message } => Some(create_event_auto_id(
+                    EventSeverity::Error,
+                    EventCategory::Sequencer,
+                    EventPayload::Sequencer(SequencerEvent::Error {
+                        message: message.clone(),
+                    }),
+                )),
+                ExecutorEvent::TriggerFired {
+                    trigger_id,
+                    trigger_name,
+                    action,
+                } => {
+                    tracing::info!(
+                        "Trigger fired: {} ({}) - {}",
+                        trigger_name,
+                        trigger_id,
+                        action
+                    );
                     Some(create_event_auto_id(
                         EventSeverity::Info,
                         EventCategory::Sequencer,
@@ -5241,7 +5825,7 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
             }
         }
     });
-    
+
     Ok(())
 }
 
@@ -5252,7 +5836,7 @@ pub fn api_sequencer_event_stream() -> impl futures::Stream<Item = String> {
         let executor = get_sequence_executor().blocking_read();
         executor.subscribe()
     };
-    
+
     async_stream::stream! {
         let mut rx = rx;
         loop {
@@ -5313,14 +5897,16 @@ pub fn api_sequencer_has_checkpoint() -> bool {
 /// Get info about the current checkpoint
 pub fn api_sequencer_get_checkpoint_info() -> Option<CheckpointInfoApi> {
     let executor = get_sequence_executor().blocking_read();
-    executor.get_checkpoint_info().map(|info| CheckpointInfoApi {
-        sequence_name: info.sequence_name,
-        timestamp: info.timestamp.to_rfc3339(),
-        completed_exposures: info.completed_exposures,
-        completed_integration_secs: info.completed_integration_secs,
-        can_resume: info.can_resume,
-        age_seconds: info.age_seconds,
-    })
+    executor
+        .get_checkpoint_info()
+        .map(|info| CheckpointInfoApi {
+            sequence_name: info.sequence_name,
+            timestamp: info.timestamp.to_rfc3339(),
+            completed_exposures: info.completed_exposures,
+            completed_integration_secs: info.completed_integration_secs,
+            can_resume: info.can_resume,
+            age_seconds: info.age_seconds,
+        })
 }
 
 /// Resume sequence from checkpoint
@@ -5332,7 +5918,9 @@ pub async fn api_sequencer_resume_from_checkpoint() -> Result<(), NightshadeErro
     let ops = create_unified_device_ops();
     executor.set_device_ops(ops);
 
-    executor.resume_from_checkpoint().await
+    executor
+        .resume_from_checkpoint()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -5340,7 +5928,9 @@ pub async fn api_sequencer_resume_from_checkpoint() -> Result<(), NightshadeErro
 pub async fn api_sequencer_save_checkpoint() -> Result<(), NightshadeError> {
     tracing::info!("Saving checkpoint");
     let executor = get_sequence_executor().read().await;
-    executor.save_checkpoint().await
+    executor
+        .save_checkpoint()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -5348,7 +5938,8 @@ pub async fn api_sequencer_save_checkpoint() -> Result<(), NightshadeError> {
 pub fn api_sequencer_clear_checkpoint() -> Result<(), NightshadeError> {
     tracing::info!("Clearing checkpoint");
     let executor = get_sequence_executor().blocking_read();
-    executor.clear_checkpoint()
+    executor
+        .clear_checkpoint()
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -5389,7 +5980,10 @@ pub async fn api_sequencer_set_devices(
     // The sequencer queries filter names directly from the filter wheel hardware.
     // This parameter is provided for future use cases like profile-based name mapping.
     if let Some(names) = &filter_names {
-        tracing::debug!("Profile filter names provided: {:?} (not used - sequencer queries hardware directly)", names);
+        tracing::debug!(
+            "Profile filter names provided: {:?} (not used - sequencer queries hardware directly)",
+            names
+        );
     }
 
     Ok(())
@@ -5472,7 +6066,7 @@ pub fn api_create_exposure_node(
         save_to: None,
         triggers: Vec::new(),
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5480,7 +6074,7 @@ pub fn api_create_exposure_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5498,7 +6092,7 @@ pub fn api_create_slew_node(
         custom_ra,
         custom_dec,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5506,7 +6100,7 @@ pub fn api_create_slew_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5527,7 +6121,7 @@ pub fn api_create_center_node(
         exposure_duration,
         filter: None,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5535,7 +6129,7 @@ pub fn api_create_center_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5555,7 +6149,7 @@ pub fn api_create_autofocus_node(
         "hyperbolic" => AutofocusMethod::Hyperbolic,
         _ => AutofocusMethod::VCurve,
     };
-    
+
     let config = AutofocusConfig {
         method: method_enum,
         step_size,
@@ -5564,7 +6158,7 @@ pub fn api_create_autofocus_node(
         filter: None,
         binning: Binning::One,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5572,23 +6166,19 @@ pub fn api_create_autofocus_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
 /// Create a filter change node configuration
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_create_filter_node(
-    id: String,
-    name: String,
-    filter_name: String,
-) -> String {
+pub fn api_create_filter_node(id: String, name: String, filter_name: String) -> String {
     let config = FilterConfig {
         filter_name,
         filter_index: None,
         timeout_secs: None, // Use default timeout
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5596,7 +6186,7 @@ pub fn api_create_filter_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5653,8 +6243,7 @@ pub fn api_create_target_header_node(
     mosaic_panel_json: Option<String>,
     children: Vec<String>,
 ) -> String {
-    let mosaic_panel = mosaic_panel_json
-        .and_then(|json| serde_json::from_str(&json).ok());
+    let mosaic_panel = mosaic_panel_json.and_then(|json| serde_json::from_str(&json).ok());
 
     let config = TargetHeaderConfig {
         target_name,
@@ -5697,13 +6286,13 @@ pub fn api_create_loop_node(
         "integration_time" => LoopCondition::IntegrationTime,
         _ => LoopCondition::Count,
     };
-    
+
     let config = LoopConfig {
         iterations,
         condition: condition_enum,
         condition_value: None,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5711,19 +6300,15 @@ pub fn api_create_loop_node(
         enabled: true,
         children,
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
 /// Create a delay node configuration
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_create_delay_node(
-    id: String,
-    name: String,
-    seconds: f64,
-) -> String {
+pub fn api_create_delay_node(id: String, name: String, seconds: f64) -> String {
     let config = DelayConfig { seconds };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5731,7 +6316,7 @@ pub fn api_create_delay_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5745,7 +6330,7 @@ pub fn api_create_park_node(id: String, name: String) -> String {
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5759,7 +6344,7 @@ pub fn api_create_unpark_node(id: String, name: String) -> String {
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5775,7 +6360,7 @@ pub fn api_create_cool_camera_node(
         target_temp,
         duration_mins,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5783,19 +6368,15 @@ pub fn api_create_cool_camera_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
 /// Create a warm camera node configuration
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_create_warm_camera_node(
-    id: String,
-    name: String,
-    rate_per_min: f64,
-) -> String {
+pub fn api_create_warm_camera_node(id: String, name: String, rate_per_min: f64) -> String {
     let config = WarmConfig { rate_per_min };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5803,7 +6384,7 @@ pub fn api_create_warm_camera_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5825,7 +6406,7 @@ pub fn api_create_dither_node(
         settle_timeout,
         ra_only: ra_only != 0,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5833,7 +6414,7 @@ pub fn api_create_dither_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5851,12 +6432,12 @@ pub fn api_create_wait_time_node(
         "astronomical" => Some(TwilightType::Astronomical),
         _ => None,
     });
-    
+
     let config = WaitTimeConfig {
         wait_until,
         wait_for_twilight: twilight,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5864,7 +6445,7 @@ pub fn api_create_wait_time_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5884,13 +6465,13 @@ pub fn api_create_notification_node(
         "success" => NotificationLevel::Success,
         _ => NotificationLevel::Info,
     };
-    
+
     let config = NotificationConfig {
         title,
         message,
         level: level_enum,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5898,7 +6479,7 @@ pub fn api_create_notification_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5916,7 +6497,7 @@ pub fn api_create_script_node(
         arguments,
         timeout_secs,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5924,7 +6505,7 @@ pub fn api_create_script_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5940,7 +6521,7 @@ pub fn api_create_rotator_node(
         target_angle,
         relative: relative != 0,
     };
-    
+
     let node = NodeDefinition {
         id,
         name,
@@ -5948,7 +6529,7 @@ pub fn api_create_rotator_node(
         enabled: true,
         children: vec![],
     };
-    
+
     serde_json::to_string(&node).unwrap_or_default()
 }
 
@@ -5961,10 +6542,11 @@ pub fn api_build_sequence(
     node_jsons: Vec<String>,
     root_node_id: Option<String>,
 ) -> String {
-    let nodes: Vec<NodeDefinition> = node_jsons.iter()
+    let nodes: Vec<NodeDefinition> = node_jsons
+        .iter()
         .filter_map(|json| serde_json::from_str(json).ok())
         .collect();
-    
+
     let definition = SequenceDefinition {
         id,
         name,
@@ -5973,7 +6555,7 @@ pub fn api_build_sequence(
         root_node_id,
         metadata: std::collections::HashMap::new(),
     };
-    
+
     serde_json::to_string(&definition).unwrap_or_default()
 }
 
@@ -6073,7 +6655,11 @@ pub fn api_estimate_mosaic_time(
     exposures_per_panel: u32,
     overhead_per_panel_secs: f64,
 ) -> f64 {
-    let overhead = if overhead_per_panel_secs <= 0.0 { 60.0 } else { overhead_per_panel_secs };
+    let overhead = if overhead_per_panel_secs <= 0.0 {
+        60.0
+    } else {
+        overhead_per_panel_secs
+    };
     let time_per_panel = exposure_secs * exposures_per_panel as f64 + overhead;
     total_panels as f64 * time_per_panel
 }
@@ -6097,10 +6683,12 @@ pub fn api_calculate_altitude(
     longitude: f64,
     time_unix_millis: i64,
 ) -> f64 {
-    use chrono::{Utc, TimeZone};
+    use chrono::{TimeZone, Utc};
 
     // Convert Unix milliseconds to DateTime<Utc>
-    let time = Utc.timestamp_millis_opt(time_unix_millis).single()
+    let time = Utc
+        .timestamp_millis_opt(time_unix_millis)
+        .single()
         .unwrap_or_else(|| Utc::now());
 
     nightshade_sequencer::meridian::calculate_altitude(
@@ -6132,7 +6720,12 @@ fn get_polar_align_cancel() -> &'static PolarAtomicBool {
 
 /// Emit a polar alignment status update (JSON-serializable for Dart)
 fn emit_polar_status(status: &str, phase: &str, point: i32) {
-    tracing::info!("Polar alignment: {} (phase={}, point={})", status, phase, point);
+    tracing::info!(
+        "Polar alignment: {} (phase={}, point={})",
+        status,
+        phase,
+        point
+    );
     get_state().publish_event(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::PolarAlignment,
@@ -6145,7 +6738,15 @@ fn emit_polar_status(status: &str, phase: &str, point: i32) {
 }
 
 /// Emit polar alignment error update
-fn emit_polar_error(az: f64, alt: f64, total: f64, cur_ra: f64, cur_dec: f64, tgt_ra: f64, tgt_dec: f64) {
+fn emit_polar_error(
+    az: f64,
+    alt: f64,
+    total: f64,
+    cur_ra: f64,
+    cur_dec: f64,
+    tgt_ra: f64,
+    tgt_dec: f64,
+) {
     get_state().publish_event(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::PolarAlignment,
@@ -6211,7 +6812,12 @@ fn emit_polar_image(
 
     tracing::debug!(
         "Emitting polar alignment image: {}x{}, {:?}, point={}, phase={}, solved={:?}",
-        image.width, image.height, color_type, point, phase, solved_ra.is_some()
+        image.width,
+        image.height,
+        color_type,
+        point,
+        phase,
+        solved_ra.is_some()
     );
 
     get_state().publish_event(create_event_auto_id(
@@ -6253,7 +6859,9 @@ pub async fn api_start_polar_alignment(
 ) -> Result<(), NightshadeError> {
     // Check if already running
     if get_polar_align_flag().load(PolarOrdering::Relaxed) {
-        return Err(NightshadeError::OperationFailed("Polar alignment already running".to_string()));
+        return Err(NightshadeError::OperationFailed(
+            "Polar alignment already running".to_string(),
+        ));
     }
 
     get_polar_align_flag().store(true, PolarOrdering::Relaxed);
@@ -6268,12 +6876,14 @@ pub async fn api_start_polar_alignment(
     let connected = api_get_connected_devices().await;
 
     // Find connected camera
-    let camera_id = connected.iter()
+    let camera_id = connected
+        .iter()
         .find(|d| d.device_type == DeviceType::Camera)
         .map(|d| d.id.clone());
 
     // Find connected mount
-    let mount_id = connected.iter()
+    let mount_id = connected
+        .iter()
         .find(|d| d.device_type == DeviceType::Mount)
         .map(|d| d.id.clone());
 
@@ -6308,7 +6918,8 @@ pub async fn api_start_polar_alignment(
             offset_val,
             solve_timeout_val,
             auto_complete_threshold_val,
-        ).await;
+        )
+        .await;
 
         if let Err(e) = result {
             tracing::error!("Polar alignment failed: {}", e);
@@ -6346,7 +6957,11 @@ async fn run_polar_alignment(
             return Ok(());
         }
 
-        emit_polar_status(&format!("Capturing point {}/3...", point), "measuring", point as i32);
+        emit_polar_status(
+            &format!("Capturing point {}/3...", point),
+            "measuring",
+            point as i32,
+        );
 
         // Capture image using existing API
         // api_camera_start_exposure(device_id, duration_secs, gain, offset, bin_x, bin_y)
@@ -6357,7 +6972,9 @@ async fn run_polar_alignment(
             offset,
             binning,
             binning,
-        ).await.map_err(|e| format!("Failed to capture: {:?}", e))?;
+        )
+        .await
+        .map_err(|e| format!("Failed to capture: {:?}", e))?;
 
         // Wait for exposure to complete
         tokio::time::sleep(tokio::time::Duration::from_secs_f64(exposure_time + 2.0)).await;
@@ -6367,10 +6984,15 @@ async fn run_polar_alignment(
             return Ok(());
         }
 
-        emit_polar_status(&format!("Plate solving point {}/3...", point), "measuring", point as i32);
+        emit_polar_status(
+            &format!("Plate solving point {}/3...", point),
+            "measuring",
+            point as i32,
+        );
 
         // Get the captured image
-        let image = api_get_last_image(camera_id.clone()).await
+        let image = api_get_last_image(camera_id.clone())
+            .await
             .map_err(|e| format!("Failed to get image: {:?}", e))?;
 
         // Emit polar alignment image (before plate solve, no coordinates yet)
@@ -6390,8 +7012,10 @@ async fn run_polar_alignment(
         let solve_future = api_plate_solve_blind(temp_path_str.clone());
         let solve_result = match tokio::time::timeout(
             tokio::time::Duration::from_secs_f64(solve_timeout_secs),
-            solve_future
-        ).await {
+            solve_future,
+        )
+        .await
+        {
             Ok(Ok(result)) => result,
             Ok(Err(e)) => {
                 let _ = std::fs::remove_file(&temp_path);
@@ -6399,7 +7023,10 @@ async fn run_polar_alignment(
             }
             Err(_) => {
                 let _ = std::fs::remove_file(&temp_path);
-                return Err(format!("Plate solve timed out after 60 seconds for point {}", point));
+                return Err(format!(
+                    "Plate solve timed out after 60 seconds for point {}",
+                    point
+                ));
             }
         };
 
@@ -6407,15 +7034,29 @@ async fn run_polar_alignment(
         let _ = std::fs::remove_file(&temp_path);
 
         if solve_result.success {
-            let ra_degrees = solve_result.ra * 15.0;  // RA hours to degrees
+            let ra_degrees = solve_result.ra * 15.0; // RA hours to degrees
             solved_points.push((ra_degrees, solve_result.dec));
-            tracing::info!("Point {} solved: RA={:.4}h ({:.4}°), Dec={:.4}°",
-                point, solve_result.ra, ra_degrees, solve_result.dec);
+            tracing::info!(
+                "Point {} solved: RA={:.4}h ({:.4}°), Dec={:.4}°",
+                point,
+                solve_result.ra,
+                ra_degrees,
+                solve_result.dec
+            );
 
             // Emit image again with plate solve coordinates
-            emit_polar_image(&image, point as i32, "measuring", Some(ra_degrees), Some(solve_result.dec));
+            emit_polar_image(
+                &image,
+                point as i32,
+                "measuring",
+                Some(ra_degrees),
+                Some(solve_result.dec),
+            );
         } else {
-            return Err(format!("Plate solve failed for point {}: {:?}", point, solve_result.error));
+            return Err(format!(
+                "Plate solve failed for point {}: {:?}",
+                point, solve_result.error
+            ));
         }
 
         // Rotate mount for next point (if not last point)
@@ -6429,7 +7070,11 @@ async fn run_polar_alignment(
                 // Wait for user to rotate manually
                 tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
             } else {
-                emit_polar_status(&format!("Slewing to point {}...", point + 1), "measuring", point as i32);
+                emit_polar_status(
+                    &format!("Slewing to point {}...", point + 1),
+                    "measuring",
+                    point as i32,
+                );
 
                 // Calculate new position (in degrees)
                 // Safe to get last() because we just pushed to solved_points above
@@ -6443,7 +7088,8 @@ async fn run_polar_alignment(
                 let target_ra_deg = (current_ra_deg + move_amount + 360.0) % 360.0;
 
                 // Slew mount (API takes RA in hours, Dec in degrees)
-                api_mount_slew_to_coordinates(mount_id.clone(), target_ra_deg / 15.0, *current_dec).await
+                api_mount_slew_to_coordinates(mount_id.clone(), target_ra_deg / 15.0, *current_dec)
+                    .await
                     .map_err(|e| format!("Failed to slew: {:?}", e))?;
 
                 // Wait for slew to complete
@@ -6458,7 +7104,11 @@ async fn run_polar_alignment(
     let (mut center_ra, mut center_dec) = calculate_rotation_center(&solved_points);
     let pole_dec = if is_north { 90.0 } else { -90.0 };
 
-    tracing::info!("Rotation center: RA={:.4}°, Dec={:.4}°", center_ra, center_dec);
+    tracing::info!(
+        "Rotation center: RA={:.4}°, Dec={:.4}°",
+        center_ra,
+        center_dec
+    );
 
     // Geometric validation: check if calculated center is within 15° of expected pole
     let dec_diff = (center_dec - pole_dec).abs();
@@ -6500,12 +7150,24 @@ async fn run_polar_alignment(
             offset,
             binning,
             binning,
-        ).await {
+        )
+        .await
+        {
             consecutive_failures += 1;
             tracing::warn!("Capture failed in adjustment loop: {:?}", e);
-            emit_polar_status(&format!("Capture failed: {:?} (retry {}/{})", e, consecutive_failures, MAX_FAILURES), "adjusting", 0);
+            emit_polar_status(
+                &format!(
+                    "Capture failed: {:?} (retry {}/{})",
+                    e, consecutive_failures, MAX_FAILURES
+                ),
+                "adjusting",
+                0,
+            );
             if consecutive_failures >= MAX_FAILURES {
-                return Err(format!("Too many consecutive failures ({}) in adjustment loop", MAX_FAILURES));
+                return Err(format!(
+                    "Too many consecutive failures ({}) in adjustment loop",
+                    MAX_FAILURES
+                ));
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             continue;
@@ -6524,9 +7186,19 @@ async fn run_polar_alignment(
             Err(e) => {
                 consecutive_failures += 1;
                 tracing::warn!("Failed to get image in adjustment loop: {:?}", e);
-                emit_polar_status(&format!("Image retrieval failed (retry {}/{})", consecutive_failures, MAX_FAILURES), "adjusting", 0);
+                emit_polar_status(
+                    &format!(
+                        "Image retrieval failed (retry {}/{})",
+                        consecutive_failures, MAX_FAILURES
+                    ),
+                    "adjusting",
+                    0,
+                );
                 if consecutive_failures >= MAX_FAILURES {
-                    return Err(format!("Too many consecutive failures ({}) in adjustment loop", MAX_FAILURES));
+                    return Err(format!(
+                        "Too many consecutive failures ({}) in adjustment loop",
+                        MAX_FAILURES
+                    ));
                 }
                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                 continue;
@@ -6543,9 +7215,19 @@ async fn run_polar_alignment(
         if let Err(e) = write_temp_fits_for_solve(&image, &temp_path_str) {
             consecutive_failures += 1;
             tracing::warn!("Failed to write temp FITS: {}", e);
-            emit_polar_status(&format!("FITS write failed (retry {}/{})", consecutive_failures, MAX_FAILURES), "adjusting", 0);
+            emit_polar_status(
+                &format!(
+                    "FITS write failed (retry {}/{})",
+                    consecutive_failures, MAX_FAILURES
+                ),
+                "adjusting",
+                0,
+            );
             if consecutive_failures >= MAX_FAILURES {
-                return Err(format!("Too many consecutive failures ({}) in adjustment loop", MAX_FAILURES));
+                return Err(format!(
+                    "Too many consecutive failures ({}) in adjustment loop",
+                    MAX_FAILURES
+                ));
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
             continue;
@@ -6555,46 +7237,70 @@ async fn run_polar_alignment(
 
         // Plate solve with 30 second timeout (shorter for adjustment loop)
         let solve_future = api_plate_solve_blind(temp_path_str.clone());
-        let solve_result = match tokio::time::timeout(
-            tokio::time::Duration::from_secs(30),
-            solve_future
-        ).await {
-            Ok(Ok(result)) => {
-                let _ = std::fs::remove_file(&temp_path);
-                result
-            }
-            Ok(Err(e)) => {
-                let _ = std::fs::remove_file(&temp_path);
-                consecutive_failures += 1;
-                tracing::warn!("Plate solve error in adjustment loop: {:?}", e);
-                emit_polar_status(&format!("Solve failed: {:?} (retry {}/{})", e, consecutive_failures, MAX_FAILURES), "adjusting", 0);
-                if consecutive_failures >= MAX_FAILURES {
-                    return Err(format!("Too many consecutive failures ({}) in adjustment loop", MAX_FAILURES));
+        let solve_result =
+            match tokio::time::timeout(tokio::time::Duration::from_secs(30), solve_future).await {
+                Ok(Ok(result)) => {
+                    let _ = std::fs::remove_file(&temp_path);
+                    result
                 }
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                continue;
-            }
-            Err(_) => {
-                let _ = std::fs::remove_file(&temp_path);
-                consecutive_failures += 1;
-                tracing::warn!("Plate solve timed out in adjustment loop");
-                emit_polar_status(&format!("Solve timed out (retry {}/{})", consecutive_failures, MAX_FAILURES), "adjusting", 0);
-                if consecutive_failures >= MAX_FAILURES {
-                    return Err(format!("Too many consecutive failures ({}) in adjustment loop", MAX_FAILURES));
+                Ok(Err(e)) => {
+                    let _ = std::fs::remove_file(&temp_path);
+                    consecutive_failures += 1;
+                    tracing::warn!("Plate solve error in adjustment loop: {:?}", e);
+                    emit_polar_status(
+                        &format!(
+                            "Solve failed: {:?} (retry {}/{})",
+                            e, consecutive_failures, MAX_FAILURES
+                        ),
+                        "adjusting",
+                        0,
+                    );
+                    if consecutive_failures >= MAX_FAILURES {
+                        return Err(format!(
+                            "Too many consecutive failures ({}) in adjustment loop",
+                            MAX_FAILURES
+                        ));
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                    continue;
                 }
-                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                continue;
-            }
-        };
+                Err(_) => {
+                    let _ = std::fs::remove_file(&temp_path);
+                    consecutive_failures += 1;
+                    tracing::warn!("Plate solve timed out in adjustment loop");
+                    emit_polar_status(
+                        &format!(
+                            "Solve timed out (retry {}/{})",
+                            consecutive_failures, MAX_FAILURES
+                        ),
+                        "adjusting",
+                        0,
+                    );
+                    if consecutive_failures >= MAX_FAILURES {
+                        return Err(format!(
+                            "Too many consecutive failures ({}) in adjustment loop",
+                            MAX_FAILURES
+                        ));
+                    }
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
 
         if solve_result.success {
             // Reset failure counter on success
             consecutive_failures = 0;
 
-            let ra_degrees = solve_result.ra * 15.0;  // hours to degrees
+            let ra_degrees = solve_result.ra * 15.0; // hours to degrees
 
             // Emit image again with plate solve coordinates
-            emit_polar_image(&image, 0, "adjusting", Some(ra_degrees), Some(solve_result.dec));
+            emit_polar_image(
+                &image,
+                0,
+                "adjusting",
+                Some(ra_degrees),
+                Some(solve_result.dec),
+            );
 
             // Rolling 3-point recalculation: add new point and keep only last 3
             solved_points.push((ra_degrees, solve_result.dec));
@@ -6607,7 +7313,11 @@ async fn run_polar_alignment(
                 let (new_center_ra, new_center_dec) = calculate_rotation_center(&solved_points);
                 center_ra = new_center_ra;
                 center_dec = new_center_dec;
-                tracing::debug!("Updated rotation center: RA={:.4}°, Dec={:.4}°", center_ra, center_dec);
+                tracing::debug!(
+                    "Updated rotation center: RA={:.4}°, Dec={:.4}°",
+                    center_ra,
+                    center_dec
+                );
             }
 
             // Calculate error relative to recalculated pole position
@@ -6627,7 +7337,10 @@ async fn run_polar_alignment(
                                 total_error, auto_complete_threshold, AUTO_COMPLETE_DURATION_SECS
                             );
                             emit_polar_status(
-                                &format!("Complete! Error {:.2}' below threshold for {}s", total_error, AUTO_COMPLETE_DURATION_SECS),
+                                &format!(
+                                    "Complete! Error {:.2}' below threshold for {}s",
+                                    total_error, AUTO_COMPLETE_DURATION_SECS
+                                ),
                                 "complete",
                                 0,
                             );
@@ -6659,7 +7372,10 @@ async fn run_polar_alignment(
                             total_error, auto_complete_threshold
                         );
                         emit_polar_status(
-                            &format!("Below threshold - completing in {}s...", AUTO_COMPLETE_DURATION_SECS),
+                            &format!(
+                                "Below threshold - completing in {}s...",
+                                AUTO_COMPLETE_DURATION_SECS
+                            ),
                             "adjusting",
                             0,
                         );
@@ -6690,9 +7406,19 @@ async fn run_polar_alignment(
             consecutive_failures += 1;
             // Failed solve means we can't track error, reset auto-complete timer
             auto_complete_start = None;
-            emit_polar_status(&format!("Solve unsuccessful (retry {}/{})", consecutive_failures, MAX_FAILURES), "adjusting", 0);
+            emit_polar_status(
+                &format!(
+                    "Solve unsuccessful (retry {}/{})",
+                    consecutive_failures, MAX_FAILURES
+                ),
+                "adjusting",
+                0,
+            );
             if consecutive_failures >= MAX_FAILURES {
-                return Err(format!("Too many consecutive failures ({}) in adjustment loop", MAX_FAILURES));
+                return Err(format!(
+                    "Too many consecutive failures ({}) in adjustment loop",
+                    MAX_FAILURES
+                ));
             }
         }
 
@@ -6703,14 +7429,16 @@ async fn run_polar_alignment(
 
 /// Helper to write a temp FITS file for plate solving
 fn write_temp_fits_for_solve(image: &CapturedImageResult, path: &str) -> Result<(), String> {
-    use nightshade_imaging::{ImageData, PixelType, write_fits, FitsHeader};
+    use nightshade_imaging::{write_fits, FitsHeader, ImageData, PixelType};
     use std::path::Path;
 
     // Convert display_data to raw bytes for FITS
     // The display_data is 8-bit, scale to 16-bit for better plate solving
     let raw_bytes: Vec<u8> = if image.is_color {
         // For color, convert to grayscale (luminance) and scale to 16-bit
-        image.display_data.chunks(3)
+        image
+            .display_data
+            .chunks(3)
             .flat_map(|rgb| {
                 let lum = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u16 * 256;
                 lum.to_le_bytes().to_vec()
@@ -6718,7 +7446,9 @@ fn write_temp_fits_for_solve(image: &CapturedImageResult, path: &str) -> Result<
             .collect()
     } else {
         // Scale 8-bit to 16-bit
-        image.display_data.iter()
+        image
+            .display_data
+            .iter()
             .flat_map(|&v| {
                 let scaled = (v as u16) * 256;
                 scaled.to_le_bytes().to_vec()
@@ -6747,15 +7477,18 @@ fn calculate_rotation_center(points: &[(f64, f64)]) -> (f64, f64) {
     }
 
     // Convert spherical (RA, Dec) to Cartesian unit vectors
-    let vectors: Vec<(f64, f64, f64)> = points.iter().map(|(ra, dec)| {
-        let ra_rad = ra.to_radians();
-        let dec_rad = dec.to_radians();
-        (
-            dec_rad.cos() * ra_rad.cos(),
-            dec_rad.cos() * ra_rad.sin(),
-            dec_rad.sin()
-        )
-    }).collect();
+    let vectors: Vec<(f64, f64, f64)> = points
+        .iter()
+        .map(|(ra, dec)| {
+            let ra_rad = ra.to_radians();
+            let dec_rad = dec.to_radians();
+            (
+                dec_rad.cos() * ra_rad.cos(),
+                dec_rad.cos() * ra_rad.sin(),
+                dec_rad.sin(),
+            )
+        })
+        .collect();
 
     // The three points define a plane. The rotation axis is the normal to this plane.
     let p1 = vectors[0];
@@ -6826,27 +7559,32 @@ pub fn api_init_profile_storage(storage_path: String) -> Result<(), NightshadeEr
 /// Get all equipment profiles
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_get_profiles() -> Result<Vec<EquipmentProfile>, NightshadeError> {
-    get_state().load_profiles()
+    get_state()
+        .load_profiles()
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Save an equipment profile
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_save_profile(profile: EquipmentProfile) -> Result<(), NightshadeError> {
-    get_state().save_profile_to_storage(&profile)
+    get_state()
+        .save_profile_to_storage(&profile)
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Delete an equipment profile
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_delete_profile(profile_id: String) -> Result<(), NightshadeError> {
-    get_state().delete_profile_from_storage(&profile_id)
+    get_state()
+        .delete_profile_from_storage(&profile_id)
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Load a profile and set as active
 pub async fn api_load_profile(profile_id: String) -> Result<(), NightshadeError> {
-    get_state().load_and_set_profile(&profile_id).await
+    get_state()
+        .load_and_set_profile(&profile_id)
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -6875,21 +7613,24 @@ pub fn api_init_settings_storage(storage_path: String) -> Result<(), NightshadeE
 /// Get application settings
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_get_settings() -> Result<AppSettings, NightshadeError> {
-    get_state().get_settings()
+    get_state()
+        .get_settings()
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Update application settings
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_update_settings(settings: AppSettings) -> Result<(), NightshadeError> {
-    get_state().update_settings(&settings)
+    get_state()
+        .update_settings(&settings)
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
 /// Get observer location
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_get_location() -> Result<Option<ObserverLocation>, NightshadeError> {
-    get_state().get_observer_location()
+    get_state()
+        .get_observer_location()
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -6899,10 +7640,16 @@ pub fn api_set_location(location: Option<ObserverLocation>) -> Result<(), Nights
     // Using eprintln! to ensure we see this in stderr regardless of tracing config
     match &location {
         Some(loc) => {
-            eprintln!("[RUST-API] api_set_location called with lat={}, lon={}, elev={}",
-                loc.latitude, loc.longitude, loc.elevation);
-            tracing::info!("[API] api_set_location called with lat={}, lon={}, elev={}",
-                loc.latitude, loc.longitude, loc.elevation);
+            eprintln!(
+                "[RUST-API] api_set_location called with lat={}, lon={}, elev={}",
+                loc.latitude, loc.longitude, loc.elevation
+            );
+            tracing::info!(
+                "[API] api_set_location called with lat={}, lon={}, elev={}",
+                loc.latitude,
+                loc.longitude,
+                loc.elevation
+            );
         }
         None => {
             eprintln!("[RUST-API] api_set_location called with None");
@@ -7063,26 +7810,26 @@ pub async fn api_save_fits_file(
     for warning in &header_validation.warnings {
         tracing::debug!("FITS header warning: {}", warning);
     }
-    
+
     // Ensure directory exists
     if let Some(parent) = std::path::Path::new(&file_path).parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| NightshadeError::OperationFailed(format!("Failed to create directory: {}", e)))?;
+        std::fs::create_dir_all(parent).map_err(|e| {
+            NightshadeError::OperationFailed(format!("Failed to create directory: {}", e))
+        })?;
     }
-    
+
     // Write file
-    // Note: write_fits is blocking, so we should spawn_blocking if possible, 
+    // Note: write_fits is blocking, so we should spawn_blocking if possible,
     // but for now we'll just run it (it's fast enough for small headers, but data writing might take time)
     // Ideally: tokio::task::spawn_blocking
-    
+
     let path = std::path::PathBuf::from(file_path);
-    
-    tokio::task::spawn_blocking(move || {
-        write_fits(&path, &image, &header)
-    }).await
-    .map_err(|e| NightshadeError::OperationFailed(format!("Task join error: {}", e)))?
-    .map_err(|e| NightshadeError::OperationFailed(format!("Failed to write FITS: {}", e)))?;
-    
+
+    tokio::task::spawn_blocking(move || write_fits(&path, &image, &header))
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(format!("Task join error: {}", e)))?
+        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to write FITS: {}", e)))?;
+
     Ok(())
 }
 
@@ -7096,20 +7843,26 @@ pub async fn api_save_fits_from_last_capture(
     file_path: String,
     header_data: FitsWriteHeader,
 ) -> Result<(), NightshadeError> {
-    tracing::info!("Saving FITS from last capture for device {} to: {}", device_id, file_path);
+    tracing::info!(
+        "Saving FITS from last capture for device {} to: {}",
+        device_id,
+        file_path
+    );
 
     // Get the stored raw image data for this device
     let storage = get_unified_image_storage().read().await;
-    let captured_data = storage.get(&device_id)
-        .ok_or_else(|| NightshadeError::OperationFailed(
-            format!("No captured image available for device {}. Please capture an image first.", device_id)
-        ))?;
+    let captured_data = storage.get(&device_id).ok_or_else(|| {
+        NightshadeError::OperationFailed(format!(
+            "No captured image available for device {}. Please capture an image first.",
+            device_id
+        ))
+    })?;
 
     // Clone the data we need so we can release the lock before the blocking write
     let width = captured_data.raw_info.width;
     let height = captured_data.raw_info.height;
     let data = captured_data.raw_info.data.clone();
-    drop(storage);  // Release the read lock
+    drop(storage); // Release the read lock
 
     // Now save using the existing logic
     tracing::info!("Saving {}x{} image ({} pixels)", width, height, data.len());
@@ -7215,18 +7968,18 @@ pub async fn api_save_fits_from_last_capture(
 
     // Ensure directory exists
     if let Some(parent) = std::path::Path::new(&file_path).parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| NightshadeError::OperationFailed(format!("Failed to create directory: {}", e)))?;
+        std::fs::create_dir_all(parent).map_err(|e| {
+            NightshadeError::OperationFailed(format!("Failed to create directory: {}", e))
+        })?;
     }
 
     // Write file using spawn_blocking
     let path = std::path::PathBuf::from(file_path);
 
-    tokio::task::spawn_blocking(move || {
-        write_fits(&path, &image, &header)
-    }).await
-    .map_err(|e| NightshadeError::OperationFailed(format!("Task join error: {}", e)))?
-    .map_err(|e| NightshadeError::OperationFailed(format!("Failed to write FITS: {}", e)))?;
+    tokio::task::spawn_blocking(move || write_fits(&path, &image, &header))
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(format!("Task join error: {}", e)))?
+        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to write FITS: {}", e)))?;
 
     tracing::info!("FITS file saved successfully from last capture");
     Ok(())
@@ -7238,7 +7991,11 @@ pub async fn api_save_fits_from_last_capture(
 
 /// Calculate image statistics
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_get_image_stats(width: u32, height: u32, data: Vec<u16>) -> Result<ImageStatsResult, NightshadeError> {
+pub fn api_get_image_stats(
+    width: u32,
+    height: u32,
+    data: Vec<u16>,
+) -> Result<ImageStatsResult, NightshadeError> {
     let stats = crate::imaging_ops::get_image_stats(width, height, data);
     Ok(ImageStatsResult {
         min: stats.min,
@@ -7253,7 +8010,11 @@ pub fn api_get_image_stats(width: u32, height: u32, data: Vec<u16>) -> Result<Im
 
 /// Auto-stretch image for display
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_auto_stretch_image(width: u32, height: u32, data: Vec<u16>) -> Result<Vec<u8>, NightshadeError> {
+pub fn api_auto_stretch_image(
+    width: u32,
+    height: u32,
+    data: Vec<u16>,
+) -> Result<Vec<u8>, NightshadeError> {
     Ok(crate::imaging_ops::auto_stretch_image(width, height, data))
 }
 
@@ -7266,23 +8027,29 @@ pub fn api_debayer_image(
     pattern_str: String,
     algo_str: String,
 ) -> Result<Vec<u8>, NightshadeError> {
-    let pattern = BayerPattern::from_str(&pattern_str)
-        .ok_or_else(|| NightshadeError::InvalidParameter(format!("Invalid bayer pattern: {}", pattern_str)))?;
-        
+    let pattern = BayerPattern::from_str(&pattern_str).ok_or_else(|| {
+        NightshadeError::InvalidParameter(format!("Invalid bayer pattern: {}", pattern_str))
+    })?;
+
     let algorithm = match algo_str.to_lowercase().as_str() {
         "bilinear" => DebayerAlgorithm::Bilinear,
         "vng" => DebayerAlgorithm::VNG,
         "superpixel" => DebayerAlgorithm::SuperPixel,
         _ => DebayerAlgorithm::Bilinear,
     };
-    
-    Ok(crate::imaging_ops::debayer_image(width, height, data, pattern, algorithm))
+
+    Ok(crate::imaging_ops::debayer_image(
+        width, height, data, pattern, algorithm,
+    ))
 }
 
 /// Generate thumbnail from FITS file
 /// Returns JPEG-encoded thumbnail data (~512x512 pixels)
 #[flutter_rust_bridge::frb(sync)]
-pub fn api_generate_fits_thumbnail(file_path: String, max_size: u32) -> Result<Vec<u8>, NightshadeError> {
+pub fn api_generate_fits_thumbnail(
+    file_path: String,
+    max_size: u32,
+) -> Result<Vec<u8>, NightshadeError> {
     use nightshade_imaging::read_fits;
     use std::path::Path;
 
@@ -7295,41 +8062,56 @@ pub fn api_generate_fits_thumbnail(file_path: String, max_size: u32) -> Result<V
     let data_u16 = match image_data.pixel_type {
         nightshade_imaging::PixelType::U8 => {
             // Convert u8 to u16
-            image_data.data.iter().map(|&b| (b as u16) << 8).collect::<Vec<u16>>()
-        },
+            image_data
+                .data
+                .iter()
+                .map(|&b| (b as u16) << 8)
+                .collect::<Vec<u16>>()
+        }
         nightshade_imaging::PixelType::U16 => {
             // Already u16, convert bytes to u16 values
-            image_data.data.chunks_exact(2)
+            image_data
+                .data
+                .chunks_exact(2)
                 .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
                 .collect::<Vec<u16>>()
-        },
+        }
         nightshade_imaging::PixelType::U32 => {
             // Convert u32 to u16 (downscale)
-            image_data.data.chunks_exact(4)
+            image_data
+                .data
+                .chunks_exact(4)
                 .map(|chunk| {
                     let val = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                    (val >> 16) as u16  // Take high 16 bits
+                    (val >> 16) as u16 // Take high 16 bits
                 })
                 .collect::<Vec<u16>>()
-        },
+        }
         nightshade_imaging::PixelType::F32 => {
             // Convert f32 to u16 (scale 0.0-1.0 to 0-65535)
-            image_data.data.chunks_exact(4)
+            image_data
+                .data
+                .chunks_exact(4)
                 .map(|chunk| {
                     let val = f32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                     (val.clamp(0.0, 1.0) * 65535.0) as u16
                 })
                 .collect::<Vec<u16>>()
-        },
+        }
         nightshade_imaging::PixelType::F64 => {
             // Convert f64 to u16 (scale 0.0-1.0 to 0-65535)
-            image_data.data.chunks_exact(8)
+            image_data
+                .data
+                .chunks_exact(8)
                 .map(|chunk| {
-                    let val = f64::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7]]);
+                    let val = f64::from_be_bytes([
+                        chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
+                        chunk[7],
+                    ]);
                     (val.clamp(0.0, 1.0) * 65535.0) as u16
                 })
                 .collect::<Vec<u16>>()
-        },
+        }
     };
 
     let width = image_data.width;
@@ -7364,18 +8146,21 @@ pub fn api_generate_fits_thumbnail(file_path: String, max_size: u32) -> Result<V
     use image::{GrayImage, ImageEncoder};
     use std::io::Cursor;
 
-    let gray_img = GrayImage::from_raw(new_width, new_height, stretched)
-        .ok_or_else(|| NightshadeError::ImageError("Failed to create grayscale image".to_string()))?;
+    let gray_img = GrayImage::from_raw(new_width, new_height, stretched).ok_or_else(|| {
+        NightshadeError::ImageError("Failed to create grayscale image".to_string())
+    })?;
 
     let mut jpeg_data = Vec::new();
     let mut cursor = Cursor::new(&mut jpeg_data);
     let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 85);
-    encoder.write_image(
-        gray_img.as_raw(),
-        new_width,
-        new_height,
-        image::ColorType::L8,
-    ).map_err(|e| NightshadeError::ImageError(format!("JPEG encoding failed: {}", e)))?;
+    encoder
+        .write_image(
+            gray_img.as_raw(),
+            new_width,
+            new_height,
+            image::ColorType::L8,
+        )
+        .map_err(|e| NightshadeError::ImageError(format!("JPEG encoding failed: {}", e)))?;
 
     Ok(jpeg_data)
 }
@@ -7384,30 +8169,35 @@ pub fn api_generate_fits_thumbnail(file_path: String, max_size: u32) -> Result<V
 pub mod ascom_connections {
     use super::*;
     use std::collections::HashMap;
-    
+
     // Storage for active ASCOM connections
-    static ASCOM_CAMERAS: OnceLock<Arc<RwLock<HashMap<String, nightshade_ascom::AscomCamera>>>> = OnceLock::new();
-    static ASCOM_MOUNTS: OnceLock<Arc<RwLock<HashMap<String, nightshade_ascom::AscomMount>>>> = OnceLock::new();
-    static ASCOM_FOCUSERS: OnceLock<Arc<RwLock<HashMap<String, nightshade_ascom::AscomFocuser>>>> = OnceLock::new();
-    
+    static ASCOM_CAMERAS: OnceLock<Arc<RwLock<HashMap<String, nightshade_ascom::AscomCamera>>>> =
+        OnceLock::new();
+    static ASCOM_MOUNTS: OnceLock<Arc<RwLock<HashMap<String, nightshade_ascom::AscomMount>>>> =
+        OnceLock::new();
+    static ASCOM_FOCUSERS: OnceLock<Arc<RwLock<HashMap<String, nightshade_ascom::AscomFocuser>>>> =
+        OnceLock::new();
+
     fn get_ascom_cameras() -> &'static Arc<RwLock<HashMap<String, nightshade_ascom::AscomCamera>>> {
         ASCOM_CAMERAS.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
     }
-    
+
     fn get_ascom_mounts() -> &'static Arc<RwLock<HashMap<String, nightshade_ascom::AscomMount>>> {
         ASCOM_MOUNTS.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
     }
-    
-    fn get_ascom_focusers() -> &'static Arc<RwLock<HashMap<String, nightshade_ascom::AscomFocuser>>> {
+
+    fn get_ascom_focusers() -> &'static Arc<RwLock<HashMap<String, nightshade_ascom::AscomFocuser>>>
+    {
         ASCOM_FOCUSERS.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
     }
-    
+
     /// Connect to a real ASCOM camera
     pub async fn connect_ascom_camera(prog_id: &str) -> Result<(), NightshadeError> {
         let mut camera = nightshade_ascom::AscomCamera::new(prog_id)
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
-        camera.connect()
+        camera
+            .connect()
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
         let name = camera.name().unwrap_or_else(|_| prog_id.to_string());
@@ -7425,7 +8215,8 @@ pub mod ascom_connections {
         let mut mount = nightshade_ascom::AscomMount::new(prog_id)
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
-        mount.connect()
+        mount
+            .connect()
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
         let name = mount.name().unwrap_or_else(|_| prog_id.to_string());
@@ -7443,69 +8234,81 @@ pub mod ascom_connections {
         let mut focuser = nightshade_ascom::AscomFocuser::new(prog_id)
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
-        focuser.connect()
+        focuser
+            .connect()
             .map_err(|e| NightshadeError::connection_failed(prog_id, e))?;
 
         tracing::info!("Connected to ASCOM focuser: {}", prog_id);
-        
+
         // Store the connection
         let mut focusers = get_ascom_focusers().write().await;
         focusers.insert(prog_id.to_string(), focuser);
-        
+
         Ok(())
     }
-    
+
     /// Get real ASCOM camera temperature
     pub async fn get_ascom_camera_temp(prog_id: &str) -> Result<f64, NightshadeError> {
         let cameras = get_ascom_cameras().read().await;
-        let camera = cameras.get(prog_id)
+        let camera = cameras
+            .get(prog_id)
             .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-        
-        camera.ccd_temperature()
+
+        camera
+            .ccd_temperature()
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
-    
+
     /// Get real ASCOM mount coordinates
     pub async fn get_ascom_mount_coords(prog_id: &str) -> Result<(f64, f64), NightshadeError> {
         let mounts = get_ascom_mounts().read().await;
-        let mount = mounts.get(prog_id)
+        let mount = mounts
+            .get(prog_id)
             .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-        
-        let ra = mount.right_ascension()
+
+        let ra = mount
+            .right_ascension()
             .map_err(|e| NightshadeError::OperationFailed(e))?;
-        let dec = mount.declination()
+        let dec = mount
+            .declination()
             .map_err(|e| NightshadeError::OperationFailed(e))?;
-        
+
         Ok((ra, dec))
     }
-    
+
     /// Slew real ASCOM mount
     pub async fn slew_ascom_mount(prog_id: &str, ra: f64, dec: f64) -> Result<(), NightshadeError> {
         let mut mounts = get_ascom_mounts().write().await;
-        let mount = mounts.get_mut(prog_id)
+        let mount = mounts
+            .get_mut(prog_id)
             .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-        
-        mount.slew_to_coordinates_async(ra, dec)
+
+        mount
+            .slew_to_coordinates_async(ra, dec)
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
-    
+
     /// Get real ASCOM focuser position
     pub async fn get_ascom_focuser_position(prog_id: &str) -> Result<i32, NightshadeError> {
         let focusers = get_ascom_focusers().read().await;
-        let focuser = focusers.get(prog_id)
+        let focuser = focusers
+            .get(prog_id)
             .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-        
-        focuser.position()
+
+        focuser
+            .position()
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
-    
+
     /// Move real ASCOM focuser
     pub async fn move_ascom_focuser(prog_id: &str, position: i32) -> Result<(), NightshadeError> {
         let mut focusers = get_ascom_focusers().write().await;
-        let focuser = focusers.get_mut(prog_id)
+        let focuser = focusers
+            .get_mut(prog_id)
             .ok_or_else(|| NightshadeError::NotConnected(prog_id.to_string()))?;
-        
-        focuser.move_to(position)
+
+        focuser
+            .move_to(position)
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
@@ -7532,7 +8335,7 @@ fn apply_auto_white_balance(image: &mut [u16]) {
     // A simple mode might be noisy, so let's find the max bin
     // We start searching from a small offset to avoid black clipping
     let start_idx = 100; // arbitrary small offset
-    
+
     let get_peak = |hist: &[u32]| -> u16 {
         let mut max_count = 0;
         let mut peak_idx = 0;
@@ -7560,7 +8363,7 @@ fn apply_auto_white_balance(image: &mut [u16]) {
     let target = peak_g as f32;
     let scale_r = target / peak_r as f32;
     let scale_b = target / peak_b as f32;
-    
+
     tracing::info!("AWB Scales: R={:.3}, B={:.3}", scale_r, scale_b);
 
     // 4. Apply scaling
@@ -7583,7 +8386,7 @@ fn apply_auto_white_balance(image: &mut [u16]) {
 /// INDI autofocus configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndiAutofocusConfigApi {
-    pub method: String,  // "vcurve", "quadratic", "hyperbolic"
+    pub method: String, // "vcurve", "quadratic", "hyperbolic"
     pub step_size: i32,
     pub steps_out: u32,
     pub exposure_duration: f64,
@@ -7661,7 +8464,7 @@ pub async fn api_run_indi_autofocus(
     // Validate device IDs are INDI
     if !camera_id.starts_with("indi:") || !focuser_id.starts_with("indi:") {
         return Err(NightshadeError::InvalidParameter(
-            "Both camera and focuser must be INDI devices".to_string()
+            "Both camera and focuser must be INDI devices".to_string(),
         ));
     }
 
@@ -7726,9 +8529,10 @@ pub async fn api_run_indi_autofocus(
     let autofocus = nightshade_indi::autofocus::IndiAutofocus::new(camera, focuser, af_config);
 
     // Run autofocus
-    let result = autofocus.run().await.map_err(|e| {
-        NightshadeError::OperationFailed(format!("INDI autofocus failed: {}", e))
-    })?;
+    let result = autofocus
+        .run()
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(format!("INDI autofocus failed: {}", e)))?;
 
     // Convert result
     let method_str = match result.method_used {
@@ -7799,7 +8603,10 @@ pub async fn api_get_camera_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::Camera(c) => Ok(c),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a camera")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a camera",
+        )),
     }
 }
 
@@ -7818,7 +8625,10 @@ pub async fn api_get_mount_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::Mount(m) => Ok(m),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a mount")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a mount",
+        )),
     }
 }
 
@@ -7837,7 +8647,10 @@ pub async fn api_get_focuser_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::Focuser(f) => Ok(f),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a focuser")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a focuser",
+        )),
     }
 }
 
@@ -7856,7 +8669,10 @@ pub async fn api_get_filterwheel_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::FilterWheel(fw) => Ok(fw),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a filter wheel")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a filter wheel",
+        )),
     }
 }
 
@@ -7875,7 +8691,10 @@ pub async fn api_get_rotator_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::Rotator(r) => Ok(r),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a rotator")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a rotator",
+        )),
     }
 }
 
@@ -7894,7 +8713,10 @@ pub async fn api_get_dome_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::Dome(d) => Ok(d),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a dome")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a dome",
+        )),
     }
 }
 
@@ -7913,7 +8735,10 @@ pub async fn api_get_cover_calibrator_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::CoverCalibrator(cc) => Ok(cc),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a cover calibrator")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a cover calibrator",
+        )),
     }
 }
 
@@ -7932,7 +8757,10 @@ pub async fn api_get_weather_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::Weather(w) => Ok(w),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a weather station")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a weather station",
+        )),
     }
 }
 
@@ -7951,7 +8779,10 @@ pub async fn api_get_safety_monitor_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::SafetyMonitor(sm) => Ok(sm),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a safety monitor")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a safety monitor",
+        )),
     }
 }
 
@@ -7970,7 +8801,10 @@ pub async fn api_get_switch_capabilities(
     let caps = crate::device_capabilities::get_device_capabilities(&device_id).await?;
     match caps {
         crate::device_capabilities::DeviceCapabilities::Switch(s) => Ok(s),
-        _ => Err(NightshadeError::not_supported(&device_id, "Device is not a switch")),
+        _ => Err(NightshadeError::not_supported(
+            &device_id,
+            "Device is not a switch",
+        )),
     }
 }
 
@@ -8065,7 +8899,7 @@ pub fn api_get_qhy_discovery_status() -> QhyDiscoveryStatus {
 
 /// Helper to get the QHY discovery timeout from quirks
 fn get_qhy_discovery_timeout_ms() -> u64 {
-    use nightshade_native::quirks::{get_quirks_for_vendor, Quirk, DiscoveryQuirk};
+    use nightshade_native::quirks::{get_quirks_for_vendor, DiscoveryQuirk, Quirk};
     use nightshade_native::NativeVendor;
 
     let quirks = get_quirks_for_vendor(&NativeVendor::Qhy);
