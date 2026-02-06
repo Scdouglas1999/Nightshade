@@ -6263,14 +6263,98 @@ impl DeviceManager {
                     Err(format!("Alpaca safety monitor {} not found", device_id))
                 }
             }
-            _ => {
-                // For other device types, assume healthy if device exists
-                tracing::trace!(
-                    "Alpaca {} heartbeat: assumed healthy (no specific check)",
-                    device_id
-                );
-                Ok(true)
+            DeviceType::Dome => {
+                let domes = self.alpaca_domes.read().await;
+                if let Some(dome) = domes.get(device_id) {
+                    match dome.is_connected().await {
+                        Ok(connected) => {
+                            tracing::trace!(
+                                "Alpaca dome {} heartbeat: connected={}",
+                                device_id,
+                                connected
+                            );
+                            Ok(connected)
+                        }
+                        Err(e) => {
+                            tracing::debug!("Alpaca dome {} heartbeat failed: {}", device_id, e);
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    Err(format!("Alpaca dome {} not found", device_id))
+                }
             }
+            DeviceType::Weather => {
+                let weather = self.alpaca_weather.read().await;
+                if let Some(dev) = weather.get(device_id) {
+                    match dev.is_connected().await {
+                        Ok(connected) => {
+                            tracing::trace!(
+                                "Alpaca weather {} heartbeat: connected={}",
+                                device_id,
+                                connected
+                            );
+                            Ok(connected)
+                        }
+                        Err(e) => {
+                            tracing::debug!("Alpaca weather {} heartbeat failed: {}", device_id, e);
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    Err(format!("Alpaca weather {} not found", device_id))
+                }
+            }
+            DeviceType::Switch => {
+                let switches = self.alpaca_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    match sw.is_connected().await {
+                        Ok(connected) => {
+                            tracing::trace!(
+                                "Alpaca switch {} heartbeat: connected={}",
+                                device_id,
+                                connected
+                            );
+                            Ok(connected)
+                        }
+                        Err(e) => {
+                            tracing::debug!("Alpaca switch {} heartbeat failed: {}", device_id, e);
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    Err(format!("Alpaca switch {} not found", device_id))
+                }
+            }
+            DeviceType::CoverCalibrator => {
+                let cover_cals = self.alpaca_cover_calibrators.read().await;
+                if let Some(cc) = cover_cals.get(device_id) {
+                    match cc.is_connected().await {
+                        Ok(connected) => {
+                            tracing::trace!(
+                                "Alpaca cover calibrator {} heartbeat: connected={}",
+                                device_id,
+                                connected
+                            );
+                            Ok(connected)
+                        }
+                        Err(e) => {
+                            tracing::debug!(
+                                "Alpaca cover calibrator {} heartbeat failed: {}",
+                                device_id,
+                                e
+                            );
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    Err(format!("Alpaca cover calibrator {} not found", device_id))
+                }
+            }
+            _ => Err(format!(
+                "No Alpaca heartbeat implementation for device {} ({:?})",
+                device_id, device_type
+            )),
         }
     }
 
@@ -6349,22 +6433,22 @@ impl DeviceManager {
             }
             DeviceType::Dome => {
                 let domes = self.ascom_domes.read().await;
-                if let Some(_dome) = domes.get(device_id) {
-                    // Dome wrapper doesn't have is_connected method, assume connected if present
-                    tracing::trace!("ASCOM dome {} heartbeat: assumed connected", device_id);
-                    Ok(true)
+                if let Some(dome) = domes.get(device_id) {
+                    let connected = dome.read().await.is_connected();
+                    tracing::trace!(
+                        "ASCOM dome {} heartbeat: connected={}",
+                        device_id,
+                        connected
+                    );
+                    Ok(connected)
                 } else {
                     Err(format!("ASCOM dome {} not found", device_id))
                 }
             }
-            _ => {
-                // For other device types, assume healthy
-                tracing::trace!(
-                    "ASCOM {} heartbeat: assumed healthy (no specific check)",
-                    device_id
-                );
-                Ok(true)
-            }
+            _ => Err(format!(
+                "No ASCOM heartbeat implementation for device {} ({:?})",
+                device_id, device_type
+            )),
         }
     }
 

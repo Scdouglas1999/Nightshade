@@ -1,6 +1,7 @@
 use crate::timeout_ops::Timeouts;
 use nightshade_ascom::{init_com, uninit_com, AscomDome};
 use std::fmt::Debug;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -33,6 +34,7 @@ pub struct AscomDomeWrapper {
     name: String,
     sender: mpsc::Sender<AscomDomeCommand>,
     _thread_handle: Arc<thread::JoinHandle<()>>,
+    connected: AtomicBool,
 }
 
 impl Debug for AscomDomeWrapper {
@@ -132,6 +134,7 @@ impl AscomDomeWrapper {
             name,
             sender: tx,
             _thread_handle: Arc::new(handle),
+            connected: AtomicBool::new(false),
         })
     }
 
@@ -154,7 +157,11 @@ impl AscomDomeWrapper {
             .send(AscomDomeCommand::Connect(tx))
             .await
             .map_err(|e| format!("Send error: {}", e))?;
-        Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await
+        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await;
+        if result.is_ok() {
+            self.connected.store(true, Ordering::SeqCst);
+        }
+        result
     }
 
     pub async fn disconnect(&mut self) -> Result<(), String> {
@@ -163,7 +170,15 @@ impl AscomDomeWrapper {
             .send(AscomDomeCommand::Disconnect(tx))
             .await
             .map_err(|e| format!("Send error: {}", e))?;
-        Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await
+        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await;
+        if result.is_ok() {
+            self.connected.store(false, Ordering::SeqCst);
+        }
+        result
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.connected.load(Ordering::SeqCst)
     }
 
     pub async fn open_shutter(&self) -> Result<(), String> {

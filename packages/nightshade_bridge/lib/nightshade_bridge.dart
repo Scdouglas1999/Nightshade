@@ -8,6 +8,7 @@ export 'src/bridge_stub.dart'
     hide
         // Types that conflict with frb_generated/api.dart
         AutofocusConfigApi,
+        AutofocusResultApi,
         CapturedImageResult,
         CheckpointInfoApi,
         ImageStatsResult,

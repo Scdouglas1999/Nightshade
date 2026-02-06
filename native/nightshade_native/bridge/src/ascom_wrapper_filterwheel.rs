@@ -3,6 +3,7 @@ use nightshade_ascom::{init_com, uninit_com, AscomFilterWheel};
 use nightshade_native::traits::{NativeDevice, NativeError, NativeFilterWheel};
 use nightshade_native::NativeVendor;
 use std::fmt::Debug;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -27,6 +28,7 @@ pub struct AscomFilterWheelWrapper {
     name: String,
     sender: mpsc::Sender<AscomFilterWheelCommand>,
     _thread_handle: Arc<thread::JoinHandle<()>>,
+    connected: AtomicBool,
     // Cache filter count and names to avoid async calls if possible,
     // but names might change? Unlikely for ASCOM.
     // NativeFilterWheel::get_filter_count is synchronous.
@@ -131,6 +133,7 @@ impl AscomFilterWheelWrapper {
             name: prog_id,
             sender: tx,
             _thread_handle: Arc::new(handle),
+            connected: AtomicBool::new(false),
             filter_count: count,
         })
     }
@@ -170,7 +173,7 @@ impl NativeDevice for AscomFilterWheelWrapper {
     }
 
     fn is_connected(&self) -> bool {
-        true // Placeholder
+        self.connected.load(Ordering::SeqCst)
     }
 
     async fn connect(&mut self) -> Result<(), NativeError> {
@@ -179,7 +182,11 @@ impl NativeDevice for AscomFilterWheelWrapper {
             .send(AscomFilterWheelCommand::Connect(tx))
             .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
-        Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await
+        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await;
+        if result.is_ok() {
+            self.connected.store(true, Ordering::SeqCst);
+        }
+        result
     }
 
     async fn disconnect(&mut self) -> Result<(), NativeError> {
@@ -188,7 +195,11 @@ impl NativeDevice for AscomFilterWheelWrapper {
             .send(AscomFilterWheelCommand::Disconnect(tx))
             .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
-        Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await
+        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await;
+        if result.is_ok() {
+            self.connected.store(false, Ordering::SeqCst);
+        }
+        result
     }
 }
 
