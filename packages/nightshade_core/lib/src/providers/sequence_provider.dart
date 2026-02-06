@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -8,7 +7,8 @@ import '../models/sequence/sequence_models.dart';
 import '../models/sequence/template_snippet.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart';
-import '../models/settings/app_settings.dart' show ObserverLocation, SafetyFailMode;
+import '../models/settings/app_settings.dart'
+    show ObserverLocation, SafetyFailMode;
 import '../services/logging_service.dart';
 import 'equipment_provider.dart';
 import 'database_provider.dart';
@@ -17,7 +17,6 @@ import 'session_provider.dart';
 import 'settings_provider.dart';
 import 'imaging_provider.dart';
 import '../services/imaging_service.dart';
-import '../services/device_service.dart';
 import 'backend_provider.dart';
 import '../backend/nightshade_backend.dart';
 
@@ -46,12 +45,14 @@ class SequenceValidationIssue {
 // =============================================================================
 
 /// Current sequence execution state
-final sequenceExecutionStateProvider = StateProvider<SequenceExecutionState>((ref) {
+final sequenceExecutionStateProvider =
+    StateProvider<SequenceExecutionState>((ref) {
   return SequenceExecutionState.idle;
 });
 
 /// Current sequence progress
-final sequenceProgressProvider = StateNotifierProvider<SequenceProgressNotifier, SequenceProgress>((ref) {
+final sequenceProgressProvider =
+    StateNotifierProvider<SequenceProgressNotifier, SequenceProgress>((ref) {
   return SequenceProgressNotifier();
 });
 
@@ -92,9 +93,12 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
     state = state.copyWith(nodeStatuses: newStatuses);
   }
 
-  void updateNodeProgress(String nodeId, double progressPercent, String detail) {
-    final newProgressPercent = Map<String, double>.from(state.nodeProgressPercent);
-    final newProgressDetail = Map<String, String>.from(state.nodeProgressDetail);
+  void updateNodeProgress(
+      String nodeId, double progressPercent, String detail) {
+    final newProgressPercent =
+        Map<String, double>.from(state.nodeProgressPercent);
+    final newProgressDetail =
+        Map<String, String>.from(state.nodeProgressDetail);
 
     newProgressPercent[nodeId] = progressPercent;
     newProgressDetail[nodeId] = detail;
@@ -122,7 +126,8 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
 // =============================================================================
 
 /// Current sequence being edited
-final currentSequenceProvider = StateNotifierProvider<CurrentSequenceNotifier, Sequence?>((ref) {
+final currentSequenceProvider =
+    StateNotifierProvider<CurrentSequenceNotifier, Sequence?>((ref) {
   return CurrentSequenceNotifier();
 });
 
@@ -165,7 +170,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// Create a new sequence
   void createSequence({String name = 'New Sequence'}) {
     _saveUndo();
-    
+
     // Create a root sequence node
     final rootId = const Uuid().v4();
     final rootNode = InstructionSetNode(
@@ -226,19 +231,19 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     if (parentId != null && newNodes.containsKey(parentId)) {
       final parent = newNodes[parentId]!;
       final newChildIds = List<String>.from(parent.childIds);
-      
+
       if (index != null && index >= 0 && index <= newChildIds.length) {
         newChildIds.insert(index, node.id);
       } else {
         newChildIds.add(node.id);
       }
-      
+
       newNodes[parentId] = parent.copyWith(childIds: newChildIds);
       newNodes[node.id] = node.copyWith(
         parentId: parentId,
         orderIndex: index ?? newChildIds.length - 1,
       );
-      
+
       // Update order indices for following siblings if inserted
       if (index != null) {
         for (int i = index + 1; i < newChildIds.length; i++) {
@@ -252,19 +257,19 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
       // Add to root if no parent specified
       final root = newNodes[state!.rootNodeId!]!;
       final newChildIds = List<String>.from(root.childIds);
-      
+
       if (index != null && index >= 0 && index <= newChildIds.length) {
         newChildIds.insert(index, node.id);
       } else {
         newChildIds.add(node.id);
       }
-      
+
       newNodes[state!.rootNodeId!] = root.copyWith(childIds: newChildIds);
       newNodes[node.id] = node.copyWith(
         parentId: state!.rootNodeId,
         orderIndex: index ?? newChildIds.length - 1,
       );
-      
+
       // Update order indices for following siblings if inserted
       if (index != null) {
         for (int i = index + 1; i < newChildIds.length; i++) {
@@ -405,9 +410,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         newParentId = idMapping[oldNode.parentId];
       }
 
-      final newChildIds = oldNode.childIds
-          .map((id) => idMapping[id] ?? id)
-          .toList();
+      final newChildIds =
+          oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
 
       newNodes[newId] = oldNode.copyWith(
         id: newId,
@@ -418,7 +422,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
 
     // Update merge parent's children
     final existingChildCount = mergeParent.childIds.length;
-    final updatedChildIds = List<String>.from(mergeParent.childIds)..addAll(childIdsToAdd);
+    final updatedChildIds = List<String>.from(mergeParent.childIds)
+      ..addAll(childIdsToAdd);
     newNodes[mergeParentId] = mergeParent.copyWith(childIds: updatedChildIds);
 
     // Update order indices for the newly added children
@@ -508,7 +513,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
       nodeJson['parentId'] = parentIdOverride;
       nodeJson['childIds'] = childIds;
       nodeJson['orderIndex'] = orderIdx;
-      nodeJson.remove('children'); // Remove children from JSON as we've processed them
+      nodeJson.remove(
+          'children'); // Remove children from JSON as we've processed them
 
       final node = _deserializeSnippetNode(nodeJson);
       createdNodes.add(node);
@@ -531,24 +537,32 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     }
 
     // Match template filter names to actual profile filter names
-    print('insertSnippet: profileFilterNames=$profileFilterNames, createdNodes=${createdNodes.length}');
+    print(
+        'insertSnippet: profileFilterNames=$profileFilterNames, createdNodes=${createdNodes.length}');
     if (profileFilterNames != null && profileFilterNames.isNotEmpty) {
       for (int i = 0; i < createdNodes.length; i++) {
         final node = createdNodes[i];
-        if (node is ExposureNode && node.filter != null && node.filter!.isNotEmpty) {
-          print('insertSnippet: ExposureNode filter="${node.filter}" filterIndex=${node.filterIndex}');
-          final matchedIndex = _matchFilterToProfile(node.filter!, profileFilterNames);
+        if (node is ExposureNode &&
+            node.filter != null &&
+            node.filter!.isNotEmpty) {
+          print(
+              'insertSnippet: ExposureNode filter="${node.filter}" filterIndex=${node.filterIndex}');
+          final matchedIndex =
+              _matchFilterToProfile(node.filter!, profileFilterNames);
           print('insertSnippet: matchedIndex=$matchedIndex');
           if (matchedIndex != null) {
             createdNodes[i] = node.copyWith(
               filter: profileFilterNames[matchedIndex],
               filterIndex: matchedIndex,
             );
-            print('insertSnippet: Updated to filter="${profileFilterNames[matchedIndex]}" filterIndex=$matchedIndex');
+            print(
+                'insertSnippet: Updated to filter="${profileFilterNames[matchedIndex]}" filterIndex=$matchedIndex');
           }
         } else if (node is FilterChangeNode) {
-          print('insertSnippet: FilterChangeNode filterName="${node.filterName}" filterPosition=${node.filterPosition}');
-          final matchedIndex = _matchFilterToProfile(node.filterName, profileFilterNames);
+          print(
+              'insertSnippet: FilterChangeNode filterName="${node.filterName}" filterPosition=${node.filterPosition}');
+          final matchedIndex =
+              _matchFilterToProfile(node.filterName, profileFilterNames);
           print('insertSnippet: matchedIndex=$matchedIndex');
           if (matchedIndex != null) {
             createdNodes[i] = node.copyWith(
@@ -557,11 +571,13 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
             );
           }
         } else {
-          print('insertSnippet: Node type=${node.runtimeType}, not a filter node');
+          print(
+              'insertSnippet: Node type=${node.runtimeType}, not a filter node');
         }
       }
     } else {
-      print('insertSnippet: No profile filter names provided, skipping filter matching');
+      print(
+          'insertSnippet: No profile filter names provided, skipping filter matching');
     }
 
     // Add all created nodes to the sequence
@@ -574,7 +590,9 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     newChildIds.insertAll(insertIdx, topLevelNodeIds);
 
     // Update order indices for all children after insertion point
-    for (int i = insertIdx + topLevelNodeIds.length; i < newChildIds.length; i++) {
+    for (int i = insertIdx + topLevelNodeIds.length;
+        i < newChildIds.length;
+        i++) {
       final childId = newChildIds[i];
       if (newNodes.containsKey(childId)) {
         newNodes[childId] = newNodes[childId]!.copyWith(orderIndex: i);
@@ -610,7 +628,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     final id = json['id'] as String? ?? const Uuid().v4();
     final name = json['name'] as String?;
     final parentId = json['parentId'] as String?;
-    final childIds = (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
+    final childIds =
+        (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
     final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
     final isEnabled = json['isEnabled'] as bool? ?? true;
 
@@ -744,7 +763,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           stepSize: (json['stepSize'] as num?)?.toInt() ?? 100,
           stepsOut: (json['stepsOut'] as num?)?.toInt() ?? 7,
           exposuresPerPoint: (json['exposuresPerPoint'] as num?)?.toInt() ?? 1,
-          exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 3.0,
+          exposureDuration:
+              (json['exposureDuration'] as num?)?.toDouble() ?? 3.0,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -793,8 +813,10 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return FilterChangeNode(
           id: id,
           name: name ?? 'Change Filter',
-          filterName: json['filterName'] as String? ?? json['filter'] as String? ?? 'L',
-          filterPosition: (json['filterPosition'] as num?)?.toInt() ?? (json['filterIndex'] as num?)?.toInt(),
+          filterName:
+              json['filterName'] as String? ?? json['filter'] as String? ?? 'L',
+          filterPosition: (json['filterPosition'] as num?)?.toInt() ??
+              (json['filterIndex'] as num?)?.toInt(),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -848,7 +870,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return MeridianFlipNode(
           id: id,
           name: name ?? 'Meridian Flip',
-          minutesPastMeridian: (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
+          minutesPastMeridian:
+              (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
           pauseGuiding: json['pauseGuiding'] as bool? ?? true,
           autoCenter: json['autoCenter'] as bool? ?? true,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
@@ -991,7 +1014,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     // Pass 3: Template name starts with profile name (e.g. "Luminance" matches "Lum")
     for (int i = 0; i < profileNames.length; i++) {
       final profileLower = profileNames[i].toLowerCase().trim();
-      if (templateLower.startsWith(profileLower) && profileLower.isNotEmpty) return i;
+      if (templateLower.startsWith(profileLower) && profileLower.isNotEmpty)
+        return i;
     }
 
     // Pass 4: Known abbreviation matching
@@ -1000,7 +1024,9 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
       for (int i = 0; i < profileNames.length; i++) {
         final profileLower = profileNames[i].toLowerCase().trim();
         for (final alias in knownAliases) {
-          if (profileLower == alias || profileLower.startsWith(alias) || alias.startsWith(profileLower)) {
+          if (profileLower == alias ||
+              profileLower.startsWith(alias) ||
+              alias.startsWith(profileLower)) {
             return i;
           }
         }
@@ -1014,7 +1040,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           // Found our template in the aliases, now match the key against profiles
           for (int i = 0; i < profileNames.length; i++) {
             final profileLower = profileNames[i].toLowerCase().trim();
-            if (profileLower.startsWith(entry.key) || entry.key.startsWith(profileLower)) {
+            if (profileLower.startsWith(entry.key) ||
+                entry.key.startsWith(profileLower)) {
               return i;
             }
           }
@@ -1035,7 +1062,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     if (nodeToRemove == null) return;
 
     // Remove from parent's children
-    if (nodeToRemove.parentId != null && newNodes.containsKey(nodeToRemove.parentId)) {
+    if (nodeToRemove.parentId != null &&
+        newNodes.containsKey(nodeToRemove.parentId)) {
       final parent = newNodes[nodeToRemove.parentId!]!;
       final newChildIds = parent.childIds.where((id) => id != nodeId).toList();
       newNodes[nodeToRemove.parentId!] = parent.copyWith(childIds: newChildIds);
@@ -1079,7 +1107,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     if (state == null) return;
     final node = state!.nodes[nodeId];
     if (node == null) return;
-    
+
     updateNode(node.copyWith(isEnabled: !node.isEnabled));
   }
 
@@ -1122,7 +1150,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     // Remove from old parent
     if (node.parentId != null && newNodes.containsKey(node.parentId)) {
       final oldParent = newNodes[node.parentId!]!;
-      final newChildIds = oldParent.childIds.where((id) => id != nodeId).toList();
+      final newChildIds =
+          oldParent.childIds.where((id) => id != nodeId).toList();
       newNodes[node.parentId!] = oldParent.copyWith(childIds: newChildIds);
     }
 
@@ -1156,14 +1185,15 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     if (node == null) return;
 
     _saveUndo();
-    
+
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
-    
+
     // Create duplicate with new ID
-    SequenceNode duplicateRecursive(SequenceNode original, String? newParentId) {
+    SequenceNode duplicateRecursive(
+        SequenceNode original, String? newParentId) {
       final newId = const Uuid().v4();
       final newChildIds = <String>[];
-      
+
       // Duplicate children first
       for (final childId in original.childIds) {
         final child = state!.nodes[childId];
@@ -1173,7 +1203,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           newNodes[duplicatedChild.id] = duplicatedChild;
         }
       }
-      
+
       return original.copyWith(
         id: newId,
         name: '${original.name} (Copy)',
@@ -1205,12 +1235,12 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     if (state == null) return;
     final parent = state!.nodes[parentId];
     if (parent == null) return;
-    
+
     _saveUndo();
-    
+
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
     final originalChildren = List<String>.from(parent.childIds);
-    
+
     // Create new wrapper with the children
     // Ensure we use a fresh ID and explicitly set children
     final newWrapper = wrapper.copyWith(
@@ -1219,19 +1249,20 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
       parentId: parentId,
       orderIndex: 0,
     );
-    
+
     newNodes[newWrapper.id] = newWrapper;
-    
+
     // Update parent to point to wrapper instead of children
     newNodes[parentId] = parent.copyWith(childIds: [newWrapper.id]);
-    
+
     // Update children to point to wrapper as parent
     for (final childId in originalChildren) {
       if (newNodes.containsKey(childId)) {
-        newNodes[childId] = newNodes[childId]!.copyWith(parentId: newWrapper.id);
+        newNodes[childId] =
+            newNodes[childId]!.copyWith(parentId: newWrapper.id);
       }
     }
-    
+
     state = state!.copyWith(
       nodes: newNodes,
       modifiedAt: DateTime.now(),
@@ -1245,14 +1276,14 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     if (node == null) return;
     final parentId = node.parentId;
     if (parentId == null) return; // Cannot wrap root
-    
+
     final parent = state!.nodes[parentId];
     if (parent == null) return;
-    
+
     _saveUndo();
-    
+
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
-    
+
     // Create wrapper containing the node
     final newWrapper = wrapper.copyWith(
       id: const Uuid().v4(),
@@ -1261,10 +1292,10 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
       orderIndex: node.orderIndex,
     );
     newNodes[newWrapper.id] = newWrapper;
-    
+
     // Update node parent
     newNodes[nodeId] = node.copyWith(parentId: newWrapper.id, orderIndex: 0);
-    
+
     // Replace node in parent with wrapper
     final newParentChildren = List<String>.from(parent.childIds);
     final index = newParentChildren.indexOf(nodeId);
@@ -1272,7 +1303,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
       newParentChildren[index] = newWrapper.id;
       newNodes[parentId] = parent.copyWith(childIds: newParentChildren);
     }
-    
+
     state = state!.copyWith(
       nodes: newNodes,
       modifiedAt: DateTime.now(),
@@ -1282,29 +1313,30 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
   /// Reorder target groups (helper for Targets tab)
   void reorderTargets(int oldIndex, int newIndex) {
     if (state == null) return;
-    
+
     final targets = state!.targetGroups;
     if (oldIndex < 0 || oldIndex >= targets.length) return;
-    
+
     // Handle flutter reorder index adjustment
     if (oldIndex < newIndex) {
       newIndex -= 1;
     }
     if (newIndex < 0 || newIndex >= targets.length) return;
-    
+
     final oldTarget = targets[oldIndex];
     final newTarget = targets[newIndex];
-    
+
     // Only support reordering if they are siblings (share same parent)
-    if (oldTarget.parentId == newTarget.parentId && oldTarget.parentId != null) {
+    if (oldTarget.parentId == newTarget.parentId &&
+        oldTarget.parentId != null) {
       final parentId = oldTarget.parentId!;
       final parent = state!.nodes[parentId];
       if (parent == null) return;
-      
+
       // Find their actual indices in the parent's child list (which may contain non-targets)
       final oldChildIndex = parent.childIds.indexOf(oldTarget.id);
       final newChildIndex = parent.childIds.indexOf(newTarget.id);
-      
+
       if (oldChildIndex != -1 && newChildIndex != -1) {
         reorderNodes(parentId, oldChildIndex, newChildIndex);
       }
@@ -1323,7 +1355,7 @@ final selectedNodeIdProvider = StateProvider<String?>((ref) => null);
 final selectedNodeProvider = Provider<SequenceNode?>((ref) {
   final sequence = ref.watch(currentSequenceProvider);
   final selectedId = ref.watch(selectedNodeIdProvider);
-  
+
   if (sequence == null || selectedId == null) return null;
   return sequence.nodes[selectedId];
 });
@@ -1385,10 +1417,10 @@ class SequenceExecutor {
   /// Convert Dart sequence to JSON for native executor
   String _sequenceToJson(Sequence sequence) {
     final nodeDefinitions = <Map<String, dynamic>>[];
-    
+
     void processNode(SequenceNode node) {
       final Map<String, dynamic> nodeType = _nodeToConfig(node);
-      
+
       nodeDefinitions.add({
         'id': node.id,
         'name': node.name,
@@ -1396,7 +1428,7 @@ class SequenceExecutor {
         'enabled': node.isEnabled,
         'children': node.childIds,
       });
-      
+
       // Process children
       for (final childId in node.childIds) {
         final child = sequence.nodes[childId];
@@ -1405,11 +1437,11 @@ class SequenceExecutor {
         }
       }
     }
-    
+
     if (sequence.rootNode != null) {
       processNode(sequence.rootNode!);
     }
-    
+
     return jsonEncode({
       'id': sequence.id,
       'name': sequence.name,
@@ -1419,7 +1451,7 @@ class SequenceExecutor {
       'metadata': {},
     });
   }
-  
+
   /// Look up filter index from profile by name (case-insensitive)
   int? _lookupFilterIndex(String? filterName) {
     if (filterName == null || filterName.isEmpty) return null;
@@ -1498,7 +1530,8 @@ class SequenceExecutor {
       return {'type': 'StopGuiding'};
     } else if (node is FilterChangeNode) {
       // Auto-populate filter_index from profile if not set
-      final filterIndex = node.filterPosition ?? _lookupFilterIndex(node.filterName);
+      final filterIndex =
+          node.filterPosition ?? _lookupFilterIndex(node.filterName);
       return {
         'type': 'ChangeFilter',
         'filter_name': node.filterName,
@@ -1529,7 +1562,9 @@ class SequenceExecutor {
       return {
         'type': 'WaitForTime',
         'wait_until': node.waitUntil?.millisecondsSinceEpoch,
-        'wait_for_twilight': node.waitForTwilight != null ? _twilightToString(node.waitForTwilight!) : null,
+        'wait_for_twilight': node.waitForTwilight != null
+            ? _twilightToString(node.waitForTwilight!)
+            : null,
       };
     } else if (node is DelayNode) {
       return {
@@ -1673,73 +1708,107 @@ class SequenceExecutor {
 
     return {'type': 'Unknown'};
   }
-  
+
   String _binningToString(BinningMode binning) {
     switch (binning) {
-      case BinningMode.one: return 'One';
-      case BinningMode.two: return 'Two';
-      case BinningMode.three: return 'Three';
-      case BinningMode.four: return 'Four';
+      case BinningMode.one:
+        return 'One';
+      case BinningMode.two:
+        return 'Two';
+      case BinningMode.three:
+        return 'Three';
+      case BinningMode.four:
+        return 'Four';
     }
   }
-  
+
   String _autofocusMethodToString(AutofocusMethod method) {
     switch (method) {
-      case AutofocusMethod.vCurve: return 'VCurve';
-      case AutofocusMethod.hyperbolic: return 'Hyperbolic';
-      case AutofocusMethod.parabolic: return 'Parabolic';
+      case AutofocusMethod.vCurve:
+        return 'VCurve';
+      case AutofocusMethod.hyperbolic:
+        return 'Hyperbolic';
+      case AutofocusMethod.parabolic:
+        return 'Parabolic';
     }
   }
-  
+
   String _twilightToString(TwilightType type) {
     switch (type) {
-      case TwilightType.civil: return 'Civil';
-      case TwilightType.nautical: return 'Nautical';
-      case TwilightType.astronomical: return 'Astronomical';
+      case TwilightType.civil:
+        return 'Civil';
+      case TwilightType.nautical:
+        return 'Nautical';
+      case TwilightType.astronomical:
+        return 'Astronomical';
     }
   }
-  
+
   String _notificationLevelToString(NotificationLevel level) {
     switch (level) {
-      case NotificationLevel.info: return 'Info';
-      case NotificationLevel.warning: return 'Warning';
-      case NotificationLevel.error: return 'Error';
-      case NotificationLevel.success: return 'Success';
+      case NotificationLevel.info:
+        return 'Info';
+      case NotificationLevel.warning:
+        return 'Warning';
+      case NotificationLevel.error:
+        return 'Error';
+      case NotificationLevel.success:
+        return 'Success';
     }
   }
-  
+
   String _loopConditionToString(LoopConditionType type) {
     switch (type) {
-      case LoopConditionType.count: return 'Count';
-      case LoopConditionType.untilTime: return 'UntilTime';
-      case LoopConditionType.untilAltitude: return 'AltitudeBelow';
-      case LoopConditionType.forever: return 'Forever';
-      case LoopConditionType.whileDark: return 'WhileDark';
+      case LoopConditionType.count:
+        return 'Count';
+      case LoopConditionType.untilTime:
+        return 'UntilTime';
+      case LoopConditionType.untilAltitude:
+        return 'AltitudeBelow';
+      case LoopConditionType.forever:
+        return 'Forever';
+      case LoopConditionType.whileDark:
+        return 'WhileDark';
     }
   }
-  
+
   String _conditionalTypeToString(ConditionalType type) {
     switch (type) {
-      case ConditionalType.always: return 'Always';
-      case ConditionalType.altitudeAbove: return 'AltitudeAbove';
-      case ConditionalType.timeAfter: return 'TimeAfter';
-      case ConditionalType.guidingRmsBelow: return 'GuidingRmsBelow';
-      case ConditionalType.hfrBelow: return 'HfrBelow';
-      case ConditionalType.weatherSafe: return 'WeatherSafe';
-      case ConditionalType.moonSeparationAbove: return 'MoonSeparationAbove';
-      case ConditionalType.safetyMonitorSafe: return 'SafetyMonitorSafe';
+      case ConditionalType.always:
+        return 'Always';
+      case ConditionalType.altitudeAbove:
+        return 'AltitudeAbove';
+      case ConditionalType.timeAfter:
+        return 'TimeAfter';
+      case ConditionalType.guidingRmsBelow:
+        return 'GuidingRmsBelow';
+      case ConditionalType.hfrBelow:
+        return 'HfrBelow';
+      case ConditionalType.weatherSafe:
+        return 'WeatherSafe';
+      case ConditionalType.moonSeparationAbove:
+        return 'MoonSeparationAbove';
+      case ConditionalType.safetyMonitorSafe:
+        return 'SafetyMonitorSafe';
     }
   }
-  
+
   String _recoveryActionToString(RecoveryActionType action) {
     switch (action) {
-      case RecoveryActionType.continueExecution: return 'Continue';
-      case RecoveryActionType.pause: return 'Pause';
-      case RecoveryActionType.autofocus: return 'Autofocus';
-      case RecoveryActionType.nextTarget: return 'NextTarget';
-      case RecoveryActionType.retry: return 'Retry';
-      case RecoveryActionType.parkAndAbort: return 'ParkAndAbort';
-      case RecoveryActionType.customBranch: return 'CustomBranch';
+      case RecoveryActionType.continueExecution:
+        return 'Continue';
+      case RecoveryActionType.pause:
+        return 'Pause';
+      case RecoveryActionType.autofocus:
+        return 'Autofocus';
+      case RecoveryActionType.nextTarget:
+        return 'NextTarget';
+      case RecoveryActionType.retry:
+        return 'Retry';
+      case RecoveryActionType.parkAndAbort:
+        return 'ParkAndAbort';
+      case RecoveryActionType.customBranch:
+        return 'CustomBranch';
     }
   }
 
@@ -1802,14 +1871,16 @@ class SequenceExecutor {
         if (node.raHours < 0 || node.raHours > 24) {
           issues.add(SequenceValidationIssue(
             severity: ValidationSeverity.error,
-            message: 'Target "${node.name}" has invalid RA (must be 0-24 hours)',
+            message:
+                'Target "${node.name}" has invalid RA (must be 0-24 hours)',
             nodeId: node.id,
           ));
         }
         if (node.decDegrees < -90 || node.decDegrees > 90) {
           issues.add(SequenceValidationIssue(
             severity: ValidationSeverity.error,
-            message: 'Target "${node.name}" has invalid Dec (must be -90 to +90 degrees)',
+            message:
+                'Target "${node.name}" has invalid Dec (must be -90 to +90 degrees)',
             nodeId: node.id,
           ));
         }
@@ -1817,14 +1888,16 @@ class SequenceExecutor {
 
       // Check slew coordinates
       if (node is SlewNode && !node.useTargetCoords) {
-        if (node.customRa != null && (node.customRa! < 0 || node.customRa! > 24)) {
+        if (node.customRa != null &&
+            (node.customRa! < 0 || node.customRa! > 24)) {
           issues.add(SequenceValidationIssue(
             severity: ValidationSeverity.error,
             message: 'Slew "${node.name}" has invalid RA',
             nodeId: node.id,
           ));
         }
-        if (node.customDec != null && (node.customDec! < -90 || node.customDec! > 90)) {
+        if (node.customDec != null &&
+            (node.customDec! < -90 || node.customDec! > 90)) {
           issues.add(SequenceValidationIssue(
             severity: ValidationSeverity.error,
             message: 'Slew "${node.name}" has invalid Dec',
@@ -1857,7 +1930,8 @@ class SequenceExecutor {
 
     // Validate sequence before starting
     final issues = validateSequence(sequence);
-    final errors = issues.where((i) => i.severity == ValidationSeverity.error).toList();
+    final errors =
+        issues.where((i) => i.severity == ValidationSeverity.error).toList();
     if (errors.isNotEmpty) {
       throw Exception('Cannot start sequence: ${errors.first.message}');
     }
@@ -1869,15 +1943,20 @@ class SequenceExecutor {
       sequence.totalIntegrationSecs,
     );
     progressNotifier.updateState(SequenceExecutionState.running);
-    _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.running;
+    _ref.read(sequenceExecutionStateProvider.notifier).state =
+        SequenceExecutionState.running;
 
     // Start session tracking
     final sessionNotifier = _ref.read(sessionStateProvider.notifier);
     await sessionNotifier.startSession(
       targetName: sequence.name,
       // Use first target coordinates if available
-      targetRa: sequence.targetGroups.isNotEmpty ? sequence.targetGroups.first.raHours : null,
-      targetDec: sequence.targetGroups.isNotEmpty ? sequence.targetGroups.first.decDegrees : null,
+      targetRa: sequence.targetGroups.isNotEmpty
+          ? sequence.targetGroups.first.raHours
+          : null,
+      targetDec: sequence.targetGroups.isNotEmpty
+          ? sequence.targetGroups.first.decDegrees
+          : null,
     );
     sessionNotifier.setTotalExposures(sequence.totalExposures);
 
@@ -1887,7 +1966,8 @@ class SequenceExecutor {
     // Start progress timer
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
-        final elapsed = DateTime.now().difference(_startTime!).inSeconds.toDouble();
+        final elapsed =
+            DateTime.now().difference(_startTime!).inSeconds.toDouble();
         progressNotifier.updateProgress(elapsedSecs: elapsed);
       }
     });
@@ -1895,15 +1975,17 @@ class SequenceExecutor {
     // Start checkpoint auto-save timer
     _startCheckpointTimer();
 
-    if (_useNativeExecution) {
-      // Use native executor
-      await _startNativeExecution(sequence);
-    } else {
-      // Execute with real equipment
-      await _executeSequence(sequence);
+    if (!_useNativeExecution) {
+      _logger.warning(
+        'Legacy Dart sequencer path is deprecated; forcing backend executor for deterministic behavior',
+        source: 'SequenceExecutor',
+      );
     }
+
+    // Always use backend/native sequencer engine to avoid divergent semantics.
+    await _startNativeExecution(sequence);
   }
-  
+
   Future<void> _startNativeExecution(Sequence sequence) async {
     final backend = _ref.read(backendProvider);
 
@@ -1911,12 +1993,18 @@ class SequenceExecutor {
     // This ensures the sequencer has access to the current location from settings
     final settingsAsync = _ref.read(appSettingsProvider);
     final settings = settingsAsync.valueOrNull;
-    _logger.debug('_startNativeExecution: settings=${settings != null ? "loaded" : "null"}', source: 'SequenceExecutor');
+    _logger.debug(
+        '_startNativeExecution: settings=${settings != null ? "loaded" : "null"}',
+        source: 'SequenceExecutor');
     if (settings != null) {
-      _logger.debug('Location from settings: lat=${settings.latitude}, lon=${settings.longitude}, elev=${settings.elevation}', source: 'SequenceExecutor');
+      _logger.debug(
+          'Location from settings: lat=${settings.latitude}, lon=${settings.longitude}, elev=${settings.elevation}',
+          source: 'SequenceExecutor');
     }
-    if (settings != null && (settings.latitude != 0.0 || settings.longitude != 0.0)) {
-      _logger.debug('Syncing location to backend...', source: 'SequenceExecutor');
+    if (settings != null &&
+        (settings.latitude != 0.0 || settings.longitude != 0.0)) {
+      _logger.debug('Syncing location to backend...',
+          source: 'SequenceExecutor');
       await backend.setLocation(ObserverLocation(
         latitude: settings.latitude,
         longitude: settings.longitude,
@@ -1924,7 +2012,8 @@ class SequenceExecutor {
       ));
       _logger.debug('Location sync complete', source: 'SequenceExecutor');
     } else {
-      _logger.debug('Skipping location sync: settings null or location is 0,0', source: 'SequenceExecutor');
+      _logger.debug('Skipping location sync: settings null or location is 0,0',
+          source: 'SequenceExecutor');
     }
 
     // Set simulation mode based on settings
@@ -1938,7 +2027,8 @@ class SequenceExecutor {
         SafetyFailMode.warnOnly => 'warn_only',
       };
       await backend.sequencerSetSafetyFailMode(modeString);
-      _logger.debug('Safety fail mode set to: $modeString', source: 'SequenceExecutor');
+      _logger.debug('Safety fail mode set to: $modeString',
+          source: 'SequenceExecutor');
     }
 
     // Set save path for captured images
@@ -1948,7 +2038,9 @@ class SequenceExecutor {
       _logger.debug('Save path set to: $savePath', source: 'SequenceExecutor');
     } else {
       await backend.sequencerSetSavePath(null);
-      _logger.warning('No save path configured - images will NOT be saved to disk!', source: 'SequenceExecutor');
+      _logger.warning(
+          'No save path configured - images will NOT be saved to disk!',
+          source: 'SequenceExecutor');
     }
 
     // Get connected device IDs from equipment providers
@@ -1959,11 +2051,26 @@ class SequenceExecutor {
     final rotatorState = _ref.read(rotatorStateProvider);
 
     // Pass connected device IDs to the sequencer
-    final cameraId = cameraState.connectionState == DeviceConnectionState.connected ? cameraState.deviceId : null;
-    final mountId = mountState.connectionState == DeviceConnectionState.connected ? mountState.deviceId : null;
-    final focuserId = focuserState.connectionState == DeviceConnectionState.connected ? focuserState.deviceId : null;
-    final filterwheelId = filterwheelState.connectionState == DeviceConnectionState.connected ? filterwheelState.deviceId : null;
-    final rotatorId = rotatorState.connectionState == DeviceConnectionState.connected ? rotatorState.deviceId : null;
+    final cameraId =
+        cameraState.connectionState == DeviceConnectionState.connected
+            ? cameraState.deviceId
+            : null;
+    final mountId =
+        mountState.connectionState == DeviceConnectionState.connected
+            ? mountState.deviceId
+            : null;
+    final focuserId =
+        focuserState.connectionState == DeviceConnectionState.connected
+            ? focuserState.deviceId
+            : null;
+    final filterwheelId =
+        filterwheelState.connectionState == DeviceConnectionState.connected
+            ? filterwheelState.deviceId
+            : null;
+    final rotatorId =
+        rotatorState.connectionState == DeviceConnectionState.connected
+            ? rotatorState.deviceId
+            : null;
 
     await backend.sequencerSetDevices(
       cameraId: cameraId,
@@ -1983,23 +2090,30 @@ class SequenceExecutor {
     // to the event bus. We just need to subscribe to the broadcast stream here.
     _nativeEventSubscription = backend.eventStream.listen(
       _handleSequencerEvent,
-      onError: (e) => _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
+      onError: (e) =>
+          _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
     );
 
     // Start the execution via backend
     await backend.sequencerStart();
   }
-  
+
   /// Handle events from the backend (native or remote)
   void _handleSequencerEvent(NightshadeEvent event) {
     // Log all events to verify handler is being called
-    _logger.debug('Received event: type=${event.eventType}, category=${event.category}', source: 'SequenceExecutor');
+    _logger.debug(
+        'Received event: type=${event.eventType}, category=${event.category}',
+        source: 'SequenceExecutor');
 
     // Handle imaging events for image preview during sequences
     // This MUST be before the category filter since ExposureComplete has category=imaging
-    if (event.category == EventCategory.imaging && event.eventType == 'ExposureComplete') {
-      _logger.debug('ExposureComplete imaging event received - fetching image for preview', source: 'SequenceExecutor');
-      final durationSecs = (event.data['duration_secs'] as num?)?.toDouble() ?? 2.0;
+    if (event.category == EventCategory.imaging &&
+        event.eventType == 'ExposureComplete') {
+      _logger.debug(
+          'ExposureComplete imaging event received - fetching image for preview',
+          source: 'SequenceExecutor');
+      final durationSecs =
+          (event.data['duration_secs'] as num?)?.toDouble() ?? 2.0;
       _fetchAndDisplaySequenceImage(durationSecs);
       return;
     }
@@ -2011,8 +2125,10 @@ class SequenceExecutor {
 
     switch (event.eventType) {
       case 'NodeStarted':
-        final nodeId = event.data['node_id'] as String? ?? event.data['nodeId'] as String?;
-        final nodeName = event.data['node_type'] as String? ?? event.data['nodeName'] as String?;
+        final nodeId =
+            event.data['node_id'] as String? ?? event.data['nodeId'] as String?;
+        final nodeName = event.data['node_type'] as String? ??
+            event.data['nodeName'] as String?;
         if (nodeId != null) {
           progressNotifier.updateProgress(
             currentNodeId: nodeId,
@@ -2024,7 +2140,8 @@ class SequenceExecutor {
         break;
 
       case 'NodeCompleted':
-        final nodeId = event.data['node_id'] as String? ?? event.data['nodeId'] as String?;
+        final nodeId =
+            event.data['node_id'] as String? ?? event.data['nodeId'] as String?;
         final success = event.data['success'] as bool? ?? true;
         if (nodeId != null) {
           progressNotifier.updateNodeStatus(
@@ -2038,34 +2155,44 @@ class SequenceExecutor {
         final frame = event.data['frame'] as int? ?? 0;
         final total = event.data['total'] as int? ?? 0;
         final filter = event.data['filter'] as String?;
-        final exposureDetail = 'Frame $frame/$total${filter != null ? ' ($filter)' : ''}';
+        final exposureDetail =
+            'Frame $frame/$total${filter != null ? ' ($filter)' : ''}';
         progressNotifier.updateProgress(
           message: 'Exposing $exposureDetail',
           currentFilter: filter,
         );
         // Update node-specific progress for progress panels
-        final exposureNodeId = _ref.read(sequenceProgressProvider).currentNodeId;
+        final exposureNodeId =
+            _ref.read(sequenceProgressProvider).currentNodeId;
         if (exposureNodeId != null && total > 0) {
-          final exposurePercent = (frame - 1) / total * 100.0; // frame-1 because exposure just started
-          progressNotifier.updateNodeProgress(exposureNodeId, exposurePercent, exposureDetail);
+          final exposurePercent = (frame - 1) /
+              total *
+              100.0; // frame-1 because exposure just started
+          progressNotifier.updateNodeProgress(
+              exposureNodeId, exposurePercent, exposureDetail);
         }
         break;
 
       case 'ExposureCompleted':
         final frame = event.data['frame'] as int? ?? 0;
         final total = event.data['total'] as int? ?? 1;
-        final durationSecs = (event.data['duration_secs'] as num?)?.toDouble() ?? 0.0;
+        final durationSecs =
+            (event.data['duration_secs'] as num?)?.toDouble() ?? 0.0;
         // Calculate new completed integration time
-        final newCompletedIntegration = _ref.read(sequenceProgressProvider).completedIntegrationSecs + durationSecs;
+        final newCompletedIntegration =
+            _ref.read(sequenceProgressProvider).completedIntegrationSecs +
+                durationSecs;
         progressNotifier.updateProgress(
           completedExposures: frame,
           completedIntegrationSecs: newCompletedIntegration,
         );
         // Update node-specific progress for progress panels
-        final completedNodeId = _ref.read(sequenceProgressProvider).currentNodeId;
+        final completedNodeId =
+            _ref.read(sequenceProgressProvider).currentNodeId;
         if (completedNodeId != null) {
           final completedPercent = total > 0 ? (frame / total * 100.0) : 100.0;
-          progressNotifier.updateNodeProgress(completedNodeId, completedPercent, 'Completed $frame/$total');
+          progressNotifier.updateNodeProgress(
+              completedNodeId, completedPercent, 'Completed $frame/$total');
         }
 
         // Fetch and display the captured image in the UI
@@ -2083,7 +2210,8 @@ class SequenceExecutor {
 
       case 'TargetStarted':
       case 'TargetChanged':
-        final name = event.data['target_name'] as String? ?? event.data['name'] as String?;
+        final name = event.data['target_name'] as String? ??
+            event.data['name'] as String?;
         progressNotifier.updateProgress(
           currentTarget: name,
           message: name != null ? 'Started target: $name' : null,
@@ -2091,7 +2219,8 @@ class SequenceExecutor {
         break;
 
       case 'TargetCompleted':
-        final name = event.data['target_name'] as String? ?? event.data['name'] as String?;
+        final name = event.data['target_name'] as String? ??
+            event.data['name'] as String?;
         progressNotifier.updateProgress(
           message: 'Completed target: ${name ?? 'unknown'}',
         );
@@ -2103,7 +2232,8 @@ class SequenceExecutor {
         // Update node-specific progress with error message for progress panels
         final errorNodeId = _ref.read(sequenceProgressProvider).currentNodeId;
         if (errorNodeId != null) {
-          progressNotifier.updateNodeProgress(errorNodeId, 0.0, 'Error: $message');
+          progressNotifier.updateNodeProgress(
+              errorNodeId, 0.0, 'Error: $message');
         }
         break;
 
@@ -2111,16 +2241,22 @@ class SequenceExecutor {
         // Handle instruction progress updates from long-running instructions
         final nodeId = event.data['node_id'] as String?;
         final instruction = event.data['instruction'] as String? ?? '';
-        final progressPercent = (event.data['progress_percent'] as num?)?.toDouble() ?? 0.0;
+        final progressPercent =
+            (event.data['progress_percent'] as num?)?.toDouble() ?? 0.0;
         final detail = event.data['detail'] as String? ?? '';
 
-        _logger.debug('InstructionProgress: nodeId=$nodeId, instruction=$instruction, progress=$progressPercent%, detail=$detail', source: 'SequenceExecutor');
+        _logger.debug(
+            'InstructionProgress: nodeId=$nodeId, instruction=$instruction, progress=$progressPercent%, detail=$detail',
+            source: 'SequenceExecutor');
 
         // Use node_id from event, fallback to currentNodeId for backwards compatibility
-        final targetNodeId = nodeId ?? _ref.read(sequenceProgressProvider).currentNodeId;
-        _logger.debug('Updating node progress for: $targetNodeId', source: 'SequenceExecutor');
+        final targetNodeId =
+            nodeId ?? _ref.read(sequenceProgressProvider).currentNodeId;
+        _logger.debug('Updating node progress for: $targetNodeId',
+            source: 'SequenceExecutor');
         if (targetNodeId != null) {
-          progressNotifier.updateNodeProgress(targetNodeId, progressPercent, detail);
+          progressNotifier.updateNodeProgress(
+              targetNodeId, progressPercent, detail);
           // Also update the global message to show current instruction progress
           progressNotifier.updateProgress(
             message: '$instruction: $detail',
@@ -2130,38 +2266,44 @@ class SequenceExecutor {
 
       case 'Started':
         progressNotifier.updateState(SequenceExecutionState.running);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.running;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.running;
         break;
 
       case 'Paused':
         progressNotifier.updateState(SequenceExecutionState.paused);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.paused;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.paused;
         break;
 
       case 'Resumed':
         progressNotifier.updateState(SequenceExecutionState.running);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.running;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.running;
         break;
 
       case 'Completed':
       case 'SequenceCompleted':
         _progressTimer?.cancel();
         progressNotifier.updateState(SequenceExecutionState.completed);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.completed;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.completed;
         break;
 
       case 'SequenceFailed':
         final error = event.data['error'] as String? ?? 'Unknown error';
         progressNotifier.updateProgress(message: error);
         progressNotifier.updateState(SequenceExecutionState.failed);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.failed;
         break;
 
       case 'Stopped':
       case 'SequenceStopped':
         _progressTimer?.cancel();
         progressNotifier.updateState(SequenceExecutionState.idle);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.idle;
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.idle;
         break;
     }
   }
@@ -2176,13 +2318,15 @@ class SequenceExecutor {
         final cameraState = _ref.read(cameraStateProvider);
         final cameraDeviceId = cameraState.deviceId;
         if (cameraDeviceId == null || cameraDeviceId.isEmpty) {
-          _logger.debug('No camera device ID available, skipping image fetch', source: 'SequenceExecutor');
+          _logger.debug('No camera device ID available, skipping image fetch',
+              source: 'SequenceExecutor');
           return;
         }
         final backend = _ref.read(backendProvider);
         final capturedImage = await backend.cameraGetLastImage(cameraDeviceId);
         if (capturedImage == null) {
-          _logger.debug('No image data available from camera', source: 'SequenceExecutor');
+          _logger.debug('No image data available from camera',
+              source: 'SequenceExecutor');
           return;
         }
 
@@ -2224,7 +2368,8 @@ class SequenceExecutor {
         _ref.read(lastImageStatsProvider.notifier).state = imageData.stats;
       } catch (e) {
         // Log but don't fail - image display is non-critical
-        _logger.warning('Failed to fetch sequence image for display: $e', source: 'SequenceExecutor');
+        _logger.warning('Failed to fetch sequence image for display: $e',
+            source: 'SequenceExecutor');
       }
     });
   }
@@ -2232,7 +2377,8 @@ class SequenceExecutor {
   bool _pauseResumeInProgress = false;
 
   /// Wait for state change with timeout
-  Future<bool> _awaitStateChange(SequenceExecutionState expectedState, {Duration timeout = const Duration(seconds: 5)}) async {
+  Future<bool> _awaitStateChange(SequenceExecutionState expectedState,
+      {Duration timeout = const Duration(seconds: 5)}) async {
     final endTime = DateTime.now().add(timeout);
 
     while (DateTime.now().isBefore(endTime)) {
@@ -2260,24 +2406,25 @@ class SequenceExecutor {
     _pauseResumeInProgress = true;
 
     try {
-      if (_useNativeExecution) {
-        final backend = _ref.read(backendProvider);
-        await backend.sequencerPause();
+      final backend = _ref.read(backendProvider);
+      await backend.sequencerPause();
 
-        // Wait for confirmation from event system
-        final confirmed = await _awaitStateChange(SequenceExecutionState.paused);
-        if (!confirmed) {
+      // Wait for confirmation from event system
+      final confirmed = await _awaitStateChange(SequenceExecutionState.paused);
+      if (!confirmed) {
+        final status = await backend.sequencerGetStatus();
+        if (status.state.toLowerCase() != 'paused') {
           throw Exception('Pause operation timed out - state not confirmed');
         }
-
-        // Sync local state
-        _isPaused = true;
-      } else {
-        // Non-native execution: update state immediately
-        _isPaused = true;
-        _ref.read(sequenceProgressProvider.notifier).updateState(SequenceExecutionState.paused);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.paused;
+        _ref
+            .read(sequenceProgressProvider.notifier)
+            .updateState(SequenceExecutionState.paused);
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.paused;
       }
+
+      // Sync local state
+      _isPaused = true;
     } finally {
       _pauseResumeInProgress = false;
     }
@@ -2297,24 +2444,25 @@ class SequenceExecutor {
     _pauseResumeInProgress = true;
 
     try {
-      if (_useNativeExecution) {
-        final backend = _ref.read(backendProvider);
-        await backend.sequencerResume();
+      final backend = _ref.read(backendProvider);
+      await backend.sequencerResume();
 
-        // Wait for confirmation from event system
-        final confirmed = await _awaitStateChange(SequenceExecutionState.running);
-        if (!confirmed) {
+      // Wait for confirmation from event system
+      final confirmed = await _awaitStateChange(SequenceExecutionState.running);
+      if (!confirmed) {
+        final status = await backend.sequencerGetStatus();
+        if (status.state.toLowerCase() != 'running') {
           throw Exception('Resume operation timed out - state not confirmed');
         }
-
-        // Sync local state
-        _isPaused = false;
-      } else {
-        // Non-native execution: update state immediately
-        _isPaused = false;
-        _ref.read(sequenceProgressProvider.notifier).updateState(SequenceExecutionState.running);
-        _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.running;
+        _ref
+            .read(sequenceProgressProvider.notifier)
+            .updateState(SequenceExecutionState.running);
+        _ref.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.running;
       }
+
+      // Sync local state
+      _isPaused = false;
     } finally {
       _pauseResumeInProgress = false;
     }
@@ -2329,31 +2477,31 @@ class SequenceExecutor {
     _nativeEventSubscription = null;
     _startTime = null;
     _isPaused = false;
-    _ref.read(sequenceProgressProvider.notifier).updateState(SequenceExecutionState.idle);
-    _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.idle;
+    _ref
+        .read(sequenceProgressProvider.notifier)
+        .updateState(SequenceExecutionState.idle);
+    _ref.read(sequenceExecutionStateProvider.notifier).state =
+        SequenceExecutionState.idle;
 
     // End session
     _ref.read(sessionStateProvider.notifier).endSession(status: 'stopped');
 
-    if (_useNativeExecution) {
-      final backend = _ref.read(backendProvider);
-      await backend.sequencerStop();
+    final backend = _ref.read(backendProvider);
+    await backend.sequencerStop();
 
-      // Clear checkpoint when stopped gracefully
-      try {
-        await backend.discardCheckpoint();
-      } catch (e) {
-        // Ignore errors during cleanup
-        _logger.warning('Failed to clear checkpoint on stop: $e', source: 'SequenceExecutor');
-      }
+    // Clear checkpoint when stopped gracefully
+    try {
+      await backend.discardCheckpoint();
+    } catch (e) {
+      // Ignore errors during cleanup
+      _logger.warning('Failed to clear checkpoint on stop: $e',
+          source: 'SequenceExecutor');
     }
   }
 
   Future<void> skip() async {
-    if (_useNativeExecution) {
-      final backend = _ref.read(backendProvider);
-      await backend.sequencerSkip();
-    }
+    final backend = _ref.read(backendProvider);
+    await backend.sequencerSkip();
   }
 
   /// Reset the sequence execution state without modifying the sequence configuration.
@@ -2373,783 +2521,29 @@ class SequenceExecutor {
     // Reset progress notifier to clear all execution stats
     _ref.read(sequenceProgressProvider.notifier).reset();
 
-    // Reset native sequencer if using native execution
     final backend = _ref.read(backendProvider);
-    if (_useNativeExecution) {
-      try {
-        await backend.sequencerReset();
-      } catch (e) {
-        _logger.warning('Error resetting native sequencer: $e', source: 'SequenceExecutor');
-        // Continue anyway - the Dart-side reset is more important
-      }
+    try {
+      await backend.sequencerReset();
+    } catch (e) {
+      _logger.warning('Error resetting native sequencer: $e',
+          source: 'SequenceExecutor');
+      // Continue anyway - the Dart-side reset is more important
     }
 
     // Clear any checkpoints
     try {
       await backend.discardCheckpoint();
     } catch (e) {
-      _logger.warning('Error clearing checkpoint on reset: $e', source: 'SequenceExecutor');
+      _logger.warning('Error clearing checkpoint on reset: $e',
+          source: 'SequenceExecutor');
     }
 
     // Ensure we're in idle state
-    _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.idle;
+    _ref.read(sequenceExecutionStateProvider.notifier).state =
+        SequenceExecutionState.idle;
 
-    _logger.info('Sequence reset - ready to run from beginning', source: 'SequenceExecutor');
-  }
-
-  TargetHeaderNode? _findParentTargetHeader(Sequence sequence, String nodeId) {
-    var currentId = nodeId;
-    while (true) {
-      final node = sequence.nodes[currentId];
-      if (node == null) return null;
-
-      if (node is TargetHeaderNode) {
-        return node;
-      }
-      
-      if (node.parentId == null) {
-        return null;
-      }
-      
-      currentId = node.parentId!;
-    }
-  }
-
-  /// Execute sequence using real equipment
-  Future<void> _executeSequence(Sequence sequence) async {
-    final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
-    final imagingService = _ref.read(imagingServiceProvider);
-    final sessionNotifier = _ref.read(sessionStateProvider.notifier);
-    
-    // Get all nodes in order
-    final nodesToExecute = <SequenceNode>[];
-    
-    void collectNodes(String? parentId) {
-      final children = parentId != null 
-          ? sequence.getChildren(parentId)
-          : sequence.rootNode != null ? [sequence.rootNode!] : [];
-      
-      for (final child in children) {
-        if (child.isEnabled) {
-          nodesToExecute.add(child);
-          collectNodes(child.id);
-        }
-      }
-    }
-    
-    collectNodes(sequence.rootNodeId);
-
-    int completedExposures = 0;
-
-    for (final node in nodesToExecute) {
-      if (_ref.read(sequenceExecutionStateProvider) == SequenceExecutionState.idle) {
-        break;
-      }
-
-      // Wait while paused
-      while (_isPaused) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        if (_ref.read(sequenceExecutionStateProvider) == SequenceExecutionState.idle) {
-          return;
-        }
-      }
-
-      progressNotifier.updateProgress(
-        currentNodeId: node.id,
-        currentNodeName: node.name,
-        currentNodeStatus: NodeStatus.running,
-      );
-      progressNotifier.updateNodeStatus(node.id, NodeStatus.running);
-
-      try {
-        // Execute node with real equipment
-        if (node is ExposureNode) {
-          final cameraState = _ref.read(cameraStateProvider);
-          if (cameraState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Camera not connected. Cannot execute exposure node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-
-          for (int i = 0; i < node.count; i++) {
-            if (_ref.read(sequenceExecutionStateProvider) == SequenceExecutionState.idle) {
-              break;
-            }
-            
-            while (_isPaused) {
-              await Future.delayed(const Duration(milliseconds: 100));
-            }
-
-            progressNotifier.updateProgress(
-              message: 'Exposing ${i + 1}/${node.count} (${node.durationSecs}s)',
-              currentFilter: node.filter,
-            );
-
-            // Use real camera capture
-            final settings = ExposureSettings(
-              exposureTime: node.durationSecs,
-              gain: node.gain ?? 0,
-              offset: node.offset ?? 0,
-              binningX: _binningToInt(node.binning),
-              binningY: _binningToInt(node.binning),
-              filter: node.filter,
-            );
-
-            final image = await imagingService.captureImage(
-              settings: settings,
-              targetName: sequence.name,
-              frameNumber: completedExposures + 1,
-            );
-
-            if (image != null) {
-              completedExposures++;
-              progressNotifier.updateProgress(completedExposures: completedExposures);
-              
-              // Update session stats
-              sessionNotifier.recordExposureComplete(
-                exposureTime: node.durationSecs,
-                hfr: image.stats.hfr,
-              );
-            } else {
-              progressNotifier.updateProgress(
-                message: 'Exposure ${i + 1} failed or was cancelled',
-              );
-              sessionNotifier.recordExposureFailed();
-            }
-          }
-        } else if (node is FilterChangeNode) {
-          final filterWheelState = _ref.read(filterWheelStateProvider);
-          if (filterWheelState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Filter wheel not connected. Cannot execute filter change node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-          progressNotifier.updateProgress(
-            message: 'Changing to filter: ${node.filterName}',
-            currentFilter: node.filterName,
-          );
-          // Prefer filter position if specified, otherwise find by name
-          int filterIndex;
-          if (node.filterPosition != null && node.filterPosition! >= 0) {
-            // Use explicit filter position
-            filterIndex = node.filterPosition!;
-          } else {
-            // Fall back to name lookup
-            final filterNames = filterWheelState.filterNames;
-            filterIndex = filterNames.indexWhere(
-              (name) => name.toLowerCase() == node.filterName.toLowerCase()
-            );
-            if (filterIndex < 0) {
-              throw Exception('Filter "${node.filterName}" not found');
-            }
-          }
-          final deviceService = _ref.read(deviceServiceProvider);
-          await deviceService.setFilterWheelPosition(filterIndex);
-        } else if (node is SlewNode) {
-          final mountState = _ref.read(mountStateProvider);
-          if (mountState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Mount not connected. Cannot execute slew node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-          
-          // Determine coordinates to slew to
-          double? ra, dec;
-          if (node.useTargetCoords) {
-            // Get coordinates from target group in sequence
-            final sequence = _ref.read(currentSequenceProvider);
-            if (sequence != null) {
-              // Find parent target header by traversing up the tree
-              TargetHeaderNode? targetHeader = _findParentTargetHeader(sequence, node.id);
-
-              // If no parent found, use first target header in sequence (legacy fallback)
-              if (targetHeader == null && sequence.targetHeaders.isNotEmpty) {
-                targetHeader = sequence.targetHeaders.first;
-              }
-
-              if (targetHeader != null) {
-                ra = targetHeader.raHours;
-                dec = targetHeader.decDegrees;
-              }
-            }
-          } else {
-            ra = node.customRa;
-            dec = node.customDec;
-          }
-          
-          if (ra == null || dec == null) {
-            throw Exception('No target coordinates available for slew');
-          }
-          
-          progressNotifier.updateProgress(message: 'Slewing to RA=${ra.toStringAsFixed(2)}h Dec=${dec.toStringAsFixed(1)}°...');
-          final deviceService = _ref.read(deviceServiceProvider);
-          await deviceService.slewMountToCoordinates(ra, dec);
-        } else if (node is ParkNode) {
-          final mountState = _ref.read(mountStateProvider);
-          if (mountState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Mount not connected. Cannot execute park node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-          progressNotifier.updateProgress(message: 'Parking mount...');
-          final deviceService = _ref.read(deviceServiceProvider);
-          await deviceService.parkMount();
-        } else if (node is UnparkNode) {
-          final mountState = _ref.read(mountStateProvider);
-          if (mountState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Mount not connected. Cannot execute unpark node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-          progressNotifier.updateProgress(message: 'Unparking mount...');
-          final deviceService = _ref.read(deviceServiceProvider);
-          await deviceService.unparkMount();
-        } else if (node is CenterNode) {
-          final mountState = _ref.read(mountStateProvider);
-          final cameraState = _ref.read(cameraStateProvider);
-          if (mountState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Mount not connected. Cannot execute center node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-          if (cameraState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Camera not connected. Cannot execute center node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-          
-          // Get target coordinates
-          double? targetRa, targetDec;
-          if (node.useTargetCoords) {
-            final sequence = _ref.read(currentSequenceProvider);
-            if (sequence != null) {
-              // Find parent target header by traversing up the tree
-              final targetHeader = _findParentTargetHeader(sequence, node.id);
-
-              if (targetHeader != null) {
-                targetRa = targetHeader.raHours;
-                targetDec = targetHeader.decDegrees;
-              } else if (sequence.targetHeaders.isNotEmpty) {
-                 // Fallback to first target
-                 targetRa = sequence.targetHeaders.first.raHours;
-                 targetDec = sequence.targetHeaders.first.decDegrees;
-              }
-            }
-          }
-          
-          if (targetRa == null || targetDec == null) {
-            throw Exception('No target coordinates available for centering');
-          }
-          
-          // Centering loop with plate solving
-          final deviceService = _ref.read(deviceServiceProvider);
-          for (int attempt = 0; attempt < node.maxAttempts; attempt++) {
-            progressNotifier.updateProgress(
-              message: 'Centering attempt ${attempt + 1}/${node.maxAttempts}...',
-            );
-            
-            // Take exposure for plate solving
-            final settings = ExposureSettings(
-              exposureTime: 5.0, // Quick exposure for plate solve
-              gain: 100,
-              offset: 10,
-              binningX: 2,
-              binningY: 2,
-            );
-            final image = await imagingService.captureImage(
-              settings: settings,
-              targetName: 'platesolve',
-            );
-            
-            if (image == null) {
-              continue;
-            }
-            
-            // Plate solve the image
-            // Note: Full plate solving integration requires external solver (ASTAP, etc.)
-            // For now, we use the backend plate solver
-            final backend = _ref.read(backendProvider);
-            final result = await backend.plateSolve(
-              imagePath: image.filePath ?? '',
-              ra: targetRa * 15.0, // Convert hours to degrees
-              dec: targetDec,
-              fovDegrees: 30.0, // Search radius hint
-            );
-            
-            if (!result.success) {
-              progressNotifier.updateProgress(message: 'Plate solve failed, retrying...');
-              continue;
-            }
-            
-            // Calculate offset
-            final raOffset = (result.ra - targetRa * 15.0) * 3600; // arcsec
-            final decOffset = (result.dec - targetDec) * 3600; // arcsec
-            final totalOffset = (raOffset * raOffset + decOffset * decOffset).abs();
-            
-            if (totalOffset <= node.accuracyArcsec * node.accuracyArcsec) {
-              progressNotifier.updateProgress(message: 'Centered within ${node.accuracyArcsec}"');
-              break;
-            }
-            
-            // Correction slew
-            final newRa = targetRa - (raOffset / 3600 / 15.0);
-            final newDec = targetDec - (decOffset / 3600);
-            await deviceService.slewMountToCoordinates(newRa, newDec);
-          }
-        } else if (node is AutofocusNode) {
-          final cameraState = _ref.read(cameraStateProvider);
-          final focuserState = _ref.read(focuserStateProvider);
-          if (cameraState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Camera not connected. Cannot execute autofocus node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-          if (focuserState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Focuser not connected. Cannot execute autofocus node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-
-          progressNotifier.updateProgress(message: 'Running autofocus...');
-          final deviceService = _ref.read(deviceServiceProvider);
-
-          // Map Dart enum to Rust API string
-          String methodString;
-          switch (node.method) {
-            case AutofocusMethod.vCurve:
-              methodString = 'VCurve';
-              break;
-            case AutofocusMethod.hyperbolic:
-              methodString = 'Hyperbolic';
-              break;
-            case AutofocusMethod.parabolic:
-              methodString = 'Quadratic';
-              break;
-          }
-
-          // Use production Rust autofocus engine with curve fitting,
-          // backlash compensation, and outlier rejection
-          final result = await deviceService.runAutofocus(
-            exposureTime: node.exposureDuration,
-            stepSize: node.stepSize,
-            stepsOut: node.stepsOut,
-            method: methodString,
-            binning: 1,
-          );
-
-          progressNotifier.updateProgress(
-            message: 'Autofocus complete: position ${result.bestPosition.toInt()}, HFR ${result.bestHfr.toStringAsFixed(2)}',
-          );
-        } else if (node is DitherNode) {
-          final guiderState = _ref.read(guiderStateProvider);
-          if (guiderState.connectionState != DeviceConnectionState.connected) {
-            // Dither without guider - just skip silently
-            progressNotifier.updateProgress(message: 'Guider not connected, skipping dither');
-            await Future.delayed(const Duration(milliseconds: 500));
-          } else {
-            progressNotifier.updateProgress(message: 'Dithering...');
-            final deviceService = _ref.read(deviceServiceProvider);
-            await deviceService.dither(
-              amount: node.pixels,
-              raOnly: false, // Default to both axes
-              settlePixels: node.settlePixels,
-              settleTime: node.settleTime,
-              settleTimeout: 120.0, // Default timeout
-            );
-          }
-        } else if (node is StartGuidingNode) {
-          progressNotifier.updateProgress(message: 'Starting guiding...');
-          final deviceService = _ref.read(deviceServiceProvider);
-          await deviceService.startGuiding(
-            settlePixels: node.settlePixels,
-            settleTime: node.settleTime,
-            settleTimeout: node.settleTimeout,
-          );
-          progressNotifier.updateProgress(message: 'Guiding started and settled');
-        } else if (node is StopGuidingNode) {
-          progressNotifier.updateProgress(message: 'Stopping guiding...');
-          final deviceService = _ref.read(deviceServiceProvider);
-          await deviceService.stopGuiding();
-          progressNotifier.updateProgress(message: 'Guiding stopped');
-        } else if (node is CoolCameraNode) {
-          final cameraState = _ref.read(cameraStateProvider);
-          if (cameraState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Camera not connected. Cannot execute cool camera node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-          progressNotifier.updateProgress(message: 'Cooling camera to ${node.targetTemp}°C...');
-
-          // Enable cooler with target temperature
-          final backend = _ref.read(backendProvider);
-          final deviceId = cameraState.deviceId ?? '';
-          await backend.cameraSetCooling(
-            deviceId: deviceId,
-            enabled: true,
-            targetTemp: node.targetTemp,
-          );
-
-          // Wait for temperature to stabilize (poll until target reached)
-          final timeout = Duration(minutes: (node.durationMins ?? 10).toInt());
-          final deadline = DateTime.now().add(timeout);
-
-          while (DateTime.now().isBefore(deadline)) {
-            final status = await backend.getCameraStatus(deviceId);
-            final currentTemp = status.sensorTemp ?? 20.0;
-
-            progressNotifier.updateProgress(
-              message: 'Cooling: ${currentTemp.toStringAsFixed(1)}°C -> ${node.targetTemp}°C',
-            );
-
-            if (currentTemp <= node.targetTemp + 1.0) {
-              // Within 1 degree of target
-              break;
-            }
-
-            await Future.delayed(const Duration(seconds: 5));
-          }
-        } else if (node is WarmCameraNode) {
-          final cameraState = _ref.read(cameraStateProvider);
-          if (cameraState.connectionState != DeviceConnectionState.connected) {
-            final error = 'Camera not connected. Cannot execute warm camera node "${node.name}"';
-            progressNotifier.updateProgress(message: error);
-            progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-            progressNotifier.updateState(SequenceExecutionState.failed);
-            _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.failed;
-            throw Exception(error);
-          }
-          progressNotifier.updateProgress(message: 'Warming camera...');
-
-          // Get current temperature
-          final backend = _ref.read(backendProvider);
-          final deviceId = cameraState.deviceId ?? '';
-          final status = await backend.getCameraStatus(deviceId);
-          final startTemp = status.sensorTemp ?? -10.0;
-          final ambientTemp = 15.0; // Target to warm up to
-
-          // Gradual warming by stepping up temperature
-          final rate = node.ratePerMin; // degrees per minute
-          var currentTarget = startTemp;
-
-          while (currentTarget < ambientTemp) {
-            currentTarget = (currentTarget + rate).clamp(startTemp, ambientTemp);
-
-            progressNotifier.updateProgress(
-              message: 'Warming: target ${currentTarget.toStringAsFixed(1)}°C',
-            );
-
-            await backend.cameraSetCooling(
-              deviceId: deviceId,
-              enabled: true,
-              targetTemp: currentTarget,
-            );
-
-            await Future.delayed(const Duration(minutes: 1));
-          }
-
-          // Turn off cooler
-          await backend.cameraSetCooling(
-            deviceId: deviceId,
-            enabled: false,
-          );
-        } else if (node is RotatorNode) {
-          // Rotator is optional - skip silently if not connected
-          progressNotifier.updateProgress(message: 'Moving rotator to ${node.targetAngle}°...');
-          
-          // Get the rotator ID from the active equipment profile
-          final profile = _ref.read(activeEquipmentProfileProvider);
-          final rotatorId = profile?.rotatorId;
-          
-          if (rotatorId != null && rotatorId.isNotEmpty) {
-            final backend = _ref.read(backendProvider);
-            await backend.rotatorMoveTo(rotatorId, node.targetAngle);
-          } else {
-            // No rotator configured - skip silently with brief delay
-            await Future.delayed(const Duration(milliseconds: 500));
-          }
-        } else if (node is DelayNode) {
-          progressNotifier.updateProgress(message: 'Waiting ${node.seconds}s...');
-          await Future.delayed(Duration(seconds: node.seconds.toInt()));
-        } else if (node is WaitTimeNode) {
-          // Wait until specified time
-          if (node.waitUntil != null) {
-            final waitUntil = node.waitUntil!;
-            while (DateTime.now().isBefore(waitUntil)) {
-              final remaining = waitUntil.difference(DateTime.now());
-              progressNotifier.updateProgress(
-                message: 'Waiting until ${waitUntil.toLocal()} (${remaining.inMinutes}m remaining)',
-              );
-              await Future.delayed(const Duration(seconds: 10));
-              
-              // Check for cancellation
-              if (_ref.read(sequenceExecutionStateProvider) == SequenceExecutionState.idle) {
-                break;
-              }
-            }
-          } else {
-            progressNotifier.updateProgress(message: 'No wait time specified');
-          }
-        } else if (node is NotificationNode) {
-          progressNotifier.updateProgress(message: 'Notification: ${node.title}');
-          // Notifications don't require equipment
-        } else if (node is ScriptNode) {
-          progressNotifier.updateProgress(message: 'Running script: ${node.scriptPath}');
-          
-          // Execute external script
-          try {
-            final result = await Process.run(
-              node.scriptPath,
-              node.arguments,
-              runInShell: true,
-            );
-            
-            if (result.exitCode != 0) {
-              progressNotifier.updateProgress(
-                message: 'Script failed with exit code ${result.exitCode}: ${result.stderr}',
-              );
-              // Always fail on script error
-              throw Exception('Script failed: ${result.stderr}');
-            } else {
-              progressNotifier.updateProgress(message: 'Script completed successfully');
-            }
-          } catch (e) {
-            progressNotifier.updateProgress(message: 'Script error: $e');
-            rethrow;
-          }
-        } else if (node is TargetHeaderNode || node is LoopNode ||
-                   node is ParallelNode || node is ConditionalNode ||
-                   node is RecoveryNode || node is InstructionSetNode) {
-          // Logic nodes don't require equipment checks
-          progressNotifier.updateProgress(message: 'Executing ${node.name}...');
-        } else {
-          final error = 'Unknown node type: ${node.runtimeType}';
-          progressNotifier.updateProgress(message: error);
-          progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-          throw Exception(error);
-        }
-
-        progressNotifier.updateNodeStatus(node.id, NodeStatus.success);
-      } catch (e) {
-        progressNotifier.updateProgress(
-          message: 'Error executing ${node.name}: $e',
-        );
-        progressNotifier.updateNodeStatus(node.id, NodeStatus.failure);
-      }
-    }
-
-    // Completion
-    _progressTimer?.cancel();
-    sessionNotifier.endSession(status: 'completed');
-    progressNotifier.updateState(SequenceExecutionState.completed);
-    _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.completed;
-  }
-
-  int _binningToInt(BinningMode binning) {
-    switch (binning) {
-      case BinningMode.one: return 1;
-      case BinningMode.two: return 2;
-      case BinningMode.three: return 3;
-      case BinningMode.four: return 4;
-    }
-  }
-
-  Future<void> _simulateNode(SequenceNode node, SequenceProgressNotifier progressNotifier) async {
-    if (node is TargetHeaderNode) {
-      progressNotifier.updateProgress(
-        currentTarget: node.targetName,
-        message: 'Starting target: ${node.displayName}',
-      );
-      await Future.delayed(const Duration(milliseconds: 500));
-    } else if (node is CenterNode) {
-      progressNotifier.updateProgress(message: 'Centering on target...');
-      await Future.delayed(const Duration(seconds: 3));
-    } else if (node is AutofocusNode) {
-      progressNotifier.updateProgress(message: 'Running autofocus...');
-      await Future.delayed(const Duration(seconds: 5));
-    } else if (node is DitherNode) {
-      progressNotifier.updateProgress(message: 'Dithering...');
-      await Future.delayed(const Duration(seconds: 1));
-    } else if (node is StartGuidingNode) {
-      progressNotifier.updateProgress(message: 'Starting guiding...');
-      await Future.delayed(const Duration(seconds: 2));
-    } else if (node is StopGuidingNode) {
-      progressNotifier.updateProgress(message: 'Stopping guiding...');
-      await Future.delayed(const Duration(seconds: 1));
-    } else if (node is UnparkNode) {
-      progressNotifier.updateProgress(message: 'Unparking mount...');
-      await Future.delayed(const Duration(seconds: 2));
-    } else if (node is CoolCameraNode) {
-      progressNotifier.updateProgress(message: 'Cooling camera to ${node.targetTemp}°C...');
-      await Future.delayed(const Duration(seconds: 5));
-    } else if (node is WarmCameraNode) {
-      progressNotifier.updateProgress(message: 'Warming camera...');
-      await Future.delayed(const Duration(seconds: 3));
-    } else if (node is DelayNode) {
-      progressNotifier.updateProgress(message: 'Waiting ${node.seconds}s...');
-      await Future.delayed(Duration(milliseconds: (node.seconds * 100).toInt().clamp(100, 3000)));
-    } else if (node is NotificationNode) {
-      progressNotifier.updateProgress(message: 'Notification: ${node.title}');
-      await Future.delayed(const Duration(milliseconds: 500));
-    } else {
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
-  }
-
-  Future<void> _simulateExecution(Sequence sequence) async {
-    final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
-    
-    // Get all nodes in order
-    final nodesToExecute = <SequenceNode>[];
-    
-    void collectNodes(String? parentId) {
-      final children = parentId != null 
-          ? sequence.getChildren(parentId)
-          : sequence.rootNode != null ? [sequence.rootNode!] : [];
-      
-      for (final child in children) {
-        if (child.isEnabled) {
-          nodesToExecute.add(child);
-          collectNodes(child.id);
-        }
-      }
-    }
-    
-    collectNodes(sequence.rootNodeId);
-
-    int completedExposures = 0;
-
-    for (final node in nodesToExecute) {
-      if (_ref.read(sequenceExecutionStateProvider) == SequenceExecutionState.idle) {
-        break;
-      }
-
-      // Wait while paused
-      while (_isPaused) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        if (_ref.read(sequenceExecutionStateProvider) == SequenceExecutionState.idle) {
-          return;
-        }
-      }
-
-      progressNotifier.updateProgress(
-        currentNodeId: node.id,
-        currentNodeName: node.name,
-        currentNodeStatus: NodeStatus.running,
-      );
-      progressNotifier.updateNodeStatus(node.id, NodeStatus.running);
-
-      // Simulate node execution
-      if (node is ExposureNode) {
-        for (int i = 0; i < node.count; i++) {
-          if (_ref.read(sequenceExecutionStateProvider) == SequenceExecutionState.idle) {
-            break;
-          }
-          
-          while (_isPaused) {
-            await Future.delayed(const Duration(milliseconds: 100));
-          }
-
-          progressNotifier.updateProgress(
-            message: 'Exposing ${i + 1}/${node.count} (${node.durationSecs}s)',
-            currentFilter: node.filter,
-          );
-
-          // Simulate exposure time (shortened for demo)
-          await Future.delayed(Duration(milliseconds: (node.durationSecs * 100).toInt().clamp(100, 5000)));
-          
-          completedExposures++;
-          progressNotifier.updateProgress(completedExposures: completedExposures);
-        }
-      } else if (node is TargetHeaderNode) {
-        progressNotifier.updateProgress(
-          currentTarget: node.targetName,
-          message: 'Starting target: ${node.displayName}',
-        );
-        await Future.delayed(const Duration(milliseconds: 500));
-      } else if (node is SlewNode) {
-        progressNotifier.updateProgress(message: 'Slewing to target...');
-        await Future.delayed(const Duration(seconds: 2));
-      } else if (node is CenterNode) {
-        progressNotifier.updateProgress(message: 'Centering on target...');
-        await Future.delayed(const Duration(seconds: 3));
-      } else if (node is AutofocusNode) {
-        progressNotifier.updateProgress(message: 'Running autofocus...');
-        await Future.delayed(const Duration(seconds: 5));
-      } else if (node is FilterChangeNode) {
-        progressNotifier.updateProgress(
-          message: 'Changing to filter: ${node.filterName}',
-          currentFilter: node.filterName,
-        );
-        await Future.delayed(const Duration(seconds: 2));
-      } else if (node is DitherNode) {
-        progressNotifier.updateProgress(message: 'Dithering...');
-        await Future.delayed(const Duration(seconds: 1));
-      } else if (node is StartGuidingNode) {
-        progressNotifier.updateProgress(message: 'Starting guiding...');
-        await Future.delayed(const Duration(seconds: 2));
-      } else if (node is StopGuidingNode) {
-        progressNotifier.updateProgress(message: 'Stopping guiding...');
-        await Future.delayed(const Duration(seconds: 1));
-      } else if (node is ParkNode) {
-        progressNotifier.updateProgress(message: 'Parking mount...');
-        await Future.delayed(const Duration(seconds: 3));
-      } else if (node is UnparkNode) {
-        progressNotifier.updateProgress(message: 'Unparking mount...');
-        await Future.delayed(const Duration(seconds: 2));
-      } else if (node is CoolCameraNode) {
-        progressNotifier.updateProgress(message: 'Cooling camera to ${node.targetTemp}°C...');
-        await Future.delayed(const Duration(seconds: 5));
-      } else if (node is WarmCameraNode) {
-        progressNotifier.updateProgress(message: 'Warming camera...');
-        await Future.delayed(const Duration(seconds: 3));
-      } else if (node is DelayNode) {
-        progressNotifier.updateProgress(message: 'Waiting ${node.seconds}s...');
-        await Future.delayed(Duration(milliseconds: (node.seconds * 100).toInt().clamp(100, 3000)));
-      } else if (node is NotificationNode) {
-        progressNotifier.updateProgress(message: 'Notification: ${node.title}');
-        await Future.delayed(const Duration(milliseconds: 500));
-      } else {
-        // Simulate other node types
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-
-      progressNotifier.updateNodeStatus(node.id, NodeStatus.success);
-    }
-
-    // Completion
-    _progressTimer?.cancel();
-    progressNotifier.updateState(SequenceExecutionState.completed);
-    _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.completed;
+    _logger.info('Sequence reset - ready to run from beginning',
+        source: 'SequenceExecutor');
   }
 
   // =========================================================================
@@ -3187,7 +2581,8 @@ class SequenceExecutor {
     // Initialize progress with checkpoint data
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
     progressNotifier.updateState(SequenceExecutionState.running);
-    _ref.read(sequenceExecutionStateProvider.notifier).state = SequenceExecutionState.running;
+    _ref.read(sequenceExecutionStateProvider.notifier).state =
+        SequenceExecutionState.running;
 
     // Restore completed exposures and integration time
     progressNotifier.updateProgress(
@@ -3202,7 +2597,8 @@ class SequenceExecutor {
     // Start progress timer
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
-        final elapsed = DateTime.now().difference(_startTime!).inSeconds.toDouble();
+        final elapsed =
+            DateTime.now().difference(_startTime!).inSeconds.toDouble();
         progressNotifier.updateProgress(elapsedSecs: elapsed);
       }
     });
@@ -3210,17 +2606,13 @@ class SequenceExecutor {
     // Start checkpoint auto-save timer (every 30 seconds)
     _startCheckpointTimer();
 
-    if (_useNativeExecution) {
-      // Subscribe to backend events for progress updates
-      _nativeEventSubscription = backend.eventStream.listen(
-        _handleSequencerEvent,
-      );
+    // Subscribe to backend events for progress updates
+    _nativeEventSubscription = backend.eventStream.listen(
+      _handleSequencerEvent,
+    );
 
-      // Resume from checkpoint in native executor
-      await backend.resumeFromCheckpoint();
-    } else {
-      throw Exception('Checkpoint resume only supported with native execution');
-    }
+    // Resume from checkpoint in backend executor
+    await backend.resumeFromCheckpoint();
   }
 
   /// Discard the current checkpoint
@@ -3233,22 +2625,18 @@ class SequenceExecutor {
   void _startCheckpointTimer() {
     _checkpointTimer?.cancel();
     _checkpointTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
-      if (_ref.read(sequenceExecutionStateProvider) == SequenceExecutionState.running) {
+      if (_ref.read(sequenceExecutionStateProvider) ==
+          SequenceExecutionState.running) {
         try {
           final backend = _ref.read(backendProvider);
           await backend.saveCheckpoint();
         } catch (e) {
           // Log error but don't interrupt sequence
-          _logger.warning('Failed to save checkpoint: $e', source: 'SequenceExecutor');
+          _logger.warning('Failed to save checkpoint: $e',
+              source: 'SequenceExecutor');
         }
       }
     });
-  }
-
-  /// Stop checkpoint timer
-  void _stopCheckpointTimer() {
-    _checkpointTimer?.cancel();
-    _checkpointTimer = null;
   }
 }
 
@@ -3257,7 +2645,8 @@ class SequenceExecutor {
 // =============================================================================
 
 /// Provider for sequencer default settings (persisted)
-final sequencerDefaultsProvider = StateNotifierProvider<SequencerDefaultsNotifier, SequencerDefaults>((ref) {
+final sequencerDefaultsProvider =
+    StateNotifierProvider<SequencerDefaultsNotifier, SequencerDefaults>((ref) {
   return SequencerDefaultsNotifier(ref);
 });
 
@@ -3266,12 +2655,12 @@ class SequencerDefaults {
   final int autofocusStepSize;
   final int autofocusStepsOut;
   final double autofocusExposureDuration;
-  
+
   // Dither defaults
   final double ditherPixels;
   final double ditherSettleTime;
   final double ditherSettlePixels;
-  
+
   // Exposure defaults
   final double exposureDuration;
   final int exposureCount;
@@ -3315,7 +2704,8 @@ class SequencerDefaults {
     return SequencerDefaults(
       autofocusStepSize: autofocusStepSize ?? this.autofocusStepSize,
       autofocusStepsOut: autofocusStepsOut ?? this.autofocusStepsOut,
-      autofocusExposureDuration: autofocusExposureDuration ?? this.autofocusExposureDuration,
+      autofocusExposureDuration:
+          autofocusExposureDuration ?? this.autofocusExposureDuration,
       ditherPixels: ditherPixels ?? this.ditherPixels,
       ditherSettleTime: ditherSettleTime ?? this.ditherSettleTime,
       ditherSettlePixels: ditherSettlePixels ?? this.ditherSettlePixels,
@@ -3339,29 +2729,60 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
 
   Future<void> _loadDefaults() async {
     final settingsDao = _ref.read(settingsDaoProvider);
-    
-    final stepSize = int.tryParse(await settingsDao.getSetting('sequencer_autofocus_step_size') ?? '100') ?? 100;
-    final stepsOut = int.tryParse(await settingsDao.getSetting('sequencer_autofocus_steps_out') ?? '7') ?? 7;
-    final exposureDuration = double.tryParse(await settingsDao.getSetting('sequencer_autofocus_exposure_duration') ?? '3.0') ?? 3.0;
-    
-    final ditherPixels = double.tryParse(await settingsDao.getSetting('sequencer_dither_pixels') ?? '5.0') ?? 5.0;
-    final ditherSettleTime = double.tryParse(await settingsDao.getSetting('sequencer_dither_settle_time') ?? '30.0') ?? 30.0;
-    final ditherSettlePixels = double.tryParse(await settingsDao.getSetting('sequencer_dither_settle_pixels') ?? '1.5') ?? 1.5;
-    
-    final exposureDurationDefault = double.tryParse(await settingsDao.getSetting('sequencer_exposure_duration') ?? '60.0') ?? 60.0;
-    final exposureCount = int.tryParse(await settingsDao.getSetting('sequencer_exposure_count') ?? '10') ?? 10;
-    final exposureFilter = await settingsDao.getSetting('sequencer_exposure_filter');
-    final exposureGainStr = await settingsDao.getSetting('sequencer_exposure_gain');
-    final exposureGain = exposureGainStr != null ? int.tryParse(exposureGainStr) : null;
-    final exposureOffsetStr = await settingsDao.getSetting('sequencer_exposure_offset');
-    final exposureOffset = exposureOffsetStr != null ? int.tryParse(exposureOffsetStr) : null;
-    final exposureBinningStr = await settingsDao.getSetting('sequencer_exposure_binning') ?? 'one';
+
+    final stepSize = int.tryParse(
+            await settingsDao.getSetting('sequencer_autofocus_step_size') ??
+                '100') ??
+        100;
+    final stepsOut = int.tryParse(
+            await settingsDao.getSetting('sequencer_autofocus_steps_out') ??
+                '7') ??
+        7;
+    final exposureDuration = double.tryParse(await settingsDao
+                .getSetting('sequencer_autofocus_exposure_duration') ??
+            '3.0') ??
+        3.0;
+
+    final ditherPixels = double.tryParse(
+            await settingsDao.getSetting('sequencer_dither_pixels') ?? '5.0') ??
+        5.0;
+    final ditherSettleTime = double.tryParse(
+            await settingsDao.getSetting('sequencer_dither_settle_time') ??
+                '30.0') ??
+        30.0;
+    final ditherSettlePixels = double.tryParse(
+            await settingsDao.getSetting('sequencer_dither_settle_pixels') ??
+                '1.5') ??
+        1.5;
+
+    final exposureDurationDefault = double.tryParse(
+            await settingsDao.getSetting('sequencer_exposure_duration') ??
+                '60.0') ??
+        60.0;
+    final exposureCount = int.tryParse(
+            await settingsDao.getSetting('sequencer_exposure_count') ?? '10') ??
+        10;
+    final exposureFilter =
+        await settingsDao.getSetting('sequencer_exposure_filter');
+    final exposureGainStr =
+        await settingsDao.getSetting('sequencer_exposure_gain');
+    final exposureGain =
+        exposureGainStr != null ? int.tryParse(exposureGainStr) : null;
+    final exposureOffsetStr =
+        await settingsDao.getSetting('sequencer_exposure_offset');
+    final exposureOffset =
+        exposureOffsetStr != null ? int.tryParse(exposureOffsetStr) : null;
+    final exposureBinningStr =
+        await settingsDao.getSetting('sequencer_exposure_binning') ?? 'one';
     final exposureBinning = BinningMode.values.firstWhere(
       (e) => e.name == exposureBinningStr,
       orElse: () => BinningMode.one,
     );
-    final exposureDitherEvery = int.tryParse(await settingsDao.getSetting('sequencer_exposure_dither_every') ?? '1') ?? 1;
-    
+    final exposureDitherEvery = int.tryParse(
+            await settingsDao.getSetting('sequencer_exposure_dither_every') ??
+                '1') ??
+        1;
+
     state = SequencerDefaults(
       autofocusStepSize: stepSize,
       autofocusStepsOut: stepsOut,
@@ -3386,7 +2807,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
   }) async {
     final settingsDao = _ref.read(settingsDaoProvider);
     final updates = <String, String>{};
-    
+
     if (stepSize != null) {
       updates['sequencer_autofocus_step_size'] = stepSize.toString();
       state = state.copyWith(autofocusStepSize: stepSize);
@@ -3396,10 +2817,11 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
       state = state.copyWith(autofocusStepsOut: stepsOut);
     }
     if (exposureDuration != null) {
-      updates['sequencer_autofocus_exposure_duration'] = exposureDuration.toString();
+      updates['sequencer_autofocus_exposure_duration'] =
+          exposureDuration.toString();
       state = state.copyWith(autofocusExposureDuration: exposureDuration);
     }
-    
+
     if (updates.isNotEmpty) {
       await settingsDao.setSettings(updates);
     }
@@ -3412,7 +2834,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
   }) async {
     final settingsDao = _ref.read(settingsDaoProvider);
     final updates = <String, String>{};
-    
+
     if (pixels != null) {
       updates['sequencer_dither_pixels'] = pixels.toString();
       state = state.copyWith(ditherPixels: pixels);
@@ -3425,7 +2847,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
       updates['sequencer_dither_settle_pixels'] = settlePixels.toString();
       state = state.copyWith(ditherSettlePixels: settlePixels);
     }
-    
+
     if (updates.isNotEmpty) {
       await settingsDao.setSettings(updates);
     }
@@ -3442,7 +2864,7 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
   }) async {
     final settingsDao = _ref.read(settingsDaoProvider);
     final updates = <String, String>{};
-    
+
     if (duration != null) {
       updates['sequencer_exposure_duration'] = duration.toString();
       state = state.copyWith(exposureDuration: duration);

@@ -1192,7 +1192,8 @@ impl DeviceOps for UnifiedDeviceOps {
     }
 
     async fn safety_is_safe(&self, safety_id: Option<&str>) -> DeviceResult<bool> {
-        // If no safety monitor specified, check profile
+        // Resolve safety source from explicit ID or active profile.
+        // Return errors when unresolved so sequencer fail-mode can decide policy.
         let device_id = match safety_id {
             Some(id) => id.to_string(),
             None => {
@@ -1201,8 +1202,10 @@ impl DeviceOps for UnifiedDeviceOps {
                 match profile.and_then(|p| p.weather_id) {
                     Some(id) => id,
                     None => {
-                        tracing::debug!("No safety monitor configured, assuming safe");
-                        return Ok(true);
+                        return Err(
+                            "No safety/weather device configured for sequencer safety checks"
+                                .to_string(),
+                        );
                     } // Map bayer pattern to sensor_type and bayer_offset
                 }
 

@@ -3,11 +3,11 @@
 //! This module provides functionality to save and restore sequence execution state
 //! for recovery after unexpected crashes or restarts.
 
-use crate::{SequenceDefinition, NodeId, NodeStatus, ExecutorState};
+use crate::{ExecutorState, NodeId, NodeStatus, SequenceDefinition};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use chrono::{DateTime, Utc};
 
 /// Checkpoint containing all state needed to resume a sequence
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,14 +132,19 @@ impl SessionCheckpoint {
     /// Check if this checkpoint can be resumed
     pub fn can_resume(&self) -> bool {
         // Can resume if we have a sequence and it was an active session
-        self.is_active &&
-        self.executor_state == ExecutorState::Running &&
-        self.last_completed_node.is_some()
+        self.is_active
+            && matches!(
+                self.executor_state,
+                ExecutorState::Running | ExecutorState::Paused
+            )
+            && self.sequence.root_node_id.is_some()
     }
 
     /// Get time since checkpoint was created
     pub fn age_seconds(&self) -> i64 {
-        Utc::now().signed_duration_since(self.timestamp).num_seconds()
+        Utc::now()
+            .signed_duration_since(self.timestamp)
+            .num_seconds()
     }
 }
 
@@ -201,23 +206,58 @@ impl CheckpointManager {
     /// Load a checkpoint from disk
     pub fn load(&self) -> Result<Option<SessionCheckpoint>, String> {
         let path = self.checkpoint_path();
+        let backup = self.backup_path();
 
-        if !path.exists() {
+        if !path.exists() && !backup.exists() {
             return Ok(None);
         }
 
-        let json = std::fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read checkpoint: {}", e))?;
-
-        let checkpoint: SessionCheckpoint = serde_json::from_str(&json)
-            .map_err(|e| format!("Failed to parse checkpoint: {}", e))?;
-
-        // Validate version
-        if checkpoint.version > 1 {
-            return Err(format!("Checkpoint version {} not supported", checkpoint.version));
+        if path.exists() {
+            match Self::read_checkpoint_file(&path) {
+                Ok(checkpoint) => return Ok(Some(checkpoint)),
+                Err(primary_err) => {
+                    tracing::warn!(
+                        "Primary checkpoint load failed ({}), attempting backup",
+                        primary_err
+                    );
+                }
+            }
         }
 
-        Ok(Some(checkpoint))
+        if backup.exists() {
+            let checkpoint = Self::read_checkpoint_file(&backup)?;
+            tracing::warn!(
+                "Recovered checkpoint from backup file: {}",
+                backup.display()
+            );
+
+            // Attempt to self-heal by restoring backup to primary path.
+            if let Err(e) = std::fs::copy(&backup, &path) {
+                tracing::warn!("Failed to restore primary checkpoint from backup: {}", e);
+            }
+
+            return Ok(Some(checkpoint));
+        }
+
+        Ok(None)
+    }
+
+    fn read_checkpoint_file(path: &Path) -> Result<SessionCheckpoint, String> {
+        let json = std::fs::read_to_string(path)
+            .map_err(|e| format!("Failed to read checkpoint {}: {}", path.display(), e))?;
+
+        let checkpoint: SessionCheckpoint = serde_json::from_str(&json)
+            .map_err(|e| format!("Failed to parse checkpoint {}: {}", path.display(), e))?;
+
+        if checkpoint.version > 1 {
+            return Err(format!(
+                "Checkpoint {} has unsupported version {}",
+                path.display(),
+                checkpoint.version
+            ));
+        }
+
+        Ok(checkpoint)
     }
 
     /// Check if a recoverable checkpoint exists
