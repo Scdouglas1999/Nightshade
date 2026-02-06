@@ -3,12 +3,12 @@
 //! This module implements the DeviceOps trait from the sequencer crate,
 //! routing calls to actual connected devices via the bridge API.
 
-use async_trait::async_trait;
-use nightshade_sequencer::{DeviceOps, DeviceResult, ImageData, PlateSolveResult, GuidingStatus};
-use crate::state::SharedAppState;
 use crate::api::*;
 use crate::event::{EquipmentEvent, EventSeverity};
+use crate::state::SharedAppState;
 use crate::unified_device_ops::create_unified_device_ops;
+use async_trait::async_trait;
+use nightshade_sequencer::{DeviceOps, DeviceResult, GuidingStatus, ImageData, PlateSolveResult};
 use std::sync::Arc;
 
 /// Real device operations implementation that uses connected devices
@@ -27,15 +27,28 @@ impl DeviceOps for BridgeDeviceOps {
     // =========================================================================
     // MOUNT OPERATIONS
     // =========================================================================
-    
-    async fn mount_slew_to_coordinates(&self, mount_id: &str, ra_hours: f64, dec_degrees: f64) -> DeviceResult<()> {
+
+    async fn mount_slew_to_coordinates(
+        &self,
+        mount_id: &str,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> DeviceResult<()> {
         // Emit start event
         self.app_state.publish_equipment_event(
-            EquipmentEvent::MountSlewStarted { ra: ra_hours, dec: dec_degrees },
+            EquipmentEvent::MountSlewStarted {
+                ra: ra_hours,
+                dec: dec_degrees,
+            },
             EventSeverity::Info,
         );
 
-        tracing::info!("Slewing mount {} to RA={:.4}h Dec={:.4}°", mount_id, ra_hours, dec_degrees);
+        tracing::info!(
+            "Slewing mount {} to RA={:.4}h Dec={:.4}°",
+            mount_id,
+            ra_hours,
+            dec_degrees
+        );
 
         let result = mount_slew(mount_id.to_string(), ra_hours, dec_degrees)
             .await
@@ -44,7 +57,10 @@ impl DeviceOps for BridgeDeviceOps {
         // Emit completion event on success
         if result.is_ok() {
             self.app_state.publish_equipment_event(
-                EquipmentEvent::MountSlewCompleted { ra: ra_hours, dec: dec_degrees },
+                EquipmentEvent::MountSlewCompleted {
+                    ra: ra_hours,
+                    dec: dec_degrees,
+                },
                 EventSeverity::Info,
             );
         }
@@ -54,7 +70,7 @@ impl DeviceOps for BridgeDeviceOps {
 
     async fn mount_abort_slew(&self, mount_id: &str) -> DeviceResult<()> {
         tracing::info!("Aborting slew for mount {}", mount_id);
-        
+
         mount_abort(mount_id.to_string())
             .await
             .map_err(|e| format!("Abort slew failed: {}", e))
@@ -65,21 +81,29 @@ impl DeviceOps for BridgeDeviceOps {
             .await
             .map_err(|e| format!("Get coordinates failed: {}", e))
     }
-    
-    async fn mount_sync(&self, mount_id: &str, ra_hours: f64, dec_degrees: f64) -> DeviceResult<()> {
-        tracing::info!("Syncing mount {} to RA={:.4}h Dec={:.4}°", mount_id, ra_hours, dec_degrees);
-        
+
+    async fn mount_sync(
+        &self,
+        mount_id: &str,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Syncing mount {} to RA={:.4}h Dec={:.4}°",
+            mount_id,
+            ra_hours,
+            dec_degrees
+        );
+
         mount_sync(mount_id.to_string(), ra_hours, dec_degrees)
             .await
             .map_err(|e| format!("Sync failed: {}", e))
     }
-    
+
     async fn mount_park(&self, mount_id: &str) -> DeviceResult<()> {
         // Emit start event
-        self.app_state.publish_equipment_event(
-            EquipmentEvent::MountParkStarted,
-            EventSeverity::Info,
-        );
+        self.app_state
+            .publish_equipment_event(EquipmentEvent::MountParkStarted, EventSeverity::Info);
 
         tracing::info!("Parking mount {}", mount_id);
 
@@ -89,15 +113,13 @@ impl DeviceOps for BridgeDeviceOps {
 
         // Emit completion event on success
         if result.is_ok() {
-            self.app_state.publish_equipment_event(
-                EquipmentEvent::MountParkCompleted,
-                EventSeverity::Info,
-            );
+            self.app_state
+                .publish_equipment_event(EquipmentEvent::MountParkCompleted, EventSeverity::Info);
         }
 
         result
     }
-    
+
     async fn mount_unpark(&self, mount_id: &str) -> DeviceResult<()> {
         tracing::info!("Unparking mount {}", mount_id);
 
@@ -107,23 +129,21 @@ impl DeviceOps for BridgeDeviceOps {
 
         // Emit event on success
         if result.is_ok() {
-            self.app_state.publish_equipment_event(
-                EquipmentEvent::MountUnparked,
-                EventSeverity::Info,
-            );
+            self.app_state
+                .publish_equipment_event(EquipmentEvent::MountUnparked, EventSeverity::Info);
         }
 
         result
     }
-    
+
     async fn mount_is_slewing(&self, mount_id: &str) -> DeviceResult<bool> {
         let status = mount_get_status(mount_id.to_string())
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
-        
+
         Ok(status.slewing)
     }
-    
+
     async fn mount_is_parked(&self, mount_id: &str) -> DeviceResult<bool> {
         let status = mount_get_status(mount_id.to_string())
             .await
@@ -142,7 +162,10 @@ impl DeviceOps for BridgeDeviceOps {
         Ok(status.tracking)
     }
 
-    async fn mount_side_of_pier(&self, mount_id: &str) -> DeviceResult<nightshade_sequencer::meridian::PierSide> {
+    async fn mount_side_of_pier(
+        &self,
+        mount_id: &str,
+    ) -> DeviceResult<nightshade_sequencer::meridian::PierSide> {
         let status = mount_get_status(mount_id.to_string())
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
@@ -167,7 +190,11 @@ impl DeviceOps for BridgeDeviceOps {
     }
 
     async fn mount_set_tracking(&self, mount_id: &str, enabled: bool) -> DeviceResult<()> {
-        tracing::info!("Setting tracking {} for mount {}", if enabled { "on" } else { "off" }, mount_id);
+        tracing::info!(
+            "Setting tracking {} for mount {}",
+            if enabled { "on" } else { "off" },
+            mount_id
+        );
 
         let result = mount_set_tracking(mount_id.to_string(), if enabled { 1 } else { 0 })
             .await
@@ -191,7 +218,7 @@ impl DeviceOps for BridgeDeviceOps {
     // =========================================================================
     // CAMERA OPERATIONS
     // =========================================================================
-    
+
     async fn camera_start_exposure(
         &self,
         camera_id: &str,
@@ -201,27 +228,29 @@ impl DeviceOps for BridgeDeviceOps {
         bin_x: i32,
         bin_y: i32,
     ) -> DeviceResult<ImageData> {
-        tracing::info!("Starting {:.1}s exposure on camera {}", duration_secs, camera_id);
+        tracing::info!(
+            "Starting {:.1}s exposure on camera {}",
+            duration_secs,
+            camera_id
+        );
 
         // Use UnifiedDeviceOps directly to get image data without going through global storage.
         // This eliminates the race condition where concurrent exposures from different cameras
         // could overwrite each other's data in the global LAST_RAW_IMAGE_INFO storage.
         let unified_ops = create_unified_device_ops();
-        let image_data = unified_ops.camera_start_exposure(
-            camera_id,
-            duration_secs,
-            gain,
-            offset,
-            bin_x,
-            bin_y,
-        ).await?;
+        let image_data = unified_ops
+            .camera_start_exposure(camera_id, duration_secs, gain, offset, bin_x, bin_y)
+            .await?;
 
         // Validate the raw data
         let expected_size = (image_data.width as usize) * (image_data.height as usize);
         if image_data.data.len() != expected_size {
             return Err(format!(
                 "Image data size mismatch: got {} pixels, expected {} ({}x{})",
-                image_data.data.len(), expected_size, image_data.width, image_data.height
+                image_data.data.len(),
+                expected_size,
+                image_data.width,
+                image_data.height
             ));
         }
 
@@ -251,22 +280,30 @@ impl DeviceOps for BridgeDeviceOps {
 
         tracing::info!(
             "Raw image captured: {}x{}, {} pixels, sensor_type={:?}, bayer_offset={:?}",
-            image_data.width, image_data.height, image_data.data.len(),
-            image_data.sensor_type, image_data.bayer_offset
+            image_data.width,
+            image_data.height,
+            image_data.data.len(),
+            image_data.sensor_type,
+            image_data.bayer_offset
         );
 
         Ok(image_data)
     }
-    
+
     async fn camera_abort_exposure(&self, camera_id: &str) -> DeviceResult<()> {
         tracing::info!("Aborting exposure on camera {}", camera_id);
-        
+
         cancel_exposure(camera_id.to_string())
             .await
             .map_err(|e| format!("Abort failed: {}", e))
     }
-    
-    async fn camera_set_cooler(&self, camera_id: &str, enabled: bool, target_temp: f64) -> DeviceResult<()> {
+
+    async fn camera_set_cooler(
+        &self,
+        camera_id: &str,
+        enabled: bool,
+        target_temp: f64,
+    ) -> DeviceResult<()> {
         // Emit event before starting
         self.app_state.publish_equipment_event(
             if enabled {
@@ -277,37 +314,48 @@ impl DeviceOps for BridgeDeviceOps {
             EventSeverity::Info,
         );
 
-        tracing::info!("Camera {} cooler: enabled={}, target={}°C", camera_id, enabled, target_temp);
+        tracing::info!(
+            "Camera {} cooler: enabled={}, target={}°C",
+            camera_id,
+            enabled,
+            target_temp
+        );
 
         set_camera_cooler(camera_id.to_string(), enabled as u8, Some(target_temp))
             .await
             .map_err(|e| format!("Cooler control failed: {}", e))
     }
-    
+
     async fn camera_get_temperature(&self, camera_id: &str) -> DeviceResult<f64> {
         let status = get_camera_status(camera_id.to_string())
             .await
             .map_err(|e| format!("Failed to get camera status: {}", e))?;
-        
-        status.sensor_temp.ok_or_else(|| "Temperature not available".to_string())
+
+        status
+            .sensor_temp
+            .ok_or_else(|| "Temperature not available".to_string())
     }
-    
+
     async fn camera_get_cooler_power(&self, camera_id: &str) -> DeviceResult<f64> {
         let status = get_camera_status(camera_id.to_string())
             .await
             .map_err(|e| format!("Failed to get camera status: {}", e))?;
-        
-        status.cooler_power.ok_or_else(|| "Cooler power not available".to_string())
+
+        status
+            .cooler_power
+            .ok_or_else(|| "Cooler power not available".to_string())
     }
-    
+
     // =========================================================================
     // FOCUSER OPERATIONS
     // =========================================================================
-    
+
     async fn focuser_move_to(&self, focuser_id: &str, position: i32) -> DeviceResult<()> {
         // Emit start event
         self.app_state.publish_equipment_event(
-            EquipmentEvent::FocuserMoveStarted { target_position: position },
+            EquipmentEvent::FocuserMoveStarted {
+                target_position: position,
+            },
             EventSeverity::Info,
         );
 
@@ -327,15 +375,15 @@ impl DeviceOps for BridgeDeviceOps {
 
         result
     }
-    
+
     async fn focuser_get_position(&self, focuser_id: &str) -> DeviceResult<i32> {
         let pos = focuser_get_position(focuser_id.to_string())
             .await
             .map_err(|e| format!("Failed to get focuser position: {}", e))?;
-        
+
         Ok(pos)
     }
-    
+
     async fn focuser_is_moving(&self, focuser_id: &str) -> DeviceResult<bool> {
         let status = api_get_focuser_status(focuser_id.to_string())
             .await
@@ -343,7 +391,7 @@ impl DeviceOps for BridgeDeviceOps {
 
         Ok(status.moving)
     }
-    
+
     async fn focuser_get_temperature(&self, focuser_id: &str) -> DeviceResult<Option<f64>> {
         focuser_get_temp(focuser_id.to_string())
             .await
@@ -352,16 +400,16 @@ impl DeviceOps for BridgeDeviceOps {
 
     async fn focuser_halt(&self, focuser_id: &str) -> DeviceResult<()> {
         tracing::info!("Halting focuser {}", focuser_id);
-        
+
         focuser_halt(focuser_id.to_string())
             .await
             .map_err(|e| format!("Halt failed: {}", e))
     }
-    
+
     // =========================================================================
     // FILTER WHEEL OPERATIONS
     // =========================================================================
-    
+
     async fn filterwheel_set_position(&self, fw_id: &str, position: i32) -> DeviceResult<()> {
         // Get current position for event
         let from_position = filter_wheel_get_position(fw_id.to_string())
@@ -397,27 +445,32 @@ impl DeviceOps for BridgeDeviceOps {
 
         result
     }
-    
+
     async fn filterwheel_get_position(&self, fw_id: &str) -> DeviceResult<i32> {
         filter_wheel_get_position(fw_id.to_string())
             .await
             .map_err(|e| format!("Failed to get filter wheel position: {}", e))
     }
-    
+
     async fn filterwheel_get_names(&self, fw_id: &str) -> DeviceResult<Vec<String>> {
         let (_, names) = filter_wheel_get_config(fw_id.to_string())
             .await
             .map_err(|e| format!("Failed to get filter wheel config: {}", e))?;
-        
+
         Ok(names)
     }
-    
+
     async fn filterwheel_set_filter_by_name(&self, fw_id: &str, name: &str) -> DeviceResult<i32> {
         let names = self.filterwheel_get_names(fw_id).await?;
-        tracing::info!("filterwheel_set_filter_by_name: Looking for '{}' in available filters: {:?}", name, names);
+        tracing::info!(
+            "filterwheel_set_filter_by_name: Looking for '{}' in available filters: {:?}",
+            name,
+            names
+        );
 
         // Find the filter position by name (case-insensitive)
-        let position = names.iter()
+        let position = names
+            .iter()
             .position(|n| n.eq_ignore_ascii_case(name))
             .map(|p| (p + 1) as i32) // Filter positions are 1-based
             .ok_or_else(|| format!("Filter '{}' not found. Available: {:?}", name, names))?;
@@ -425,7 +478,7 @@ impl DeviceOps for BridgeDeviceOps {
         self.filterwheel_set_position(fw_id, position).await?;
         Ok(position)
     }
-    
+
     // =========================================================================
     // ROTATOR OPERATIONS
     // =========================================================================
@@ -433,7 +486,9 @@ impl DeviceOps for BridgeDeviceOps {
     async fn rotator_move_to(&self, rotator_id: &str, angle: f64) -> DeviceResult<()> {
         // Emit start event
         self.app_state.publish_equipment_event(
-            EquipmentEvent::RotatorMoveStarted { target_angle: angle },
+            EquipmentEvent::RotatorMoveStarted {
+                target_angle: angle,
+            },
             EventSeverity::Info,
         );
 
@@ -477,7 +532,7 @@ impl DeviceOps for BridgeDeviceOps {
             .await
             .map_err(|e| format!("Rotator halt failed: {}", e))
     }
-    
+
     // =========================================================================
     // GUIDING / PHD2 OPERATIONS
     // =========================================================================
@@ -490,11 +545,22 @@ impl DeviceOps for BridgeDeviceOps {
         settle_timeout: f64,
         ra_only: bool,
     ) -> DeviceResult<()> {
-        tracing::info!("Dithering {} pixels (settle: <{}px in {}s)", pixels, settle_pixels, settle_time);
+        tracing::info!(
+            "Dithering {} pixels (settle: <{}px in {}s)",
+            pixels,
+            settle_pixels,
+            settle_time
+        );
 
-        api_phd2_dither(pixels, ra_only as u8, settle_pixels, settle_time, settle_timeout)
-            .await
-            .map_err(|e| format!("Dither failed: {}", e))
+        api_phd2_dither(
+            pixels,
+            ra_only as u8,
+            settle_pixels,
+            settle_time,
+            settle_timeout,
+        )
+        .await
+        .map_err(|e| format!("Dither failed: {}", e))
     }
 
     async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
@@ -510,8 +576,18 @@ impl DeviceOps for BridgeDeviceOps {
         })
     }
 
-    async fn guider_start(&self, settle_pixels: f64, settle_time: f64, settle_timeout: f64) -> DeviceResult<()> {
-        tracing::info!("Starting guiding (settle: <{}px in {}s, timeout {}s)", settle_pixels, settle_time, settle_timeout);
+    async fn guider_start(
+        &self,
+        settle_pixels: f64,
+        settle_time: f64,
+        settle_timeout: f64,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Starting guiding (settle: <{}px in {}s, timeout {}s)",
+            settle_pixels,
+            settle_time,
+            settle_timeout
+        );
 
         api_phd2_start_guiding(settle_pixels, settle_time, settle_timeout)
             .await
@@ -525,11 +601,11 @@ impl DeviceOps for BridgeDeviceOps {
             .await
             .map_err(|e| format!("Stop guiding failed: {}", e))
     }
-    
+
     // =========================================================================
     // PLATE SOLVING
     // =========================================================================
-    
+
     async fn plate_solve(
         &self,
         image_data: &ImageData,
@@ -538,20 +614,20 @@ impl DeviceOps for BridgeDeviceOps {
         hint_scale: Option<f64>,
     ) -> DeviceResult<PlateSolveResult> {
         tracing::info!("Plate solving image");
-        
+
         // Use platform-appropriate temp directory
         let temp_dir = std::env::temp_dir();
         let temp_file = temp_dir.join("nightshade_platesolve_temp.fits");
         let temp_path = temp_file.to_string_lossy().to_string();
-        
+
         // Convert to imaging::ImageData
         let img = nightshade_imaging::ImageData::from_u16(
             image_data.width,
             image_data.height,
             1, // Assuming mono/bayer raw
-            &image_data.data
+            &image_data.data,
         );
-        
+
         // Create header
         let mut header = nightshade_imaging::FitsHeader::new();
         header.set_float("EXPTIME", image_data.exposure_secs);
@@ -575,13 +651,13 @@ impl DeviceOps for BridgeDeviceOps {
             let focal_len = 206.265 * 3.76 / scale;
             header.set_float("FOCALLEN", focal_len);
         }
-        
+
         // Save temp FITS
         nightshade_imaging::write_fits(std::path::Path::new(&temp_path), &img, &header)
             .map_err(|e| format!("Failed to save temp FITS: {}", e))?;
-            
+
         tracing::info!("Saved temp FITS for plate solving: {}", temp_path);
-        
+
         // Run solver
         let result = if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
             nightshade_imaging::solve_near(
@@ -593,12 +669,12 @@ impl DeviceOps for BridgeDeviceOps {
         } else {
             nightshade_imaging::blind_solve(std::path::Path::new(&temp_path))
         };
-        
+
         // Clean up
         let _ = std::fs::remove_file(&temp_path);
-        
+
         let r = result; // No need to map error, it returns PlateSolveResult directly
-        
+
         if r.success {
             Ok(PlateSolveResult {
                 ra_degrees: r.ra,
@@ -609,14 +685,16 @@ impl DeviceOps for BridgeDeviceOps {
             })
         } else {
             tracing::warn!("Plate solve failed: {:?}", r.error);
-            Err(r.error.unwrap_or_else(|| "Unknown plate solve error".to_string()))
+            Err(r
+                .error
+                .unwrap_or_else(|| "Unknown plate solve error".to_string()))
         }
     }
-    
+
     // =========================================================================
     // IMAGE SAVING
     // =========================================================================
-    
+
     async fn save_fits(
         &self,
         image_data: &ImageData,
@@ -627,15 +705,15 @@ impl DeviceOps for BridgeDeviceOps {
         dec_degrees: Option<f64>,
     ) -> DeviceResult<()> {
         tracing::info!("Saving FITS image to: {}", file_path);
-        
+
         // Convert to imaging::ImageData
         let img = nightshade_imaging::ImageData::from_u16(
             image_data.width,
             image_data.height,
             1,
-            &image_data.data
+            &image_data.data,
         );
-        
+
         // Create header
         let mut header = nightshade_imaging::FitsHeader::new();
         if let Some(name) = target_name {
@@ -661,28 +739,33 @@ impl DeviceOps for BridgeDeviceOps {
             header.set_float("DEC", dec);
         }
         header.set_string("DATE-OBS", &chrono::Utc::now().to_rfc3339());
-        
+
         // Save FITS
         nightshade_imaging::write_fits(std::path::Path::new(file_path), &img, &header)
             .map_err(|e| format!("Save FITS failed: {}", e))
     }
-    
+
     // =========================================================================
     // NOTIFICATIONS
     // =========================================================================
-    
+
     async fn send_notification(&self, level: &str, title: &str, message: &str) -> DeviceResult<()> {
-        tracing::info!("[NOTIFICATION][{}] {}: {}", level.to_uppercase(), title, message);
-        
+        tracing::info!(
+            "[NOTIFICATION][{}] {}: {}",
+            level.to_uppercase(),
+            title,
+            message
+        );
+
         // Publish as event to the event bus
         use crate::event::*;
-        
+
         let severity = match level {
             "error" => EventSeverity::Error,
             "warning" => EventSeverity::Warning,
             _ => EventSeverity::Info,
         };
-        
+
         self.app_state.publish_event(create_event_auto_id(
             severity,
             EventCategory::System,
@@ -692,15 +775,22 @@ impl DeviceOps for BridgeDeviceOps {
                 level: level.to_string(),
             }),
         ));
-        
+
         Ok(())
     }
 
-    async fn polar_align_update(&self, result: &nightshade_sequencer::PolarAlignResult) -> DeviceResult<()> {
-        tracing::info!("Polar Align Update: Alt {:.1}', Az {:.1}'", result.altitude_error, result.azimuth_error);
-        
+    async fn polar_align_update(
+        &self,
+        result: &nightshade_sequencer::PolarAlignResult,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Polar Align Update: Alt {:.1}', Az {:.1}'",
+            result.altitude_error,
+            result.azimuth_error
+        );
+
         use crate::event::*;
-        
+
         let event = PolarAlignmentEvent {
             azimuth_error: result.azimuth_error,
             altitude_error: result.altitude_error,
@@ -710,17 +800,16 @@ impl DeviceOps for BridgeDeviceOps {
             target_ra: result.target_ra,
             target_dec: result.target_dec,
         };
-        
+
         self.app_state.publish_event(create_event_auto_id(
             EventSeverity::Info,
             EventCategory::PolarAlignment,
             EventPayload::PolarAlignment(event),
         ));
-        
+
         Ok(())
     }
-    
-    
+
     // =========================================================================
     // DOME OPERATIONS
     // =========================================================================
@@ -728,7 +817,8 @@ impl DeviceOps for BridgeDeviceOps {
     async fn dome_open(&self, dome_id: &str) -> DeviceResult<()> {
         tracing::info!("Opening dome shutter {}", dome_id);
 
-        get_device_manager().dome_open_shutter(dome_id)
+        get_device_manager()
+            .dome_open_shutter(dome_id)
             .await
             .map_err(|e| format!("Open dome shutter failed: {}", e))
     }
@@ -736,7 +826,8 @@ impl DeviceOps for BridgeDeviceOps {
     async fn dome_close(&self, dome_id: &str) -> DeviceResult<()> {
         tracing::info!("Closing dome shutter {}", dome_id);
 
-        get_device_manager().dome_close_shutter(dome_id)
+        get_device_manager()
+            .dome_close_shutter(dome_id)
             .await
             .map_err(|e| format!("Close dome shutter failed: {}", e))
     }
@@ -744,13 +835,15 @@ impl DeviceOps for BridgeDeviceOps {
     async fn dome_park(&self, dome_id: &str) -> DeviceResult<()> {
         tracing::info!("Parking dome {}", dome_id);
 
-        get_device_manager().dome_park(dome_id)
+        get_device_manager()
+            .dome_park(dome_id)
             .await
             .map_err(|e| format!("Park dome failed: {}", e))
     }
 
     async fn dome_get_shutter_status(&self, dome_id: &str) -> DeviceResult<String> {
-        let status = get_device_manager().dome_get_shutter_status(dome_id)
+        let status = get_device_manager()
+            .dome_get_shutter_status(dome_id)
             .await
             .map_err(|e| format!("Get dome shutter status failed: {}", e))?;
 
@@ -764,35 +857,37 @@ impl DeviceOps for BridgeDeviceOps {
             _ => "Error".to_string(),
         })
     }
-    
+
     // =========================================================================
     // UTILITY
     // =========================================================================
-    
+
     fn calculate_altitude(&self, ra_hours: f64, dec_degrees: f64, lat: f64, lon: f64) -> f64 {
         // Calculate Local Sidereal Time
         let now = chrono::Utc::now();
         let jd = julian_day(now);
         let lst = local_sidereal_time(jd, lon);
-        
+
         // Calculate hour angle
         let ha = lst - ra_hours;
         let ha_rad = ha * 15.0_f64.to_radians(); // Convert to radians
         let dec_rad = dec_degrees.to_radians();
         let lat_rad = lat.to_radians();
-        
+
         // Calculate altitude
-        let sin_alt = lat_rad.sin() * dec_rad.sin() + 
-                      lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
+        let sin_alt = lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
         sin_alt.asin().to_degrees()
     }
-    
+
     fn get_observer_location(&self) -> Option<(f64, f64)> {
         // Get observer location from app settings
         match self.app_state.get_observer_location() {
             Ok(Some(location)) => {
-                tracing::debug!("Observer location retrieved: lat={}, lon={}",
-                    location.latitude, location.longitude);
+                tracing::debug!(
+                    "Observer location retrieved: lat={}, lon={}",
+                    location.latitude,
+                    location.longitude
+                );
                 Some((location.latitude, location.longitude))
             }
             Ok(None) => {
@@ -837,13 +932,18 @@ impl DeviceOps for BridgeDeviceOps {
                 let device_num: u32 = parts[4].parse().unwrap_or(0);
 
                 let base_url = format!("{}://{}:{}", protocol, host_part, port);
-                let safety = nightshade_alpaca::AlpacaSafetyMonitor::from_server(&base_url, device_num);
+                let safety =
+                    nightshade_alpaca::AlpacaSafetyMonitor::from_server(&base_url, device_num);
 
                 match safety.connect().await {
                     Ok(()) => {
                         let is_safe = safety.is_safe().await.unwrap_or(true);
                         safety.disconnect().await.ok();
-                        tracing::info!("Safety monitor {} reports: {}", device_id, if is_safe { "SAFE" } else { "UNSAFE" });
+                        tracing::info!(
+                            "Safety monitor {} reports: {}",
+                            device_id,
+                            if is_safe { "SAFE" } else { "UNSAFE" }
+                        );
                         return Ok(is_safe);
                     }
                     Err(e) => {
@@ -855,7 +955,10 @@ impl DeviceOps for BridgeDeviceOps {
         }
 
         // Unknown device type, assume safe
-        tracing::debug!("Unknown safety monitor type for {}, assuming safe", device_id);
+        tracing::debug!(
+            "Unknown safety monitor type for {}, assuming safe",
+            device_id
+        );
         Ok(true)
     }
 
@@ -869,7 +972,7 @@ impl DeviceOps for BridgeDeviceOps {
             image_data.width,
             image_data.height,
             1,
-            &image_data.data
+            &image_data.data,
         );
 
         let config = nightshade_imaging::StarDetectionConfig::default();
@@ -886,22 +989,23 @@ impl DeviceOps for BridgeDeviceOps {
         Ok(Some(avg_hfr))
     }
 
-    async fn detect_stars_in_image(&self, image_data: &ImageData) -> DeviceResult<Vec<(f64, f64, f64)>> {
+    async fn detect_stars_in_image(
+        &self,
+        image_data: &ImageData,
+    ) -> DeviceResult<Vec<(f64, f64, f64)>> {
         // Use nightshade_imaging to detect stars
         let img = nightshade_imaging::ImageData::from_u16(
             image_data.width,
             image_data.height,
             1,
-            &image_data.data
+            &image_data.data,
         );
 
         let config = nightshade_imaging::StarDetectionConfig::default();
         let stars = nightshade_imaging::detect_stars(&img, &config);
 
         // Convert to (x, y, hfr) tuples
-        let result: Vec<(f64, f64, f64)> = stars.iter()
-            .map(|s| (s.x, s.y, s.hfr))
-            .collect();
+        let result: Vec<(f64, f64, f64)> = stars.iter().map(|s| (s.x, s.y, s.hfr)).collect();
 
         Ok(result)
     }
@@ -931,8 +1035,16 @@ impl DeviceOps for BridgeDeviceOps {
             .map_err(|e| format!("Halt cover failed: {}", e))
     }
 
-    async fn cover_calibrator_calibrator_on(&self, device_id: &str, brightness: i32) -> DeviceResult<()> {
-        tracing::info!("Turning on calibrator {} at brightness {}", device_id, brightness);
+    async fn cover_calibrator_calibrator_on(
+        &self,
+        device_id: &str,
+        brightness: i32,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Turning on calibrator {} at brightness {}",
+            device_id,
+            brightness
+        );
         api_cover_calibrator_calibrator_on(device_id.to_string(), brightness)
             .await
             .map_err(|e| format!("Calibrator on failed: {}", e))
@@ -973,40 +1085,46 @@ impl DeviceOps for BridgeDeviceOps {
 /// Calculate Julian Day from UTC datetime
 fn julian_day(dt: chrono::DateTime<chrono::Utc>) -> f64 {
     use chrono::{Datelike, Timelike};
-    
+
     let year = dt.year();
     let month = dt.month() as i32;
     let day = dt.day() as f64;
     let hour = dt.hour() as f64 + dt.minute() as f64 / 60.0 + dt.second() as f64 / 3600.0;
-    
+
     let (y, m) = if month <= 2 {
         (year - 1, month + 12)
     } else {
         (year, month)
     };
-    
+
     let a = (y as f64 / 100.0).floor();
     let b = 2.0 - a + (a / 4.0).floor();
-    
-    (365.25 * (y + 4716) as f64).floor() + 
-    (30.6001 * (m + 1) as f64).floor() + 
-    day + hour / 24.0 + b - 1524.5
+
+    (365.25 * (y + 4716) as f64).floor()
+        + (30.6001 * (m + 1) as f64).floor()
+        + day
+        + hour / 24.0
+        + b
+        - 1524.5
 }
 
 /// Calculate Local Sidereal Time in hours
 fn local_sidereal_time(jd: f64, longitude: f64) -> f64 {
     let t = (jd - 2451545.0) / 36525.0;
-    
+
     // Greenwich Mean Sidereal Time
-    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) +
-               0.000387933 * t * t - t * t * t / 38710000.0;
-    
+    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * t * t
+        - t * t * t / 38710000.0;
+
     let lst = (gmst + longitude) % 360.0;
-    if lst < 0.0 { (lst + 360.0) / 15.0 } else { lst / 15.0 }
+    if lst < 0.0 {
+        (lst + 360.0) / 15.0
+    } else {
+        lst / 15.0
+    }
 }
 
 /// Create a BridgeDeviceOps from the global app state
 pub fn create_device_ops() -> Arc<dyn nightshade_sequencer::DeviceOps> {
     Arc::new(BridgeDeviceOps::new(crate::api::get_state().clone()))
 }
-

@@ -3,29 +3,32 @@
 //! Provides a unified interface for managing device connections across
 //! different driver backends (ASCOM, Alpaca, Simulator).
 
-use tracing::warn;
 use crate::device::*;
 use crate::event::*;
 use crate::state::SharedAppState;
+use nightshade_native::camera::{ExposureParams, ImageData};
+use nightshade_native::traits::{
+    NativeCamera, NativeDevice, NativeDome, NativeFilterWheel, NativeFocuser, NativeMount,
+    NativeRotator, NativeSafetyMonitor, NativeWeather,
+};
+use nightshade_native::vendor::atik::AtikCamera;
+use nightshade_native::vendor::fli::{FliCamera, FliFilterWheel, FliFocuser};
+use nightshade_native::vendor::moravian::MoravianCamera;
+use nightshade_native::vendor::player_one::PlayerOneCamera;
+use nightshade_native::vendor::qhy::{QhyCamera, QhyFilterWheel};
+use nightshade_native::vendor::svbony::SvbonyCamera;
+use nightshade_native::vendor::touptek::TouptekCamera;
+use nightshade_native::vendor::zwo::{ZwoCamera, ZwoFilterWheel, ZwoFocuser};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time::interval;
-use nightshade_native::traits::{NativeDevice, NativeCamera, NativeMount, NativeFocuser, NativeFilterWheel, NativeRotator, NativeDome, NativeWeather, NativeSafetyMonitor};
-use nightshade_native::camera::{ImageData, ExposureParams};
-use nightshade_native::vendor::zwo::{ZwoCamera, ZwoFocuser, ZwoFilterWheel};
-use nightshade_native::vendor::qhy::{QhyCamera, QhyFilterWheel};
-use nightshade_native::vendor::player_one::PlayerOneCamera;
-use nightshade_native::vendor::svbony::SvbonyCamera;
-use nightshade_native::vendor::atik::AtikCamera;
-use nightshade_native::vendor::fli::{FliCamera, FliFocuser, FliFilterWheel};
-use nightshade_native::vendor::touptek::TouptekCamera;
-use nightshade_native::vendor::moravian::MoravianCamera;
+use tracing::warn;
 // Mount drivers
-use nightshade_native::vendor::skywatcher::SkyWatcherMount;
 use nightshade_native::vendor::ioptron::IOptronMount;
 use nightshade_native::vendor::lx200::{Lx200Mount, Lx200MountType};
+use nightshade_native::vendor::skywatcher::SkyWatcherMount;
 
 /// Configuration for automatic reconnection
 #[derive(Debug, Clone)]
@@ -255,16 +258,16 @@ pub struct ManagedDevice {
 pub struct DeviceManager {
     /// Application state for publishing events
     app_state: SharedAppState,
-    
+
     /// Managed devices by their ID
-    devices: RwLock<HashMap<String, ManagedDevice>>,
-    
+    pub(crate) devices: RwLock<HashMap<String, ManagedDevice>>,
+
     /// Reconnection configuration
     reconnect_config: ReconnectConfig,
-    
+
     /// Flag to stop the reconnection task
     stop_reconnect: Arc<RwLock<bool>>,
-    
+
     /// Active native device instances
     native_devices: RwLock<HashMap<String, Box<dyn NativeDevice>>>,
 
@@ -276,15 +279,19 @@ pub struct DeviceManager {
 
     /// Active ASCOM mount wrappers
     #[cfg(windows)]
-    ascom_mounts: RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_mount::AscomMountWrapper>>>>,
+    ascom_mounts:
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_mount::AscomMountWrapper>>>>,
 
     /// Active ASCOM focuser wrappers
     #[cfg(windows)]
-    ascom_focusers: RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_focuser::AscomFocuserWrapper>>>>,
+    ascom_focusers:
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_focuser::AscomFocuserWrapper>>>>,
 
     /// Active ASCOM filter wheel wrappers
     #[cfg(windows)]
-    ascom_filter_wheels: RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_filterwheel::AscomFilterWheelWrapper>>>>,
+    ascom_filter_wheels: RwLock<
+        HashMap<String, Arc<RwLock<crate::ascom_wrapper_filterwheel::AscomFilterWheelWrapper>>>,
+    >,
 
     /// Active ASCOM dome wrappers
     #[cfg(windows)]
@@ -292,11 +299,17 @@ pub struct DeviceManager {
 
     /// Active ASCOM switch wrappers
     #[cfg(windows)]
-    ascom_switches: RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_switch::AscomSwitchWrapper>>>>,
+    ascom_switches:
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_switch::AscomSwitchWrapper>>>>,
 
     /// Active ASCOM cover calibrator wrappers
     #[cfg(windows)]
-    ascom_cover_calibrators: RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_covercalibrator::AscomCoverCalibratorWrapper>>>>,
+    ascom_cover_calibrators: RwLock<
+        HashMap<
+            String,
+            Arc<RwLock<crate::ascom_wrapper_covercalibrator::AscomCoverCalibratorWrapper>>,
+        >,
+    >,
 
     /// Active INDI clients (key: "host:port")
     indi_clients: RwLock<HashMap<String, Arc<RwLock<nightshade_indi::IndiClient>>>>,
@@ -329,7 +342,8 @@ pub struct DeviceManager {
     alpaca_switches: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaSwitch>>>,
 
     /// Active Alpaca cover calibrator clients
-    alpaca_cover_calibrators: RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaCoverCalibrator>>>,
+    alpaca_cover_calibrators:
+        RwLock<HashMap<String, Arc<nightshade_alpaca::AlpacaCoverCalibrator>>>,
 
     /// Active Native SDK cameras (stored separately for typed access)
     pub(crate) native_cameras: RwLock<HashMap<String, Box<dyn NativeCamera + Send + Sync>>>,
@@ -338,7 +352,8 @@ pub struct DeviceManager {
     pub(crate) native_focusers: RwLock<HashMap<String, Box<dyn NativeFocuser + Send + Sync>>>,
 
     /// Active Native SDK filter wheels (stored separately for typed access)
-    pub(crate) native_filter_wheels: RwLock<HashMap<String, Box<dyn NativeFilterWheel + Send + Sync>>>,
+    pub(crate) native_filter_wheels:
+        RwLock<HashMap<String, Box<dyn NativeFilterWheel + Send + Sync>>>,
 
     /// Active Native SDK mounts (stored separately for typed access)
     pub(crate) native_mounts: RwLock<HashMap<String, Box<dyn NativeMount + Send + Sync>>>,
@@ -353,13 +368,12 @@ pub struct DeviceManager {
     pub(crate) native_weather: RwLock<HashMap<String, Box<dyn NativeWeather + Send + Sync>>>,
 
     /// Active Native SDK safety monitors (stored separately for typed access)
-    pub(crate) native_safety_monitors: RwLock<HashMap<String, Box<dyn NativeSafetyMonitor + Send + Sync>>>,
+    pub(crate) native_safety_monitors:
+        RwLock<HashMap<String, Box<dyn NativeSafetyMonitor + Send + Sync>>>,
 
     /// Active heartbeat monitoring tasks (device_id -> join handle)
     heartbeat_tasks: RwLock<HashMap<String, tokio::task::JoinHandle<()>>>,
 }
-
-
 
 impl DeviceManager {
     /// Create a new device manager
@@ -485,70 +499,72 @@ impl DeviceManager {
     /// Background task for automatic reconnection
     async fn reconnection_loop(&self) {
         let mut check_interval = interval(Duration::from_secs(5));
-        
+
         loop {
             check_interval.tick().await;
-            
+
             // Check if we should stop
             if *self.stop_reconnect.read().await {
                 break;
             }
-            
+
             if !self.reconnect_config.enabled {
                 continue;
             }
-            
+
             // Find devices that need reconnection
             let devices_to_reconnect: Vec<(String, ManagedDevice)> = {
                 let devices = self.devices.read().await;
                 devices
                     .iter()
                     .filter(|(_, dev)| {
-                        dev.auto_reconnect 
+                        dev.auto_reconnect
                             && dev.connection_state == ConnectionState::Error
-                            && (self.reconnect_config.max_attempts == 0 
+                            && (self.reconnect_config.max_attempts == 0
                                 || dev.reconnect_attempts < self.reconnect_config.max_attempts)
                     })
                     .map(|(id, dev)| (id.clone(), dev.clone()))
                     .collect()
             };
-            
+
             // Attempt reconnection for each device
             for (device_id, device) in devices_to_reconnect {
                 tracing::info!(
-                    "Attempting reconnection for {} (attempt {})", 
-                    device_id, 
+                    "Attempting reconnection for {} (attempt {})",
+                    device_id,
                     device.reconnect_attempts + 1
                 );
-                
+
                 // Calculate backoff delay
                 let delay = self.calculate_backoff_delay(device.reconnect_attempts);
                 tokio::time::sleep(Duration::from_secs(delay)).await;
-                
+
                 // Attempt reconnection
                 if let Err(e) = self.connect_device_internal(&device.info).await {
                     tracing::warn!("Reconnection failed for {}: {}", device_id, e);
-                    
+
                     // Update attempt counter
                     let mut devices = self.devices.write().await;
                     if let Some(dev) = devices.get_mut(&device_id) {
                         dev.reconnect_attempts += 1;
                         dev.last_error = Some(e.clone());
-                        
+
                         // Publish reconnection failed event
                         self.app_state.publish_equipment_event(
                             EquipmentEvent::Error {
                                 device_type: dev.info.device_type.as_str().to_string(),
                                 device_id: device_id.clone(),
-                                message: format!("Reconnection attempt {} failed: {}", 
-                                    dev.reconnect_attempts, e),
+                                message: format!(
+                                    "Reconnection attempt {} failed: {}",
+                                    dev.reconnect_attempts, e
+                                ),
                             },
                             EventSeverity::Warning,
                         );
                     }
                 } else {
                     tracing::info!("Reconnection successful for {}", device_id);
-                    
+
                     // Reset attempt counter on success
                     let mut devices = self.devices.write().await;
                     if let Some(dev) = devices.get_mut(&device_id) {
@@ -559,52 +575,59 @@ impl DeviceManager {
             }
         }
     }
-    
+
     /// Calculate backoff delay for reconnection
     fn calculate_backoff_delay(&self, attempts: u32) -> u64 {
         let delay = (self.reconnect_config.initial_delay_secs as f64)
-            * self.reconnect_config.backoff_multiplier.powi(attempts as i32);
-        
+            * self
+                .reconnect_config
+                .backoff_multiplier
+                .powi(attempts as i32);
+
         (delay as u64).min(self.reconnect_config.max_delay_secs)
     }
-    
+
     /// Register a device for management
     pub async fn register_device(&self, info: DeviceInfo, auto_reconnect: bool) {
         let mut devices = self.devices.write().await;
-        devices.insert(info.id.clone(), ManagedDevice {
-            info,
-            connection_state: ConnectionState::Disconnected,
-            last_error: None,
-            reconnect_attempts: 0,
-            auto_reconnect,
-            last_successful_comm: None,
-            heartbeat_active: false,
-            api_version: None,
-        });
+        devices.insert(
+            info.id.clone(),
+            ManagedDevice {
+                info,
+                connection_state: ConnectionState::Disconnected,
+                last_error: None,
+                reconnect_attempts: 0,
+                auto_reconnect,
+                last_successful_comm: None,
+                heartbeat_active: false,
+                api_version: None,
+            },
+        );
     }
-    
+
     /// Check if a device is registered
     pub async fn is_device_registered(&self, device_id: &str) -> bool {
         let devices = self.devices.read().await;
         devices.contains_key(device_id)
     }
-    
+
     /// Connect to a device
     pub async fn connect_device(&self, device_id: &str) -> Result<(), String> {
         let device_info = {
             let devices = self.devices.read().await;
-            devices.get(device_id)
+            devices
+                .get(device_id)
                 .map(|d| d.info.clone())
                 .ok_or_else(|| format!("Device not found: {}", device_id))?
         };
-        
+
         self.connect_device_internal(&device_info).await
     }
-    
+
     /// Internal connection logic
     async fn connect_device_internal(&self, info: &DeviceInfo) -> Result<(), String> {
         let device_id = &info.id;
-        
+
         // Update state to connecting
         {
             let mut devices = self.devices.write().await;
@@ -612,7 +635,7 @@ impl DeviceManager {
                 dev.connection_state = ConnectionState::Connecting;
             }
         }
-        
+
         // Publish connecting event
         self.app_state.publish_equipment_event(
             EquipmentEvent::Connecting {
@@ -621,7 +644,7 @@ impl DeviceManager {
             },
             EventSeverity::Info,
         );
-        
+
         // Perform actual connection based on driver type
         let result = match info.driver_type {
             DriverType::Simulator => self.connect_simulator(info).await,
@@ -630,7 +653,7 @@ impl DeviceManager {
             DriverType::Indi => self.connect_indi(info).await,
             DriverType::Native => self.connect_native(info).await,
         };
-        
+
         // Update state based on result
         {
             let mut devices = self.devices.write().await;
@@ -648,7 +671,7 @@ impl DeviceManager {
                 }
             }
         }
-        
+
         // Publish result event
         match &result {
             Ok(_) => {
@@ -661,11 +684,16 @@ impl DeviceManager {
                 );
 
                 // Also register in app state
-                self.app_state.register_device(info.clone(), ConnectionState::Connected).await;
+                self.app_state
+                    .register_device(info.clone(), ConnectionState::Connected)
+                    .await;
 
                 // Auto-start heartbeat monitoring for the connected device
                 let heartbeat_config = Self::get_heartbeat_config(&info.device_type);
-                if let Err(e) = self.start_heartbeat_with_config(device_id, heartbeat_config).await {
+                if let Err(e) = self
+                    .start_heartbeat_with_config(device_id, heartbeat_config)
+                    .await
+                {
                     tracing::warn!("Failed to start heartbeat for {}: {}", device_id, e);
                 } else {
                     tracing::info!("Auto-started heartbeat for device {}", device_id);
@@ -685,20 +713,22 @@ impl DeviceManager {
 
         result
     }
-    
+
     /// Connect to a simulator device - DISABLED
     async fn connect_simulator(&self, _info: &DeviceInfo) -> Result<(), String> {
         Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
     }
-    
+
     /// Connect to an ASCOM device
     #[cfg(windows)]
     async fn connect_ascom(&self, info: &DeviceInfo) -> Result<(), String> {
         use nightshade_ascom::*;
-        
-        let prog_id = info.id.strip_prefix("ascom:")
+
+        let prog_id = info
+            .id
+            .strip_prefix("ascom:")
             .ok_or_else(|| "Invalid ASCOM device ID".to_string())?;
-        
+
         match info.device_type {
             DeviceType::Camera => {
                 use crate::ascom_wrapper::AscomCameraWrapper;
@@ -706,7 +736,7 @@ impl DeviceManager {
                 // Let user select the specific camera/config via ASCOM SetupDialog before connecting
                 camera.setup_dialog().await.map_err(|e| e.to_string())?;
                 camera.connect().await.map_err(|e| e.to_string())?;
-                
+
                 // Store in typed map for camera-specific operations, wrapped in Arc<RwLock>
                 let mut ascom_cameras = self.ascom_cameras.write().await;
                 ascom_cameras.insert(info.id.clone(), Arc::new(RwLock::new(camera)));
@@ -715,7 +745,7 @@ impl DeviceManager {
                 use crate::ascom_wrapper_mount::AscomMountWrapper;
                 let mut mount = AscomMountWrapper::new(prog_id.to_string())?;
                 mount.connect().await.map_err(|e| e.to_string())?;
-                
+
                 let mut ascom_mounts = self.ascom_mounts.write().await;
                 ascom_mounts.insert(info.id.clone(), Arc::new(RwLock::new(mount)));
             }
@@ -723,7 +753,7 @@ impl DeviceManager {
                 use crate::ascom_wrapper_focuser::AscomFocuserWrapper;
                 let mut focuser = AscomFocuserWrapper::new(prog_id.to_string())?;
                 focuser.connect().await.map_err(|e| e.to_string())?;
-                
+
                 let mut ascom_focusers = self.ascom_focusers.write().await;
                 ascom_focusers.insert(info.id.clone(), Arc::new(RwLock::new(focuser)));
             }
@@ -731,7 +761,7 @@ impl DeviceManager {
                 use crate::ascom_wrapper_filterwheel::AscomFilterWheelWrapper;
                 let mut fw = AscomFilterWheelWrapper::new(prog_id.to_string())?;
                 fw.connect().await.map_err(|e| e.to_string())?;
-                
+
                 let mut ascom_filter_wheels = self.ascom_filter_wheels.write().await;
                 ascom_filter_wheels.insert(info.id.clone(), Arc::new(RwLock::new(fw)));
             }
@@ -772,24 +802,29 @@ impl DeviceManager {
                 ascom_cover_cals.insert(info.id.clone(), Arc::new(RwLock::new(cover_cal)));
             }
             _ => {
-                return Err(format!("ASCOM {} not yet implemented", info.device_type.as_str()));
+                return Err(format!(
+                    "ASCOM {} not yet implemented",
+                    info.device_type.as_str()
+                ));
             }
         }
-        
+
         Ok(())
     }
-    
+
     #[cfg(not(windows))]
     async fn connect_ascom(&self, _info: &DeviceInfo) -> Result<(), String> {
         Err("ASCOM is only available on Windows".to_string())
     }
-    
+
     /// Connect to an Alpaca device
     async fn connect_alpaca(&self, info: &DeviceInfo) -> Result<(), String> {
         use nightshade_alpaca::*;
 
         // Parse alpaca:url:type:number format
-        let parts: Vec<&str> = info.id.strip_prefix("alpaca:")
+        let parts: Vec<&str> = info
+            .id
+            .strip_prefix("alpaca:")
             .ok_or_else(|| "Invalid Alpaca device ID".to_string())?
             .splitn(3, ':')
             .collect();
@@ -799,7 +834,8 @@ impl DeviceManager {
         }
 
         let base_url = parts[0];
-        let device_number: u32 = parts[2].parse()
+        let device_number: u32 = parts[2]
+            .parse()
             .map_err(|_| "Invalid device number".to_string())?;
 
         match info.device_type {
@@ -874,30 +910,35 @@ impl DeviceManager {
                 alpaca_cover_cals.insert(info.id.clone(), Arc::new(cover_cal));
             }
             _ => {
-                return Err(format!("Alpaca {} not yet implemented", info.device_type.as_str()));
+                return Err(format!(
+                    "Alpaca {} not yet implemented",
+                    info.device_type.as_str()
+                ));
             }
         }
 
         Ok(())
     }
-    
+
     /// Connect to an INDI device
     async fn connect_indi(&self, info: &DeviceInfo) -> Result<(), String> {
         use nightshade_indi::IndiClient;
         use std::sync::Arc;
         use tokio::sync::RwLock;
-        
+
         // Parse INDI device ID: indi:host:port:device_name
         let parts: Vec<&str> = info.id.split(':').collect();
         if parts.len() < 4 {
-            return Err("Invalid INDI device ID format. Expected: indi:host:port:device_name".to_string());
+            return Err(
+                "Invalid INDI device ID format. Expected: indi:host:port:device_name".to_string(),
+            );
         }
-        
+
         let host = parts[1];
         let port: u16 = parts[2].parse().map_err(|_| "Invalid port number")?;
         let device_name = parts[3..].join(":");
         let server_key = format!("{}:{}", host, port);
-        
+
         // Check if client exists
         let client = {
             let mut clients = self.indi_clients.write().await;
@@ -912,21 +953,25 @@ impl DeviceManager {
                 client_arc
             }
         };
-        
+
         // Use the client to connect the device
         let mut locked_client = client.write().await;
-        
+
         // Enable BLOB for cameras
         if info.device_type == DeviceType::Camera {
             if let Err(e) = locked_client.enable_blob(&device_name).await {
                 tracing::warn!("Failed to enable BLOB for {}: {}", device_name, e);
             }
         }
-        
+
         // Connect to the specific device
         locked_client.connect_device(&device_name).await?;
-        
-        tracing::info!("Connected to INDI device: {} at {}", device_name, server_key);
+
+        tracing::info!(
+            "Connected to INDI device: {} at {}",
+            device_name,
+            server_key
+        );
         Ok(())
     }
 
@@ -947,38 +992,48 @@ impl DeviceManager {
                 "zwo" => {
                     let id = id_str.parse::<i32>().map_err(|_| "Invalid ZWO camera ID")?;
                     Box::new(ZwoCamera::new(id))
-                },
-                "qhy" => {
-                    Box::new(QhyCamera::new(id_str.to_string()))
-                },
+                }
+                "qhy" => Box::new(QhyCamera::new(id_str.to_string())),
                 "player_one" => {
-                    let id = id_str.parse::<i32>().map_err(|_| "Invalid Player One camera ID")?;
+                    let id = id_str
+                        .parse::<i32>()
+                        .map_err(|_| "Invalid Player One camera ID")?;
                     Box::new(PlayerOneCamera::new(id))
-                },
+                }
                 "svbony" => {
-                    let id = id_str.parse::<i32>().map_err(|_| "Invalid SVBony camera ID")?;
+                    let id = id_str
+                        .parse::<i32>()
+                        .map_err(|_| "Invalid SVBony camera ID")?;
                     Box::new(SvbonyCamera::new(id))
-                },
+                }
                 "atik" => {
-                    let id = id_str.parse::<i32>().map_err(|_| "Invalid Atik camera ID")?;
+                    let id = id_str
+                        .parse::<i32>()
+                        .map_err(|_| "Invalid Atik camera ID")?;
                     Box::new(AtikCamera::new(id))
-                },
+                }
                 "fli" => {
                     // FLI uses device path as ID
                     Box::new(FliCamera::new(id_str.to_string()))
-                },
+                }
                 "touptek" => {
                     // ID format: native:touptek:{brand}:{index}
                     // parts[2] = brand, parts[3] = index
                     let brand = id_str; // parts[2] is the brand
-                    let idx_str = parts.get(3).ok_or("Invalid Touptek camera ID: missing index")?;
-                    let idx = idx_str.parse::<usize>().map_err(|_| "Invalid Touptek camera index")?;
+                    let idx_str = parts
+                        .get(3)
+                        .ok_or("Invalid Touptek camera ID: missing index")?;
+                    let idx = idx_str
+                        .parse::<usize>()
+                        .map_err(|_| "Invalid Touptek camera index")?;
                     Box::new(TouptekCamera::new(idx, brand))
-                },
+                }
                 "moravian" => {
-                    let camera_id = id_str.parse::<u32>().map_err(|_| "Invalid Moravian camera ID")?;
+                    let camera_id = id_str
+                        .parse::<u32>()
+                        .map_err(|_| "Invalid Moravian camera ID")?;
                     Box::new(MoravianCamera::new(camera_id))
-                },
+                }
                 _ => return Err(format!("Unknown native camera vendor: {}", vendor)),
             };
 
@@ -997,13 +1052,15 @@ impl DeviceManager {
         if info.device_type == DeviceType::Focuser {
             let mut focuser: Box<dyn NativeFocuser + Send + Sync> = match vendor {
                 "zwo" | "zwo_eaf" => {
-                    let id = id_str.parse::<i32>().map_err(|_| "Invalid ZWO focuser ID")?;
+                    let id = id_str
+                        .parse::<i32>()
+                        .map_err(|_| "Invalid ZWO focuser ID")?;
                     Box::new(ZwoFocuser::new(id))
-                },
+                }
                 "fli_focuser" => {
                     // FLI uses device path as ID
                     Box::new(FliFocuser::new(id_str.to_string()))
-                },
+                }
                 _ => return Err(format!("Unknown native focuser vendor: {}", vendor)),
             };
 
@@ -1022,17 +1079,19 @@ impl DeviceManager {
         if info.device_type == DeviceType::FilterWheel {
             let mut filterwheel: Box<dyn NativeFilterWheel + Send + Sync> = match vendor {
                 "zwo" | "zwo_efw" => {
-                    let id = id_str.parse::<i32>().map_err(|_| "Invalid ZWO filter wheel ID")?;
+                    let id = id_str
+                        .parse::<i32>()
+                        .map_err(|_| "Invalid ZWO filter wheel ID")?;
                     Box::new(ZwoFilterWheel::new(id))
-                },
+                }
                 "qhy_cfw" => {
                     // QHY CFW uses camera ID string directly
                     Box::new(QhyFilterWheel::new(id_str.to_string()))
-                },
+                }
                 "fli_fw" => {
                     // FLI uses device path as ID
                     Box::new(FliFilterWheel::new(id_str.to_string()))
-                },
+                }
                 _ => return Err(format!("Unknown native filter wheel vendor: {}", vendor)),
             };
 
@@ -1053,24 +1112,26 @@ impl DeviceManager {
                 "skywatcher" => {
                     // id_str is the serial port
                     Box::new(SkyWatcherMount::new_serial(id_str.to_string(), None))
-                },
+                }
                 "ioptron" => {
                     // id_str is the serial port
                     Box::new(IOptronMount::new(id_str.to_string(), None))
-                },
+                }
                 "onstep" | "pegasus" => {
                     // OnStep-based mounts (Pegasus NYX, DIY OnStep)
                     Box::new(Lx200Mount::new_onstep(id_str.to_string()))
-                },
-                "meade" | "lx200" => {
-                    Box::new(Lx200Mount::new_meade(id_str.to_string()))
-                },
-                "losmandy" => {
-                    Box::new(Lx200Mount::new(id_str.to_string(), Lx200MountType::Losmandy, None))
-                },
-                "10micron" => {
-                    Box::new(Lx200Mount::new(id_str.to_string(), Lx200MountType::TenMicron, None))
-                },
+                }
+                "meade" | "lx200" => Box::new(Lx200Mount::new_meade(id_str.to_string())),
+                "losmandy" => Box::new(Lx200Mount::new(
+                    id_str.to_string(),
+                    Lx200MountType::Losmandy,
+                    None,
+                )),
+                "10micron" => Box::new(Lx200Mount::new(
+                    id_str.to_string(),
+                    Lx200MountType::TenMicron,
+                    None,
+                )),
                 _ => return Err(format!("Unknown native mount vendor: {}", vendor)),
             };
 
@@ -1090,36 +1151,44 @@ impl DeviceManager {
             "zwo" => {
                 let id = id_str.parse::<i32>().map_err(|_| "Invalid ZWO camera ID")?;
                 Box::new(ZwoCamera::new(id))
-            },
-            "qhy" => {
-                Box::new(QhyCamera::new(id_str.to_string()))
-            },
+            }
+            "qhy" => Box::new(QhyCamera::new(id_str.to_string())),
             "player_one" => {
-                let id = id_str.parse::<i32>().map_err(|_| "Invalid Player One camera ID")?;
+                let id = id_str
+                    .parse::<i32>()
+                    .map_err(|_| "Invalid Player One camera ID")?;
                 Box::new(PlayerOneCamera::new(id))
-            },
+            }
             "svbony" => {
-                let id = id_str.parse::<i32>().map_err(|_| "Invalid SVBony camera ID")?;
+                let id = id_str
+                    .parse::<i32>()
+                    .map_err(|_| "Invalid SVBony camera ID")?;
                 Box::new(SvbonyCamera::new(id))
-            },
+            }
             "atik" => {
-                let id = id_str.parse::<i32>().map_err(|_| "Invalid Atik camera ID")?;
+                let id = id_str
+                    .parse::<i32>()
+                    .map_err(|_| "Invalid Atik camera ID")?;
                 Box::new(AtikCamera::new(id))
-            },
-            "fli" => {
-                Box::new(FliCamera::new(id_str.to_string()))
-            },
+            }
+            "fli" => Box::new(FliCamera::new(id_str.to_string())),
             "touptek" => {
                 // ID format: native:touptek:{brand}:{index}
                 let brand = id_str; // parts[2] is the brand
-                let idx_str = parts.get(3).ok_or("Invalid Touptek device ID: missing index")?;
-                let idx = idx_str.parse::<usize>().map_err(|_| "Invalid Touptek device index")?;
+                let idx_str = parts
+                    .get(3)
+                    .ok_or("Invalid Touptek device ID: missing index")?;
+                let idx = idx_str
+                    .parse::<usize>()
+                    .map_err(|_| "Invalid Touptek device index")?;
                 Box::new(TouptekCamera::new(idx, brand))
-            },
+            }
             "moravian" => {
-                let camera_id = id_str.parse::<u32>().map_err(|_| "Invalid Moravian camera ID")?;
+                let camera_id = id_str
+                    .parse::<u32>()
+                    .map_err(|_| "Invalid Moravian camera ID")?;
                 Box::new(MoravianCamera::new(camera_id))
-            },
+            }
             _ => return Err(format!("Unknown native vendor: {}", vendor)),
         };
 
@@ -1133,7 +1202,7 @@ impl DeviceManager {
         tracing::info!("Connected to native device: {}", info.name);
         Ok(())
     }
-    
+
     /// Disconnect a device
     pub async fn disconnect_device(&self, device_id: &str) -> Result<(), String> {
         // Stop heartbeat monitoring first to prevent false disconnect events
@@ -1141,11 +1210,12 @@ impl DeviceManager {
 
         let device_info = {
             let devices = self.devices.read().await;
-            devices.get(device_id)
+            devices
+                .get(device_id)
                 .map(|d| d.info.clone())
                 .ok_or_else(|| format!("Device not found: {}", device_id))?
         };
-        
+
         // Update state
         {
             let mut devices = self.devices.write().await;
@@ -1154,7 +1224,7 @@ impl DeviceManager {
                 dev.auto_reconnect = false; // Disable auto-reconnect on manual disconnect
             }
         }
-        
+
         // Clean up device from driver-specific storage based on driver type and device type
         match device_info.driver_type {
             DriverType::Native => {
@@ -1361,19 +1431,21 @@ impl DeviceManager {
             },
             EventSeverity::Info,
         );
-        
+
         // Update app state
-        self.app_state.remove_device(device_info.device_type, device_id).await;
-        
+        self.app_state
+            .remove_device(device_info.device_type, device_id)
+            .await;
+
         Ok(())
     }
-    
+
     /// Get all managed devices
     pub async fn get_all_devices(&self) -> Vec<ManagedDevice> {
         let devices = self.devices.read().await;
         devices.values().cloned().collect()
     }
-    
+
     /// Get devices by type
     pub async fn get_devices_by_type(&self, device_type: DeviceType) -> Vec<ManagedDevice> {
         let devices = self.devices.read().await;
@@ -1383,13 +1455,13 @@ impl DeviceManager {
             .cloned()
             .collect()
     }
-    
+
     /// Get a specific device
     pub async fn get_device(&self, device_id: &str) -> Option<ManagedDevice> {
         let devices = self.devices.read().await;
         devices.get(device_id).cloned()
     }
-    
+
     /// Check if a device is connected
     pub async fn is_connected(&self, device_id: &str) -> bool {
         let devices = self.devices.read().await;
@@ -1414,7 +1486,10 @@ impl DeviceManager {
     }
 
     /// Query and cache API version for an Alpaca device
-    pub async fn query_alpaca_api_version(&self, device_id: &str) -> Result<DeviceApiVersion, String> {
+    pub async fn query_alpaca_api_version(
+        &self,
+        device_id: &str,
+    ) -> Result<DeviceApiVersion, String> {
         // Get the device info
         let device_info = {
             let devices = self.devices.read().await;
@@ -1588,7 +1663,10 @@ impl DeviceManager {
                         supported_actions,
                     )
                 } else {
-                    return Err(format!("Alpaca cover calibrator {} not connected", device_id));
+                    return Err(format!(
+                        "Alpaca cover calibrator {} not connected",
+                        device_id
+                    ));
                 }
             }
             DeviceType::Weather => {
@@ -1606,16 +1684,23 @@ impl DeviceManager {
                         supported_actions,
                     )
                 } else {
-                    return Err(format!("Alpaca observing conditions {} not connected", device_id));
+                    return Err(format!(
+                        "Alpaca observing conditions {} not connected",
+                        device_id
+                    ));
                 }
             }
             _ => {
-                return Err(format!("Unsupported Alpaca device type: {:?}", info.device_type));
+                return Err(format!(
+                    "Unsupported Alpaca device type: {:?}",
+                    info.device_type
+                ));
             }
         };
 
         // Cache the version
-        self.set_device_api_version(device_id, version.clone()).await;
+        self.set_device_api_version(device_id, version.clone())
+            .await;
         tracing::info!(
             "Queried API version for {}: interface_version={:?}, driver_version={:?}",
             device_id,
@@ -1627,7 +1712,10 @@ impl DeviceManager {
     }
 
     /// Query and cache API version for an INDI device
-    pub async fn query_indi_api_version(&self, device_id: &str) -> Result<DeviceApiVersion, String> {
+    pub async fn query_indi_api_version(
+        &self,
+        device_id: &str,
+    ) -> Result<DeviceApiVersion, String> {
         // Get the device info
         let device_info = {
             let devices = self.devices.read().await;
@@ -1663,7 +1751,8 @@ impl DeviceManager {
         let version = DeviceApiVersion::from_indi(device_id.to_string(), protocol_version);
 
         // Cache the version
-        self.set_device_api_version(device_id, version.clone()).await;
+        self.set_device_api_version(device_id, version.clone())
+            .await;
         tracing::info!(
             "Queried API version for {}: protocol_version={:?}",
             device_id,
@@ -1674,7 +1763,10 @@ impl DeviceManager {
     }
 
     /// Query API version for a device (dispatches based on driver type)
-    pub async fn query_device_api_version(&self, device_id: &str) -> Result<DeviceApiVersion, String> {
+    pub async fn query_device_api_version(
+        &self,
+        device_id: &str,
+    ) -> Result<DeviceApiVersion, String> {
         // Get the device info to determine driver type
         let driver_type = {
             let devices = self.devices.read().await;
@@ -1691,13 +1783,15 @@ impl DeviceManager {
             Some(DriverType::Native) => {
                 // Native devices don't have a query-able API version
                 let version = DeviceApiVersion::new(device_id.to_string(), DriverType::Native);
-                self.set_device_api_version(device_id, version.clone()).await;
+                self.set_device_api_version(device_id, version.clone())
+                    .await;
                 Ok(version)
             }
             Some(DriverType::Simulator) => {
                 // Simulators don't have a query-able API version
                 let version = DeviceApiVersion::new(device_id.to_string(), DriverType::Simulator);
-                self.set_device_api_version(device_id, version.clone()).await;
+                self.set_device_api_version(device_id, version.clone())
+                    .await;
                 Ok(version)
             }
             None => Err(format!("Device not found: {}", device_id)),
@@ -1706,7 +1800,10 @@ impl DeviceManager {
 
     /// Query API version for an ASCOM device (Windows only)
     #[cfg(windows)]
-    pub async fn query_ascom_api_version(&self, device_id: &str) -> Result<DeviceApiVersion, String> {
+    pub async fn query_ascom_api_version(
+        &self,
+        device_id: &str,
+    ) -> Result<DeviceApiVersion, String> {
         // Get the device info
         let device_info = {
             let devices = self.devices.read().await;
@@ -1728,7 +1825,8 @@ impl DeviceManager {
                     let interface_version = camera_guard.interface_version().await.ok();
                     let driver_version = camera_guard.driver_version().await.ok();
                     let driver_info = camera_guard.driver_info().await.ok();
-                    let supported_actions = camera_guard.supported_actions().await.unwrap_or_default();
+                    let supported_actions =
+                        camera_guard.supported_actions().await.unwrap_or_default();
                     DeviceApiVersion::from_ascom(
                         device_id.to_string(),
                         interface_version.unwrap_or(1),
@@ -1747,7 +1845,8 @@ impl DeviceManager {
                     let interface_version = mount_guard.interface_version().await.ok();
                     let driver_version = mount_guard.driver_version().await.ok();
                     let driver_info = mount_guard.driver_info().await.ok();
-                    let supported_actions = mount_guard.supported_actions().await.unwrap_or_default();
+                    let supported_actions =
+                        mount_guard.supported_actions().await.unwrap_or_default();
                     DeviceApiVersion::from_ascom(
                         device_id.to_string(),
                         interface_version.unwrap_or(1),
@@ -1766,7 +1865,8 @@ impl DeviceManager {
                     let interface_version = focuser_guard.interface_version().await.ok();
                     let driver_version = focuser_guard.driver_version().await.ok();
                     let driver_info = focuser_guard.driver_info().await.ok();
-                    let supported_actions = focuser_guard.supported_actions().await.unwrap_or_default();
+                    let supported_actions =
+                        focuser_guard.supported_actions().await.unwrap_or_default();
                     DeviceApiVersion::from_ascom(
                         device_id.to_string(),
                         interface_version.unwrap_or(1),
@@ -1804,7 +1904,8 @@ impl DeviceManager {
                     let interface_version = dome_guard.interface_version().await.ok();
                     let driver_version = dome_guard.driver_version().await.ok();
                     let driver_info = dome_guard.driver_info().await.ok();
-                    let supported_actions = dome_guard.supported_actions().await.unwrap_or_default();
+                    let supported_actions =
+                        dome_guard.supported_actions().await.unwrap_or_default();
                     DeviceApiVersion::from_ascom(
                         device_id.to_string(),
                         interface_version.unwrap_or(1),
@@ -1823,7 +1924,8 @@ impl DeviceManager {
                     let interface_version = switch_guard.interface_version().await.ok();
                     let driver_version = switch_guard.driver_version().await.ok();
                     let driver_info = switch_guard.driver_info().await.ok();
-                    let supported_actions = switch_guard.supported_actions().await.unwrap_or_default();
+                    let supported_actions =
+                        switch_guard.supported_actions().await.unwrap_or_default();
                     DeviceApiVersion::from_ascom(
                         device_id.to_string(),
                         interface_version.unwrap_or(1),
@@ -1842,7 +1944,8 @@ impl DeviceManager {
                     let interface_version = cover_guard.interface_version().await.ok();
                     let driver_version = cover_guard.driver_version().await.ok();
                     let driver_info = cover_guard.driver_info().await.ok();
-                    let supported_actions = cover_guard.supported_actions().await.unwrap_or_default();
+                    let supported_actions =
+                        cover_guard.supported_actions().await.unwrap_or_default();
                     DeviceApiVersion::from_ascom(
                         device_id.to_string(),
                         interface_version.unwrap_or(1),
@@ -1851,16 +1954,23 @@ impl DeviceManager {
                         supported_actions,
                     )
                 } else {
-                    return Err(format!("ASCOM cover calibrator {} not connected", device_id));
+                    return Err(format!(
+                        "ASCOM cover calibrator {} not connected",
+                        device_id
+                    ));
                 }
             }
             _ => {
-                return Err(format!("Unsupported ASCOM device type: {:?}", info.device_type));
+                return Err(format!(
+                    "Unsupported ASCOM device type: {:?}",
+                    info.device_type
+                ));
             }
         };
 
         // Cache the version
-        self.set_device_api_version(device_id, version.clone()).await;
+        self.set_device_api_version(device_id, version.clone())
+            .await;
         tracing::info!(
             "Queried API version for {}: interface_version={:?}, driver_version={:?}",
             device_id,
@@ -1914,14 +2024,14 @@ impl DeviceManager {
             dev.auto_reconnect = enabled;
         }
     }
-    
+
     /// Report a connection error (triggers auto-reconnect if enabled)
     pub async fn report_error(&self, device_id: &str, error: String) {
         let mut devices = self.devices.write().await;
         if let Some(dev) = devices.get_mut(device_id) {
             dev.connection_state = ConnectionState::Error;
             dev.last_error = Some(error.clone());
-            
+
             self.app_state.publish_equipment_event(
                 EquipmentEvent::Error {
                     device_type: dev.info.device_type.as_str().to_string(),
@@ -1932,12 +2042,12 @@ impl DeviceManager {
             );
         }
     }
-    
+
     /// Stop the reconnection background task
     pub async fn shutdown(&self) {
         *self.stop_reconnect.write().await = true;
     }
-    
+
     /// Unregister a device
     pub async fn unregister_device(&self, device_id: &str) {
         let mut devices = self.devices.write().await;
@@ -1945,31 +2055,38 @@ impl DeviceManager {
     }
 
     /// Get an INDI client for a device ID
-    pub async fn get_indi_client(&self, device_id: &str) -> Option<Arc<RwLock<nightshade_indi::IndiClient>>> {
+    pub async fn get_indi_client(
+        &self,
+        device_id: &str,
+    ) -> Option<Arc<RwLock<nightshade_indi::IndiClient>>> {
         // Parse INDI device ID: indi:host:port:device_name
         if !device_id.starts_with("indi:") {
             return None;
         }
-        
+
         let parts: Vec<&str> = device_id.split(':').collect();
         if parts.len() < 4 {
             return None;
         }
-        
+
         let host = parts[1];
         let port = parts[2];
         let server_key = format!("{}:{}", host, port);
-        
+
         let clients = self.indi_clients.read().await;
         clients.get(&server_key).cloned()
     }
 
     /// Discover INDI devices at a specific address
-    pub async fn discover_indi_devices(&self, host: &str, port: u16) -> Result<Vec<DeviceInfo>, String> {
+    pub async fn discover_indi_devices(
+        &self,
+        host: &str,
+        port: u16,
+    ) -> Result<Vec<DeviceInfo>, String> {
         use nightshade_indi::IndiClient;
-        
+
         let server_key = format!("{}:{}", host, port);
-        
+
         // Get or create client
         let client = {
             let mut clients = self.indi_clients.write().await;
@@ -1984,7 +2101,7 @@ impl DeviceManager {
                 client_arc
             }
         };
-        
+
         // Wait a moment for devices to be populated
         // In a real scenario, we might want to wait for a specific event or have a timeout
         // For now, we'll wait up to 2 seconds for devices to appear
@@ -1997,18 +2114,18 @@ impl DeviceManager {
                     break;
                 }
             }
-            
+
             if start.elapsed().as_secs() >= 2 {
                 break;
             }
-            
+
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        
+
         // Get devices and convert to DeviceInfo
         let locked_client = client.read().await;
         let indi_devices = locked_client.get_devices().await;
-        
+
         let mut devices = Vec::new();
         for dev in indi_devices {
             // Determine device type based on properties
@@ -2016,10 +2133,18 @@ impl DeviceManager {
             // Determine device type based on name/driver
             let name_upper = dev.name.to_uppercase();
             let driver_upper = dev.driver.to_uppercase();
-            
-            let device_type = if name_upper.contains("CCD") || name_upper.contains("CAMERA") || driver_upper.contains("CCD") || driver_upper.contains("CAMERA") {
+
+            let device_type = if name_upper.contains("CCD")
+                || name_upper.contains("CAMERA")
+                || driver_upper.contains("CCD")
+                || driver_upper.contains("CAMERA")
+            {
                 DeviceType::Camera
-            } else if name_upper.contains("TELESCOPE") || name_upper.contains("MOUNT") || driver_upper.contains("TELESCOPE") || driver_upper.contains("MOUNT") {
+            } else if name_upper.contains("TELESCOPE")
+                || name_upper.contains("MOUNT")
+                || driver_upper.contains("TELESCOPE")
+                || driver_upper.contains("MOUNT")
+            {
                 DeviceType::Mount
             } else if name_upper.contains("FOCUSER") || driver_upper.contains("FOCUSER") {
                 DeviceType::Focuser
@@ -2030,9 +2155,9 @@ impl DeviceManager {
             } else {
                 // Default to Camera if unknown, or skip?
                 // For now, let's assume Camera if ambiguous as it's most common
-                DeviceType::Camera 
+                DeviceType::Camera
             };
-            
+
             // TODO: Query DEVICE_INFO property for serial number
             devices.push(DeviceInfo {
                 id: format!("indi:{}:{}:{}", host, port, dev.name),
@@ -2054,20 +2179,28 @@ impl DeviceManager {
     pub async fn get_all_indi_devices(&self) -> Vec<DeviceInfo> {
         let clients = self.indi_clients.read().await;
         let mut all_devices = Vec::new();
-        
+
         for (server_key, client_arc) in clients.iter() {
             let client = client_arc.read().await;
             let indi_devices = client.get_devices().await;
-            
+
             for dev in indi_devices {
                 // Determine device type
                 // Determine device type based on name/driver
                 let name_upper = dev.name.to_uppercase();
                 let driver_upper = dev.driver.to_uppercase();
-                
-                let device_type = if name_upper.contains("CCD") || name_upper.contains("CAMERA") || driver_upper.contains("CCD") || driver_upper.contains("CAMERA") {
+
+                let device_type = if name_upper.contains("CCD")
+                    || name_upper.contains("CAMERA")
+                    || driver_upper.contains("CCD")
+                    || driver_upper.contains("CAMERA")
+                {
                     DeviceType::Camera
-                } else if name_upper.contains("TELESCOPE") || name_upper.contains("MOUNT") || driver_upper.contains("TELESCOPE") || driver_upper.contains("MOUNT") {
+                } else if name_upper.contains("TELESCOPE")
+                    || name_upper.contains("MOUNT")
+                    || driver_upper.contains("TELESCOPE")
+                    || driver_upper.contains("MOUNT")
+                {
                     DeviceType::Mount
                 } else if name_upper.contains("FOCUSER") || driver_upper.contains("FOCUSER") {
                     DeviceType::Focuser
@@ -2078,7 +2211,7 @@ impl DeviceManager {
                 } else {
                     continue;
                 };
-                
+
                 // TODO: Query DEVICE_INFO property for serial number
                 all_devices.push(DeviceInfo {
                     id: format!("indi:{}:{}", server_key, dev.name),
@@ -2100,7 +2233,7 @@ impl DeviceManager {
     // =========================================================================
     // Camera Control
     // =========================================================================
-    
+
     /// Start a camera exposure
     pub async fn camera_start_exposure(
         &self,
@@ -2111,7 +2244,11 @@ impl DeviceManager {
         bin_x: i32,
         bin_y: i32,
     ) -> Result<(), String> {
-        tracing::info!("DeviceManager: camera_start_exposure for {} duration={}", device_id, duration);
+        tracing::info!(
+            "DeviceManager: camera_start_exposure for {} duration={}",
+            device_id,
+            duration
+        );
 
         // Get the driver type for this device
         let driver_type = {
@@ -2215,7 +2352,7 @@ impl DeviceManager {
             None => Err(format!("Device {} not found", device_id)),
         }
     }
-    
+
     /// Check if camera exposure is complete
     pub async fn camera_is_exposure_complete(&self, device_id: &str) -> Result<bool, String> {
         // Get the driver type for this device
@@ -2632,7 +2769,10 @@ impl DeviceManager {
     }
 
     /// Get camera status
-    pub async fn camera_get_status(&self, device_id: &str) -> Result<crate::device::CameraStatus, String> {
+    pub async fn camera_get_status(
+        &self,
+        device_id: &str,
+    ) -> Result<crate::device::CameraStatus, String> {
         // Get the driver type for this device
         let driver_type = {
             let devices = self.devices.read().await;
@@ -2648,6 +2788,7 @@ impl DeviceManager {
                         let camera_guard = camera.read().await;
                         let native_status = camera_guard.get_status().await
                             .map_err(|e| e.to_string())?;
+                        let ascom_caps = camera_guard.get_capabilities().await.ok();
 
                         return Ok(crate::device::CameraStatus {
                             connected: true,
@@ -2667,12 +2808,12 @@ impl DeviceManager {
                             offset: native_status.offset,
                             bin_x: native_status.bin_x,
                             bin_y: native_status.bin_y,
-                            sensor_width: 4144,
-                            sensor_height: 2822,
-                            pixel_size_x: 3.76,
-                            pixel_size_y: 3.76,
-                            max_adu: 65535,
-                            can_cool: true,
+                            sensor_width: ascom_caps.as_ref().map(|c| c.max_width).unwrap_or(0),
+                            sensor_height: ascom_caps.as_ref().map(|c| c.max_height).unwrap_or(0),
+                            pixel_size_x: ascom_caps.as_ref().and_then(|c| c.pixel_size_x).unwrap_or(0.0),
+                            pixel_size_y: ascom_caps.as_ref().and_then(|c| c.pixel_size_y).unwrap_or(0.0),
+                            max_adu: ascom_caps.as_ref().map(|c| (1u32 << c.bit_depth) - 1).unwrap_or(65535),
+                            can_cool: ascom_caps.as_ref().map(|c| c.can_set_ccd_temperature).unwrap_or(false),
                             can_set_gain: true,
                             can_set_offset: true,
                         });
@@ -2890,24 +3031,43 @@ impl DeviceManager {
                         }
                     };
 
+                    // Read sensor info from INDI CCD_INFO property
+                    let sensor_width = locked_client.get_number(&device_name, "CCD_INFO", "CCD_MAX_X").await
+                        .map(|v| v as u32).unwrap_or(0);
+                    let sensor_height = locked_client.get_number(&device_name, "CCD_INFO", "CCD_MAX_Y").await
+                        .map(|v| v as u32).unwrap_or(0);
+                    let pixel_size_x = locked_client.get_number(&device_name, "CCD_INFO", "CCD_PIXEL_SIZE_X").await
+                        .unwrap_or(0.0);
+                    let pixel_size_y = locked_client.get_number(&device_name, "CCD_INFO", "CCD_PIXEL_SIZE_Y").await
+                        .unwrap_or(0.0);
+                    let bit_depth = locked_client.get_number(&device_name, "CCD_INFO", "CCD_BITSPERPIXEL").await
+                        .map(|v| v as u32).unwrap_or(16);
+                    let gain = locked_client.get_number(&device_name, "CCD_GAIN", "GAIN").await
+                        .map(|v| v as i32).unwrap_or(0);
+                    let offset = locked_client.get_number(&device_name, "CCD_OFFSET", "OFFSET").await
+                        .map(|v| v as i32).unwrap_or(0);
+                    let cooler_power = locked_client.get_number(&device_name, "CCD_COOLER_POWER", "CCD_COOLER_VALUE").await;
+                    let has_cooler = locked_client.get_switch(&device_name, "CCD_COOLER", "COOLER_ON").await.is_some();
+                    let has_gain = locked_client.get_number(&device_name, "CCD_GAIN", "GAIN").await.is_some();
+
                     return Ok(crate::device::CameraStatus {
                         connected: true,
                         state,
                         sensor_temp,
-                        cooler_power: None, // INDI may not provide this
+                        cooler_power,
                         target_temp: None,
                         cooler_on,
-                        gain: 0, // Would need CCD_GAIN property
-                        offset: 0,
+                        gain,
+                        offset,
                         bin_x,
                         bin_y,
-                        sensor_width: 4144, // Would need CCD_INFO property
-                        sensor_height: 2822,
-                        pixel_size_x: 3.76,
-                        pixel_size_y: 3.76,
-                        max_adu: 65535,
-                        can_cool: true,
-                        can_set_gain: true,
+                        sensor_width,
+                        sensor_height,
+                        pixel_size_x,
+                        pixel_size_y,
+                        max_adu: (1u32 << bit_depth) - 1,
+                        can_cool: has_cooler,
+                        can_set_gain: has_gain,
                         can_set_offset: true,
                     });
                 }
@@ -2921,7 +3081,11 @@ impl DeviceManager {
 
     /// Set camera gain
     pub async fn camera_set_gain(&self, device_id: &str, gain: i32) -> Result<(), String> {
-        tracing::info!("DeviceManager: camera_set_gain for {} gain={}", device_id, gain);
+        tracing::info!(
+            "DeviceManager: camera_set_gain for {} gain={}",
+            device_id,
+            gain
+        );
 
         let driver_type = {
             let devices = self.devices.read().await;
@@ -2963,7 +3127,11 @@ impl DeviceManager {
 
     /// Set camera offset
     pub async fn camera_set_offset(&self, device_id: &str, offset: i32) -> Result<(), String> {
-        tracing::info!("DeviceManager: camera_set_offset for {} offset={}", device_id, offset);
+        tracing::info!(
+            "DeviceManager: camera_set_offset for {} offset={}",
+            device_id,
+            offset
+        );
 
         let driver_type = {
             let devices = self.devices.read().await;
@@ -3004,7 +3172,12 @@ impl DeviceManager {
     }
 
     /// Set camera cooler
-    pub async fn camera_set_cooler(&self, device_id: &str, enabled: bool, target_temp: Option<f64>) -> Result<(), String> {
+    pub async fn camera_set_cooler(
+        &self,
+        device_id: &str,
+        enabled: bool,
+        target_temp: Option<f64>,
+    ) -> Result<(), String> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -3076,18 +3249,28 @@ impl DeviceManager {
     // =========================================================================
     // Mount Control
     // =========================================================================
-    
+
     pub async fn mount_slew(&self, device_id: &str, ra: f64, dec: f64) -> Result<(), String> {
-        tracing::debug!("mount_slew called: device_id={}, ra={}, dec={}", device_id, ra, dec);
+        tracing::debug!(
+            "mount_slew called: device_id={}, ra={}, dec={}",
+            device_id,
+            ra,
+            dec
+        );
 
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| {
                 tracing::error!("mount_slew: Device not found in devices map: {}", device_id);
                 format!("Device not found: {}", device_id)
             })?;
 
-        tracing::debug!("mount_slew: Found device with driver_type={:?}", info.driver_type);
+        tracing::debug!(
+            "mount_slew: Found device with driver_type={:?}",
+            info.driver_type
+        );
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -3162,7 +3345,9 @@ impl DeviceManager {
 
     pub async fn mount_sync(&self, device_id: &str, ra: f64, dec: f64) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3213,7 +3398,9 @@ impl DeviceManager {
 
     pub async fn mount_park(&self, device_id: &str) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3264,7 +3451,9 @@ impl DeviceManager {
 
     pub async fn mount_unpark(&self, device_id: &str) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3315,7 +3504,9 @@ impl DeviceManager {
 
     pub async fn mount_get_coordinates(&self, device_id: &str) -> Result<(f64, f64), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3348,7 +3539,9 @@ impl DeviceManager {
 
     pub async fn mount_abort(&self, device_id: &str) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3381,7 +3574,9 @@ impl DeviceManager {
 
     pub async fn mount_stop(&self, device_id: &str) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3421,7 +3616,9 @@ impl DeviceManager {
 
     pub async fn mount_set_tracking(&self, device_id: &str, enabled: bool) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3452,9 +3649,16 @@ impl DeviceManager {
         }
     }
 
-    pub async fn mount_pulse_guide(&self, device_id: &str, direction: String, duration_ms: u32) -> Result<(), String> {
+    pub async fn mount_pulse_guide(
+        &self,
+        device_id: &str,
+        direction: String,
+        duration_ms: u32,
+    ) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         let dir = match direction.to_lowercase().as_str() {
@@ -3495,7 +3699,9 @@ impl DeviceManager {
 
     pub async fn mount_can_park(&self, device_id: &str) -> Result<bool, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3529,7 +3735,9 @@ impl DeviceManager {
 
     pub async fn mount_get_status(&self, device_id: &str) -> Result<MountStatus, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3832,7 +4040,9 @@ impl DeviceManager {
 
     pub async fn mount_set_tracking_rate(&self, device_id: &str, rate: i32) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3842,7 +4052,10 @@ impl DeviceManager {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
                         let mut mount = mount.write().await;
-                        return mount.set_tracking_rate_raw(rate).await.map_err(|e| e.to_string());
+                        return mount
+                            .set_tracking_rate_raw(rate)
+                            .await
+                            .map_err(|e| e.to_string());
                     }
                 }
                 Err("ASCOM mount not connected".to_string())
@@ -3859,7 +4072,10 @@ impl DeviceManager {
                         4 => nightshade_native::traits::TrackingRate::Custom,
                         _ => return Err(format!("Invalid tracking rate: {}", rate)),
                     };
-                    return mount.set_tracking_rate(tracking_rate).await.map_err(|e| e.to_string());
+                    return mount
+                        .set_tracking_rate(tracking_rate)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("Native mount not connected".to_string())
             }
@@ -3869,7 +4085,9 @@ impl DeviceManager {
 
     pub async fn mount_get_tracking_rate(&self, device_id: &str) -> Result<i32, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -3879,7 +4097,10 @@ impl DeviceManager {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
                         let mount = mount.read().await;
-                        return mount.get_tracking_rate_raw().await.map_err(|e| e.to_string());
+                        return mount
+                            .get_tracking_rate_raw()
+                            .await
+                            .map_err(|e| e.to_string());
                     }
                 }
                 Err("ASCOM mount not connected".to_string())
@@ -3899,17 +4120,35 @@ impl DeviceManager {
     /// Move an axis at the specified rate (degrees/second)
     /// axis: 0=RA/Azimuth (primary), 1=Dec/Altitude (secondary)
     /// rate: degrees per second (positive = N/E, negative = S/W), 0 to stop
-    pub async fn mount_move_axis(&self, device_id: &str, axis: i32, rate: f64) -> Result<(), String> {
-        tracing::debug!("mount_move_axis called: device_id={}, axis={}, rate={}", device_id, axis, rate);
+    pub async fn mount_move_axis(
+        &self,
+        device_id: &str,
+        axis: i32,
+        rate: f64,
+    ) -> Result<(), String> {
+        tracing::debug!(
+            "mount_move_axis called: device_id={}, axis={}, rate={}",
+            device_id,
+            axis,
+            rate
+        );
 
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| {
-                tracing::error!("mount_move_axis: Device not found in devices map: {}", device_id);
+                tracing::error!(
+                    "mount_move_axis: Device not found in devices map: {}",
+                    device_id
+                );
                 format!("Device not found: {}", device_id)
             })?;
 
-        tracing::debug!("mount_move_axis: Found device with driver_type={:?}", info.driver_type);
+        tracing::debug!(
+            "mount_move_axis: Found device with driver_type={:?}",
+            info.driver_type
+        );
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -4022,7 +4261,9 @@ impl DeviceManager {
 
     pub async fn focuser_move_abs(&self, device_id: &str, position: i32) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
         drop(devices);
 
@@ -4078,7 +4319,9 @@ impl DeviceManager {
 
     pub async fn focuser_move_rel(&self, device_id: &str, steps: i32) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
         drop(devices);
 
@@ -4137,7 +4380,9 @@ impl DeviceManager {
 
     pub async fn focuser_halt(&self, device_id: &str) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
         drop(devices);
 
@@ -4197,7 +4442,9 @@ impl DeviceManager {
 
     pub async fn focuser_get_position(&self, device_id: &str) -> Result<i32, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -4253,7 +4500,9 @@ impl DeviceManager {
 
     pub async fn focuser_is_moving(&self, device_id: &str) -> Result<bool, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -4309,7 +4558,9 @@ impl DeviceManager {
 
     pub async fn focuser_get_temp(&self, device_id: &str) -> Result<Option<f64>, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -4369,7 +4620,9 @@ impl DeviceManager {
 
     pub async fn focuser_get_details(&self, device_id: &str) -> Result<(i32, f64), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -4455,9 +4708,15 @@ impl DeviceManager {
     // Filter Wheel Control
     // =========================================================================
 
-    pub async fn filter_wheel_set_position(&self, device_id: &str, position: i32) -> Result<(), String> {
+    pub async fn filter_wheel_set_position(
+        &self,
+        device_id: &str,
+        position: i32,
+    ) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
         drop(devices);
 
@@ -4517,7 +4776,9 @@ impl DeviceManager {
 
     pub async fn filter_wheel_get_position(&self, device_id: &str) -> Result<i32, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -4574,7 +4835,9 @@ impl DeviceManager {
 
     pub async fn filter_wheel_is_moving(&self, device_id: &str) -> Result<bool, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -4628,16 +4891,30 @@ impl DeviceManager {
         }
     }
 
-    pub async fn filter_wheel_get_config(&self, device_id: &str) -> Result<(i32, Vec<String>), String> {
-        tracing::debug!("filter_wheel_get_config: Looking up device_id='{}'", device_id);
+    pub async fn filter_wheel_get_config(
+        &self,
+        device_id: &str,
+    ) -> Result<(i32, Vec<String>), String> {
+        tracing::debug!(
+            "filter_wheel_get_config: Looking up device_id='{}'",
+            device_id
+        );
 
         let devices = self.devices.read().await;
         let device_keys: Vec<_> = devices.keys().collect();
-        tracing::debug!("filter_wheel_get_config: Available devices in registry: {:?}", device_keys);
+        tracing::debug!(
+            "filter_wheel_get_config: Available devices in registry: {:?}",
+            device_keys
+        );
 
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
-        tracing::debug!("filter_wheel_get_config: Found device with driver_type={:?}", info.driver_type);
+        tracing::debug!(
+            "filter_wheel_get_config: Found device with driver_type={:?}",
+            info.driver_type
+        );
         drop(devices); // Release the lock before async operations
 
         match info.driver_type {
@@ -4650,8 +4927,8 @@ impl DeviceManager {
 
                     if let Some(wheel) = wheels.get(device_id) {
                         let wheel = wheel.read().await;
-                        let count = wheel.get_filter_count();
                         let names = wheel.get_filter_names().await.map_err(|e| e.to_string())?;
+                        let count = names.len() as i32;
                         return Ok((count, names));
                     }
                     tracing::error!("filter_wheel_get_config: ASCOM filter wheel '{}' not found in ascom_filter_wheels map!", device_id);
@@ -4719,17 +4996,25 @@ impl DeviceManager {
         }
     }
 
-
-
     /// Set filter names on a filter wheel.
     /// This pushes user-defined filter names from the equipment profile to the hardware driver.
-    pub async fn filter_wheel_set_filter_names(&self, device_id: &str, names: Vec<String>) -> Result<(), String> {
+    pub async fn filter_wheel_set_filter_names(
+        &self,
+        device_id: &str,
+        names: Vec<String>,
+    ) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
         drop(devices);
 
-        tracing::info!("filter_wheel_set_filter_names: Setting filter names for '{}': {:?}", device_id, names);
+        tracing::info!(
+            "filter_wheel_set_filter_names: Setting filter names for '{}': {:?}",
+            device_id,
+            names
+        );
 
         match info.driver_type {
             DriverType::Native => {
@@ -4819,7 +5104,11 @@ impl DeviceManager {
     }
 
     /// Move rotator to absolute sky position (degrees)
-    pub async fn rotator_move_absolute(&self, device_id: &str, position: f64) -> Result<(), String> {
+    pub async fn rotator_move_absolute(
+        &self,
+        device_id: &str,
+        position: f64,
+    ) -> Result<(), String> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -5354,7 +5643,10 @@ impl DeviceManager {
     }
 
     /// Get comprehensive dome status
-    pub async fn dome_get_status(&self, device_id: &str) -> Result<crate::device::DomeStatus, String> {
+    pub async fn dome_get_status(
+        &self,
+        device_id: &str,
+    ) -> Result<crate::device::DomeStatus, String> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -5590,7 +5882,10 @@ impl DeviceManager {
     // =========================================================================
 
     /// Get weather conditions
-    pub async fn weather_get_conditions(&self, device_id: &str) -> Result<WeatherConditions, String> {
+    pub async fn weather_get_conditions(
+        &self,
+        device_id: &str,
+    ) -> Result<WeatherConditions, String> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -5741,26 +6036,22 @@ impl DeviceManager {
     ) -> Result<bool, String> {
         match driver_type {
             DriverType::Alpaca => {
-                self.perform_alpaca_health_check(device_id, device_type).await
+                self.perform_alpaca_health_check(device_id, device_type)
+                    .await
             }
             #[cfg(windows)]
             DriverType::Ascom => {
-                self.perform_ascom_health_check(device_id, device_type).await
+                self.perform_ascom_health_check(device_id, device_type)
+                    .await
             }
             #[cfg(not(windows))]
-            DriverType::Ascom => {
-                Err("ASCOM is not supported on this platform".to_string())
-            }
-            DriverType::Indi => {
-                self.perform_indi_health_check(device_id).await
-            }
+            DriverType::Ascom => Err("ASCOM is not supported on this platform".to_string()),
+            DriverType::Indi => self.perform_indi_health_check(device_id).await,
             DriverType::Native => {
                 // Native devices maintain their own connection state
                 Ok(true)
             }
-            DriverType::Simulator => {
-                Err("Simulator devices are disabled".to_string())
-            }
+            DriverType::Simulator => Err("Simulator devices are disabled".to_string()),
         }
     }
 
@@ -5776,7 +6067,11 @@ impl DeviceManager {
                 if let Some(camera) = cameras.get(device_id) {
                     match camera.heartbeat().await {
                         Ok(rtt_ms) => {
-                            tracing::trace!("Alpaca camera {} heartbeat: {}ms RTT", device_id, rtt_ms);
+                            tracing::trace!(
+                                "Alpaca camera {} heartbeat: {}ms RTT",
+                                device_id,
+                                rtt_ms
+                            );
                             Ok(true)
                         }
                         Err(e) => {
@@ -5793,7 +6088,11 @@ impl DeviceManager {
                 if let Some(mount) = mounts.get(device_id) {
                     match mount.heartbeat().await {
                         Ok(rtt_ms) => {
-                            tracing::trace!("Alpaca mount {} heartbeat: {}ms RTT", device_id, rtt_ms);
+                            tracing::trace!(
+                                "Alpaca mount {} heartbeat: {}ms RTT",
+                                device_id,
+                                rtt_ms
+                            );
                             Ok(true)
                         }
                         Err(e) => {
@@ -5810,7 +6109,11 @@ impl DeviceManager {
                 if let Some(focuser) = focusers.get(device_id) {
                     match focuser.heartbeat().await {
                         Ok(rtt_ms) => {
-                            tracing::trace!("Alpaca focuser {} heartbeat: {}ms RTT", device_id, rtt_ms);
+                            tracing::trace!(
+                                "Alpaca focuser {} heartbeat: {}ms RTT",
+                                device_id,
+                                rtt_ms
+                            );
                             Ok(true)
                         }
                         Err(e) => {
@@ -5827,11 +6130,19 @@ impl DeviceManager {
                 if let Some(fw) = filter_wheels.get(device_id) {
                     match fw.heartbeat().await {
                         Ok(rtt_ms) => {
-                            tracing::trace!("Alpaca filter wheel {} heartbeat: {}ms RTT", device_id, rtt_ms);
+                            tracing::trace!(
+                                "Alpaca filter wheel {} heartbeat: {}ms RTT",
+                                device_id,
+                                rtt_ms
+                            );
                             Ok(true)
                         }
                         Err(e) => {
-                            tracing::debug!("Alpaca filter wheel {} heartbeat failed: {}", device_id, e);
+                            tracing::debug!(
+                                "Alpaca filter wheel {} heartbeat failed: {}",
+                                device_id,
+                                e
+                            );
                             Ok(false)
                         }
                     }
@@ -5844,7 +6155,11 @@ impl DeviceManager {
                 if let Some(rotator) = rotators.get(device_id) {
                     match rotator.heartbeat().await {
                         Ok(rtt_ms) => {
-                            tracing::trace!("Alpaca rotator {} heartbeat: {}ms RTT", device_id, rtt_ms);
+                            tracing::trace!(
+                                "Alpaca rotator {} heartbeat: {}ms RTT",
+                                device_id,
+                                rtt_ms
+                            );
                             Ok(true)
                         }
                         Err(e) => {
@@ -5861,11 +6176,19 @@ impl DeviceManager {
                 if let Some(sm) = safety_monitors.get(device_id) {
                     match sm.heartbeat().await {
                         Ok(rtt_ms) => {
-                            tracing::trace!("Alpaca safety monitor {} heartbeat: {}ms RTT", device_id, rtt_ms);
+                            tracing::trace!(
+                                "Alpaca safety monitor {} heartbeat: {}ms RTT",
+                                device_id,
+                                rtt_ms
+                            );
                             Ok(true)
                         }
                         Err(e) => {
-                            tracing::debug!("Alpaca safety monitor {} heartbeat failed: {}", device_id, e);
+                            tracing::debug!(
+                                "Alpaca safety monitor {} heartbeat failed: {}",
+                                device_id,
+                                e
+                            );
                             Ok(false)
                         }
                     }
@@ -5875,7 +6198,10 @@ impl DeviceManager {
             }
             _ => {
                 // For other device types, assume healthy if device exists
-                tracing::trace!("Alpaca {} heartbeat: assumed healthy (no specific check)", device_id);
+                tracing::trace!(
+                    "Alpaca {} heartbeat: assumed healthy (no specific check)",
+                    device_id
+                );
                 Ok(true)
             }
         }
@@ -5899,11 +6225,7 @@ impl DeviceManager {
                                 crate::ascom_wrapper::CameraConnectionHealth::Healthy
                                     | crate::ascom_wrapper::CameraConnectionHealth::Unknown
                             );
-                            tracing::trace!(
-                                "ASCOM camera {} heartbeat: {:?}",
-                                device_id,
-                                health
-                            );
+                            tracing::trace!("ASCOM camera {} heartbeat: {:?}", device_id, health);
                             Ok(is_healthy)
                         }
                         Err(e) => {
@@ -5920,7 +6242,11 @@ impl DeviceManager {
                 if let Some(mount) = mounts.get(device_id) {
                     // Check if connected by reading a simple property
                     let connected = mount.read().await.is_connected();
-                    tracing::trace!("ASCOM mount {} heartbeat: connected={}", device_id, connected);
+                    tracing::trace!(
+                        "ASCOM mount {} heartbeat: connected={}",
+                        device_id,
+                        connected
+                    );
                     Ok(connected)
                 } else {
                     Err(format!("ASCOM mount {} not found", device_id))
@@ -5930,7 +6256,11 @@ impl DeviceManager {
                 let focusers = self.ascom_focusers.read().await;
                 if let Some(focuser) = focusers.get(device_id) {
                     let connected = focuser.read().await.is_connected();
-                    tracing::trace!("ASCOM focuser {} heartbeat: connected={}", device_id, connected);
+                    tracing::trace!(
+                        "ASCOM focuser {} heartbeat: connected={}",
+                        device_id,
+                        connected
+                    );
                     Ok(connected)
                 } else {
                     Err(format!("ASCOM focuser {} not found", device_id))
@@ -5940,7 +6270,11 @@ impl DeviceManager {
                 let filter_wheels = self.ascom_filter_wheels.read().await;
                 if let Some(fw) = filter_wheels.get(device_id) {
                     let connected = fw.read().await.is_connected();
-                    tracing::trace!("ASCOM filter wheel {} heartbeat: connected={}", device_id, connected);
+                    tracing::trace!(
+                        "ASCOM filter wheel {} heartbeat: connected={}",
+                        device_id,
+                        connected
+                    );
                     Ok(connected)
                 } else {
                     Err(format!("ASCOM filter wheel {} not found", device_id))
@@ -5958,7 +6292,10 @@ impl DeviceManager {
             }
             _ => {
                 // For other device types, assume healthy
-                tracing::trace!("ASCOM {} heartbeat: assumed healthy (no specific check)", device_id);
+                tracing::trace!(
+                    "ASCOM {} heartbeat: assumed healthy (no specific check)",
+                    device_id
+                );
                 Ok(true)
             }
         }
@@ -6119,7 +6456,11 @@ impl DeviceManager {
                                 "Heartbeat recovered for device {} after {} failures{}",
                                 device_id_clone,
                                 consecutive_failures,
-                                if is_reconnecting { " (reconnected)" } else { "" }
+                                if is_reconnecting {
+                                    " (reconnected)"
+                                } else {
+                                    ""
+                                }
                             );
 
                             // Emit HeartbeatStatusChanged event for recovery
@@ -6154,7 +6495,8 @@ impl DeviceManager {
                         {
                             let mut devices = manager.devices.write().await;
                             if let Some(device) = devices.get_mut(&device_id_clone) {
-                                device.last_successful_comm = Some(chrono::Utc::now().timestamp_millis());
+                                device.last_successful_comm =
+                                    Some(chrono::Utc::now().timestamp_millis());
                             }
                         }
 
@@ -6178,7 +6520,7 @@ impl DeviceManager {
 
                         // Apply exponential backoff
                         let new_interval = Duration::from_secs_f64(
-                            current_interval.as_secs_f64() * config.backoff_multiplier
+                            current_interval.as_secs_f64() * config.backoff_multiplier,
                         );
                         current_interval = new_interval.min(max_interval);
 
@@ -6242,8 +6584,7 @@ impl DeviceManager {
                                     device_id: device_id_clone.clone(),
                                     message: format!(
                                         "Device unresponsive after {} heartbeat failures: {}",
-                                        consecutive_failures,
-                                        error_msg
+                                        consecutive_failures, error_msg
                                     ),
                                 },
                                 EventSeverity::Error,
@@ -6252,7 +6593,8 @@ impl DeviceManager {
                             // Handle auto-reconnect if enabled
                             if config.auto_reconnect {
                                 let max_reconnects = config.max_reconnect_attempts;
-                                let should_try = max_reconnects == 0 || reconnect_attempts < max_reconnects;
+                                let should_try =
+                                    max_reconnects == 0 || reconnect_attempts < max_reconnects;
 
                                 if should_try {
                                     reconnect_attempts += 1;
@@ -6262,7 +6604,11 @@ impl DeviceManager {
                                         "Attempting auto-reconnect for device {} (attempt {}/{})",
                                         device_id_clone,
                                         reconnect_attempts,
-                                        if max_reconnects == 0 { "unlimited".to_string() } else { max_reconnects.to_string() }
+                                        if max_reconnects == 0 {
+                                            "unlimited".to_string()
+                                        } else {
+                                            max_reconnects.to_string()
+                                        }
                                     );
 
                                     // Emit reconnecting status
@@ -6297,13 +6643,14 @@ impl DeviceManager {
 
                                     // Wait before reconnection attempt
                                     let reconnect_delay = Duration::from_secs(
-                                        config.reconnect_delay_secs * (reconnect_attempts as u64)
+                                        config.reconnect_delay_secs * (reconnect_attempts as u64),
                                     );
                                     tokio::time::sleep(reconnect_delay).await;
 
                                     // Reset failure counter for reconnect monitoring
                                     consecutive_failures = 0;
-                                    current_interval = Duration::from_secs(config.base_interval_secs);
+                                    current_interval =
+                                        Duration::from_secs(config.base_interval_secs);
 
                                     // Continue monitoring - if connection recovers, we'll see it
                                     continue;
@@ -6360,7 +6707,8 @@ impl DeviceManager {
         // Get device type for the event before removing task
         let device_type_str = {
             let devices = self.devices.read().await;
-            devices.get(device_id)
+            devices
+                .get(device_id)
                 .map(|d| d.info.device_type.as_str().to_string())
         };
 
@@ -6461,7 +6809,8 @@ impl DeviceManager {
     /// Check if heartbeat is active for a device
     pub async fn is_heartbeat_active(&self, device_id: &str) -> bool {
         let devices = self.devices.read().await;
-        devices.get(device_id)
+        devices
+            .get(device_id)
             .map(|d| d.heartbeat_active)
             .unwrap_or(false)
     }
@@ -6472,7 +6821,10 @@ impl DeviceManager {
 
     /// Get all INDI switch elements as a flat ordered list for indexed access.
     /// Each entry is (property_name, element_name, label, state, writable).
-    async fn indi_get_all_switches(&self, device_id: &str) -> Result<Vec<nightshade_indi::IndiSwitchInfo>, String> {
+    async fn indi_get_all_switches(
+        &self,
+        device_id: &str,
+    ) -> Result<Vec<nightshade_indi::IndiSwitchInfo>, String> {
         let parts: Vec<&str> = device_id.split(':').collect();
         if parts.len() < 4 {
             return Err("Invalid INDI device ID".to_string());
@@ -6489,11 +6841,19 @@ impl DeviceManager {
     }
 
     /// Get the Nth INDI switch element (0-indexed).
-    async fn indi_get_switch_at(&self, device_id: &str, index: i32) -> Result<nightshade_indi::IndiSwitchInfo, String> {
+    async fn indi_get_switch_at(
+        &self,
+        device_id: &str,
+        index: i32,
+    ) -> Result<nightshade_indi::IndiSwitchInfo, String> {
         let switches = self.indi_get_all_switches(device_id).await?;
         let idx = index as usize;
         if idx >= switches.len() {
-            return Err(format!("Switch index {} out of range (device has {} switches)", index, switches.len()));
+            return Err(format!(
+                "Switch index {} out of range (device has {} switches)",
+                index,
+                switches.len()
+            ));
         }
         Ok(switches.into_iter().nth(idx).unwrap())
     }
@@ -6505,7 +6865,9 @@ impl DeviceManager {
     /// Get the number of switches exposed by a switch device
     pub async fn switch_get_max(&self, device_id: &str) -> Result<i32, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6540,7 +6902,9 @@ impl DeviceManager {
     /// Get the boolean state of a switch
     pub async fn switch_get_state(&self, device_id: &str, switch_id: i32) -> Result<bool, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6572,9 +6936,16 @@ impl DeviceManager {
     }
 
     /// Set the boolean state of a switch
-    pub async fn switch_set_state(&self, device_id: &str, switch_id: i32, state: bool) -> Result<(), String> {
+    pub async fn switch_set_state(
+        &self,
+        device_id: &str,
+        switch_id: i32,
+        state: bool,
+    ) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6620,7 +6991,9 @@ impl DeviceManager {
     /// Get the name of a switch
     pub async fn switch_get_name(&self, device_id: &str, switch_id: i32) -> Result<String, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6652,9 +7025,15 @@ impl DeviceManager {
     }
 
     /// Get the description of a switch
-    pub async fn switch_get_description(&self, device_id: &str, switch_id: i32) -> Result<String, String> {
+    pub async fn switch_get_description(
+        &self,
+        device_id: &str,
+        switch_id: i32,
+    ) -> Result<String, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6689,7 +7068,9 @@ impl DeviceManager {
     /// Get the numeric value of a switch
     pub async fn switch_get_value(&self, device_id: &str, switch_id: i32) -> Result<f64, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6734,9 +7115,16 @@ impl DeviceManager {
     }
 
     /// Set the numeric value of a switch
-    pub async fn switch_set_value(&self, device_id: &str, switch_id: i32, value: f64) -> Result<(), String> {
+    pub async fn switch_set_value(
+        &self,
+        device_id: &str,
+        switch_id: i32,
+        value: f64,
+    ) -> Result<(), String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6780,9 +7168,15 @@ impl DeviceManager {
     }
 
     /// Get the minimum value for a switch
-    pub async fn switch_get_min_value(&self, device_id: &str, switch_id: i32) -> Result<f64, String> {
+    pub async fn switch_get_min_value(
+        &self,
+        device_id: &str,
+        switch_id: i32,
+    ) -> Result<f64, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6814,9 +7208,15 @@ impl DeviceManager {
     }
 
     /// Get the maximum value for a switch
-    pub async fn switch_get_max_value(&self, device_id: &str, switch_id: i32) -> Result<f64, String> {
+    pub async fn switch_get_max_value(
+        &self,
+        device_id: &str,
+        switch_id: i32,
+    ) -> Result<f64, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6850,7 +7250,9 @@ impl DeviceManager {
     /// Check if a switch can be written to
     pub async fn switch_can_write(&self, device_id: &str, switch_id: i32) -> Result<bool, String> {
         let devices = self.devices.read().await;
-        let info = devices.get(device_id).map(|d| d.info.clone())
+        let info = devices
+            .get(device_id)
+            .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
         match info.driver_type {
@@ -6920,7 +7322,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
-                    return locked.set_switch(&device_name, "CAP_PARK", "UNPARK", true).await.map_err(|e| e.to_string());
+                    return locked
+                        .set_switch(&device_name, "CAP_PARK", "UNPARK", true)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("INDI cover calibrator not connected".to_string())
             }
@@ -6963,7 +7368,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
-                    return locked.set_switch(&device_name, "CAP_PARK", "PARK", true).await.map_err(|e| e.to_string());
+                    return locked
+                        .set_switch(&device_name, "CAP_PARK", "PARK", true)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("INDI cover calibrator not connected".to_string())
             }
@@ -7004,7 +7412,11 @@ impl DeviceManager {
     }
 
     /// Turn on cover calibrator light
-    pub async fn cover_calibrator_calibrator_on(&self, device_id: &str, brightness: i32) -> Result<(), String> {
+    pub async fn cover_calibrator_calibrator_on(
+        &self,
+        device_id: &str,
+        brightness: i32,
+    ) -> Result<(), String> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -7039,8 +7451,19 @@ impl DeviceManager {
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
                     // Set brightness first, then turn on
-                    locked.set_number(&device_name, "FLAT_LIGHT_INTENSITY", "FLAT_LIGHT_INTENSITY_VALUE", brightness as f64).await.map_err(|e| e.to_string())?;
-                    return locked.set_switch(&device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON", true).await.map_err(|e| e.to_string());
+                    locked
+                        .set_number(
+                            &device_name,
+                            "FLAT_LIGHT_INTENSITY",
+                            "FLAT_LIGHT_INTENSITY_VALUE",
+                            brightness as f64,
+                        )
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    return locked
+                        .set_switch(&device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON", true)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("INDI cover calibrator not connected".to_string())
             }
@@ -7083,7 +7506,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
-                    return locked.set_switch(&device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_OFF", true).await.map_err(|e| e.to_string());
+                    return locked
+                        .set_switch(&device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_OFF", true)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("INDI cover calibrator not connected".to_string())
             }
@@ -7142,7 +7568,10 @@ impl DeviceManager {
 
     /// Get cover calibrator calibrator state
     /// Returns: 0=NotPresent, 1=Off, 2=NotReady, 3=Ready, 4=Unknown, 5=Error
-    pub async fn cover_calibrator_get_calibrator_state(&self, device_id: &str) -> Result<i32, String> {
+    pub async fn cover_calibrator_get_calibrator_state(
+        &self,
+        device_id: &str,
+    ) -> Result<i32, String> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -7177,7 +7606,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let locked = client.read().await;
-                    if let Some(state) = locked.get_switch(&device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON").await {
+                    if let Some(state) = locked
+                        .get_switch(&device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON")
+                        .await
+                    {
                         // FLAT_LIGHT_ON=true means Ready (light is on), false means Off
                         return Ok(if state { 3 } else { 1 }); // 3=Ready, 1=Off
                     }
@@ -7224,7 +7656,14 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let locked = client.read().await;
-                    if let Some(brightness) = locked.get_number(&device_name, "FLAT_LIGHT_INTENSITY", "FLAT_LIGHT_INTENSITY_VALUE").await {
+                    if let Some(brightness) = locked
+                        .get_number(
+                            &device_name,
+                            "FLAT_LIGHT_INTENSITY",
+                            "FLAT_LIGHT_INTENSITY_VALUE",
+                        )
+                        .await
+                    {
                         return Ok(brightness as i32);
                     }
                     return Ok(0);
@@ -7236,7 +7675,10 @@ impl DeviceManager {
     }
 
     /// Get cover calibrator max brightness
-    pub async fn cover_calibrator_get_max_brightness(&self, device_id: &str) -> Result<i32, String> {
+    pub async fn cover_calibrator_get_max_brightness(
+        &self,
+        device_id: &str,
+    ) -> Result<i32, String> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -7268,15 +7710,22 @@ impl DeviceManager {
     }
 
     /// Get cover calibrator status (combined state)
-    pub async fn cover_calibrator_get_status(&self, device_id: &str) -> Result<CoverCalibratorStatus, String> {
+    pub async fn cover_calibrator_get_status(
+        &self,
+        device_id: &str,
+    ) -> Result<CoverCalibratorStatus, String> {
         let cover_state_raw = match self.cover_calibrator_get_cover_state(device_id).await {
             Ok(s) => s,
             Err(e) => {
-                warn!("Failed to read cover calibrator cover_state for {}: {}. Using Unknown (4).", device_id, e);
+                warn!(
+                    "Failed to read cover calibrator cover_state for {}: {}. Using Unknown (4).",
+                    device_id, e
+                );
                 4
             }
         };
-        let calibrator_state_raw = match self.cover_calibrator_get_calibrator_state(device_id).await {
+        let calibrator_state_raw = match self.cover_calibrator_get_calibrator_state(device_id).await
+        {
             Ok(s) => s,
             Err(e) => {
                 warn!("Failed to read cover calibrator calibrator_state for {}: {}. Using Unknown (4).", device_id, e);
@@ -7286,21 +7735,33 @@ impl DeviceManager {
         let brightness = match self.cover_calibrator_get_brightness(device_id).await {
             Ok(b) => b,
             Err(e) => {
-                warn!("Failed to read cover calibrator brightness for {}: {}. Using default 0.", device_id, e);
+                warn!(
+                    "Failed to read cover calibrator brightness for {}: {}. Using default 0.",
+                    device_id, e
+                );
                 0
             }
         };
         let max_brightness = match self.cover_calibrator_get_max_brightness(device_id).await {
             Ok(m) => m,
             Err(e) => {
-                warn!("Failed to read cover calibrator max_brightness for {}: {}. Using default 255.", device_id, e);
+                warn!(
+                    "Failed to read cover calibrator max_brightness for {}: {}. Using default 255.",
+                    device_id, e
+                );
                 255
             }
         };
 
         // Check if the device is connected by seeing if any data is available
-        let connected = self.cover_calibrator_get_cover_state(device_id).await.is_ok()
-            || self.cover_calibrator_get_calibrator_state(device_id).await.is_ok();
+        let connected = self
+            .cover_calibrator_get_cover_state(device_id)
+            .await
+            .is_ok()
+            || self
+                .cover_calibrator_get_calibrator_state(device_id)
+                .await
+                .is_ok();
 
         Ok(CoverCalibratorStatus {
             connected,
@@ -7319,12 +7780,12 @@ impl DeviceManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    use crate::ascom_wrapper_mount::test_support::{build_test_mount_wrapper, TestMountResponses};
     use crate::state::AppState;
     use std::collections::HashMap;
     use std::sync::Arc;
     use tokio::sync::RwLock;
-    #[cfg(windows)]
-    use crate::ascom_wrapper_mount::test_support::{build_test_mount_wrapper, TestMountResponses};
 
     #[test]
     fn test_heartbeat_config_default() {
@@ -7372,7 +7833,10 @@ mod tests {
     fn test_heartbeat_config_for_device_type() {
         // Test that for_device_type delegates to correct methods
         let camera_config = HeartbeatConfig::for_device_type(&DeviceType::Camera);
-        assert_eq!(camera_config.base_interval_secs, HeartbeatConfig::for_camera().base_interval_secs);
+        assert_eq!(
+            camera_config.base_interval_secs,
+            HeartbeatConfig::for_camera().base_interval_secs
+        );
 
         let mount_config = HeartbeatConfig::for_device_type(&DeviceType::Mount);
         assert!(mount_config.auto_reconnect);
@@ -7515,14 +7979,20 @@ mod tests {
     #[tokio::test]
     async fn test_mount_can_park_requires_registered_device() {
         let manager = build_device_manager();
-        let err = manager.mount_can_park("missing-mount").await.expect_err("missing mount should error");
+        let err = manager
+            .mount_can_park("missing-mount")
+            .await
+            .expect_err("missing mount should error");
         assert!(err.contains("Device not found"));
     }
 
     #[tokio::test]
     async fn test_mount_stop_requires_registered_device() {
         let manager = build_device_manager();
-        let err = manager.mount_stop("missing-mount").await.expect_err("missing mount should error");
+        let err = manager
+            .mount_stop("missing-mount")
+            .await
+            .expect_err("missing mount should error");
         assert!(err.contains("Device not found"));
     }
 
@@ -7562,7 +8032,10 @@ mod tests {
             Arc::new(RwLock::new(build_test_mount_wrapper(responses))),
         );
 
-        let status = manager.mount_get_status(device_id).await.expect("mount_get_status");
+        let status = manager
+            .mount_get_status(device_id)
+            .await
+            .expect("mount_get_status");
         assert!(!status.can_park);
     }
 
@@ -7577,25 +8050,40 @@ mod tests {
         let err = manager.switch_get_state(device_id, 0).await.unwrap_err();
         assert!(err.contains("Device not found"));
 
-        let err = manager.switch_set_state(device_id, 0, true).await.unwrap_err();
+        let err = manager
+            .switch_set_state(device_id, 0, true)
+            .await
+            .unwrap_err();
         assert!(err.contains("Device not found"));
 
         let err = manager.switch_get_name(device_id, 0).await.unwrap_err();
         assert!(err.contains("Device not found"));
 
-        let err = manager.switch_get_description(device_id, 0).await.unwrap_err();
+        let err = manager
+            .switch_get_description(device_id, 0)
+            .await
+            .unwrap_err();
         assert!(err.contains("Device not found"));
 
         let err = manager.switch_get_value(device_id, 0).await.unwrap_err();
         assert!(err.contains("Device not found"));
 
-        let err = manager.switch_set_value(device_id, 0, 1.0).await.unwrap_err();
+        let err = manager
+            .switch_set_value(device_id, 0, 1.0)
+            .await
+            .unwrap_err();
         assert!(err.contains("Device not found"));
 
-        let err = manager.switch_get_min_value(device_id, 0).await.unwrap_err();
+        let err = manager
+            .switch_get_min_value(device_id, 0)
+            .await
+            .unwrap_err();
         assert!(err.contains("Device not found"));
 
-        let err = manager.switch_get_max_value(device_id, 0).await.unwrap_err();
+        let err = manager
+            .switch_get_max_value(device_id, 0)
+            .await
+            .unwrap_err();
         assert!(err.contains("Device not found"));
 
         let err = manager.switch_can_write(device_id, 0).await.unwrap_err();

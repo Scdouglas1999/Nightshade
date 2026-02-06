@@ -854,6 +854,11 @@ typedef struct wire_cst_list_prim_f_32_strict {
   int32_t len;
 } wire_cst_list_prim_f_32_strict;
 
+typedef struct wire_cst_list_prim_f_64_strict {
+  double *ptr;
+  int32_t len;
+} wire_cst_list_prim_f_64_strict;
+
 typedef struct wire_cst_list_prim_u_16_strict {
   uint16_t *ptr;
   int32_t len;
@@ -1104,6 +1109,20 @@ typedef struct wire_cst_filter_wheel_status {
   int32_t filter_count;
   struct wire_cst_list_String *filter_names;
 } wire_cst_filter_wheel_status;
+
+typedef struct wire_cst_fits_linear_read_result {
+  uint32_t width;
+  uint32_t height;
+  int32_t bitpix;
+  struct wire_cst_list_prim_f_64_strict *linear_data;
+  struct wire_cst_list_prim_u_8_strict *object_name;
+  double *exposure_time;
+  struct wire_cst_list_prim_u_8_strict *filter;
+  double *ra;
+  double *dec;
+  struct wire_cst_list_prim_u_8_strict *date_obs;
+  struct wire_cst_list_prim_u_8_strict *bayer_pattern;
+} wire_cst_fits_linear_read_result;
 
 typedef struct wire_cst_fits_read_result {
   uint32_t width;
@@ -2108,6 +2127,9 @@ void frbgen_nightshade_bridge_wire__crate__api__api_plate_solve_near(int64_t por
 void frbgen_nightshade_bridge_wire__crate__api__api_read_fits_file(int64_t port_,
                                                                    struct wire_cst_list_prim_u_8_strict *file_path);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_read_fits_linear_data(int64_t port_,
+                                                                          struct wire_cst_list_prim_u_8_strict *file_path);
+
 void frbgen_nightshade_bridge_wire__crate__api__api_read_log_file(int64_t port_,
                                                                   struct wire_cst_list_prim_u_8_strict *path);
 
@@ -2596,6 +2618,8 @@ struct wire_cst_list_phd_2_algo_param *frbgen_nightshade_bridge_cst_new_list_phd
 
 struct wire_cst_list_prim_f_32_strict *frbgen_nightshade_bridge_cst_new_list_prim_f_32_strict(int32_t len);
 
+struct wire_cst_list_prim_f_64_strict *frbgen_nightshade_bridge_cst_new_list_prim_f_64_strict(int32_t len);
+
 struct wire_cst_list_prim_i_32_strict *frbgen_nightshade_bridge_cst_new_list_prim_i_32_strict(int32_t len);
 
 struct wire_cst_list_prim_u_16_loose *frbgen_nightshade_bridge_cst_new_list_prim_u_16_loose(int32_t len);
@@ -2668,6 +2692,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_node_definition_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_phd_2_algo_param);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_f_32_strict);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_f_64_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_i_32_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_16_loose);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_16_strict);
@@ -2844,6 +2869,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_plate_solve_blind);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_plate_solve_near);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_read_fits_file);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_read_fits_linear_data);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_read_log_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_read_xisf_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_rotator_halt);

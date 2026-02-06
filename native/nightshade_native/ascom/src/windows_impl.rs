@@ -25,7 +25,7 @@ use windows::{
                 RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW,
                 HKEY, HKEY_LOCAL_MACHINE, KEY_READ, REG_SZ, REG_VALUE_TYPE,
             },
-            Variant::{VT_ARRAY, VT_BOOL, VT_BSTR, VT_I2, VT_I4, VT_R8, VT_UI2, VT_VARIANT, VARIANT},
+            Variant::{VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_I2, VT_I4, VT_R8, VT_UI2, VT_VARIANT, VARIANT},
         },
     },
 };
@@ -808,8 +808,18 @@ unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String>
     if (vt.0 & VT_ARRAY.0) == 0 {
         return Err(format!("VARIANT is not an array type, got vt={}", vt.0));
     }
-    
-    let psa: *mut SAFEARRAY = (*var.Anonymous.Anonymous).Anonymous.parray;
+
+    let is_byref = (vt.0 & VT_BYREF.0) != 0;
+    let psa: *mut SAFEARRAY = if is_byref {
+        // VT_BYREF | VT_ARRAY uses a SAFEARRAY**
+        let ppsa = (*var.Anonymous.Anonymous).Anonymous.parray as *mut *mut SAFEARRAY;
+        if ppsa.is_null() {
+            return Err("SAFEARRAY BYREF pointer is null".to_string());
+        }
+        *ppsa
+    } else {
+        (*var.Anonymous.Anonymous).Anonymous.parray
+    };
     if psa.is_null() {
         return Err("SAFEARRAY pointer is null".to_string());
     }
@@ -818,6 +828,9 @@ unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String>
     let dims = SafeArrayGetDim(psa);
     if dims == 0 {
         return Err("SAFEARRAY has 0 dimensions".to_string());
+    }
+    if dims > 2 {
+        return Err(format!("SAFEARRAY has {} dimensions, expected 1 or 2", dims));
     }
     
     // Get bounds
@@ -829,10 +842,27 @@ unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String>
     if SafeArrayGetUBound(psa, 1, &mut upper).is_err() {
         return Err("Failed to get upper bound".to_string());
     }
+
+    let (lower2, upper2) = if dims == 2 {
+        let mut l2: i32 = 0;
+        let mut u2: i32 = 0;
+        if SafeArrayGetLBound(psa, 2, &mut l2).is_err() {
+            return Err("Failed to get lower bound for dimension 2".to_string());
+        }
+        if SafeArrayGetUBound(psa, 2, &mut u2).is_err() {
+            return Err("Failed to get upper bound for dimension 2".to_string());
+        }
+        (l2, u2)
+    } else {
+        (0, -1)
+    };
     
     // Validate bounds to prevent integer overflow and stack overflow
     if upper < lower {
         return Err(format!("Invalid bounds: upper ({}) < lower ({})", upper, lower));
+    }
+    if dims == 2 && upper2 < lower2 {
+        return Err(format!("Invalid bounds: upper2 ({}) < lower2 ({})", upper2, lower2));
     }
     
     // Check for potential integer overflow
@@ -844,7 +874,14 @@ unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String>
     // Validate total size to prevent stack overflow and excessive memory allocation
     // Limit to ~100MB for safety (assuming BSTR/VARIANT elements)
     const MAX_ELEMENTS: usize = 1_000_000; // Conservative limit for string arrays
-    let size = (diff + 1) as usize;
+    let size = if dims == 2 {
+        let diff2 = upper2.saturating_sub(lower2);
+        let dim1 = (diff + 1) as usize;
+        let dim2 = (diff2 + 1) as usize;
+        dim1.checked_mul(dim2).ok_or_else(|| "Array size overflow".to_string())?
+    } else {
+        (diff + 1) as usize
+    };
     
     if size > MAX_ELEMENTS {
         return Err(format!("Array size too large: {} elements (max: {})", size, MAX_ELEMENTS));
@@ -856,7 +893,7 @@ unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<String>, String>
         return Err("Failed to access SAFEARRAY data".to_string());
     }
     
-    let base_vt = vt.0 & !VT_ARRAY.0;
+    let base_vt = vt.0 & !(VT_ARRAY.0 | VT_BYREF.0);
     let result = if base_vt == VT_BSTR.0 {
         // Array of BSTRs
         let slice = std::slice::from_raw_parts(data_ptr as *const windows::core::BSTR, size);
@@ -1027,7 +1064,8 @@ impl AscomDeviceConnection {
                 None,
             ).map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
-            variant_to_string_array(&result).ok_or_else(|| format!("Property {} is not a string array", name))
+            extract_safearray_string(&result)
+                .map_err(|e| format!("Property {} is not a string array: {}", name, e))
         }
     }
 

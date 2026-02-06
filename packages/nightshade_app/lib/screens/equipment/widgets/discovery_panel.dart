@@ -214,7 +214,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                         ),
                         const SizedBox(width: 4),
                         AnimatedRotation(
-                          turns: _isExpanded ? 0.5 : 0,
+                          turns: _isExpanded ? 0 : 0.5,
                           duration: const Duration(milliseconds: 200),
                           child: Icon(
                             LucideIcons.chevronDown,
@@ -513,8 +513,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
 class _DeviceRowItem extends ConsumerStatefulWidget {
   final UnifiedDevice device;
   final DeviceType deviceType;
-  final VoidCallback onConnect;
-  final VoidCallback onDisconnect;
+  final Future<void> Function() onConnect;
+  final Future<void> Function() onDisconnect;
   final ValueChanged<(DeviceInfo, int)>? onAssignDevice;
 
   const _DeviceRowItem({
@@ -581,7 +581,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
 
     setState(() => _isConnecting = true);
     try {
-      widget.onConnect();
+      await widget.onConnect();
     } finally {
       if (mounted) {
         setState(() => _isConnecting = false);

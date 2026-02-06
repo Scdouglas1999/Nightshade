@@ -34,10 +34,10 @@
 //! }
 //! ```
 
+use crate::error::NightshadeError;
 use std::future::Future;
 use std::time::Duration;
 use tokio::time::timeout;
-use crate::error::NightshadeError;
 
 // =========================================================================
 // Standard Timeouts
@@ -371,14 +371,22 @@ where
                 if attempt >= config.max_attempts {
                     tracing::warn!(
                         "Operation {} on {} failed after {} attempts: {:?}",
-                        operation_name, device_id, attempt, e
+                        operation_name,
+                        device_id,
+                        attempt,
+                        e
                     );
                     return Err(e);
                 }
 
                 tracing::debug!(
                     "Attempt {} of {} for {} on {} failed: {:?}. Retrying in {:?}",
-                    attempt, config.max_attempts, operation_name, device_id, e, delay
+                    attempt,
+                    config.max_attempts,
+                    operation_name,
+                    device_id,
+                    e,
+                    delay
                 );
             }
             Err(_elapsed) => {
@@ -392,7 +400,11 @@ where
 
                 tracing::debug!(
                     "Attempt {} of {} for {} on {} timed out. Retrying in {:?}",
-                    attempt, config.max_attempts, operation_name, device_id, delay
+                    attempt,
+                    config.max_attempts,
+                    operation_name,
+                    device_id,
+                    delay
                 );
             }
         }
@@ -402,7 +414,7 @@ where
 
         // Increase delay for next attempt (with backoff)
         delay = Duration::from_secs_f64(
-            (delay.as_secs_f64() * config.backoff_multiplier).min(config.max_delay.as_secs_f64())
+            (delay.as_secs_f64() * config.backoff_multiplier).min(config.max_delay.as_secs_f64()),
         );
     }
 }
@@ -439,7 +451,8 @@ impl Deadline {
 
     /// Get the remaining time until deadline
     pub fn remaining(&self) -> Duration {
-        self.expires_at.saturating_duration_since(std::time::Instant::now())
+        self.expires_at
+            .saturating_duration_since(std::time::Instant::now())
     }
 
     /// Execute a future with this deadline
@@ -449,7 +462,9 @@ impl Deadline {
     {
         let remaining = self.remaining();
         if remaining.is_zero() {
-            return Err(NightshadeError::Timeout("Deadline already expired".to_string()));
+            return Err(NightshadeError::Timeout(
+                "Deadline already expired".to_string(),
+            ));
         }
 
         timeout(remaining, future)
@@ -473,7 +488,8 @@ mod tests {
             Duration::from_secs(1),
             "test_device",
             "test_op",
-        ).await;
+        )
+        .await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 42);
@@ -489,11 +505,16 @@ mod tests {
             Duration::from_millis(100),
             "test_device",
             "test_op",
-        ).await;
+        )
+        .await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
-            NightshadeError::DeviceTimeout { device_id, operation, .. } => {
+            NightshadeError::DeviceTimeout {
+                device_id,
+                operation,
+                ..
+            } => {
                 assert_eq!(device_id, "test_device");
                 assert_eq!(operation, "test_op");
             }

@@ -32,7 +32,8 @@ class EquipmentProfiles extends Table {
   IntColumn get defaultBinX => integer().withDefault(const Constant(1))();
   IntColumn get defaultBinY => integer().withDefault(const Constant(1))();
   RealColumn get defaultCoolingTemp => real().nullable()();
-  
+  BoolColumn get coolOnConnect => boolean().withDefault(const Constant(false))();
+
   // Filter configuration (JSON array of filter names)
   TextColumn get filterNames => text().nullable()();
   // Filter focus offsets (JSON object mapping filter name to offset)

@@ -1,10 +1,10 @@
-use nightshade_ascom::{AscomSwitch, init_com, uninit_com};
+use crate::timeout_ops::Timeouts;
+use nightshade_ascom::{init_com, uninit_com, AscomSwitch};
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
-use std::fmt::Debug;
-use crate::timeout_ops::Timeouts;
 
 #[derive(Debug)]
 enum AscomSwitchCommand {
@@ -131,7 +131,8 @@ impl AscomSwitchWrapper {
         });
 
         // Wait for initialization
-        let (name, max_switch) = init_rx.recv()
+        let (name, max_switch) = init_rx
+            .recv()
             .map_err(|e| format!("Failed to receive init result: {}", e))??;
 
         Ok(Self {
@@ -152,90 +153,117 @@ impl AscomSwitchWrapper {
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result,
             Ok(Err(_recv_err)) => Err(format!("Worker thread dead during {}", operation)),
-            Err(_elapsed) => Err(format!("Switch {} timed out after {:?}", operation, timeout)),
+            Err(_elapsed) => Err(format!(
+                "Switch {} timed out after {:?}",
+                operation, timeout
+            )),
         }
     }
 
     pub async fn connect(&mut self) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::Connect(tx)).await
+        self.sender
+            .send(AscomSwitchCommand::Connect(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await
     }
 
     pub async fn disconnect(&mut self) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::Disconnect(tx)).await
+        self.sender
+            .send(AscomSwitchCommand::Disconnect(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await
     }
 
     pub async fn get_max_switch(&self) -> Result<i32, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::GetMaxSwitch(tx)).await
+        self.sender
+            .send(AscomSwitchCommand::GetMaxSwitch(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_max_switch").await
     }
 
     pub async fn get_switch(&self, id: i32) -> Result<bool, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::GetSwitch(id, tx)).await
+        self.sender
+            .send(AscomSwitchCommand::GetSwitch(id, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_switch").await
     }
 
     pub async fn set_switch(&mut self, id: i32, state: bool) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::SetSwitch(id, state, tx)).await
+        self.sender
+            .send(AscomSwitchCommand::SetSwitch(id, state, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "set_switch").await
     }
 
     pub async fn get_switch_name(&self, id: i32) -> Result<String, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::GetSwitchName(id, tx)).await
+        self.sender
+            .send(AscomSwitchCommand::GetSwitchName(id, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_switch_name").await
     }
 
     pub async fn get_switch_description(&self, id: i32) -> Result<String, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::GetSwitchDescription(id, tx)).await
+        self.sender
+            .send(AscomSwitchCommand::GetSwitchDescription(id, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_switch_description").await
     }
 
     pub async fn get_switch_value(&self, id: i32) -> Result<f64, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::GetSwitchValue(id, tx)).await
+        self.sender
+            .send(AscomSwitchCommand::GetSwitchValue(id, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_switch_value").await
     }
 
     pub async fn set_switch_value(&mut self, id: i32, value: f64) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::SetSwitchValue(id, value, tx)).await
+        self.sender
+            .send(AscomSwitchCommand::SetSwitchValue(id, value, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "set_switch_value").await
     }
 
     pub async fn get_min_switch_value(&self, id: i32) -> Result<f64, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::GetMinSwitchValue(id, tx)).await
+        self.sender
+            .send(AscomSwitchCommand::GetMinSwitchValue(id, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_min_switch_value").await
     }
 
     pub async fn get_max_switch_value(&self, id: i32) -> Result<f64, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::GetMaxSwitchValue(id, tx)).await
+        self.sender
+            .send(AscomSwitchCommand::GetMaxSwitchValue(id, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_max_switch_value").await
     }
 
     pub async fn can_write(&self, id: i32) -> Result<bool, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomSwitchCommand::CanWrite(id, tx)).await
+        self.sender
+            .send(AscomSwitchCommand::CanWrite(id, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "can_write").await
     }

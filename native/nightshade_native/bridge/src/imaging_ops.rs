@@ -2,25 +2,24 @@
 //!
 //! High-level API for camera control and imaging operations.
 //! Exposed to Flutter via flutter_rust_bridge.
-//! 
+//!
 //! Implements pipeline parallelism:
 //! Capture -> Download -> [Queue] -> Processing (Stats/Save)
 
-use crate::{SharedAppState, RealDeviceOps};
-use nightshade_sequencer::DeviceOps;
 use crate::device::ExposureParams;
-use crate::event::{EventPayload, EventSeverity, create_event_auto_id, EventCategory};
-use nightshade_imaging::{
-    ImageData, write_fits, write_xisf, write_tiff, write_png, write_jpeg,
-    FitsHeader, XisfMetadata,
-    NamingPattern, NamingContext, calculate_stats_u16, detect_stars, StarDetectionConfig,
-    FrameType as NamingFrameType, ImageStats, auto_stretch_stf, apply_stretch,
-    BayerPattern, DebayerAlgorithm, debayer
-};
 use crate::device::ImageFileFormat;
-use std::sync::Arc;
+use crate::event::{create_event_auto_id, EventCategory, EventPayload, EventSeverity};
+use crate::{RealDeviceOps, SharedAppState};
+use nightshade_imaging::{
+    apply_stretch, auto_stretch_stf, calculate_stats_u16, debayer, detect_stars, write_fits,
+    write_jpeg, write_png, write_tiff, write_xisf, BayerPattern, DebayerAlgorithm, FitsHeader,
+    FrameType as NamingFrameType, ImageData, ImageStats, NamingContext, NamingPattern,
+    StarDetectionConfig, XisfMetadata,
+};
+use nightshade_sequencer::DeviceOps;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::sync::{RwLock, mpsc};
+use std::sync::Arc;
+use tokio::sync::{mpsc, RwLock};
 
 /// Job to be processed by the background worker
 struct ProcessingJob {
@@ -47,7 +46,7 @@ impl ImagingSession {
     pub fn new(app_state: SharedAppState, device_ops: Arc<RealDeviceOps>) -> Self {
         // Create the processing channel (bounded to avoid OOM)
         let (tx, mut rx) = mpsc::channel::<ProcessingJob>(5); // Buffer 5 frames
-        
+
         let session = Self {
             app_state: app_state.clone(),
             device_ops,
@@ -61,42 +60,45 @@ impl ImagingSession {
         let app_state_clone = app_state.clone();
         let _handle = tokio::spawn(async move {
             tracing::info!("Imaging processing worker started");
-            
+
             while let Some(job) = rx.recv().await {
                 tracing::info!("Processing frame {}", job.frame_number);
-                
+
                 // 1. Calculate stats (CPU intensive)
                 let _stats = calculate_stats_u16(&job.image);
                 let hfr = Self::calculate_hfr_avg(&job.image);
                 let star_count = detect_stars(&job.image, &StarDetectionConfig::default()).len();
-                
+
                 // 2. Save to file (I/O intensive)
                 if let Some(ref path) = job.file_path {
-                    if let Err(e) = Self::save_image_static(&job.image, path, &job.params, &job.seq_image_data).await {
+                    if let Err(e) =
+                        Self::save_image_static(&job.image, path, &job.params, &job.seq_image_data)
+                            .await
+                    {
                         tracing::error!("Failed to save frame {}: {}", job.frame_number, e);
                         Self::publish_exposure_failed_static(&app_state_clone, &e);
                         continue;
                     }
                 }
-                
+
                 // 3. Publish completion event
                 Self::publish_exposure_completed_static(
                     &app_state_clone,
                     job.frame_number,
                     None, // Total frames unknown in loop
                     hfr,
-                    star_count as u32
+                    star_count as u32,
                 );
-                
+
                 tracing::info!("Frame {} processed successfully", job.frame_number);
             }
-            
+
             tracing::info!("Imaging processing worker stopped");
         });
-        
+
         session
     }
-    
+
     /// Start a single exposure
     pub async fn start_single_exposure(
         &self,
@@ -106,29 +108,34 @@ impl ImagingSession {
         if self.is_running.load(Ordering::SeqCst) {
             return Err("Imaging session already running".to_string());
         }
-        
+
         self.is_running.store(true, Ordering::SeqCst);
-        
+
         tracing::info!(
             "Starting single exposure: {}s, gain={:?}, offset={:?}",
-            params.duration_secs, params.gain, params.offset
-        );
-        
-        // Publish exposure started event
-        self.publish_exposure_started(&params);
-        
-        // Take exposure
-        let image_result = self.device_ops.camera_start_exposure(
-            &camera_id,
             params.duration_secs,
             params.gain,
-            params.offset,
-            params.bin_x,
-            params.bin_y,
-        ).await;
-        
+            params.offset
+        );
+
+        // Publish exposure started event
+        self.publish_exposure_started(&params);
+
+        // Take exposure
+        let image_result = self
+            .device_ops
+            .camera_start_exposure(
+                &camera_id,
+                params.duration_secs,
+                params.gain,
+                params.offset,
+                params.bin_x,
+                params.bin_y,
+            )
+            .await;
+
         self.is_running.store(false, Ordering::SeqCst);
-        
+
         match image_result {
             Ok(seq_image_data) => {
                 // Convert to imaging crate ImageData
@@ -138,19 +145,20 @@ impl ImagingSession {
                     1,
                     &seq_image_data.data,
                 );
-                
+
                 // For single exposure, we process inline to return the result immediately
                 // This preserves the existing behavior for single shots
-                
+
                 let _stats = calculate_stats_u16(&image);
                 let hfr = Self::calculate_hfr_avg(&image);
                 let star_count = detect_stars(&image, &StarDetectionConfig::default()).len();
-                
+
                 tracing::info!(
                     "Exposure completed: {} stars detected, HFR={:.2}",
-                    star_count, hfr
+                    star_count,
+                    hfr
                 );
-                
+
                 // Save to file if save path provided
                 let file_path = if let Some(ref base_path) = params.save_path {
                     let path = self.generate_filename(base_path, &params, 1);
@@ -159,10 +167,10 @@ impl ImagingSession {
                 } else {
                     None
                 };
-                
+
                 // Publish completion event
                 self.publish_exposure_completed(file_path.as_deref(), hfr, star_count as u32);
-                
+
                 Ok(file_path.unwrap_or_else(|| "In-memory image".to_string()))
             }
             Err(e) => {
@@ -171,7 +179,7 @@ impl ImagingSession {
             }
         }
     }
-    
+
     /// Start looping exposures (Pipelined)
     pub async fn start_looping_exposure(
         &self,
@@ -181,31 +189,35 @@ impl ImagingSession {
         if self.is_running.load(Ordering::SeqCst) {
             return Err("Imaging session already running".to_string());
         }
-        
+
         self.is_running.store(true, Ordering::SeqCst);
         self.should_stop.store(false, Ordering::SeqCst);
-        
+
         tracing::info!(
             "Starting looping exposure (pipelined): {}s, gain={:?}",
-            params.duration_secs, params.gain
+            params.duration_secs,
+            params.gain
         );
-        
+
         let mut frame_number = 1u32;
-        
+
         while !self.should_stop.load(Ordering::SeqCst) {
             // Publish exposure started event with frame number
             self.publish_exposure_started_with_frame(&params, frame_number, None);
-            
+
             // Take exposure (Blocks until download completes)
-            let image_result = self.device_ops.camera_start_exposure(
-                &camera_id,
-                params.duration_secs,
-                params.gain,
-                params.offset,
-                params.bin_x,
-                params.bin_y,
-            ).await;
-            
+            let image_result = self
+                .device_ops
+                .camera_start_exposure(
+                    &camera_id,
+                    params.duration_secs,
+                    params.gain,
+                    params.offset,
+                    params.bin_x,
+                    params.bin_y,
+                )
+                .await;
+
             match image_result {
                 Ok(seq_image_data) => {
                     // Convert to imaging crate ImageData (fast, just a copy/move)
@@ -215,14 +227,14 @@ impl ImagingSession {
                         1,
                         &seq_image_data.data,
                     );
-                    
+
                     // Generate filename if needed
                     let file_path = if let Some(ref base_path) = params.save_path {
                         Some(self.generate_filename(base_path, &params, frame_number))
                     } else {
                         None
                     };
-                    
+
                     // Create job
                     let job = ProcessingJob {
                         image,
@@ -231,16 +243,20 @@ impl ImagingSession {
                         frame_number,
                         file_path,
                     };
-                    
+
                     // Send to processing queue
                     // If queue is full, this will wait (backpressure)
                     if let Err(e) = self.processing_tx.send(job).await {
-                        tracing::error!("Failed to send frame {} to processing queue: {}", frame_number, e);
+                        tracing::error!(
+                            "Failed to send frame {} to processing queue: {}",
+                            frame_number,
+                            e
+                        );
                         break;
                     }
-                    
+
                     tracing::info!("Frame {} sent to processing queue", frame_number);
-                    
+
                     frame_number += 1;
                 }
                 Err(e) => {
@@ -250,19 +266,19 @@ impl ImagingSession {
                 }
             }
         }
-        
+
         self.is_running.store(false, Ordering::SeqCst);
         tracing::info!("Looping exposure stopped after {} frames", frame_number - 1);
-        
+
         Ok(())
     }
-    
+
     /// Stop looping exposure
     pub fn stop_looping(&self) {
         self.should_stop.store(true, Ordering::SeqCst);
         tracing::info!("Stop requested for looping exposure");
     }
-    
+
     /// Abort current exposure
     pub async fn abort_exposure(&self, camera_id: String) -> Result<(), String> {
         self.device_ops.camera_abort_exposure(&camera_id).await?;
@@ -270,18 +286,16 @@ impl ImagingSession {
         tracing::info!("Exposure aborted");
         Ok(())
     }
-    
+
     /// Check if imaging is currently running
     pub fn is_running(&self) -> bool {
         self.is_running.load(Ordering::SeqCst)
     }
-    
+
     // =========================================================================
     // HELPER METHODS
     // =========================================================================
-    
 
-    
     /// Save image to file (supports multiple formats)
     async fn save_image_static(
         image: &ImageData,
@@ -289,7 +303,11 @@ impl ImagingSession {
         params: &ExposureParams,
         seq_data: &nightshade_sequencer::ImageData,
     ) -> Result<(), String> {
-        tracing::info!("Saving image to: {} (format: {:?})", file_path, params.file_format);
+        tracing::info!(
+            "Saving image to: {} (format: {:?})",
+            file_path,
+            params.file_format
+        );
 
         // Create directory if it doesn't exist
         if let Some(parent) = std::path::Path::new(file_path).parent() {
@@ -336,50 +354,70 @@ impl ImagingSession {
                 let mut metadata = XisfMetadata::default();
 
                 // Add FITS keywords for interoperability
-                metadata.fits_keywords.insert("EXPTIME".to_string(), params.duration_secs.to_string());
+                metadata
+                    .fits_keywords
+                    .insert("EXPTIME".to_string(), params.duration_secs.to_string());
                 if let Some(gain) = params.gain {
-                    metadata.fits_keywords.insert("GAIN".to_string(), gain.to_string());
+                    metadata
+                        .fits_keywords
+                        .insert("GAIN".to_string(), gain.to_string());
                 }
                 if let Some(offset) = params.offset {
-                    metadata.fits_keywords.insert("OFFSET".to_string(), offset.to_string());
+                    metadata
+                        .fits_keywords
+                        .insert("OFFSET".to_string(), offset.to_string());
                 }
                 if params.bin_x > 1 || params.bin_y > 1 {
-                    metadata.fits_keywords.insert("XBINNING".to_string(), params.bin_x.to_string());
-                    metadata.fits_keywords.insert("YBINNING".to_string(), params.bin_y.to_string());
+                    metadata
+                        .fits_keywords
+                        .insert("XBINNING".to_string(), params.bin_x.to_string());
+                    metadata
+                        .fits_keywords
+                        .insert("YBINNING".to_string(), params.bin_y.to_string());
                 }
                 if let Some(ref target) = params.target_name {
-                    metadata.fits_keywords.insert("OBJECT".to_string(), target.clone());
+                    metadata
+                        .fits_keywords
+                        .insert("OBJECT".to_string(), target.clone());
                 }
                 if let Some(ref filter) = params.filter {
-                    metadata.fits_keywords.insert("FILTER".to_string(), filter.clone());
+                    metadata
+                        .fits_keywords
+                        .insert("FILTER".to_string(), filter.clone());
                 }
                 if let Some(temp) = seq_data.temperature {
-                    metadata.fits_keywords.insert("CCD-TEMP".to_string(), temp.to_string());
+                    metadata
+                        .fits_keywords
+                        .insert("CCD-TEMP".to_string(), temp.to_string());
                 }
-                metadata.fits_keywords.insert("IMAGETYP".to_string(), format!("{:?}", params.frame_type));
-                metadata.fits_keywords.insert("DATE-OBS".to_string(), chrono::Utc::now().to_rfc3339());
+                metadata
+                    .fits_keywords
+                    .insert("IMAGETYP".to_string(), format!("{:?}", params.frame_type));
+                metadata
+                    .fits_keywords
+                    .insert("DATE-OBS".to_string(), chrono::Utc::now().to_rfc3339());
 
                 // Add XISF-specific properties
                 use nightshade_imaging::XisfProperty;
                 metadata.properties.insert(
                     "Instrument:ExposureTime".to_string(),
-                    XisfProperty::Float64(params.duration_secs)
+                    XisfProperty::Float64(params.duration_secs),
                 );
                 if let Some(gain) = params.gain {
                     metadata.properties.insert(
                         "Instrument:Camera:Gain".to_string(),
-                        XisfProperty::Int32(gain)
+                        XisfProperty::Int32(gain),
                     );
                 }
                 if let Some(temp) = seq_data.temperature {
                     metadata.properties.insert(
                         "Instrument:Sensor:Temperature".to_string(),
-                        XisfProperty::Float64(temp)
+                        XisfProperty::Float64(temp),
                     );
                 }
                 metadata.properties.insert(
                     "Observation:Time:Start".to_string(),
-                    XisfProperty::TimePoint(chrono::Utc::now().to_rfc3339())
+                    XisfProperty::TimePoint(chrono::Utc::now().to_rfc3339()),
                 );
 
                 write_xisf(path, image, &metadata)
@@ -387,13 +425,11 @@ impl ImagingSession {
             }
             ImageFileFormat::Tiff => {
                 // TIFF preserves 16-bit data but has limited metadata support
-                write_tiff(path, image)
-                    .map_err(|e| format!("Failed to write TIFF: {}", e))?;
+                write_tiff(path, image).map_err(|e| format!("Failed to write TIFF: {}", e))?;
             }
             ImageFileFormat::Png => {
                 // PNG preserves 16-bit data, lossless compression
-                write_png(path, image)
-                    .map_err(|e| format!("Failed to write PNG: {}", e))?;
+                write_png(path, image).map_err(|e| format!("Failed to write PNG: {}", e))?;
             }
             ImageFileFormat::Jpeg => {
                 // JPEG is lossy and 8-bit only - use for previews
@@ -405,11 +441,11 @@ impl ImagingSession {
         tracing::info!("Image saved successfully as {:?}", params.file_format);
         Ok(())
     }
-    
+
     // =========================================================================
     // EVENT PUBLISHING
     // =========================================================================
-    
+
     fn publish_exposure_started(&self, params: &ExposureParams) {
         let event = create_event_auto_id(
             EventSeverity::Info,
@@ -421,8 +457,13 @@ impl ImagingSession {
         );
         self.app_state.event_bus.publish(event);
     }
-    
-    fn publish_exposure_started_with_frame(&self, params: &ExposureParams, frame: u32, total: Option<u32>) {
+
+    fn publish_exposure_started_with_frame(
+        &self,
+        params: &ExposureParams,
+        frame: u32,
+        total: Option<u32>,
+    ) {
         let event = create_event_auto_id(
             EventSeverity::Info,
             EventCategory::Imaging,
@@ -435,14 +476,20 @@ impl ImagingSession {
         );
         self.app_state.event_bus.publish(event);
     }
-    
+
     fn publish_exposure_completed(&self, file_path: Option<&str>, hfr: f64, stars: u32) {
         Self::publish_exposure_completed_static(&self.app_state, 0, file_path, hfr, stars);
     }
-    
-    fn publish_exposure_completed_static(app_state: &SharedAppState, frame: u32, file_path: Option<&str>, hfr: f64, stars: u32) {
+
+    fn publish_exposure_completed_static(
+        app_state: &SharedAppState,
+        frame: u32,
+        file_path: Option<&str>,
+        hfr: f64,
+        stars: u32,
+    ) {
         let event = if frame > 0 {
-             create_event_auto_id(
+            create_event_auto_id(
                 EventSeverity::Info,
                 EventCategory::Imaging,
                 EventPayload::Imaging(crate::event::ImagingEvent::ExposureCompletedWithFrame {
@@ -465,11 +512,11 @@ impl ImagingSession {
         };
         app_state.event_bus.publish(event);
     }
-    
+
     fn publish_exposure_failed(&self, error: &str) {
         Self::publish_exposure_failed_static(&self.app_state, error);
     }
-    
+
     fn publish_exposure_failed_static(app_state: &SharedAppState, error: &str) {
         let event = create_event_auto_id(
             EventSeverity::Error,
@@ -481,12 +528,20 @@ impl ImagingSession {
         app_state.event_bus.publish(event);
     }
 
-    fn generate_filename(&self, base_path: &str, params: &ExposureParams, frame_num: u32) -> String {
-        let pattern_str = params.naming_pattern.as_deref().unwrap_or("$TARGET/$FRAMETYPE/$TARGET_$FILTER_$EXPTIME_$FRAMENUM");
+    fn generate_filename(
+        &self,
+        base_path: &str,
+        params: &ExposureParams,
+        frame_num: u32,
+    ) -> String {
+        let pattern_str = params
+            .naming_pattern
+            .as_deref()
+            .unwrap_or("$TARGET/$FRAMETYPE/$TARGET_$FILTER_$EXPTIME_$FRAMENUM");
         let pattern = NamingPattern::new(pattern_str)
             .with_base_dir(base_path)
             .with_extension(params.file_format.extension());
-            
+
         let naming_frame_type = match params.frame_type {
             crate::device::FrameType::Light => NamingFrameType::Light,
             crate::device::FrameType::Dark => NamingFrameType::Dark,
@@ -494,13 +549,13 @@ impl ImagingSession {
             crate::device::FrameType::Bias => NamingFrameType::Bias,
             crate::device::FrameType::DarkFlat => NamingFrameType::DarkFlat,
         };
-        
+
         let mut context = NamingContext::new()
             .with_frame_type(naming_frame_type)
             .with_frame_number(frame_num)
             .with_exposure(params.duration_secs)
             .with_binning(params.bin_x as u32, params.bin_y as u32);
-            
+
         if let Some(ref target) = params.target_name {
             context = context.with_target(target);
         }
@@ -513,7 +568,7 @@ impl ImagingSession {
         if let Some(offset) = params.offset {
             context = context.with_offset(offset);
         }
-        
+
         pattern.generate(&context).to_string_lossy().to_string()
     }
 
@@ -566,15 +621,18 @@ pub async fn imaging_start_looping(
     params: ExposureParams,
 ) -> Result<(), String> {
     let session = get_imaging_session().await?;
-    
+
     // Spawn background task for looping
     let session_clone = session.clone();
     tokio::spawn(async move {
-        if let Err(e) = session_clone.start_looping_exposure(camera_id, params).await {
+        if let Err(e) = session_clone
+            .start_looping_exposure(camera_id, params)
+            .await
+        {
             tracing::error!("Looping exposure failed: {}", e);
         }
     });
-    
+
     Ok(())
 }
 
@@ -624,10 +682,8 @@ pub fn debayer_image(
     algorithm: DebayerAlgorithm,
 ) -> Vec<u8> {
     // Convert u16 vec to u8 slice (little endian)
-    let bytes: Vec<u8> = data.iter()
-        .flat_map(|&v| v.to_le_bytes())
-        .collect();
-        
+    let bytes: Vec<u8> = data.iter().flat_map(|&v| v.to_le_bytes()).collect();
+
     let rgb = debayer(&bytes, width, height, pattern, algorithm);
     rgb.to_rgba8()
 }
@@ -677,12 +733,11 @@ pub struct ImageInfo {
 
 /// Get all images from a directory (scans for FITS files)
 pub async fn get_session_images(session_id: i64) -> Result<Vec<ImageInfo>, String> {
-    use std::path::Path;
-    use std::fs;
     use nightshade_imaging::read_fits;
+    use std::fs;
+    use std::path::Path;
 
-    let image_dir = get_image_directory()
-        .ok_or_else(|| "Image directory not set".to_string())?;
+    let image_dir = get_image_directory().ok_or_else(|| "Image directory not set".to_string())?;
 
     let dir_path = Path::new(&image_dir);
     if !dir_path.exists() {
@@ -693,7 +748,12 @@ pub async fn get_session_images(session_id: i64) -> Result<Vec<ImageInfo>, Strin
     let mut id_counter = 0i64;
 
     // Recursively find all FITS files
-    fn scan_directory(dir: &Path, images: &mut Vec<ImageInfo>, id_counter: &mut i64, session_id: i64) {
+    fn scan_directory(
+        dir: &Path,
+        images: &mut Vec<ImageInfo>,
+        id_counter: &mut i64,
+        session_id: i64,
+    ) {
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -703,7 +763,8 @@ pub async fn get_session_images(session_id: i64) -> Result<Vec<ImageInfo>, Strin
                     let ext_lower = ext.to_string_lossy().to_lowercase();
                     if ext_lower == "fits" || ext_lower == "fit" {
                         if let Ok(metadata) = fs::metadata(&path) {
-                            let file_name = path.file_name()
+                            let file_name = path
+                                .file_name()
                                 .map(|n| n.to_string_lossy().to_string())
                                 .unwrap_or_default();
 
@@ -714,11 +775,20 @@ pub async fn get_session_images(session_id: i64) -> Result<Vec<ImageInfo>, Strin
                                         header.get_float("EXPTIME").unwrap_or(0.0),
                                         header.get_int("GAIN").map(|v| v as i32),
                                         header.get_int("OFFSET").map(|v| v as i32),
-                                        header.get_string("IMAGETYP").unwrap_or("Light").to_string(),
+                                        header
+                                            .get_string("IMAGETYP")
+                                            .unwrap_or("Light")
+                                            .to_string(),
                                         header.get_string("FILTER").map(|s| s.to_string()),
                                     )
                                 } else {
-                                    (0.0f64, None::<i32>, None::<i32>, "Light".to_string(), None::<String>)
+                                    (
+                                        0.0f64,
+                                        None::<i32>,
+                                        None::<i32>,
+                                        "Light".to_string(),
+                                        None::<String>,
+                                    )
                                 };
 
                             *id_counter += 1;
@@ -738,8 +808,14 @@ pub async fn get_session_images(session_id: i64) -> Result<Vec<ImageInfo>, Strin
                                 filter,
                                 hfr: None,
                                 star_count: None,
-                                captured_at: metadata.modified()
-                                    .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs() as i64)
+                                captured_at: metadata
+                                    .modified()
+                                    .map(|t| {
+                                        t.duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_secs()
+                                            as i64
+                                    })
                                     .unwrap_or(0),
                                 is_accepted: true,
                             });
@@ -771,8 +847,7 @@ pub async fn get_image_thumbnail_by_path(file_path: String) -> Result<Vec<u8>, S
         return Err(format!("Image file not found: {}", file_path));
     }
 
-    let (image, _header) = read_fits(path)
-        .map_err(|e| format!("Failed to read FITS: {}", e))?;
+    let (image, _header) = read_fits(path).map_err(|e| format!("Failed to read FITS: {}", e))?;
 
     let thumbnail = downsample_image(&image, 512, 512);
     let params = auto_stretch_stf(&thumbnail);
@@ -792,14 +867,13 @@ pub async fn get_image_data_by_path(file_path: String) -> Result<Vec<u8>, String
         return Err(format!("Image file not found: {}", file_path));
     }
 
-    std::fs::read(path)
-        .map_err(|e| format!("Failed to read image file: {}", e))
+    std::fs::read(path).map_err(|e| format!("Failed to read image file: {}", e))
 }
 
 fn downsample_image(image: &ImageData, max_width: u32, max_height: u32) -> ImageData {
     let scale = f32::min(
         max_width as f32 / image.width as f32,
-        max_height as f32 / image.height as f32
+        max_height as f32 / image.height as f32,
     );
 
     if scale >= 1.0 {
@@ -834,7 +908,7 @@ fn downsample_image(image: &ImageData, max_width: u32, max_height: u32) -> Image
 }
 
 fn encode_jpeg(data: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> {
-    use image::{ImageBuffer, Luma, ImageEncoder};
+    use image::{ImageBuffer, ImageEncoder, Luma};
 
     let img_buffer = ImageBuffer::<Luma<u8>, _>::from_raw(width, height, data.to_vec())
         .ok_or_else(|| "Failed to create image buffer".to_string())?;
@@ -843,12 +917,9 @@ fn encode_jpeg(data: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> 
     {
         let mut cursor = std::io::Cursor::new(&mut jpeg_data);
         let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 85);
-        encoder.write_image(
-            img_buffer.as_raw(),
-            width,
-            height,
-            image::ColorType::L8
-        ).map_err(|e| format!("Failed to encode JPEG: {}", e))?;
+        encoder
+            .write_image(img_buffer.as_raw(), width, height, image::ColorType::L8)
+            .map_err(|e| format!("Failed to encode JPEG: {}", e))?;
     }
 
     Ok(jpeg_data)

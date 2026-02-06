@@ -134,8 +134,15 @@ class DeviceMatchingService {
       }
     }
 
-    // Sort by display name
-    result.sort((a, b) => a.displayName.compareTo(b.displayName));
+    // Sort by driver priority (native first), then by display name
+    result.sort((a, b) {
+      final aHasNative = a.availableBackends.containsKey(DriverBackend.native);
+      final bHasNative = b.availableBackends.containsKey(DriverBackend.native);
+      if (aHasNative != bHasNative) {
+        return aHasNative ? -1 : 1;
+      }
+      return a.displayName.compareTo(b.displayName);
+    });
 
     return result;
   }

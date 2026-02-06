@@ -6,6 +6,7 @@ import '../database/daos/sessions_dao.dart';
 import '../database/daos/images_dao.dart';
 import '../database/daos/sequences_dao.dart';
 import '../database/daos/settings_dao.dart';
+import '../database/daos/science_dao.dart';
 
 /// Global database instance provider
 final databaseProvider = Provider<db.NightshadeDatabase>((ref) {
@@ -42,6 +43,11 @@ final sequencesDaoProvider = Provider<SequencesDao>((ref) {
 /// Settings DAO provider
 final settingsDaoProvider = Provider<SettingsDao>((ref) {
   return SettingsDao(ref.watch(databaseProvider));
+});
+
+/// Science DAO provider
+final scienceDaoProvider = Provider<ScienceDao>((ref) {
+  return ScienceDao(ref.watch(databaseProvider));
 });
 
 // ============================================================================

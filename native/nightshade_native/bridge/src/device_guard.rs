@@ -26,9 +26,9 @@
 //! }
 //! ```
 
-use std::sync::Arc;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 // =========================================================================
@@ -44,7 +44,9 @@ pub struct AlpacaCameraGuard {
 impl AlpacaCameraGuard {
     /// Create a new camera guard and connect
     pub async fn connect(base_url: &str, device_num: u32) -> Result<Self, String> {
-        let camera = Arc::new(nightshade_alpaca::AlpacaCamera::from_server(base_url, device_num));
+        let camera = Arc::new(nightshade_alpaca::AlpacaCamera::from_server(
+            base_url, device_num,
+        ));
         camera.connect().await?;
 
         Ok(Self {
@@ -109,7 +111,9 @@ pub struct AlpacaTelescopeGuard {
 impl AlpacaTelescopeGuard {
     /// Create a new telescope guard and connect
     pub async fn connect(base_url: &str, device_num: u32) -> Result<Self, String> {
-        let telescope = Arc::new(nightshade_alpaca::AlpacaTelescope::from_server(base_url, device_num));
+        let telescope = Arc::new(nightshade_alpaca::AlpacaTelescope::from_server(
+            base_url, device_num,
+        ));
         telescope.connect().await?;
 
         Ok(Self {
@@ -164,7 +168,9 @@ pub struct AlpacaFocuserGuard {
 impl AlpacaFocuserGuard {
     /// Create a new focuser guard and connect
     pub async fn connect(base_url: &str, device_num: u32) -> Result<Self, String> {
-        let focuser = Arc::new(nightshade_alpaca::AlpacaFocuser::from_server(base_url, device_num));
+        let focuser = Arc::new(nightshade_alpaca::AlpacaFocuser::from_server(
+            base_url, device_num,
+        ));
         focuser.connect().await?;
 
         Ok(Self {
@@ -219,7 +225,9 @@ pub struct AlpacaFilterWheelGuard {
 impl AlpacaFilterWheelGuard {
     /// Create a new filter wheel guard and connect
     pub async fn connect(base_url: &str, device_num: u32) -> Result<Self, String> {
-        let filter_wheel = Arc::new(nightshade_alpaca::AlpacaFilterWheel::from_server(base_url, device_num));
+        let filter_wheel = Arc::new(nightshade_alpaca::AlpacaFilterWheel::from_server(
+            base_url, device_num,
+        ));
         filter_wheel.connect().await?;
 
         Ok(Self {
@@ -541,8 +549,8 @@ impl Drop for ScopedDeviceLock {
 mod tests {
     use super::ConnectionStateGuard;
     use std::sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     };
 
     #[test]

@@ -2,7 +2,8 @@
 library nightshade_core;
 
 // Database - hide conflicting entity names
-export 'src/database/database.dart' hide Target, Sequence, SequenceNode, CapturedImage, EquipmentProfile;
+export 'src/database/database.dart'
+    hide Target, Sequence, SequenceNode, CapturedImage, EquipmentProfile;
 export 'src/database/seed_data.dart';
 
 // DAOs
@@ -17,6 +18,7 @@ export 'src/database/daos/weather_settings_dao.dart';
 export 'src/database/daos/flat_history_dao.dart';
 export 'src/database/daos/tutorial_progress_dao.dart';
 export 'src/database/daos/polar_alignment_history_dao.dart';
+export 'src/database/daos/science_dao.dart';
 
 // Data models (domain models, distinct from DB entities)
 // TrackingRate is re-exported from equipment_models.dart (canonical source: device_capabilities.dart)
@@ -45,6 +47,7 @@ export 'src/models/polar_alignment_config.dart';
 export 'src/models/alerts/transient_alert.dart';
 export 'src/models/planning/target_suggestion.dart';
 export 'src/models/optical_config.dart';
+export 'src/models/science/science_models.dart';
 
 // Providers
 export 'src/providers/database_provider.dart';
@@ -79,6 +82,7 @@ export 'src/providers/template_snippet_provider.dart';
 export 'src/providers/target_suggestion_provider.dart';
 export 'src/providers/transient_alert_provider.dart';
 export 'src/providers/auto_stretch_provider.dart';
+export 'src/providers/science_provider.dart';
 
 // Backend interface
 export 'src/backend/nightshade_backend.dart' hide CameraState;
@@ -114,6 +118,7 @@ export 'src/services/session_export_service.dart';
 export 'src/services/mosaic_service.dart';
 export 'src/services/session_service.dart';
 export 'src/services/quick_start_service.dart';
+export 'src/services/frame_quality_assessment_service.dart';
 export 'src/services/weather/weather_radar_service.dart';
 export 'src/services/weather/cloud_motion_analyzer.dart';
 export 'src/services/weather/weather_alert_service.dart';
@@ -121,6 +126,9 @@ export 'src/services/smart_notification_service.dart';
 export 'src/services/target_suggestion_service.dart';
 export 'src/services/transient_alert_service.dart';
 export 'src/services/sequence_time_estimator.dart';
+export 'src/services/science/science_backend.dart';
+export 'src/services/science/default_science_backend.dart';
+export 'src/services/science/science_processing_service.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';

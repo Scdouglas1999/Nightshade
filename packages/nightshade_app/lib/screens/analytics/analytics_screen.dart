@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
-import 'package:nightshade_core/src/database/database.dart' show CapturedImage, ImagingSession;
+import 'package:nightshade_core/src/database/database.dart'
+    show CapturedImage, ImagingSession;
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../../utils/snackbar_helper.dart';
@@ -11,6 +12,7 @@ import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/analytics_keys.dart';
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
+import 'widgets/science_analytics_tab.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -22,7 +24,7 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
 class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   int _currentSubTab = 0;
 
-  static const _tabs = ['Session', 'History', 'Equipment Stats'];
+  static const _tabs = ['Session', 'History', 'Equipment Stats', 'Science'];
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +34,8 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       screenId: 'analytics',
       tourCategory: TutorialCategory.analyticsTour,
       title: 'Analytics Tour',
-      description: 'Learn how to analyze your imaging data and session statistics.',
+      description:
+          'Learn how to analyze your imaging data and session statistics.',
       durationMinutes: 2,
       alignment: Alignment.bottomRight,
       child: Column(
@@ -51,11 +54,12 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   final index = entry.key;
                   final label = entry.value;
                   // Attach tutorial keys to the tab buttons, not content
-                  final key = index == 0
-                      ? AnalyticsTutorialKeys.sessionTab
-                      : index == 1
-                          ? AnalyticsTutorialKeys.historyTab
-                          : AnalyticsTutorialKeys.equipmentTab;
+                  final Key? key = switch (index) {
+                    0 => AnalyticsTutorialKeys.sessionTab,
+                    1 => AnalyticsTutorialKeys.historyTab,
+                    2 => AnalyticsTutorialKeys.equipmentTab,
+                    _ => null,
+                  };
                   return SubTabButton(
                     key: key,
                     label: label,
@@ -76,6 +80,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 _SessionTab(),
                 _HistoryTab(),
                 _EquipmentStatsTab(),
+                ScienceAnalyticsTab(),
               ],
             ),
           ),
@@ -114,7 +119,9 @@ class _SessionTab extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        sessionState.isActive ? 'Current Session' : 'No Active Session',
+                        sessionState.isActive
+                            ? 'Current Session'
+                            : 'No Active Session',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -126,7 +133,8 @@ class _SessionTab extends ConsumerWidget {
                         sessionState.isActive && sessionState.startTime != null
                             ? 'Started: ${DateFormat('MMM d, yyyy HH:mm').format(sessionState.startTime!)}'
                             : 'No session in progress',
-                        style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                        style: TextStyle(
+                            fontSize: 12, color: colors.textSecondary),
                       ),
                     ],
                   ),
@@ -169,9 +177,15 @@ class _SessionTab extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Expanded(child: HfrChart(key: AnalyticsTutorialKeys.hfrChart, images: images)),
+                    Expanded(
+                        child: HfrChart(
+                            key: AnalyticsTutorialKeys.hfrChart,
+                            images: images)),
                     const SizedBox(width: 16),
-                    Expanded(child: GuidingRmsChart(key: AnalyticsTutorialKeys.guidingChart, images: images)),
+                    Expanded(
+                        child: GuidingRmsChart(
+                            key: AnalyticsTutorialKeys.guidingChart,
+                            images: images)),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -210,9 +224,18 @@ class _SessionTab extends ConsumerWidget {
                       color: colors.textPrimary,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Quality labels are advisory only. No frames are deleted or auto-rejected.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.textMuted,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   imagesAsyncValue.when(
-                    data: (images) => ImageThumbnailStrip(key: AnalyticsTutorialKeys.thumbnails, images: images),
+                    data: (images) => ImageThumbnailStrip(
+                        key: AnalyticsTutorialKeys.thumbnails, images: images),
                     loading: () => const SizedBox(
                       height: 100,
                       child: Center(child: CircularProgressIndicator()),
@@ -322,7 +345,8 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
               NightshadeDropdown(
                 value: _targetFilter,
                 items: targetList,
-                onChanged: (v) => setState(() => _targetFilter = v ?? 'All Targets'),
+                onChanged: (v) =>
+                    setState(() => _targetFilter = v ?? 'All Targets'),
               ),
             ],
           ),
@@ -338,16 +362,19 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(LucideIcons.folderOpen, size: 48, color: colors.textMuted),
+                        Icon(LucideIcons.folderOpen,
+                            size: 48, color: colors.textMuted),
                         const SizedBox(height: 16),
                         Text(
                           'No session history',
-                          style: TextStyle(fontSize: 14, color: colors.textSecondary),
+                          style: TextStyle(
+                              fontSize: 14, color: colors.textSecondary),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Complete an imaging session to see history here',
-                          style: TextStyle(fontSize: 12, color: colors.textMuted),
+                          style:
+                              TextStyle(fontSize: 12, color: colors.textMuted),
                         ),
                       ],
                     ),
@@ -358,7 +385,9 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                 final filteredSessions = sessions.where((session) {
                   // Search filter
                   final nameMatch = _searchQuery.isEmpty ||
-                      (session.name?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
+                      (session.name
+                              ?.toLowerCase()
+                              .contains(_searchQuery.toLowerCase()) ??
                           false);
                   // Target filter
                   final targetMatch = _targetFilter == 'All Targets' ||
@@ -388,7 +417,8 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(LucideIcons.alertCircle, size: 48, color: colors.error),
+                    Icon(LucideIcons.alertCircle,
+                        size: 48, color: colors.error),
                     const SizedBox(height: 16),
                     Text(
                       'Error loading sessions',
@@ -472,8 +502,10 @@ class _SessionHistoryCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        DateFormat('MMM d, yyyy HH:mm').format(session.startTime),
-                        style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                        DateFormat('MMM d, yyyy HH:mm')
+                            .format(session.startTime),
+                        style: TextStyle(
+                            fontSize: 12, color: colors.textSecondary),
                       ),
                     ],
                   ),
@@ -496,7 +528,8 @@ class _SessionHistoryCard extends ConsumerWidget {
                     const SizedBox(width: 12),
                     _StatChip(
                       icon: LucideIcons.timer,
-                      label: '${(session.totalIntegrationSecs / 3600).toStringAsFixed(1)}h',
+                      label:
+                          '${(session.totalIntegrationSecs / 3600).toStringAsFixed(1)}h',
                       colors: colors,
                     ),
                     if (session.avgHfr != null) ...[
@@ -511,7 +544,8 @@ class _SessionHistoryCard extends ConsumerWidget {
                 ),
 
                 const SizedBox(width: 12),
-                Icon(LucideIcons.chevronRight, size: 20, color: colors.textMuted),
+                Icon(LucideIcons.chevronRight,
+                    size: 20, color: colors.textMuted),
               ],
             ),
           ),
@@ -544,7 +578,8 @@ class _SessionHistoryCard extends ConsumerWidget {
     return '${minutes}m';
   }
 
-  void _showSessionDetail(BuildContext context, WidgetRef ref, ImagingSession session) {
+  void _showSessionDetail(
+      BuildContext context, WidgetRef ref, ImagingSession session) {
     showDialog(
       context: context,
       builder: (context) => _SessionDetailDialog(session: session),
@@ -632,8 +667,10 @@ class _SessionDetailDialog extends ConsumerWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          DateFormat('MMM d, yyyy HH:mm').format(session.startTime),
-                          style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                          DateFormat('MMM d, yyyy HH:mm')
+                              .format(session.startTime),
+                          style: TextStyle(
+                              fontSize: 12, color: colors.textSecondary),
                         ),
                       ],
                     ),
@@ -676,7 +713,8 @@ class _SessionDetailDialog extends ConsumerWidget {
                     // Images
                     imagesAsyncValue.when(
                       data: (images) => _buildImagesSection(colors, images),
-                      loading: () => const Center(child: CircularProgressIndicator()),
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
                       error: (err, stack) => Text(
                         'Error loading images: $err',
                         style: TextStyle(color: colors.error),
@@ -709,8 +747,10 @@ class _SessionDetailDialog extends ConsumerWidget {
           spacing: 16,
           runSpacing: 8,
           children: [
-            _buildStat('Total Exposures', session.totalExposures.toString(), colors),
-            _buildStat('Successful', session.successfulExposures.toString(), colors),
+            _buildStat(
+                'Total Exposures', session.totalExposures.toString(), colors),
+            _buildStat(
+                'Successful', session.successfulExposures.toString(), colors),
             _buildStat('Failed', session.failedExposures.toString(), colors),
             _buildStat(
               'Integration',
@@ -720,7 +760,8 @@ class _SessionDetailDialog extends ConsumerWidget {
             if (session.avgHfr != null)
               _buildStat('Avg HFR', session.avgHfr!.toStringAsFixed(2), colors),
             if (session.avgGuidingRms != null)
-              _buildStat('Avg RMS', session.avgGuidingRms!.toStringAsFixed(2), colors),
+              _buildStat(
+                  'Avg RMS', session.avgGuidingRms!.toStringAsFixed(2), colors),
           ],
         ),
       ],
@@ -747,7 +788,8 @@ class _SessionDetailDialog extends ConsumerWidget {
     );
   }
 
-  Widget _buildImagesSection(NightshadeColors colors, List<CapturedImage> images) {
+  Widget _buildImagesSection(
+      NightshadeColors colors, List<CapturedImage> images) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -938,29 +980,29 @@ class _EquipmentStatCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             ...stats.map((stat) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    stat.label,
-                    style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        stat.label,
+                        style: TextStyle(
+                            fontSize: 12, color: colors.textSecondary),
+                      ),
+                      Text(
+                        stat.value,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    stat.value,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            )),
+                )),
           ],
         ),
       ),
     );
   }
 }
-

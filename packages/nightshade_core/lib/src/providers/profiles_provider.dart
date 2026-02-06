@@ -57,6 +57,7 @@ class EquipmentProfileModel {
   final int defaultBinX;
   final int defaultBinY;
   final double? defaultCoolingTemp;
+  final bool coolOnConnect;
 
   // Filter configuration
   final List<String> filterNames;
@@ -103,6 +104,7 @@ class EquipmentProfileModel {
     this.defaultBinX = 1,
     this.defaultBinY = 1,
     this.defaultCoolingTemp,
+    this.coolOnConnect = false,
     this.filterNames = const [],
     this.filterFocusOffsets = const {},
     this.profileIcon,
@@ -184,6 +186,7 @@ class EquipmentProfileModel {
       defaultBinX: db.defaultBinX,
       defaultBinY: db.defaultBinY,
       defaultCoolingTemp: db.defaultCoolingTemp,
+      coolOnConnect: db.coolOnConnect,
       filterNames: filters,
       filterFocusOffsets: offsets,
       profileIcon: db.profileIcon,
@@ -228,6 +231,7 @@ class EquipmentProfileModel {
       defaultBinX: Value(defaultBinX),
       defaultBinY: Value(defaultBinY),
       defaultCoolingTemp: Value(defaultCoolingTemp),
+      coolOnConnect: Value(coolOnConnect),
       filterNames: Value(filterNames.isNotEmpty ? jsonEncode(filterNames) : null),
       filterFocusOffsets: Value(filterFocusOffsets.isNotEmpty ? jsonEncode(filterFocusOffsets) : null),
       profileIcon: Value(profileIcon),
@@ -269,6 +273,7 @@ class EquipmentProfileModel {
     int? defaultBinX,
     int? defaultBinY,
     double? defaultCoolingTemp,
+    bool? coolOnConnect,
     List<String>? filterNames,
     Map<String, int>? filterFocusOffsets,
     String? profileIcon,
@@ -309,6 +314,7 @@ class EquipmentProfileModel {
       defaultBinX: defaultBinX ?? this.defaultBinX,
       defaultBinY: defaultBinY ?? this.defaultBinY,
       defaultCoolingTemp: defaultCoolingTemp ?? this.defaultCoolingTemp,
+      coolOnConnect: coolOnConnect ?? this.coolOnConnect,
       filterNames: filterNames ?? this.filterNames,
       filterFocusOffsets: filterFocusOffsets ?? this.filterFocusOffsets,
       profileIcon: profileIcon ?? this.profileIcon,
@@ -457,11 +463,12 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       defaultBinX: profile.defaultBinX,
       defaultBinY: profile.defaultBinY,
       defaultCoolingTemp: Value(profile.defaultCoolingTemp),
+      coolOnConnect: profile.coolOnConnect,
       filterNames: Value(profile.filterNames.isNotEmpty ? jsonEncode(profile.filterNames) : null),
       filterFocusOffsets: Value(profile.filterFocusOffsets.isNotEmpty ? jsonEncode(profile.filterFocusOffsets) : null),
       updatedAt: DateTime.now(),
     );
-    
+
     await dao.updateProfile(updated);
     ref.invalidateSelf();
   }

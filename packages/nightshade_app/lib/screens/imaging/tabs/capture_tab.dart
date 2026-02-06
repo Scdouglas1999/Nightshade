@@ -208,8 +208,8 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                                 _IconButton(
                                   icon: LucideIcons.sparkles,
                                   tooltip: 'Plate Solve Image',
-                                  onPressed: currentImage?.filePath != null
-                                      ? () => _handlePlateSolve(currentImage!)
+                                  onPressed: currentImage.filePath != null
+                                      ? () => _handlePlateSolve(currentImage)
                                       : null,
                                 ),
                               ],
@@ -581,7 +581,7 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CaptureSettingsPanel(
+        const CaptureSettingsPanel(
           showHeader: true,
           showConnectionBadge: true,
         ),
@@ -706,7 +706,7 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
         final decText = result.dec?.toStringAsFixed(4) ?? '?';
         final rotText = result.rotation?.toStringAsFixed(1) ?? '?';
         context.showSuccessSnackBar(
-          'Solved: RA ${raText}h, Dec ${decText}°, Rotation ${rotText}°',
+          'Solved: RA ${raText}h, Dec $decText°, Rotation $rotText°',
         );
       } else {
         context.showErrorSnackBar('Plate solve failed: ${result.errorMessage ?? "Unknown error"}');

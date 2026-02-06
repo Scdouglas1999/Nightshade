@@ -5,10 +5,10 @@
 
 use crate::device::*;
 use crate::event::*;
-use crate::storage::ProfileStorage;
-use crate::storage::SettingsStorage;
 use crate::storage::AppSettings;
 use crate::storage::ObserverLocation;
+use crate::storage::ProfileStorage;
+use crate::storage::SettingsStorage;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -39,11 +39,15 @@ static PROFILE_STORAGE: OnceLock<ProfileStorage> = OnceLock::new();
 /// Initialize profile storage
 pub fn init_profile_storage(storage_dir: std::path::PathBuf) -> Result<(), String> {
     let storage = ProfileStorage::new(storage_dir)?;
-    PROFILE_STORAGE.set(storage).map_err(|_| "Profile storage already initialized".to_string())
+    PROFILE_STORAGE
+        .set(storage)
+        .map_err(|_| "Profile storage already initialized".to_string())
 }
 
 fn get_profile_storage() -> Result<&'static ProfileStorage, String> {
-    PROFILE_STORAGE.get().ok_or_else(|| "Profile storage not initialized".to_string())
+    PROFILE_STORAGE
+        .get()
+        .ok_or_else(|| "Profile storage not initialized".to_string())
 }
 
 /// Global settings storage
@@ -52,11 +56,15 @@ static SETTINGS_STORAGE: OnceLock<SettingsStorage> = OnceLock::new();
 /// Initialize settings storage
 pub fn init_settings_storage(storage_dir: std::path::PathBuf) -> Result<(), String> {
     let storage = SettingsStorage::new(storage_dir)?;
-    SETTINGS_STORAGE.set(storage).map_err(|_| "Settings storage already initialized".to_string())
+    SETTINGS_STORAGE
+        .set(storage)
+        .map_err(|_| "Settings storage already initialized".to_string())
 }
 
 fn get_settings_storage() -> Result<&'static SettingsStorage, String> {
-    SETTINGS_STORAGE.get().ok_or_else(|| "Settings storage not initialized".to_string())
+    SETTINGS_STORAGE
+        .get()
+        .ok_or_else(|| "Settings storage not initialized".to_string())
 }
 
 /// A connected device with its current status
@@ -111,7 +119,7 @@ impl AppState {
             observer_location: RwLock::new(None),
         })
     }
-    
+
     /// Create with profile storage (Legacy - storage is now global)
     pub fn new_with_storage(storage_dir: std::path::PathBuf) -> Arc<Self> {
         let _ = init_profile_storage(storage_dir);
@@ -122,15 +130,20 @@ impl AppState {
     pub async fn register_device(&self, info: DeviceInfo, state: ConnectionState) {
         let key = (info.device_type, info.id.clone());
         let connection = DeviceConnection { info, state };
-        
+
         let mut devices = self.devices.write().await;
         devices.insert(key, connection);
     }
 
     /// Update a device's connection state
-    pub async fn update_device_state(&self, device_type: DeviceType, device_id: &str, state: ConnectionState) {
+    pub async fn update_device_state(
+        &self,
+        device_type: DeviceType,
+        device_id: &str,
+        state: ConnectionState,
+    ) {
         let key = (device_type, device_id.to_string());
-        
+
         let mut devices = self.devices.write().await;
         if let Some(conn) = devices.get_mut(&key) {
             conn.state = state;
@@ -140,7 +153,7 @@ impl AppState {
     /// Remove a device
     pub async fn remove_device(&self, device_type: DeviceType, device_id: &str) {
         let key = (device_type, device_id.to_string());
-        
+
         let mut devices = self.devices.write().await;
         devices.remove(&key);
     }
@@ -187,7 +200,12 @@ impl AppState {
     }
 
     /// Start a new session
-    pub async fn start_session(&self, target_name: Option<String>, ra: Option<f64>, dec: Option<f64>) {
+    pub async fn start_session(
+        &self,
+        target_name: Option<String>,
+        ra: Option<f64>,
+        dec: Option<f64>,
+    ) {
         let mut session = self.session.write().await;
         *session = SessionState {
             is_active: true,
@@ -215,26 +233,26 @@ impl AppState {
         let mut p = self.profile.write().await;
         *p = profile;
     }
-    
+
     /// Load all profiles from storage
     pub fn load_profiles(&self) -> Result<Vec<EquipmentProfile>, String> {
         get_profile_storage()?.load_profiles()
     }
-    
+
     /// Save a profile to storage
     pub fn save_profile_to_storage(&self, profile: &EquipmentProfile) -> Result<(), String> {
         get_profile_storage()?.save_profile(profile)
     }
-    
+
     /// Delete a profile from storage
     pub fn delete_profile_from_storage(&self, profile_id: &str) -> Result<(), String> {
         get_profile_storage()?.delete_profile(profile_id)
     }
-    
+
     /// Load a specific profile from storage and set it as active
     pub async fn load_and_set_profile(&self, profile_id: &str) -> Result<(), String> {
         let profile = get_profile_storage()?.get_profile(profile_id)?;
-        
+
         self.set_profile(Some(profile)).await;
         Ok(())
     }
@@ -243,12 +261,12 @@ impl AppState {
     pub fn get_settings(&self) -> Result<AppSettings, String> {
         get_settings_storage()?.load_settings()
     }
-    
+
     /// Update settings
     pub fn update_settings(&self, settings: &AppSettings) -> Result<(), String> {
         get_settings_storage()?.save_settings(settings)
     }
-    
+
     /// Get observer location from in-memory state
     /// This is the primary accessor - reads from runtime state, not file
     pub fn get_observer_location(&self) -> Result<Option<ObserverLocation>, String> {
@@ -260,8 +278,12 @@ impl AppState {
                 match &location {
                     Some(loc) => {
                         // Only log occasionally to avoid spam - log on first call
-                        tracing::debug!("Retrieved observer location: lat={}, lon={}, elev={}",
-                            loc.latitude, loc.longitude, loc.elevation);
+                        tracing::debug!(
+                            "Retrieved observer location: lat={}, lon={}, elev={}",
+                            loc.latitude,
+                            loc.longitude,
+                            loc.elevation
+                        );
                     }
                     None => {
                         tracing::debug!("Observer location is not set");
@@ -284,10 +306,16 @@ impl AppState {
         eprintln!("[RUST-STATE] set_observer_location called");
         match &location {
             Some(loc) => {
-                eprintln!("[RUST-STATE] Setting observer location: lat={}, lon={}, elev={}",
-                    loc.latitude, loc.longitude, loc.elevation);
-                tracing::info!("Setting observer location: lat={}, lon={}, elev={}",
-                    loc.latitude, loc.longitude, loc.elevation);
+                eprintln!(
+                    "[RUST-STATE] Setting observer location: lat={}, lon={}, elev={}",
+                    loc.latitude, loc.longitude, loc.elevation
+                );
+                tracing::info!(
+                    "Setting observer location: lat={}, lon={}, elev={}",
+                    loc.latitude,
+                    loc.longitude,
+                    loc.elevation
+                );
             }
             None => {
                 eprintln!("[RUST-STATE] Clearing observer location");
@@ -333,8 +361,12 @@ impl AppState {
     pub fn load_observer_location_from_settings(&self) {
         if let Ok(settings) = self.get_settings() {
             if let Some(loc) = settings.location {
-                tracing::info!("Loading observer location from settings: lat={}, lon={}, elev={}",
-                    loc.latitude, loc.longitude, loc.elevation);
+                tracing::info!(
+                    "Loading observer location from settings: lat={}, lon={}, elev={}",
+                    loc.latitude,
+                    loc.longitude,
+                    loc.elevation
+                );
                 let mut loc_guard = self.observer_location.blocking_write();
                 *loc_guard = Some(loc);
             }
@@ -489,7 +521,11 @@ impl AppState {
     }
 
     /// Get state for a specific device
-    pub async fn get_device_state(&self, device_type: DeviceType, device_id: &str) -> Option<DeviceStateSummary> {
+    pub async fn get_device_state(
+        &self,
+        device_type: DeviceType,
+        device_id: &str,
+    ) -> Option<DeviceStateSummary> {
         let key = (device_type, device_id.to_string());
         let devices = self.devices.read().await;
         devices.get(&key).map(|conn| DeviceStateSummary {
@@ -520,18 +556,16 @@ impl AppState {
     /// Get the device ID from the current profile for a specific device type
     pub async fn get_profile_device_id(&self, device_type: DeviceType) -> Option<String> {
         let profile = self.profile.read().await;
-        profile.as_ref().and_then(|p| {
-            match device_type {
-                DeviceType::Camera => p.camera_id.clone(),
-                DeviceType::Mount => p.mount_id.clone(),
-                DeviceType::Focuser => p.focuser_id.clone(),
-                DeviceType::FilterWheel => p.filter_wheel_id.clone(),
-                DeviceType::Rotator => p.rotator_id.clone(),
-                DeviceType::Dome => p.dome_id.clone(),
-                DeviceType::Weather => p.weather_id.clone(),
-                DeviceType::CoverCalibrator => p.cover_calibrator_id.clone(),
-                _ => None,
-            }
+        profile.as_ref().and_then(|p| match device_type {
+            DeviceType::Camera => p.camera_id.clone(),
+            DeviceType::Mount => p.mount_id.clone(),
+            DeviceType::Focuser => p.focuser_id.clone(),
+            DeviceType::FilterWheel => p.filter_wheel_id.clone(),
+            DeviceType::Rotator => p.rotator_id.clone(),
+            DeviceType::Dome => p.dome_id.clone(),
+            DeviceType::Weather => p.weather_id.clone(),
+            DeviceType::CoverCalibrator => p.cover_calibrator_id.clone(),
+            _ => None,
         })
     }
 

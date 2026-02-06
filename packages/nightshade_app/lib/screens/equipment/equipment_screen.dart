@@ -816,7 +816,10 @@ class _CollapsibleSidebarState extends State<_CollapsibleSidebar>
             maxWidth: _sidebarMaxWidth,
             side: ResizeSide.right,
             onWidthChanged: (newWidth) {
-              _currentExpandedWidth = newWidth;
+              setState(() {
+                _currentExpandedWidth = newWidth;
+                _updateAnimation();
+              });
             },
             child: widget.child,
           ),

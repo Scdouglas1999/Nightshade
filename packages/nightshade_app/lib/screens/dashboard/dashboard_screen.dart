@@ -436,15 +436,15 @@ class _ZoneBasedDashboard extends StatelessWidget {
                                 tile: tile,
                                 width: double.infinity,
                                 colors: colors,
-                                child: Builder(
-                                  builder: (context) => definition.builder(context, colors, pulseController),
-                                ),
                                 isEditing: isEditing,
                                 cardVariant: CardVariant.standard,
                                 isHero: false,
                                 onReorder: onReorder,
                                 onResize: onResize,
                                 onToggleEnabled: onToggleEnabled,
+                                child: Builder(
+                                  builder: (context) => definition.builder(context, colors, pulseController),
+                                ),
                               ),
                             );
                           }),
@@ -729,13 +729,13 @@ class _ZoneBasedDashboard extends StatelessWidget {
       tile: tile,
       width: double.infinity,
       colors: colors,
-      child: child,
       isEditing: isEditing,
       cardVariant: cardVariant,
       isHero: isHero,
       onReorder: onReorder,
       onResize: onResize,
       onToggleEnabled: onToggleEnabled,
+      child: child,
     );
   }
 }
@@ -1315,13 +1315,13 @@ class _ZoneColumn extends StatelessWidget {
       tile: tile,
       width: double.infinity,
       colors: colors,
-      child: child,
       isEditing: isEditing,
       cardVariant: isHero ? CardVariant.elevated : cardVariant,
       isHero: isHero,
       onReorder: onReorder,
       onResize: onResize,
       onToggleEnabled: onToggleEnabled,
+      child: child,
     );
   }
 }
@@ -1460,13 +1460,13 @@ class _MobileEquipmentSection extends StatelessWidget {
       tile: tile,
       width: double.infinity,
       colors: colors,
-      child: child,
       isEditing: isEditing,
       cardVariant: CardVariant.standard,
       isHero: false,
       onReorder: onReorder,
       onResize: onResize,
       onToggleEnabled: onToggleEnabled,
+      child: child,
     );
   }
 }
@@ -1653,13 +1653,13 @@ class _TertiaryZoneRow extends ConsumerWidget {
         tile: tile,
         width: double.infinity,
         colors: colors,
-        child: child,
         isEditing: isEditing,
         cardVariant: CardVariant.standard,
         isHero: false,
         onReorder: onReorder,
         onResize: onResize,
         onToggleEnabled: onToggleEnabled,
+        child: child,
       ),
     );
   }
@@ -1848,9 +1848,9 @@ class _DashboardTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DragTarget<DashboardWidgetId>(
-      onWillAccept: (data) => isEditing && data != tile.widgetId,
-      onAccept: (data) {
-        if (isEditing) onReorder(data, tile.widgetId);
+      onWillAcceptWithDetails: (details) => isEditing && details.data != tile.widgetId,
+      onAcceptWithDetails: (details) {
+        if (isEditing) onReorder(details.data, tile.widgetId);
       },
       builder: (context, candidateData, _) {
         final isDropTarget = candidateData.isNotEmpty;
@@ -1859,11 +1859,11 @@ class _DashboardTile extends StatelessWidget {
           isEditing: isEditing,
           isDropTarget: isDropTarget,
           size: tile.size,
-          child: child,
           cardVariant: cardVariant,
           isHero: isHero,
           onResize: () => onResize(tile.widgetId),
           onHide: () => onToggleEnabled(tile.widgetId, false),
+          child: child,
         );
 
         if (!isEditing) {
@@ -1883,11 +1883,11 @@ class _DashboardTile extends StatelessWidget {
                   isEditing: false,
                   isDropTarget: false,
                   size: tile.size,
-                  child: child,
                   cardVariant: cardVariant,
                   isHero: isHero,
                   onResize: () {},
                   onHide: () {},
+                  child: child,
                 ),
               ),
             ),
@@ -4371,7 +4371,7 @@ class _SparklinePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (values.isEmpty) return;
 
-    final padding = 4.0;
+    const padding = 4.0;
     final chartWidth = size.width - (padding * 2);
     final chartHeight = size.height - (padding * 2);
 

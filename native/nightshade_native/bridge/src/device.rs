@@ -68,7 +68,12 @@ pub struct DeviceInfo {
 impl DeviceInfo {
     /// Generate a display name with disambiguation info
     /// Priority: serial_number > unique_id > index suffix > plain name
-    pub fn generate_display_name(name: &str, serial_number: Option<&str>, unique_id: Option<&str>, index: Option<usize>) -> String {
+    pub fn generate_display_name(
+        name: &str,
+        serial_number: Option<&str>,
+        unique_id: Option<&str>,
+        index: Option<usize>,
+    ) -> String {
         if let Some(serial) = serial_number {
             if !serial.is_empty() {
                 return format!("{} ({})", name, serial);
@@ -232,11 +237,11 @@ pub struct MountStatus {
     pub parked: bool,
     pub at_home: bool,
     pub side_of_pier: PierSide,
-    pub right_ascension: f64,  // Hours
-    pub declination: f64,      // Degrees
-    pub altitude: f64,         // Degrees
-    pub azimuth: f64,          // Degrees
-    pub sidereal_time: f64,    // Hours
+    pub right_ascension: f64, // Hours
+    pub declination: f64,     // Degrees
+    pub altitude: f64,        // Degrees
+    pub azimuth: f64,         // Degrees
+    pub sidereal_time: f64,   // Hours
     pub tracking_rate: TrackingRate,
     pub can_park: bool,
     pub can_slew: bool,
@@ -266,8 +271,8 @@ pub enum TrackingRate {
 /// Coordinates for slewing
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Coordinates {
-    pub ra: f64,   // Right Ascension in hours (0-24)
-    pub dec: f64,  // Declination in degrees (-90 to +90)
+    pub ra: f64,  // Right Ascension in hours (0-24)
+    pub dec: f64, // Declination in degrees (-90 to +90)
 }
 
 /// Current status of a focuser
@@ -305,7 +310,7 @@ pub struct FilterInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RotatorStatus {
     pub connected: bool,
-    pub position: f64,  // Degrees
+    pub position: f64, // Degrees
     pub moving: bool,
     pub mechanical_position: f64,
     pub is_moving: bool,
@@ -316,32 +321,32 @@ pub struct RotatorStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherData {
     pub connected: bool,
-    pub temperature: Option<f64>,      // Celsius
-    pub humidity: Option<f64>,         // Percent
-    pub pressure: Option<f64>,         // hPa
-    pub dew_point: Option<f64>,        // Celsius
-    pub wind_speed: Option<f64>,       // m/s
-    pub wind_direction: Option<f64>,   // Degrees
-    pub cloud_cover: Option<f64>,      // Percent
-    pub sky_brightness: Option<f64>,   // Lux
-    pub sky_quality: Option<f64>,      // mag/arcsec²
-    pub rain_rate: Option<f64>,        // mm/hr
+    pub temperature: Option<f64>,    // Celsius
+    pub humidity: Option<f64>,       // Percent
+    pub pressure: Option<f64>,       // hPa
+    pub dew_point: Option<f64>,      // Celsius
+    pub wind_speed: Option<f64>,     // m/s
+    pub wind_direction: Option<f64>, // Degrees
+    pub cloud_cover: Option<f64>,    // Percent
+    pub sky_brightness: Option<f64>, // Lux
+    pub sky_quality: Option<f64>,    // mag/arcsec²
+    pub rain_rate: Option<f64>,      // mm/hr
     pub is_safe: bool,
 }
 
 /// Weather conditions from observing conditions device (raw sensor readings)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherConditions {
-    pub temperature: Option<f64>,       // Celsius
-    pub humidity: Option<f64>,          // Percent
-    pub pressure: Option<f64>,          // hPa
-    pub cloud_cover: Option<f64>,       // Percent
-    pub dew_point: Option<f64>,         // Celsius
-    pub wind_speed: Option<f64>,        // m/s
-    pub wind_direction: Option<f64>,    // Degrees
-    pub sky_quality: Option<f64>,       // mag/arcsec²
-    pub sky_temperature: Option<f64>,   // Celsius
-    pub rain_rate: Option<f64>,         // mm/hr
+    pub temperature: Option<f64>,     // Celsius
+    pub humidity: Option<f64>,        // Percent
+    pub pressure: Option<f64>,        // hPa
+    pub cloud_cover: Option<f64>,     // Percent
+    pub dew_point: Option<f64>,       // Celsius
+    pub wind_speed: Option<f64>,      // m/s
+    pub wind_direction: Option<f64>,  // Degrees
+    pub sky_quality: Option<f64>,     // mag/arcsec²
+    pub sky_temperature: Option<f64>, // Celsius
+    pub rain_rate: Option<f64>,       // mm/hr
 }
 
 /// Safety monitor status
@@ -528,7 +533,13 @@ impl DeviceApiVersion {
     }
 
     /// Create from Alpaca device info
-    pub fn from_alpaca(device_id: String, interface_version: i32, driver_version: Option<String>, driver_info: Option<String>, supported_actions: Vec<String>) -> Self {
+    pub fn from_alpaca(
+        device_id: String,
+        interface_version: i32,
+        driver_version: Option<String>,
+        driver_info: Option<String>,
+        supported_actions: Vec<String>,
+    ) -> Self {
         Self {
             device_id,
             driver_type: DriverType::Alpaca,
@@ -542,7 +553,13 @@ impl DeviceApiVersion {
     }
 
     /// Create from ASCOM device info
-    pub fn from_ascom(device_id: String, interface_version: i32, driver_version: Option<String>, driver_info: Option<String>, supported_actions: Vec<String>) -> Self {
+    pub fn from_ascom(
+        device_id: String,
+        interface_version: i32,
+        driver_version: Option<String>,
+        driver_info: Option<String>,
+        supported_actions: Vec<String>,
+    ) -> Self {
         Self {
             device_id,
             driver_type: DriverType::Ascom,
@@ -559,7 +576,9 @@ impl DeviceApiVersion {
     pub fn from_indi(device_id: String, protocol_version: Option<String>) -> Self {
         // Parse protocol version to extract major version number
         let interface_version = protocol_version.as_ref().and_then(|v| {
-            v.split('.').next().and_then(|major| major.parse::<u32>().ok())
+            v.split('.')
+                .next()
+                .and_then(|major| major.parse::<u32>().ok())
         });
 
         Self {
@@ -593,7 +612,9 @@ impl DeviceApiVersion {
         if self.supported_actions.is_empty() {
             true // Optimistic fallback
         } else {
-            self.supported_actions.iter().any(|a| a.eq_ignore_ascii_case(action))
+            self.supported_actions
+                .iter()
+                .any(|a| a.eq_ignore_ascii_case(action))
         }
     }
 
@@ -618,4 +639,3 @@ impl Default for DeviceApiVersion {
         }
     }
 }
-

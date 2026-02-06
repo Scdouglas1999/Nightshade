@@ -521,6 +521,26 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     );
   }
 
+  /// Format RA hours (0-24) as HH:MM:SS
+  String _formatRA(double raHours) {
+    final h = raHours.floor();
+    final remainder = (raHours - h) * 60;
+    final m = remainder.floor();
+    final s = ((remainder - m) * 60).round();
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  /// Format Dec degrees (-90 to +90) as +/-DD:MM:SS
+  String _formatDec(double decDegrees) {
+    final sign = decDegrees >= 0 ? '+' : '-';
+    final abs = decDegrees.abs();
+    final d = abs.floor();
+    final remainder = (abs - d) * 60;
+    final m = remainder.floor();
+    final s = ((remainder - m) * 60).round();
+    return '$sign${d.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
   List<_DeviceMetric> _getMetrics() {
     switch (widget.type) {
       case ConnectedDeviceType.camera:
@@ -549,20 +569,24 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
         return [
           _DeviceMetric(
             value: state.ra != null
-                ? 'RA ${state.ra!.toStringAsFixed(2)}'
-                : 'RA ---',
-            label: 'Position',
+                ? _formatRA(state.ra!)
+                : '---',
+            label: 'RA',
           ),
           _DeviceMetric(
-            value: state.isTracking ? 'On' : 'Off',
-            label: 'Tracking',
+            value: state.dec != null
+                ? _formatDec(state.dec!)
+                : '---',
+            label: 'Dec',
           ),
           _DeviceMetric(
             value: state.isSlewing
                 ? 'Slewing'
                 : state.isParked
                     ? 'Parked'
-                    : 'Ready',
+                    : state.isTracking
+                        ? 'Tracking'
+                        : 'Idle',
             label: 'Status',
           ),
         ];
@@ -594,7 +618,9 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             label: 'Filter',
           ),
           _DeviceMetric(
-            value: '#${state.currentPosition ?? "?"}',
+            value: state.currentPosition != null
+                ? '#${state.currentPosition! + 1}'
+                : '#?',
             label: 'Position',
           ),
         ];
@@ -676,6 +702,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           _ActionButton(
             label: 'Cool to ${state.targetTemp.toStringAsFixed(0)}C',
             onTap: () => _handleCoolCamera(state.targetTemp),
+            onLongPress: () => _showCoolingTempDialog(state.targetTemp),
             colors: colors,
           ),
           const SizedBox(width: 8),
@@ -952,6 +979,53 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       if (mounted) {
         context.showErrorSnackBar('Failed to start cooling: $e');
       }
+    }
+  }
+
+  Future<void> _showCoolingTempDialog(double currentTemp) async {
+    final controller = TextEditingController(text: currentTemp.toStringAsFixed(0));
+    final result = await showDialog<double>(
+      context: context,
+      builder: (ctx) {
+        final colors = Theme.of(ctx).extension<NightshadeColors>()!;
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text('Set Cooling Target', style: TextStyle(color: colors.textPrimary)),
+          content: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'Target Temperature (C)',
+              labelStyle: TextStyle(color: colors.textMuted),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: colors.primary),
+              ),
+            ),
+            style: TextStyle(color: colors.textPrimary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('Cancel', style: TextStyle(color: colors.textMuted)),
+            ),
+            TextButton(
+              onPressed: () {
+                final temp = double.tryParse(controller.text);
+                if (temp != null) Navigator.of(ctx).pop(temp);
+              },
+              child: Text('Set', style: TextStyle(color: colors.primary)),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (result != null) {
+      ref.read(cameraStateProvider.notifier).setTargetTemp(result);
     }
   }
 
@@ -1276,24 +1350,29 @@ class _DeviceMetric {
 class _ActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final NightshadeColors colors;
 
   const _ActionButton({
     required this.label,
     required this.onTap,
+    this.onLongPress,
     required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: colors.textSecondary,
-        side: BorderSide(color: colors.border),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: colors.textSecondary,
+          side: BorderSide(color: colors.border),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+        child: Text(label, style: const TextStyle(fontSize: 12)),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 12)),
     );
   }
 }

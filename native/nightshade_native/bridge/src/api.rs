@@ -3271,6 +3271,58 @@ pub struct FitsReadResult {
     pub bayer_pattern: Option<String>,
 }
 
+/// Result from reading FITS file linear pixel data.
+/// This is intended for scientific workflows that require unstretched values.
+#[derive(Debug, Clone)]
+pub struct FitsLinearReadResult {
+    pub width: u32,
+    pub height: u32,
+    pub bitpix: i32,
+    pub linear_data: Vec<f64>,
+    pub object_name: Option<String>,
+    pub exposure_time: Option<f64>,
+    pub filter: Option<String>,
+    pub ra: Option<f64>,
+    pub dec: Option<f64>,
+    pub date_obs: Option<String>,
+    pub bayer_pattern: Option<String>,
+}
+
+fn image_data_to_linear_f64(image_data: &ImageData) -> Vec<f64> {
+    match image_data.pixel_type {
+        nightshade_imaging::PixelType::U8 => image_data
+            .data
+            .iter()
+            .map(|&value| value as f64)
+            .collect::<Vec<f64>>(),
+        nightshade_imaging::PixelType::U16 => image_data
+            .data
+            .chunks_exact(2)
+            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]) as f64)
+            .collect::<Vec<f64>>(),
+        nightshade_imaging::PixelType::U32 => image_data
+            .data
+            .chunks_exact(4)
+            .map(|chunk| u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64)
+            .collect::<Vec<f64>>(),
+        nightshade_imaging::PixelType::F32 => image_data
+            .data
+            .chunks_exact(4)
+            .map(|chunk| f32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64)
+            .collect::<Vec<f64>>(),
+        nightshade_imaging::PixelType::F64 => image_data
+            .data
+            .chunks_exact(8)
+            .map(|chunk| {
+                f64::from_be_bytes([
+                    chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
+                    chunk[7],
+                ])
+            })
+            .collect::<Vec<f64>>(),
+    }
+}
+
 /// Read a FITS file from disk
 pub async fn api_read_fits_file(file_path: String) -> Result<FitsReadResult, NightshadeError> {
     use std::path::Path;
@@ -3327,6 +3379,47 @@ pub async fn api_read_fits_file(file_path: String) -> Result<FitsReadResult, Nig
             hfr: None,
             star_count: 0,
         },
+        object_name,
+        exposure_time,
+        filter,
+        ra,
+        dec,
+        date_obs,
+        bayer_pattern,
+    })
+}
+
+/// Read a FITS file and return unstretched linear pixel values for science analysis.
+pub async fn api_read_fits_linear_data(
+    file_path: String,
+) -> Result<FitsLinearReadResult, NightshadeError> {
+    use std::path::Path;
+
+    tracing::info!("Reading FITS linear data: {}", file_path);
+
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        return Err(NightshadeError::IoError(format!("File not found: {}", file_path)));
+    }
+
+    let (image_data, header) = nightshade_imaging::read_fits(path)
+        .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
+
+    let object_name = header.get_string("OBJECT").map(|s| s.to_string());
+    let exposure_time = header.get_float("EXPTIME");
+    let filter = header.get_string("FILTER").map(|s| s.to_string());
+    let ra = header.get_float("RA");
+    let dec = header.get_float("DEC");
+    let date_obs = header.get_string("DATE-OBS").map(|s| s.to_string());
+    let bitpix = header.get_int("BITPIX").unwrap_or(16) as i32;
+    let bayer_pattern = header.get_string("BAYERPAT").map(|s| s.to_string());
+    let linear_data = image_data_to_linear_f64(&image_data);
+
+    Ok(FitsLinearReadResult {
+        width: image_data.width,
+        height: image_data.height,
+        bitpix,
+        linear_data,
         object_name,
         exposure_time,
         filter,

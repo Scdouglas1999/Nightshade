@@ -169,6 +169,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       if (profile.defaultCoolingTemp != null) {
         _coolingTargetController.text = profile.defaultCoolingTemp!.toString();
       }
+      _coolOnConnect = profile.coolOnConnect;
     }
   }
 
@@ -250,26 +251,40 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     });
   }
 
-  void _autoDetectFilters() {
+  Future<void> _autoDetectFilters() async {
     final filterWheelState = ref.read(filterWheelStateProvider);
-    if (filterWheelState.connectionState == DeviceConnectionState.connected) {
-      final filterNames = filterWheelState.filterNames;
-      if (filterNames.isNotEmpty) {
-        setState(() {
-          // Clear existing filters
-          for (final pair in _filterControllers) {
-            pair.dispose();
-          }
-          _filterControllers.clear();
-          // Add filters from connected wheel
-          for (final name in filterNames) {
-            _filterControllers.add(_FilterControllerPair(
-              nameController: TextEditingController(text: name),
-              offsetController: TextEditingController(text: '0'),
-            ));
-          }
-        });
-      }
+    if (filterWheelState.connectionState != DeviceConnectionState.connected) return;
+
+    final deviceId = filterWheelState.deviceId;
+    if (deviceId == null || deviceId.isEmpty) return;
+
+    // Read filter names directly from hardware to avoid profile-overridden state
+    // (which may have a different count than the actual wheel)
+    List<String> filterNames;
+    try {
+      final backend = ref.read(backendProvider);
+      final status = await backend.getFilterWheelStatus(deviceId);
+      filterNames = status.filterNames;
+    } catch (_) {
+      // Fall back to state if hardware query fails
+      filterNames = filterWheelState.filterNames;
+    }
+
+    if (filterNames.isNotEmpty && mounted) {
+      setState(() {
+        // Clear existing filters
+        for (final pair in _filterControllers) {
+          pair.dispose();
+        }
+        _filterControllers.clear();
+        // Add filters from connected wheel
+        for (final name in filterNames) {
+          _filterControllers.add(_FilterControllerPair(
+            nameController: TextEditingController(text: name),
+            offsetController: TextEditingController(text: '0'),
+          ));
+        }
+      });
     }
   }
 
@@ -409,6 +424,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           defaultBinX: _binning,
           defaultBinY: _binning,
           defaultCoolingTemp: Value(double.tryParse(_coolingTargetController.text)),
+          coolOnConnect: _coolOnConnect,
           updatedAt: DateTime.now(),
         );
 
@@ -450,6 +466,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           defaultBinX: Value(_binning),
           defaultBinY: Value(_binning),
           defaultCoolingTemp: Value(double.tryParse(_coolingTargetController.text)),
+          coolOnConnect: Value(_coolOnConnect),
         );
 
         final newId = await dao.createProfile(companion);

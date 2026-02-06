@@ -1,10 +1,10 @@
-use nightshade_ascom::{AscomCoverCalibrator, init_com, uninit_com};
+use crate::timeout_ops::Timeouts;
+use nightshade_ascom::{init_com, uninit_com, AscomCoverCalibrator};
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
-use std::fmt::Debug;
-use crate::timeout_ops::Timeouts;
 
 #[derive(Debug)]
 enum AscomCoverCalibratorCommand {
@@ -61,7 +61,10 @@ impl AscomCoverCalibratorWrapper {
             let mut cover_cal = match AscomCoverCalibrator::new(&prog_id_clone) {
                 Ok(cc) => cc,
                 Err(e) => {
-                    let _ = init_tx.send(Err(format!("Failed to create ASCOM cover calibrator: {}", e)));
+                    let _ = init_tx.send(Err(format!(
+                        "Failed to create ASCOM cover calibrator: {}",
+                        e
+                    )));
                     uninit_com();
                     return;
                 }
@@ -127,7 +130,8 @@ impl AscomCoverCalibratorWrapper {
         });
 
         // Wait for initialization
-        let (name, max_brightness) = init_rx.recv()
+        let (name, max_brightness) = init_rx
+            .recv()
             .map_err(|e| format!("Failed to receive init result: {}", e))??;
 
         Ok(Self {
@@ -148,83 +152,108 @@ impl AscomCoverCalibratorWrapper {
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result,
             Ok(Err(_recv_err)) => Err(format!("Worker thread dead during {}", operation)),
-            Err(_elapsed) => Err(format!("CoverCalibrator {} timed out after {:?}", operation, timeout)),
+            Err(_elapsed) => Err(format!(
+                "CoverCalibrator {} timed out after {:?}",
+                operation, timeout
+            )),
         }
     }
 
     pub async fn connect(&mut self) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::Connect(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::Connect(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await
     }
 
     pub async fn disconnect(&mut self) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::Disconnect(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::Disconnect(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await
     }
 
     pub async fn open_cover(&mut self) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::OpenCover(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::OpenCover(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::cover_calibrator(), "open_cover").await
     }
 
     pub async fn close_cover(&mut self) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::CloseCover(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::CloseCover(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::cover_calibrator(), "close_cover").await
     }
 
     pub async fn halt_cover(&mut self) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::HaltCover(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::HaltCover(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "halt_cover").await
     }
 
     pub async fn calibrator_on(&mut self, brightness: i32) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::CalibratorOn(brightness, tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::CalibratorOn(brightness, tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "calibrator_on").await
     }
 
     pub async fn calibrator_off(&mut self) -> Result<(), String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::CalibratorOff(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::CalibratorOff(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "calibrator_off").await
     }
 
     pub async fn cover_state(&self) -> Result<i32, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::GetCoverState(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::GetCoverState(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "cover_state").await
     }
 
     pub async fn calibrator_state(&self) -> Result<i32, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::GetCalibratorState(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::GetCalibratorState(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "calibrator_state").await
     }
 
     pub async fn brightness(&self) -> Result<i32, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::GetBrightness(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::GetBrightness(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "brightness").await
     }
 
     pub async fn max_brightness(&self) -> Result<i32, String> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomCoverCalibratorCommand::GetMaxBrightness(tx)).await
+        self.sender
+            .send(AscomCoverCalibratorCommand::GetMaxBrightness(tx))
+            .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "max_brightness").await
     }
