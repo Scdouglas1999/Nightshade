@@ -2,13 +2,14 @@ use crate::timeout_ops::Timeouts;
 use chrono;
 use nightshade_ascom::{init_com, uninit_com, AscomCamera};
 use nightshade_native::camera::{
-    CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData, ReadoutMode,
-    SensorInfo, SubFrame, VendorFeatures,
+    BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData,
+    ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
 };
 use nightshade_native::traits::{NativeCamera, NativeDevice, NativeError};
 use nightshade_native::NativeVendor;
 use std::fmt::Debug;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
@@ -40,6 +41,8 @@ pub struct AscomCameraCapabilities {
     pub max_bin_y: i32,
     pub can_abort_exposure: bool,
     pub can_stop_exposure: bool,
+    pub can_set_gain: bool,
+    pub can_set_offset: bool,
     pub pixel_size_x: Option<f64>,
     pub pixel_size_y: Option<f64>,
     pub is_color: bool,
@@ -84,6 +87,10 @@ pub struct AscomCameraWrapper {
     name: String,
     sender: mpsc::Sender<AscomCommand>,
     _thread_handle: Arc<thread::JoinHandle<()>>,
+    connected: AtomicBool,
+    cached_capabilities: RwLock<CameraCapabilities>,
+    cached_sensor_info: RwLock<SensorInfo>,
+    cached_readout_modes: RwLock<Vec<ReadoutMode>>,
 }
 
 impl AscomCameraWrapper {
@@ -210,6 +217,7 @@ impl AscomCameraWrapper {
 
                             // Get readout modes if available
                             let readout_modes = cam.readout_modes().unwrap_or_default();
+                            let exposure_settings = cam.get_exposure_settings();
 
                             let caps = AscomCameraCapabilities {
                                 max_width: sensor_config.width.unwrap_or(0) as u32,
@@ -225,6 +233,8 @@ impl AscomCameraWrapper {
                                 max_bin_y: sensor_config.max_bin_y.unwrap_or(1),
                                 can_abort_exposure: cam.can_abort_exposure().unwrap_or(false),
                                 can_stop_exposure: cam.can_stop_exposure().unwrap_or(false),
+                                can_set_gain: exposure_settings.gain.is_some(),
+                                can_set_offset: exposure_settings.offset.is_some(),
                                 pixel_size_x: sensor_config.pixel_size_x,
                                 pixel_size_y: sensor_config.pixel_size_y,
                                 is_color,
@@ -545,10 +555,86 @@ impl AscomCameraWrapper {
 
         Ok(Self {
             id: prog_id.clone(),
-            name: prog_id, // TODO: Get friendly name
+            name: prog_id,
             sender: tx,
             _thread_handle: Arc::new(handle),
+            connected: AtomicBool::new(false),
+            cached_capabilities: RwLock::new(CameraCapabilities::default()),
+            cached_sensor_info: RwLock::new(SensorInfo::default()),
+            cached_readout_modes: RwLock::new(Vec::new()),
         })
+    }
+
+    fn map_bayer_pattern(pattern: Option<&str>) -> Option<BayerPattern> {
+        match pattern {
+            Some("RGGB") => Some(BayerPattern::Rggb),
+            Some("GRBG") => Some(BayerPattern::Grbg),
+            Some("GBRG") => Some(BayerPattern::Gbrg),
+            Some("BGGR") => Some(BayerPattern::Bggr),
+            _ => None,
+        }
+    }
+
+    fn map_camera_capabilities(caps: &AscomCameraCapabilities) -> CameraCapabilities {
+        CameraCapabilities {
+            can_cool: caps.can_set_ccd_temperature,
+            can_set_gain: caps.can_set_gain,
+            can_set_offset: caps.can_set_offset,
+            can_set_binning: caps.can_bin,
+            can_subframe: true,
+            has_shutter: caps.has_shutter,
+            has_guider_port: false,
+            max_bin_x: caps.max_bin_x.max(1),
+            max_bin_y: caps.max_bin_y.max(1),
+            supports_readout_modes: !caps.readout_modes.is_empty(),
+        }
+    }
+
+    fn map_sensor_info(caps: &AscomCameraCapabilities) -> SensorInfo {
+        let bit_depth = caps.bit_depth.max(1);
+        let max_adu = if bit_depth >= 32 {
+            u32::MAX
+        } else {
+            ((1u64 << bit_depth) - 1) as u32
+        };
+        SensorInfo {
+            width: caps.max_width,
+            height: caps.max_height,
+            pixel_size_x: caps.pixel_size_x.unwrap_or(0.0),
+            pixel_size_y: caps.pixel_size_y.unwrap_or(0.0),
+            max_adu,
+            bit_depth,
+            color: caps.is_color,
+            bayer_pattern: Self::map_bayer_pattern(caps.bayer_pattern.as_deref()),
+        }
+    }
+
+    fn map_readout_modes(caps: &AscomCameraCapabilities) -> Vec<ReadoutMode> {
+        caps.readout_modes
+            .iter()
+            .enumerate()
+            .map(|(index, name)| ReadoutMode {
+                name: name.clone(),
+                description: name.clone(),
+                index: index as i32,
+                gain_min: None,
+                gain_max: None,
+                offset_min: None,
+                offset_max: None,
+            })
+            .collect()
+    }
+
+    fn update_capability_cache(&self, caps: &AscomCameraCapabilities) {
+        if let Ok(mut lock) = self.cached_capabilities.write() {
+            *lock = Self::map_camera_capabilities(caps);
+        }
+        if let Ok(mut lock) = self.cached_sensor_info.write() {
+            *lock = Self::map_sensor_info(caps);
+        }
+        if let Ok(mut lock) = self.cached_readout_modes.write() {
+            *lock = Self::map_readout_modes(caps);
+        }
     }
 
     /// Helper to receive a response with a timeout
@@ -598,7 +684,10 @@ impl AscomCameraWrapper {
             .send(AscomCommand::GetCapabilities(tx))
             .await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
-        Self::recv_with_timeout(rx, Timeouts::property_read(), "get_capabilities").await
+        let caps =
+            Self::recv_with_timeout(rx, Timeouts::property_read(), "get_capabilities").await?;
+        self.update_capability_cache(&caps);
+        Ok(caps)
     }
 
     /// Perform a heartbeat check to verify device is still responding
@@ -692,6 +781,10 @@ mod tests {
             name: "Test Camera".to_string(),
             sender: tx,
             _thread_handle: Arc::new(handle),
+            connected: AtomicBool::new(false),
+            cached_capabilities: std::sync::RwLock::new(CameraCapabilities::default()),
+            cached_sensor_info: std::sync::RwLock::new(SensorInfo::default()),
+            cached_readout_modes: std::sync::RwLock::new(Vec::new()),
         }
     }
 
@@ -735,8 +828,7 @@ impl NativeDevice for AscomCameraWrapper {
     }
 
     fn is_connected(&self) -> bool {
-        // We track connection state in DeviceManager, but could also query the thread
-        true // Simplified
+        self.connected.load(Ordering::SeqCst)
     }
 
     async fn connect(&mut self) -> Result<(), NativeError> {
@@ -745,7 +837,17 @@ impl NativeDevice for AscomCameraWrapper {
             .send(AscomCommand::Connect(tx))
             .await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
-        Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await
+        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await;
+        if result.is_ok() {
+            self.connected.store(true, Ordering::SeqCst);
+            if let Err(err) = self.get_capabilities().await {
+                tracing::warn!(
+                    "Failed to refresh ASCOM camera capabilities after connect: {}",
+                    err
+                );
+            }
+        }
+        result
     }
 
     async fn disconnect(&mut self) -> Result<(), NativeError> {
@@ -757,14 +859,30 @@ impl NativeDevice for AscomCameraWrapper {
             .send(AscomCommand::Disconnect(tx))
             .await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
-        Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await
+        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await;
+        if result.is_ok() {
+            self.connected.store(false, Ordering::SeqCst);
+            if let Ok(mut caps) = self.cached_capabilities.write() {
+                *caps = CameraCapabilities::default();
+            }
+            if let Ok(mut info) = self.cached_sensor_info.write() {
+                *info = SensorInfo::default();
+            }
+            if let Ok(mut modes) = self.cached_readout_modes.write() {
+                modes.clear();
+            }
+        }
+        result
     }
 }
 
 #[async_trait::async_trait]
 impl NativeCamera for AscomCameraWrapper {
     fn capabilities(&self) -> CameraCapabilities {
-        CameraCapabilities::default() // TODO: Fetch from device
+        self.cached_capabilities
+            .read()
+            .map(|caps| caps.clone())
+            .unwrap_or_default()
     }
 
     async fn get_status(&self) -> Result<CameraStatus, NativeError> {
@@ -889,11 +1007,23 @@ impl NativeCamera for AscomCameraWrapper {
     }
 
     fn get_sensor_info(&self) -> SensorInfo {
-        SensorInfo::default()
+        self.cached_sensor_info
+            .read()
+            .map(|info| info.clone())
+            .unwrap_or_default()
     }
 
     async fn get_readout_modes(&self) -> Result<Vec<ReadoutMode>, NativeError> {
-        Ok(Vec::new())
+        if let Ok(cached) = self.cached_readout_modes.read() {
+            if !cached.is_empty() {
+                return Ok(cached.clone());
+            }
+        }
+        let _ = self.get_capabilities().await?;
+        self.cached_readout_modes
+            .read()
+            .map(|modes| modes.clone())
+            .map_err(|_| NativeError::Unknown("Failed to read readout mode cache".to_string()))
     }
 
     async fn set_readout_mode(&mut self, _mode: &ReadoutMode) -> Result<(), NativeError> {

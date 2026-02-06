@@ -49,6 +49,12 @@ For development: Use INDI/ASCOM/Alpaca simulators instead of built-in stubs.
 Simulators are disabled to prevent silent failures with fake data.
 ''';
 
+Never _nativeBridgeRequired(String operation) {
+  throw UnsupportedError(
+    'Operation "$operation" requires the native bridge.\n$_stubErrorMessage',
+  );
+}
+
 // ============================================================================
 // Type Aliases - Use FRB-generated types to avoid duplication
 // ============================================================================
@@ -1864,82 +1870,74 @@ class NativeBridge {
 
   /// Get camera status
   static Future<CameraStatus> getCameraStatus(String deviceId) async {
-    // If native bridge is available, call the real Rust API
-    if (_nativeAvailable) {
-      try {
-        return await gen_api.getCameraStatus(deviceId: deviceId);
-      } catch (e) {
-        debugPrint('[Bridge] Error getting camera status from native: $e');
-        // Fall through to stub
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('getCameraStatus');
     }
-    // Fallback to stub status
-    return _cameraStatus!;
+    try {
+      return await gen_api.getCameraStatus(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error getting camera status from native: $e');
+      rethrow;
+    }
   }
 
   /// Set camera cooler
   static Future<void> setCameraCooler(
       String deviceId, bool enabled, double? targetTemp) async {
-    // If native bridge is available, call the real Rust API
-    if (_nativeAvailable) {
-      try {
-        await gen_api.setCameraCooler(
-          deviceId: deviceId,
-          enabled: enabled ? 1 : 0,
-          targetTemp: targetTemp,
-        );
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting camera cooler from native: $e');
-        // Fall through to stub
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('setCameraCooler');
     }
-    // Stub fallback
-    await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      await gen_api.setCameraCooler(
+        deviceId: deviceId,
+        enabled: enabled ? 1 : 0,
+        targetTemp: targetTemp,
+      );
+    } catch (e) {
+      debugPrint('[Bridge] Error setting camera cooler from native: $e');
+      rethrow;
+    }
   }
 
   /// Set camera gain
   static Future<void> setCameraGain(String deviceId, int gain) async {
-    // If native bridge is available, call the real Rust API
-    if (_nativeAvailable) {
-      try {
-        await gen_api.setCameraGain(deviceId: deviceId, gain: gain);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting camera gain from native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('setCameraGain');
     }
-    await Future.delayed(const Duration(milliseconds: 50));
+    try {
+      await gen_api.setCameraGain(deviceId: deviceId, gain: gain);
+    } catch (e) {
+      debugPrint('[Bridge] Error setting camera gain from native: $e');
+      rethrow;
+    }
   }
 
   /// Set camera offset
   static Future<void> setCameraOffset(String deviceId, int offset) async {
-    // If native bridge is available, call the real Rust API
-    if (_nativeAvailable) {
-      try {
-        await gen_api.setCameraOffset(deviceId: deviceId, offset: offset);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting camera offset from native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('setCameraOffset');
     }
-    await Future.delayed(const Duration(milliseconds: 50));
+    try {
+      await gen_api.setCameraOffset(deviceId: deviceId, offset: offset);
+    } catch (e) {
+      debugPrint('[Bridge] Error setting camera offset from native: $e');
+      rethrow;
+    }
   }
 
   /// Set camera binning
   static Future<void> setCameraBinning(
       String deviceId, int binX, int binY) async {
-    // If native bridge is available, call the real Rust API
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiSetCameraBinning(
-            deviceId: deviceId, binX: binX, binY: binY);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting camera binning from native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('setCameraBinning');
     }
-    await Future.delayed(const Duration(milliseconds: 50));
+    try {
+      await gen_api.apiSetCameraBinning(
+          deviceId: deviceId, binX: binX, binY: binY);
+    } catch (e) {
+      debugPrint('[Bridge] Error setting camera binning from native: $e');
+      rethrow;
+    }
   }
 
   /// Start a camera exposure
@@ -1951,83 +1949,36 @@ class NativeBridge {
     required int binX,
     required int binY,
   }) async {
-    // If native bridge is available, call the real Rust API via RustLib
-    if (_nativeAvailable) {
-      try {
-        // Call the Rust API function directly
-        await frb.RustLib.instance.api.crateApiApiCameraStartExposure(
-          deviceId: deviceId,
-          durationSecs: durationSecs,
-          gain: gain,
-          offset: offset,
-          binX: binX,
-          binY: binY,
-        );
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error calling native startExposure: $e');
-        // Fall through to simulation
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('startExposure');
     }
-
-    // Fallback stub implementation when native isn't available
-    debugPrint('[Bridge] Using simulated exposure');
-    // Emit exposure started event
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.imaging,
-      eventType: 'ExposureStarted',
-      data: {'duration': durationSecs},
-    ));
-
-    // Simulate exposure with progress updates
-    const steps = 10;
-    for (int i = 0; i < steps; i++) {
-      await Future.delayed(
-          Duration(milliseconds: (durationSecs * 100).round()));
-      final progress = (i + 1) / steps;
-      _eventController.add(_StubNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.imaging,
-        eventType: 'ExposureProgress',
-        data: {
-          'progress': progress,
-          'remainingSecs': durationSecs * (1 - progress)
-        },
-      ));
+    try {
+      await frb.RustLib.instance.api.crateApiApiCameraStartExposure(
+        deviceId: deviceId,
+        durationSecs: durationSecs,
+        gain: gain,
+        offset: offset,
+        binX: binX,
+        binY: binY,
+      );
+    } catch (e) {
+      debugPrint('[Bridge] Error calling native startExposure: $e');
+      rethrow;
     }
-
-    // Emit completion event
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.imaging,
-      eventType: 'ExposureComplete',
-      data: {'duration': durationSecs},
-    ));
   }
 
   /// Cancel current exposure
   static Future<void> cancelExposure(String deviceId) async {
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api
-            .crateApiApiCameraCancelExposure(deviceId: deviceId);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error calling native cancelExposure: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('cancelExposure');
     }
-
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.imaging,
-      eventType: 'ExposureCancelled',
-      data: {},
-    ));
+    try {
+      await frb.RustLib.instance.api
+          .crateApiApiCameraCancelExposure(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error calling native cancelExposure: $e');
+      rethrow;
+    }
   }
 
   /// Get last captured image
@@ -2035,42 +1986,20 @@ class NativeBridge {
       {required String deviceId}) async {
     debugPrint(
         '[Bridge] getLastImage called for device $deviceId, nativeAvailable=$_nativeAvailable');
-    if (_nativeAvailable) {
-      try {
-        // Call the Rust API - returns generated CapturedImageResult (with Uint8List)
-        debugPrint('[Bridge] Calling crateApiApiGetLastImage...');
-        final rustResult = await frb.RustLib.instance.api
-            .crateApiApiGetLastImage(deviceId: deviceId);
-        debugPrint(
-            '[Bridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}');
-
-        // Return the FRB-generated CapturedImageResult directly (already has Uint8List/Uint32List)
-        return rustResult;
-      } catch (e) {
-        debugPrint('[Bridge] Error calling native getLastImage: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('getLastImage');
     }
-
-    // Return simulated image as fallback
-    debugPrint('[Bridge] Returning simulated fallback image');
-    return CapturedImageResult(
-      width: 4144,
-      height: 2822,
-      displayData: Uint8List.fromList(List.filled(4144 * 2822, 128)),
-      histogram: Uint32List.fromList(List.generate(256, (i) => i * 100)),
-      stats: const ImageStatsResult(
-        min: 500,
-        max: 60000,
-        mean: 1200,
-        median: 1100,
-        stdDev: 150,
-        hfr: 2.5,
-        starCount: 150,
-      ),
-      exposureTime: 1.0,
-      timestamp: DateTime.now().toIso8601String(),
-      isColor: false,
-    );
+    try {
+      debugPrint('[Bridge] Calling crateApiApiGetLastImage...');
+      final rustResult = await frb.RustLib.instance.api
+          .crateApiApiGetLastImage(deviceId: deviceId);
+      debugPrint(
+          '[Bridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}');
+      return rustResult;
+    } catch (e) {
+      debugPrint('[Bridge] Error calling native getLastImage: $e');
+      rethrow;
+    }
   }
 
   // =========================================================================
@@ -2079,232 +2008,128 @@ class NativeBridge {
 
   /// Get mount status
   static Future<MountStatus> getMountStatus(String deviceId) async {
-    if (_nativeAvailable) {
-      try {
-        return await gen_api.apiGetMountStatus(deviceId: deviceId);
-      } catch (e) {
-        debugPrint('[Bridge] Error getting mount status from native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('getMountStatus');
     }
-    return _mountStatus!;
+    try {
+      return await gen_api.apiGetMountStatus(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error getting mount status from native: $e');
+      rethrow;
+    }
   }
 
   /// Slew the mount to coordinates
   static Future<void> mountSlewToCoordinates(
       String deviceId, double ra, double dec) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiMountSlewToCoordinates(
-            deviceId: deviceId, ra: ra, dec: dec);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error slewing mount via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountSlewToCoordinates');
     }
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'SlewStarted',
-      data: {'deviceId': deviceId, 'ra': ra, 'dec': dec},
-    ));
-
-    _updateMountStatus(
-      slewing: true,
-      tracking: false,
-      parked: false,
-    );
-
-    await Future.delayed(const Duration(seconds: 2));
-
-    _updateMountStatus(
-      slewing: false,
-      tracking: true,
-      rightAscension: ra,
-      declination: dec,
-      parked: false,
-    );
-
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'SlewCompleted',
-      data: {'deviceId': deviceId, 'ra': ra, 'dec': dec},
-    ));
+    try {
+      await gen_api.apiMountSlewToCoordinates(
+          deviceId: deviceId, ra: ra, dec: dec);
+    } catch (e) {
+      debugPrint('[Bridge] Error slewing mount via native: $e');
+      rethrow;
+    }
   }
 
   /// Sync the mount to coordinates
   static Future<void> mountSync(String deviceId, double ra, double dec) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiMountSyncToCoordinates(
-            deviceId: deviceId, ra: ra, dec: dec);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error syncing mount via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountSync');
     }
-    _updateMountStatus(
-      rightAscension: ra,
-      declination: dec,
-    );
-
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'MountSynced',
-      data: {'deviceId': deviceId, 'ra': ra, 'dec': dec},
-    ));
+    try {
+      await gen_api.apiMountSyncToCoordinates(
+          deviceId: deviceId, ra: ra, dec: dec);
+    } catch (e) {
+      debugPrint('[Bridge] Error syncing mount via native: $e');
+      rethrow;
+    }
   }
 
   /// Park the mount
   static Future<void> mountPark(String deviceId) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiMountPark(deviceId: deviceId);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error parking mount via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountPark');
     }
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'ParkStarted',
-      data: {'deviceId': deviceId},
-    ));
-
-    _updateMountStatus(
-      slewing: true,
-      tracking: false,
-    );
-
-    await Future.delayed(const Duration(seconds: 2));
-
-    _updateMountStatus(
-      slewing: false,
-      parked: true,
-      tracking: false,
-    );
-
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'ParkCompleted',
-      data: {'deviceId': deviceId},
-    ));
+    try {
+      await gen_api.apiMountPark(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error parking mount via native: $e');
+      rethrow;
+    }
   }
 
   /// Unpark the mount
   static Future<void> mountUnpark(String deviceId) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiMountUnpark(deviceId: deviceId);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error unparking mount via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountUnpark');
     }
-    await Future.delayed(const Duration(milliseconds: 200));
-    _updateMountStatus(
-      parked: false,
-    );
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'MountUnparked',
-      data: {'deviceId': deviceId},
-    ));
+    try {
+      await gen_api.apiMountUnpark(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error unparking mount via native: $e');
+      rethrow;
+    }
   }
 
   /// Set mount tracking
   static Future<void> mountSetTracking(String deviceId, bool enabled) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiMountSetTracking(
-            deviceId: deviceId, enabled: enabled ? 1 : 0);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting mount tracking via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountSetTracking');
     }
-    await Future.delayed(const Duration(milliseconds: 100));
-    _updateMountStatus(tracking: enabled);
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: enabled ? 'TrackingEnabled' : 'TrackingDisabled',
-      data: {'deviceId': deviceId},
-    ));
+    try {
+      await gen_api.apiMountSetTracking(
+          deviceId: deviceId, enabled: enabled ? 1 : 0);
+    } catch (e) {
+      debugPrint('[Bridge] Error setting mount tracking via native: $e');
+      rethrow;
+    }
   }
 
   /// Pulse guide mount
   static Future<void> mountPulseGuide(
       String deviceId, String direction, int durationMs) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiMountPulseGuide(
-          deviceId: deviceId,
-          direction: direction,
-          durationMs: durationMs,
-        );
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error pulse guiding mount via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountPulseGuide');
     }
-    // Simulate pulse guide duration
-    await Future.delayed(Duration(milliseconds: durationMs));
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'PulseGuideComplete',
-      data: {
-        'deviceId': deviceId,
-        'direction': direction,
-        'durationMs': durationMs
-      },
-    ));
+    try {
+      await gen_api.apiMountPulseGuide(
+        deviceId: deviceId,
+        direction: direction,
+        durationMs: durationMs,
+      );
+    } catch (e) {
+      debugPrint('[Bridge] Error pulse guiding mount via native: $e');
+      rethrow;
+    }
   }
 
   /// Set mount tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
   static Future<void> mountSetTrackingRate(String deviceId, int rate) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.mountSetTrackingRate(deviceId: deviceId, rate: rate);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting tracking rate from native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountSetTrackingRate');
     }
-    await Future.delayed(const Duration(milliseconds: 100));
-    _updateMountStatus(trackingRate: TrackingRate.values[rate.clamp(0, 3)]);
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'TrackingRateChanged',
-      data: {'deviceId': deviceId, 'rate': rate},
-    ));
+    try {
+      await gen_api.mountSetTrackingRate(deviceId: deviceId, rate: rate);
+    } catch (e) {
+      debugPrint('[Bridge] Error setting tracking rate from native: $e');
+      rethrow;
+    }
   }
 
   /// Get mount tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
   static Future<int> mountGetTrackingRate(String deviceId) async {
-    if (_nativeAvailable) {
-      try {
-        return await gen_api.mountGetTrackingRate(deviceId: deviceId);
-      } catch (e) {
-        debugPrint('[Bridge] Error getting tracking rate from native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountGetTrackingRate');
     }
-    return _mountStatus?.trackingRate.index ?? 0;
+    try {
+      return await gen_api.mountGetTrackingRate(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error getting tracking rate from native: $e');
+      rethrow;
+    }
   }
 
   /// Move mount axis at specified rate (degrees/second)
@@ -2312,22 +2137,28 @@ class NativeBridge {
   /// rate: degrees per second (positive = N/E, negative = S/W), 0 to stop
   static Future<void> mountMoveAxis(
       String deviceId, int axis, double rate) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.mountMoveAxis(deviceId: deviceId, axis: axis, rate: rate);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error moving axis from native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountMoveAxis');
     }
-    // Stub: just log the event
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: rate == 0 ? 'AxisStopped' : 'AxisMoving',
-      data: {'deviceId': deviceId, 'axis': axis, 'rate': rate},
-    ));
+    try {
+      await gen_api.mountMoveAxis(deviceId: deviceId, axis: axis, rate: rate);
+    } catch (e) {
+      debugPrint('[Bridge] Error moving axis from native: $e');
+      rethrow;
+    }
+  }
+
+  /// Abort current mount motion
+  static Future<void> mountAbort(String deviceId) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('mountAbort');
+    }
+    try {
+      await gen_api.mountAbort(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error aborting mount motion: $e');
+      rethrow;
+    }
   }
 
   // =========================================================================
@@ -2336,87 +2167,53 @@ class NativeBridge {
 
   /// Get focuser status
   static Future<FocuserStatus> getFocuserStatus(String deviceId) async {
-    if (_nativeAvailable) {
-      try {
-        return await gen_api.apiGetFocuserStatus(deviceId: deviceId);
-      } catch (e) {
-        debugPrint('[Bridge] Error getting focuser status from native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('getFocuserStatus');
     }
-    return _focuserStatus!;
+    try {
+      return await gen_api.apiGetFocuserStatus(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error getting focuser status from native: $e');
+      rethrow;
+    }
   }
 
   /// Move focuser to position
   static Future<void> focuserMoveTo(String deviceId, int position) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiFocuserMoveTo(deviceId: deviceId, position: position);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error moving focuser via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('focuserMoveTo');
     }
-    final current = _focuserStatus!;
-    _focuserStatus = FocuserStatus(
-      connected: true,
-      position: current.position,
-      moving: true,
-      temperature: current.temperature,
-      maxPosition: current.maxPosition,
-      stepSize: current.stepSize,
-      isAbsolute: current.isAbsolute,
-      hasTemperature: current.hasTemperature,
-    );
-
-    await Future.delayed(const Duration(seconds: 1));
-
-    _focuserStatus = FocuserStatus(
-      connected: true,
-      position: position,
-      moving: false,
-      temperature: current.temperature,
-      maxPosition: current.maxPosition,
-      stepSize: current.stepSize,
-      isAbsolute: current.isAbsolute,
-      hasTemperature: current.hasTemperature,
-    );
+    try {
+      await gen_api.apiFocuserMoveTo(deviceId: deviceId, position: position);
+    } catch (e) {
+      debugPrint('[Bridge] Error moving focuser via native: $e');
+      rethrow;
+    }
   }
 
   /// Move focuser by relative amount
   static Future<void> focuserMoveRelative(String deviceId, int delta) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiFocuserMoveRelative(deviceId: deviceId, delta: delta);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error moving focuser relative via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('focuserMoveRelative');
     }
-    final target = (_focuserStatus?.position ?? 0) + delta;
-    await focuserMoveTo(deviceId, target);
+    try {
+      await gen_api.apiFocuserMoveRelative(deviceId: deviceId, delta: delta);
+    } catch (e) {
+      debugPrint('[Bridge] Error moving focuser relative via native: $e');
+      rethrow;
+    }
   }
 
   /// Halt focuser
   static Future<void> apiFocuserHalt({required String deviceId}) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiFocuserHalt(deviceId: deviceId);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error halting focuser via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiFocuserHalt');
     }
-    if (_focuserStatus != null) {
-      _focuserStatus = FocuserStatus(
-        connected: true,
-        position: _focuserStatus!.position,
-        moving: false,
-        temperature: _focuserStatus!.temperature,
-        maxPosition: _focuserStatus!.maxPosition,
-        stepSize: _focuserStatus!.stepSize,
-        isAbsolute: _focuserStatus!.isAbsolute,
-        hasTemperature: _focuserStatus!.hasTemperature,
-      );
+    try {
+      await gen_api.apiFocuserHalt(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error halting focuser via native: $e');
+      rethrow;
     }
   }
 
@@ -2426,50 +2223,30 @@ class NativeBridge {
 
   /// Get filter wheel status
   static Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
-    if (_nativeAvailable) {
-      try {
-        return await gen_api.apiGetFilterwheelStatus(deviceId: deviceId);
-      } catch (e) {
-        debugPrint(
-            '[Bridge] Error getting filter wheel status from native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('getFilterWheelStatus');
     }
-    return _filterWheelStatus!;
+    try {
+      return await gen_api.apiGetFilterwheelStatus(deviceId: deviceId);
+    } catch (e) {
+      debugPrint('[Bridge] Error getting filter wheel status from native: $e');
+      rethrow;
+    }
   }
 
   /// Set filter wheel position
   static Future<void> filterWheelSetPosition(
       String deviceId, int position) async {
-    if (_nativeAvailable) {
-      try {
-        await gen_api.apiFilterwheelSetPosition(
-            deviceId: deviceId, position: position);
-        return;
-      } catch (e) {
-        debugPrint(
-            '[Bridge] Error setting filter wheel position via native: $e');
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('filterWheelSetPosition');
     }
-    // Stub fallback
-    final current = _filterWheelStatus!;
-    _filterWheelStatus = FilterWheelStatus(
-      connected: true,
-      position: current.position,
-      moving: true,
-      filterCount: current.filterCount,
-      filterNames: current.filterNames,
-    );
-
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    _filterWheelStatus = FilterWheelStatus(
-      connected: true,
-      position: position,
-      moving: false,
-      filterCount: current.filterCount,
-      filterNames: current.filterNames,
-    );
+    try {
+      await gen_api.apiFilterwheelSetPosition(
+          deviceId: deviceId, position: position);
+    } catch (e) {
+      debugPrint('[Bridge] Error setting filter wheel position via native: $e');
+      rethrow;
+    }
   }
 
   /// Set filter wheel position (API method)
@@ -2495,9 +2272,10 @@ class NativeBridge {
   }) async {
     final status = await getFilterWheelStatus(deviceId);
     final index = status.filterNames.indexOf(name);
-    if (index >= 0) {
-      await filterWheelSetPosition(deviceId, index);
+    if (index < 0) {
+      throw ArgumentError('Filter "$name" not found on device $deviceId');
     }
+    await filterWheelSetPosition(deviceId, index);
   }
 
   // =========================================================================
@@ -2545,25 +2323,27 @@ class NativeBridge {
   // =========================================================================
 
   /// Check if plate solver is available
-  static bool isPlateSolverAvailable() => false;
+  static bool isPlateSolverAvailable() {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('isPlateSolverAvailable');
+    }
+    return gen_api.apiIsPlateSolverAvailable();
+  }
 
   /// Get plate solver path
-  static String? getPlateSolverPath() => null;
+  static String? getPlateSolverPath() {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('getPlateSolverPath');
+    }
+    return gen_api.apiGetPlateSolverPath();
+  }
 
   /// Plate solve blind
   static Future<PlateSolveResult> plateSolveBlind(String filePath) async {
-    await Future.delayed(const Duration(seconds: 3));
-    return const PlateSolveResult(
-      success: false,
-      ra: 0,
-      dec: 0,
-      pixelScale: 0,
-      rotation: 0,
-      fieldWidth: 0,
-      fieldHeight: 0,
-      solveTimeSecs: 3.0,
-      error: 'Plate solver not available',
-    );
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('plateSolveBlind');
+    }
+    return gen_api.apiPlateSolveBlind(filePath: filePath);
   }
 
   /// Plate solve near coordinates
@@ -2573,17 +2353,14 @@ class NativeBridge {
     double hintDec,
     double searchRadius,
   ) async {
-    await Future.delayed(const Duration(seconds: 2));
-    return PlateSolveResult(
-      success: false,
-      ra: hintRa,
-      dec: hintDec,
-      pixelScale: 0,
-      rotation: 0,
-      fieldWidth: 0,
-      fieldHeight: 0,
-      solveTimeSecs: 2.0,
-      error: 'Plate solver not available',
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('plateSolveNear');
+    }
+    return gen_api.apiPlateSolveNear(
+      filePath: filePath,
+      hintRa: hintRa,
+      hintDec: hintDec,
+      searchRadius: searchRadius,
     );
   }
 
@@ -3547,30 +3324,15 @@ class NativeBridge {
   // Rotator Control (API methods)
   // =========================================================================
 
-  static RotatorStatus? _rotatorStatus;
-
   /// Move rotator to absolute angle
   static Future<void> apiRotatorMoveTo({
     required String deviceId,
     required double angle,
   }) async {
-    _rotatorStatus = RotatorStatus(
-      connected: true,
-      position: angle,
-      moving: true,
-      mechanicalPosition: angle,
-      isMoving: true,
-      canReverse: true,
-    );
-    await Future.delayed(const Duration(milliseconds: 500));
-    _rotatorStatus = RotatorStatus(
-      connected: true,
-      position: angle,
-      moving: false,
-      mechanicalPosition: angle,
-      isMoving: false,
-      canReverse: true,
-    );
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiRotatorMoveTo');
+    }
+    await gen_api.apiRotatorMoveTo(deviceId: deviceId, angle: angle);
   }
 
   /// Move rotator by relative amount
@@ -3578,166 +3340,120 @@ class NativeBridge {
     required String deviceId,
     required double delta,
   }) async {
-    final current = _rotatorStatus?.position ?? 0.0;
-    await apiRotatorMoveTo(deviceId: deviceId, angle: current + delta);
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiRotatorMoveRelative');
+    }
+    await gen_api.apiRotatorMoveRelative(deviceId: deviceId, delta: delta);
   }
 
   /// Get rotator status
   static Future<RotatorStatus> apiGetRotatorStatus({
     required String deviceId,
   }) async {
-    return _rotatorStatus ??
-        const RotatorStatus(
-          connected: false,
-          position: 0.0,
-          moving: false,
-          mechanicalPosition: 0.0,
-          isMoving: false,
-          canReverse: true,
-        );
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiGetRotatorStatus');
+    }
+    return gen_api.apiGetRotatorStatus(deviceId: deviceId);
   }
 
   /// Halt rotator movement
   static Future<void> apiRotatorHalt({
     required String deviceId,
   }) async {
-    final current = _rotatorStatus?.position ?? 0.0;
-    _rotatorStatus = RotatorStatus(
-      connected: true,
-      position: current,
-      moving: false,
-      mechanicalPosition: current,
-      isMoving: false,
-      canReverse: true,
-    );
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiRotatorHalt');
+    }
+    await gen_api.apiRotatorHalt(deviceId: deviceId);
   }
 
   // =========================================================================
   // Equipment Profiles (API methods)
   // =========================================================================
 
-  static final List<EquipmentProfile> _profiles = [];
-  static String? _activeProfileId;
-
   /// Get all profiles
   static Future<List<EquipmentProfile>> apiGetProfiles() async {
-    return List.from(_profiles);
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiGetProfiles');
+    }
+    return gen_api.apiGetProfiles();
   }
 
   /// Save a profile
   static Future<void> apiSaveProfile({
     required EquipmentProfile profile,
   }) async {
-    final index = _profiles.indexWhere((p) => p.id == profile.id);
-    if (index >= 0) {
-      _profiles[index] = profile;
-    } else {
-      _profiles.add(profile);
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiSaveProfile');
     }
+    gen_api.apiSaveProfile(profile: profile);
   }
 
   /// Delete a profile
   static Future<void> apiDeleteProfile({
     required String profileId,
   }) async {
-    _profiles.removeWhere((p) => p.id == profileId);
-    if (_activeProfileId == profileId) {
-      _activeProfileId = null;
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiDeleteProfile');
     }
+    gen_api.apiDeleteProfile(profileId: profileId);
   }
 
   /// Load a profile
   static Future<void> apiLoadProfile({
     required String profileId,
   }) async {
-    if (_profiles.any((p) => p.id == profileId)) {
-      _activeProfileId = profileId;
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiLoadProfile');
     }
+    await gen_api.apiLoadProfile(profileId: profileId);
   }
 
   /// Get active profile
   static Future<EquipmentProfile?> apiGetActiveProfile() async {
-    if (_activeProfileId == null) return null;
-    try {
-      return _profiles.firstWhere((p) => p.id == _activeProfileId);
-    } catch (_) {
-      return null;
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiGetActiveProfile');
     }
+    return gen_api.apiGetActiveProfile();
   }
 
   // =========================================================================
   // Settings (API methods)
   // =========================================================================
 
-  static AppSettings _appSettings = const AppSettings(
-    theme: 'dark',
-    language: 'en',
-    autoConnect: true,
-  );
-
   /// Initialize profile storage
   static Future<void> apiInitProfileStorage(
       {required String storagePath}) async {
-    try {
-      // Ensure storage directory exists
-      final storageDir = Directory(storagePath);
-      if (!await storageDir.exists()) {
-        await storageDir.create(recursive: true);
-      }
-
-      // Create profiles.json file with empty profiles array if it doesn't exist
-      final profilesFile = File(path.join(storagePath, 'profiles.json'));
-      if (!await profilesFile.exists()) {
-        const initialData = {'profiles': []};
-        await profilesFile.writeAsString(
-          const JsonEncoder.withIndent('  ').convert(initialData),
-        );
-      }
-    } catch (e) {
-      // Log error but don't throw - allow app to continue
-      debugPrint('[Bridge] Warning: Failed to initialize profile storage: $e');
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiInitProfileStorage');
     }
+    gen_api.apiInitProfileStorage(storagePath: storagePath);
   }
 
   /// Initialize settings storage
   static Future<void> apiInitSettingsStorage(
       {required String storagePath}) async {
-    try {
-      // Ensure storage directory exists
-      final storageDir = Directory(storagePath);
-      if (!await storageDir.exists()) {
-        await storageDir.create(recursive: true);
-      }
-
-      // Create settings.json file with default settings if it doesn't exist
-      final settingsFile = File(path.join(storagePath, 'settings.json'));
-      if (!await settingsFile.exists()) {
-        final defaultSettings = {
-          'location': null,
-          'theme': 'dark',
-          'language': 'en',
-          'auto_connect': true,
-        };
-        await settingsFile.writeAsString(
-          const JsonEncoder.withIndent('  ').convert(defaultSettings),
-        );
-      }
-    } catch (e) {
-      // Log error but don't throw - allow app to continue
-      debugPrint('[Bridge] Warning: Failed to initialize settings storage: $e');
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiInitSettingsStorage');
     }
+    gen_api.apiInitSettingsStorage(storagePath: storagePath);
   }
 
   /// Get application settings
   static Future<AppSettings> apiGetSettings() async {
-    return _appSettings;
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiGetSettings');
+    }
+    return gen_api.apiGetSettings();
   }
 
   /// Update application settings
   static Future<void> apiUpdateSettings({
     required AppSettings settings,
   }) async {
-    _appSettings = settings;
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiUpdateSettings');
+    }
+    gen_api.apiUpdateSettings(settings: settings);
   }
 
   // =========================================================================
@@ -3746,49 +3462,20 @@ class NativeBridge {
 
   /// Get observer location
   static Future<ObserverLocation?> apiGetLocation() async {
-    // If native bridge is available, use real native function
-    if (_nativeAvailable) {
-      try {
-        return frb.RustLib.instance.api.crateApiApiGetLocation();
-      } catch (e) {
-        debugPrint('[Bridge] Error getting location via native: $e');
-        // Fall through to stub
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiGetLocation');
     }
-    return _appSettings.location;
+    return gen_api.apiGetLocation();
   }
 
   /// Set observer location
   static Future<void> apiSetLocation({
     ObserverLocation? location,
   }) async {
-    // If native bridge is available, use real native function
-    if (_nativeAvailable) {
-      try {
-        debugPrint(
-            '[Bridge] Setting location via native: lat=${location?.latitude}, lon=${location?.longitude}');
-        frb.RustLib.instance.api.crateApiApiSetLocation(location: location);
-        debugPrint('[Bridge] Location set via native successfully');
-        // Also update local cache for consistency
-        _appSettings = AppSettings(
-          location: location,
-          theme: _appSettings.theme,
-          language: _appSettings.language,
-          autoConnect: _appSettings.autoConnect,
-        );
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting location via native: $e');
-        // Fall through to stub
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiSetLocation');
     }
-    // Stub fallback
-    _appSettings = AppSettings(
-      location: location,
-      theme: _appSettings.theme,
-      language: _appSettings.language,
-      autoConnect: _appSettings.autoConnect,
-    );
+    gen_api.apiSetLocation(location: location);
   }
 
   // =========================================================================
@@ -3801,41 +3488,18 @@ class NativeBridge {
     required int height,
     required Uint16List data,
   }) async {
-    if (data.isEmpty) {
-      return ImageStats(
-        min: 0.0,
-        max: 0.0,
-        mean: 0.0,
-        median: 0.0,
-        stdDev: 0.0,
-        mad: 0.0,
-      );
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiGetImageStats');
     }
-
-    final values = data.map((e) => e.toDouble()).toList();
-    values.sort();
-
-    final min = values.first;
-    final max = values.last;
-    final mean = values.reduce((a, b) => a + b) / values.length;
-    final median = values[values.length ~/ 2];
-
-    final variance =
-        values.map((v) => (v - mean) * (v - mean)).reduce((a, b) => a + b) /
-            values.length;
-    final stdDev = variance > 0 ? variance : 0.0;
-
-    final medianAbsDev =
-        values.map((v) => (v - median).abs()).reduce((a, b) => a + b) /
-            values.length;
-
+    final native =
+        gen_api.apiGetImageStats(width: width, height: height, data: data);
     return ImageStats(
-      min: min,
-      max: max,
-      mean: mean,
-      median: median,
-      stdDev: stdDev,
-      mad: medianAbsDev,
+      min: native.min,
+      max: native.max,
+      mean: native.mean,
+      median: native.median,
+      stdDev: native.stdDev,
+      mad: native.stdDev,
     );
   }
 
@@ -3845,25 +3509,11 @@ class NativeBridge {
     required int height,
     required Uint16List data,
   }) async {
-    if (data.isEmpty) return Uint8List(0);
-
-    final stats =
-        await apiGetImageStats(width: width, height: height, data: data);
-    final min = stats.min;
-    final max = stats.max;
-    final range = max - min;
-
-    if (range == 0) {
-      return Uint8List(width * height);
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiAutoStretchImage');
     }
-
-    final result = Uint8List(width * height);
-    for (int i = 0; i < data.length; i++) {
-      final normalized = ((data[i] - min) / range * 255).clamp(0, 255);
-      result[i] = normalized.round();
-    }
-
-    return result;
+    return gen_api.apiAutoStretchImage(
+        width: width, height: height, data: data);
   }
 
   /// Debayer image
@@ -3874,12 +3524,16 @@ class NativeBridge {
     required String patternStr,
     required String algoStr,
   }) async {
-    // Simple stub implementation - just return grayscale conversion
-    final result = Uint8List(width * height);
-    for (int i = 0; i < data.length && i < result.length; i++) {
-      result[i] = (data[i] ~/ 256).clamp(0, 255);
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiDebayerImage');
     }
-    return result;
+    return gen_api.apiDebayerImage(
+      width: width,
+      height: height,
+      data: data,
+      patternStr: patternStr,
+      algoStr: algoStr,
+    );
   }
 
   // =========================================================================

@@ -14,6 +14,15 @@ class TransientHandlers {
   /// Track queued alert IDs (persists for session)
   final Set<String> _queuedAlertIds = {};
 
+  TransientAlertSettings _settings = const TransientAlertSettings(
+    enabledSources: {TransientSource.aavso},
+    typesToMonitor: {TransientType.supernova, TransientType.nova},
+    magnitudeThreshold: 14.0,
+    notifyOnNew: true,
+    autoQueueBright: false,
+    autoQueueMagnitude: 10.0,
+  );
+
   TransientHandlers(this.container);
 
   // ===========================================================================
@@ -25,14 +34,14 @@ class TransientHandlers {
     try {
       final service = container.read(transientAlertServiceProvider);
 
-      // Use default settings (can be enhanced with database storage later)
-      final settings = _getDefaultSettings();
+      final settings = _settings;
 
       // Fetch alerts from configured sources
       final alerts = await service.getAllAlerts(settings);
 
       // Filter out dismissed alerts
-      final activeAlerts = alerts.where((a) => !_dismissedAlertIds.contains(a.id)).toList();
+      final activeAlerts =
+          alerts.where((a) => !_dismissedAlertIds.contains(a.id)).toList();
 
       return Response.ok(
         jsonEncode({
@@ -59,14 +68,15 @@ class TransientHandlers {
   Future<Response> handleGetSettings(Request request) async {
     print('[API] GET /api/transients/settings');
     try {
-      // Return current in-memory settings
-      final settings = _getDefaultSettings();
+      final settings = _settings;
 
       return Response.ok(
         jsonEncode({
           "settings": {
-            "enabledSources": settings.enabledSources.map((s) => s.name).toList(),
-            "typesToMonitor": settings.typesToMonitor.map((t) => t.name).toList(),
+            "enabledSources":
+                settings.enabledSources.map((s) => s.name).toList(),
+            "typesToMonitor":
+                settings.typesToMonitor.map((t) => t.name).toList(),
             "magnitudeThreshold": settings.magnitudeThreshold,
             "notifyOnNew": settings.notifyOnNew,
             "autoQueueBright": settings.autoQueueBright,
@@ -91,12 +101,64 @@ class TransientHandlers {
   Future<Response> handleUpdateSettings(Request request) async {
     print('[API] POST /api/transients/settings');
     try {
-      // Settings update is a no-op for now since we don't have persistent storage
-      // In the future, this could be stored in app settings as JSON
+      final payload =
+          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
+
+      Set<TransientSource> enabledSources = _settings.enabledSources;
+      final sourcesRaw = payload['enabledSources'];
+      if (sourcesRaw is List) {
+        enabledSources = sourcesRaw
+            .whereType<String>()
+            .map(_parseSource)
+            .whereType<TransientSource>()
+            .toSet();
+      }
+
+      Set<TransientType> typesToMonitor = _settings.typesToMonitor;
+      final typesRaw = payload['typesToMonitor'];
+      if (typesRaw is List) {
+        typesToMonitor = typesRaw
+            .whereType<String>()
+            .map(_parseType)
+            .whereType<TransientType>()
+            .toSet();
+      }
+
+      final magnitudeThreshold =
+          (payload['magnitudeThreshold'] as num?)?.toDouble() ??
+              _settings.magnitudeThreshold;
+      final autoQueueMagnitude =
+          (payload['autoQueueMagnitude'] as num?)?.toDouble() ??
+              _settings.autoQueueMagnitude;
+      final notifyOnNew = payload['notifyOnNew'] is bool
+          ? payload['notifyOnNew'] as bool
+          : _settings.notifyOnNew;
+      final autoQueueBright = payload['autoQueueBright'] is bool
+          ? payload['autoQueueBright'] as bool
+          : _settings.autoQueueBright;
+
+      _settings = TransientAlertSettings(
+        enabledSources: enabledSources,
+        typesToMonitor: typesToMonitor,
+        magnitudeThreshold: magnitudeThreshold,
+        notifyOnNew: notifyOnNew,
+        autoQueueBright: autoQueueBright,
+        autoQueueMagnitude: autoQueueMagnitude,
+      );
+
       return Response.ok(
         jsonEncode({
-          "status": "acknowledged",
-          "message": "Transient settings are not persisted in this version",
+          "status": "ok",
+          "settings": {
+            "enabledSources":
+                _settings.enabledSources.map((s) => s.name).toList(),
+            "typesToMonitor":
+                _settings.typesToMonitor.map((t) => t.name).toList(),
+            "magnitudeThreshold": _settings.magnitudeThreshold,
+            "notifyOnNew": _settings.notifyOnNew,
+            "autoQueueBright": _settings.autoQueueBright,
+            "autoQueueMagnitude": _settings.autoQueueMagnitude,
+          },
         }),
         headers: {'content-type': 'application/json'},
       );
@@ -193,12 +255,12 @@ class TransientHandlers {
     try {
       final service = container.read(transientAlertServiceProvider);
 
-      // Use default settings
-      final settings = _getDefaultSettings();
+      final settings = _settings;
 
       // Fetch all alerts and filter to queued ones
       final alerts = await service.getAllAlerts(settings);
-      final queuedAlerts = alerts.where((a) => _queuedAlertIds.contains(a.id)).toList();
+      final queuedAlerts =
+          alerts.where((a) => _queuedAlertIds.contains(a.id)).toList();
 
       return Response.ok(
         jsonEncode({
@@ -219,15 +281,20 @@ class TransientHandlers {
   // Helpers
   // ===========================================================================
 
-  TransientAlertSettings _getDefaultSettings() {
-    return const TransientAlertSettings(
-      enabledSources: {TransientSource.aavso},
-      typesToMonitor: {TransientType.supernova, TransientType.nova},
-      magnitudeThreshold: 14.0,
-      notifyOnNew: true,
-      autoQueueBright: false,
-      autoQueueMagnitude: 10.0,
-    );
+  TransientSource? _parseSource(String value) {
+    final normalized = value.trim().toLowerCase();
+    for (final source in TransientSource.values) {
+      if (source.name.toLowerCase() == normalized) return source;
+    }
+    return null;
+  }
+
+  TransientType? _parseType(String value) {
+    final normalized = value.trim().toLowerCase();
+    for (final type in TransientType.values) {
+      if (type.name.toLowerCase() == normalized) return type;
+    }
+    return null;
   }
 
   Map<String, dynamic> _alertToJson(TransientAlert alert) {

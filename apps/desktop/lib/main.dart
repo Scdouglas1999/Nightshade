@@ -199,20 +199,24 @@ void _startBackgroundServices() {
 
       // Start LAN push update receiver
       try {
+        var isReceivingLanPush = false;
         final lanPushReceiver = LanPushReceiver(
           currentVersion: appVersion,
           currentBuildNumber: appBuildNumber,
         );
         lanPushReceiver.onUpdateReceived = (manifest, stagingPath) {
+          isReceivingLanPush = false;
           print('[MAIN] Update received via LAN push: ${manifest.version}');
           LanPushNotifier.notifyUpdateReceived(manifest, stagingPath);
         };
         lanPushReceiver.onProgress = (received, total, progress, message) {
+          isReceivingLanPush = total > 0 && received < total;
           print(
               '[MAIN] LAN push progress: ${(progress * 100).toStringAsFixed(1)}% - $message');
           LanPushNotifier.notifyProgress(received, total, progress, message);
         };
         lanPushReceiver.onError = (error) {
+          isReceivingLanPush = false;
           print('[MAIN] LAN push error: $error');
           LanPushNotifier.notifyError(error);
         };
@@ -224,7 +228,7 @@ void _startBackgroundServices() {
           name: 'Nightshade',
           version: appVersion,
           buildNumber: appBuildNumber,
-          isReceivingCallback: () => false, // TODO: Track receiving state
+          isReceivingCallback: () => isReceivingLanPush,
         );
         print('[MAIN] Update push discovery responder started');
       } catch (e) {
@@ -635,9 +639,17 @@ Future<void> _disconnectDeviceHandler(
 /// Handler for /api/devices/connected endpoint
 Future<List<Map<String, dynamic>>> _getConnectedDevicesHandler() async {
   print('[API] Getting connected devices...');
-  // TODO: Implement getting connected devices from bridge
-  // For now, return empty list
-  return [];
+  final connectedDevices = await bridge.NativeBridge.getConnectedDevices();
+  return connectedDevices
+      .map((device) => {
+            'id': device.id,
+            'name': device.name,
+            'type': device.deviceType.name,
+            'driverType': device.driverType.name,
+            'description': device.description,
+            'driverVersion': device.driverVersion,
+          })
+      .toList();
 }
 
 /// Handler for /api/phd2/connect endpoint
@@ -767,9 +779,7 @@ Future<void> _mountSetTrackingHandler(String deviceId, bool enabled) async {
 /// Handler for /api/mount/abort endpoint
 Future<void> _mountAbortHandler(String deviceId) async {
   print('[API] Aborting mount slew: $deviceId');
-  // Note: Mount abort may need to be added to the API if not present
-  // For now, we can stop tracking as a workaround
-  await bridge.NativeBridge.mountSetTracking(deviceId, false);
+  await bridge.NativeBridge.mountAbort(deviceId);
   print('[API] Mount aborted');
 }
 
@@ -1344,15 +1354,37 @@ bridge.AppSettings _settingsFromJson(Map<String, dynamic> json) {
 /// Handler for /api/polar-alignment/start endpoint
 Future<void> _polarAlignmentStartHandler(Map<String, dynamic> params) async {
   print('[API] Starting polar alignment: $params');
-  // Polar alignment is typically handled through the sequencer or direct camera/mount control
-  // For now, emit an event to trigger the UI polar alignment wizard on the remote
-  print('[API] Polar alignment start requested - this would trigger remote UI');
+  final exposureTime = (params['exposure_time'] as num).toDouble();
+  final stepSize = (params['step_size'] as num).toDouble();
+  final binning = params['binning'] as int;
+  final isNorth = params['is_north'] as bool;
+  final manualRotation = params['manual_rotation'] as bool;
+  final rotateEast = params['rotate_east'] as bool;
+  final gain = params['gain'] as int?;
+  final offset = params['offset'] as int?;
+  final solveTimeout = (params['solve_timeout'] as num?)?.toDouble();
+  final startFromCurrent = params['start_from_current'] as bool?;
+
+  await bridge.apiStartPolarAlignment(
+    exposureTime: exposureTime,
+    stepSize: stepSize,
+    binning: binning,
+    isNorth: isNorth,
+    manualRotation: manualRotation,
+    rotateEast: rotateEast,
+    gain: gain,
+    offset: offset,
+    solveTimeout: solveTimeout,
+    startFromCurrent: startFromCurrent,
+  );
+  print('[API] Polar alignment started');
 }
 
 /// Handler for /api/polar-alignment/stop endpoint
 Future<void> _polarAlignmentStopHandler() async {
   print('[API] Stopping polar alignment');
-  print('[API] Polar alignment stop requested');
+  await bridge.apiStopPolarAlignment();
+  print('[API] Polar alignment stopped');
 }
 
 // ============================================================================

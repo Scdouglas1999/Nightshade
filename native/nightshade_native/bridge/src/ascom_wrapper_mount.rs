@@ -5,6 +5,7 @@ use nightshade_native::traits::{
 };
 use nightshade_native::NativeVendor;
 use std::fmt::Debug;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -67,6 +68,7 @@ pub struct AscomMountWrapper {
     name: String,
     sender: mpsc::Sender<AscomMountCommand>,
     _thread_handle: Arc<thread::JoinHandle<()>>,
+    connected: AtomicBool,
 }
 
 impl AscomMountWrapper {
@@ -382,6 +384,7 @@ impl AscomMountWrapper {
             name: prog_id,
             sender: tx,
             _thread_handle: Arc::new(handle),
+            connected: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -462,7 +465,7 @@ impl NativeDevice for AscomMountWrapper {
     }
 
     fn is_connected(&self) -> bool {
-        true // Placeholder
+        self.connected.load(Ordering::SeqCst)
     }
 
     async fn connect(&mut self) -> Result<(), NativeError> {
@@ -471,7 +474,11 @@ impl NativeDevice for AscomMountWrapper {
             .send(AscomMountCommand::Connect(tx))
             .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
-        Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await
+        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await;
+        if result.is_ok() {
+            self.connected.store(true, Ordering::SeqCst);
+        }
+        result
     }
 
     async fn disconnect(&mut self) -> Result<(), NativeError> {
@@ -488,7 +495,10 @@ impl NativeDevice for AscomMountWrapper {
             Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await;
         match disconnect_result {
             Err(err) => Err(err),
-            Ok(()) => stop_result,
+            Ok(()) => {
+                self.connected.store(false, Ordering::SeqCst);
+                stop_result
+            }
         }
     }
 }
@@ -814,6 +824,7 @@ pub(crate) mod test_support {
             name: "Test Mount".to_string(),
             sender: tx,
             _thread_handle: Arc::new(handle),
+            connected: std::sync::atomic::AtomicBool::new(false),
         }
     }
 }
@@ -845,6 +856,7 @@ mod tests {
             name: "Test Mount".to_string(),
             sender: tx,
             _thread_handle: Arc::new(handle),
+            connected: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
