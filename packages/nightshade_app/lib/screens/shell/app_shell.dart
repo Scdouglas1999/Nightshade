@@ -208,6 +208,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final appSettingsAsync = ref.watch(appSettingsProvider);
     final settings = appSettingsAsync.valueOrNull;
     final currentIndex = _getCurrentIndex(context);
+
+    // Activate the error notification bridge so backend errors show as toast notifications
+    ref.watch(errorNotificationBridgeProvider);
     final isSideNavExpanded =
         settings != null ? !settings.sidebarCollapsed : _fallbackSideNavExpanded;
 
