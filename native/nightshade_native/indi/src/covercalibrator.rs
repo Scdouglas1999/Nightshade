@@ -124,12 +124,20 @@ impl IndiCoverCalibrator {
         let mut client = self.client.write().await;
 
         // Try CAP_PARK first (common INDI standard)
-        if client.set_switch(&self.device_name, "CAP_PARK", "UNPARK", true).await.is_ok() {
+        if client
+            .set_switch(&self.device_name, "CAP_PARK", "UNPARK", true)
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
         // Try DUSTCAP_CONTROL alternative
-        if client.set_switch(&self.device_name, "DUSTCAP_CONTROL", "OPEN", true).await.is_ok() {
+        if client
+            .set_switch(&self.device_name, "DUSTCAP_CONTROL", "OPEN", true)
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
@@ -141,12 +149,20 @@ impl IndiCoverCalibrator {
         let mut client = self.client.write().await;
 
         // Try CAP_PARK first (common INDI standard)
-        if client.set_switch(&self.device_name, "CAP_PARK", "PARK", true).await.is_ok() {
+        if client
+            .set_switch(&self.device_name, "CAP_PARK", "PARK", true)
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
         // Try DUSTCAP_CONTROL alternative
-        if client.set_switch(&self.device_name, "DUSTCAP_CONTROL", "CLOSE", true).await.is_ok() {
+        if client
+            .set_switch(&self.device_name, "DUSTCAP_CONTROL", "CLOSE", true)
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
@@ -158,12 +174,19 @@ impl IndiCoverCalibrator {
         let mut client = self.client.write().await;
 
         // Try standard abort property
-        if client.set_switch(&self.device_name, "CAP_ABORT", "ABORT", true).await.is_ok() {
+        if client
+            .set_switch(&self.device_name, "CAP_ABORT", "ABORT", true)
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
         // Some devices use generic abort
-        client.set_switch(&self.device_name, "ABORT", "ABORT", true).await.map_err(|e| e.to_string())
+        client
+            .set_switch(&self.device_name, "ABORT", "ABORT", true)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Get cover state
@@ -171,10 +194,12 @@ impl IndiCoverCalibrator {
         let client = self.client.read().await;
 
         // Check CAP_PARK property
-        let is_parked = client.get_switch(&self.device_name, "CAP_PARK", "PARK")
+        let is_parked = client
+            .get_switch(&self.device_name, "CAP_PARK", "PARK")
             .await
             .unwrap_or(false);
-        let is_unparked = client.get_switch(&self.device_name, "CAP_PARK", "UNPARK")
+        let is_unparked = client
+            .get_switch(&self.device_name, "CAP_PARK", "UNPARK")
             .await
             .unwrap_or(false);
 
@@ -191,14 +216,19 @@ impl IndiCoverCalibrator {
         }
 
         // Try DUSTCAP_CONTROL alternative
-        let is_closed = client.get_switch(&self.device_name, "DUSTCAP_CONTROL", "CLOSE")
+        let is_closed = client
+            .get_switch(&self.device_name, "DUSTCAP_CONTROL", "CLOSE")
             .await
             .unwrap_or(false);
-        let is_open = client.get_switch(&self.device_name, "DUSTCAP_CONTROL", "OPEN")
+        let is_open = client
+            .get_switch(&self.device_name, "DUSTCAP_CONTROL", "OPEN")
             .await
             .unwrap_or(false);
 
-        if client.is_property_busy(&self.device_name, "DUSTCAP_CONTROL").await {
+        if client
+            .is_property_busy(&self.device_name, "DUSTCAP_CONTROL")
+            .await
+        {
             return IndiCoverState::Moving;
         }
 
@@ -211,9 +241,9 @@ impl IndiCoverCalibrator {
 
         // Check if cover properties exist at all
         let properties = client.get_properties(&self.device_name).await;
-        let has_cover = properties.iter().any(|p| {
-            p.name == "CAP_PARK" || p.name == "DUSTCAP_CONTROL"
-        });
+        let has_cover = properties
+            .iter()
+            .any(|p| p.name == "CAP_PARK" || p.name == "DUSTCAP_CONTROL");
 
         if has_cover {
             IndiCoverState::Unknown
@@ -233,35 +263,52 @@ impl IndiCoverCalibrator {
         // Set brightness first if supported
         if brightness > 0 {
             // Try FLAT_LIGHT_INTENSITY
-            let _ = client.set_number(
-                &self.device_name,
-                "FLAT_LIGHT_INTENSITY",
-                "FLAT_LIGHT_INTENSITY_VALUE",
-                brightness as f64
-            ).await;
+            let _ = client
+                .set_number(
+                    &self.device_name,
+                    "FLAT_LIGHT_INTENSITY",
+                    "FLAT_LIGHT_INTENSITY_VALUE",
+                    brightness as f64,
+                )
+                .await;
 
             // Try LIGHTBOX_BRIGHTNESS alternative
-            let _ = client.set_number(
-                &self.device_name,
-                "LIGHTBOX_BRIGHTNESS",
-                "BRIGHTNESS",
-                brightness as f64
-            ).await;
+            let _ = client
+                .set_number(
+                    &self.device_name,
+                    "LIGHTBOX_BRIGHTNESS",
+                    "BRIGHTNESS",
+                    brightness as f64,
+                )
+                .await;
         }
 
         // Turn on the light
         // Try FLAT_LIGHT_CONTROL first
-        if client.set_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON", true).await.is_ok() {
+        if client
+            .set_switch(
+                &self.device_name,
+                "FLAT_LIGHT_CONTROL",
+                "FLAT_LIGHT_ON",
+                true,
+            )
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
         // Try LIGHTBOX_BRIGHTNESS (setting to non-zero turns it on)
-        if client.set_number(
-            &self.device_name,
-            "LIGHTBOX_BRIGHTNESS",
-            "BRIGHTNESS",
-            brightness.max(1) as f64
-        ).await.is_ok() {
+        if client
+            .set_number(
+                &self.device_name,
+                "LIGHTBOX_BRIGHTNESS",
+                "BRIGHTNESS",
+                brightness.max(1) as f64,
+            )
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
@@ -273,27 +320,39 @@ impl IndiCoverCalibrator {
         let mut client = self.client.write().await;
 
         // Try FLAT_LIGHT_CONTROL first
-        if client.set_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_OFF", true).await.is_ok() {
+        if client
+            .set_switch(
+                &self.device_name,
+                "FLAT_LIGHT_CONTROL",
+                "FLAT_LIGHT_OFF",
+                true,
+            )
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
         // Try setting brightness to 0
-        if client.set_number(
-            &self.device_name,
-            "FLAT_LIGHT_INTENSITY",
-            "FLAT_LIGHT_INTENSITY_VALUE",
-            0.0
-        ).await.is_ok() {
+        if client
+            .set_number(
+                &self.device_name,
+                "FLAT_LIGHT_INTENSITY",
+                "FLAT_LIGHT_INTENSITY_VALUE",
+                0.0,
+            )
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
         // Try LIGHTBOX_BRIGHTNESS alternative
-        if client.set_number(
-            &self.device_name,
-            "LIGHTBOX_BRIGHTNESS",
-            "BRIGHTNESS",
-            0.0
-        ).await.is_ok() {
+        if client
+            .set_number(&self.device_name, "LIGHTBOX_BRIGHTNESS", "BRIGHTNESS", 0.0)
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
@@ -305,15 +364,20 @@ impl IndiCoverCalibrator {
         let client = self.client.read().await;
 
         // Check FLAT_LIGHT_CONTROL property
-        let is_on = client.get_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON")
+        let is_on = client
+            .get_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON")
             .await
             .unwrap_or(false);
-        let is_off = client.get_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_OFF")
+        let is_off = client
+            .get_switch(&self.device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_OFF")
             .await
             .unwrap_or(false);
 
         // Check if property is busy (stabilizing)
-        if client.is_property_busy(&self.device_name, "FLAT_LIGHT_CONTROL").await {
+        if client
+            .is_property_busy(&self.device_name, "FLAT_LIGHT_CONTROL")
+            .await
+        {
             return IndiCalibratorState::NotReady;
         }
 
@@ -325,11 +389,14 @@ impl IndiCoverCalibrator {
         }
 
         // Check brightness-based control
-        if let Some(brightness) = client.get_number(
-            &self.device_name,
-            "FLAT_LIGHT_INTENSITY",
-            "FLAT_LIGHT_INTENSITY_VALUE"
-        ).await {
+        if let Some(brightness) = client
+            .get_number(
+                &self.device_name,
+                "FLAT_LIGHT_INTENSITY",
+                "FLAT_LIGHT_INTENSITY_VALUE",
+            )
+            .await
+        {
             if brightness > 0.0 {
                 return IndiCalibratorState::Ready;
             } else {
@@ -338,11 +405,10 @@ impl IndiCoverCalibrator {
         }
 
         // Check LIGHTBOX_BRIGHTNESS alternative
-        if let Some(brightness) = client.get_number(
-            &self.device_name,
-            "LIGHTBOX_BRIGHTNESS",
-            "BRIGHTNESS"
-        ).await {
+        if let Some(brightness) = client
+            .get_number(&self.device_name, "LIGHTBOX_BRIGHTNESS", "BRIGHTNESS")
+            .await
+        {
             if brightness > 0.0 {
                 return IndiCalibratorState::Ready;
             } else {
@@ -374,20 +440,22 @@ impl IndiCoverCalibrator {
         let client = self.client.read().await;
 
         // Try FLAT_LIGHT_INTENSITY
-        if let Some(brightness) = client.get_number(
-            &self.device_name,
-            "FLAT_LIGHT_INTENSITY",
-            "FLAT_LIGHT_INTENSITY_VALUE"
-        ).await {
+        if let Some(brightness) = client
+            .get_number(
+                &self.device_name,
+                "FLAT_LIGHT_INTENSITY",
+                "FLAT_LIGHT_INTENSITY_VALUE",
+            )
+            .await
+        {
             return Ok(brightness as i32);
         }
 
         // Try LIGHTBOX_BRIGHTNESS alternative
-        if let Some(brightness) = client.get_number(
-            &self.device_name,
-            "LIGHTBOX_BRIGHTNESS",
-            "BRIGHTNESS"
-        ).await {
+        if let Some(brightness) = client
+            .get_number(&self.device_name, "LIGHTBOX_BRIGHTNESS", "BRIGHTNESS")
+            .await
+        {
             return Ok(brightness as i32);
         }
 
@@ -399,22 +467,30 @@ impl IndiCoverCalibrator {
         let mut client = self.client.write().await;
 
         // Try FLAT_LIGHT_INTENSITY
-        if client.set_number(
-            &self.device_name,
-            "FLAT_LIGHT_INTENSITY",
-            "FLAT_LIGHT_INTENSITY_VALUE",
-            brightness as f64
-        ).await.is_ok() {
+        if client
+            .set_number(
+                &self.device_name,
+                "FLAT_LIGHT_INTENSITY",
+                "FLAT_LIGHT_INTENSITY_VALUE",
+                brightness as f64,
+            )
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 
         // Try LIGHTBOX_BRIGHTNESS alternative
-        if client.set_number(
-            &self.device_name,
-            "LIGHTBOX_BRIGHTNESS",
-            "BRIGHTNESS",
-            brightness as f64
-        ).await.is_ok() {
+        if client
+            .set_number(
+                &self.device_name,
+                "LIGHTBOX_BRIGHTNESS",
+                "BRIGHTNESS",
+                brightness as f64,
+            )
+            .await
+            .is_ok()
+        {
             return Ok(());
         }
 

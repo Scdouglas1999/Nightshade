@@ -15,7 +15,7 @@
 
 use crate::client::IndiClient;
 use crate::error::IndiResult;
-use crate::{IndiProperty, IndiPropertyType, IndiPermission};
+use crate::{IndiPermission, IndiProperty, IndiPropertyType};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -88,7 +88,8 @@ impl IndiSwitchDevice {
         let client = self.client.read().await;
         let all_props = client.get_properties(&self.device_name).await;
 
-        all_props.into_iter()
+        all_props
+            .into_iter()
             .filter(|p| {
                 matches!(p.property_type, IndiPropertyType::Switch)
                     && !is_internal_switch_property(&p.name)
@@ -118,7 +119,8 @@ impl IndiSwitchDevice {
             let writable = prop.perm != IndiPermission::ReadOnly;
 
             for element in &prop.elements {
-                let state = client.get_switch(&self.device_name, &prop.name, element)
+                let state = client
+                    .get_switch(&self.device_name, &prop.name, element)
                     .await
                     .unwrap_or(false);
 
@@ -142,31 +144,50 @@ impl IndiSwitchDevice {
     /// Get the state of a specific switch element
     pub async fn get_switch_state(&self, property_name: &str, element: &str) -> Option<bool> {
         let client = self.client.read().await;
-        client.get_switch(&self.device_name, property_name, element).await
+        client
+            .get_switch(&self.device_name, property_name, element)
+            .await
     }
 
     /// Set the state of a specific switch element
-    pub async fn set_switch_state(&self, property_name: &str, element: &str, on: bool) -> IndiResult<()> {
+    pub async fn set_switch_state(
+        &self,
+        property_name: &str,
+        element: &str,
+        on: bool,
+    ) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_switch(&self.device_name, property_name, element, on).await
+        client
+            .set_switch(&self.device_name, property_name, element, on)
+            .await
     }
 
     /// Get a numeric value associated with a switch (e.g., PWM duty cycle for dew heaters)
     pub async fn get_switch_value(&self, property_name: &str, element: &str) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, property_name, element).await
+        client
+            .get_number(&self.device_name, property_name, element)
+            .await
     }
 
     /// Set a numeric value for a switch (e.g., PWM duty cycle)
-    pub async fn set_switch_value(&self, property_name: &str, element: &str, value: f64) -> IndiResult<()> {
+    pub async fn set_switch_value(
+        &self,
+        property_name: &str,
+        element: &str,
+        value: f64,
+    ) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_number(&self.device_name, property_name, element, value).await
+        client
+            .set_number(&self.device_name, property_name, element, value)
+            .await
     }
 
     /// Check if a switch property is read-only
     pub async fn is_switch_read_only(&self, property_name: &str) -> bool {
         let client = self.client.read().await;
-        client.get_property(&self.device_name, property_name)
+        client
+            .get_property(&self.device_name, property_name)
             .await
             .map(|p| p.perm == IndiPermission::ReadOnly)
             .unwrap_or(true)
@@ -176,23 +197,24 @@ impl IndiSwitchDevice {
 /// Check if a switch property is an internal INDI property that should be hidden
 /// from the user-facing switch list.
 fn is_internal_switch_property(name: &str) -> bool {
-    matches!(name,
+    matches!(
+        name,
         "CONNECTION"
-        | "DEBUG"
-        | "DEBUG_LEVEL"
-        | "SIMULATION"
-        | "CONFIG_PROCESS"
-        | "DEVICE_PORT_SCAN"
-        | "ACTIVE_DEVICES"
-        | "UPLOAD_MODE"
-        | "LOG_OUTPUT"
-        | "LOG_LEVEL"
+            | "DEBUG"
+            | "DEBUG_LEVEL"
+            | "SIMULATION"
+            | "CONFIG_PROCESS"
+            | "DEVICE_PORT_SCAN"
+            | "ACTIVE_DEVICES"
+            | "UPLOAD_MODE"
+            | "LOG_OUTPUT"
+            | "LOG_LEVEL"
     ) || name.starts_with("TELESCOPE_")
-      || name.starts_with("CCD_")
-      || name.starts_with("FILTER_")
-      || name.starts_with("FOCUS_")
-      || name.starts_with("DOME_")
-      || name.starts_with("CAP_")
-      || name.starts_with("ROTATOR_")
+        || name.starts_with("CCD_")
+        || name.starts_with("FILTER_")
+        || name.starts_with("FOCUS_")
+        || name.starts_with("DOME_")
+        || name.starts_with("CAP_")
+        || name.starts_with("ROTATOR_")
     // These prefixes belong to other device type interfaces, not switch-specific functionality
 }

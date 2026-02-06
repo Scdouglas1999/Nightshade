@@ -10,9 +10,8 @@ use tokio::time::sleep;
 
 // Image processing imports for live display
 use nightshade_imaging::{
-    ImageData as ImagingImageData, BayerPattern, DebayerAlgorithm, PixelType,
-    debayer, auto_stretch_stf, apply_stretch,
-    auto_stretch_rgb, apply_stretch_rgb,
+    apply_stretch, apply_stretch_rgb, auto_stretch_rgb, auto_stretch_stf, debayer, BayerPattern,
+    DebayerAlgorithm, ImageData as ImagingImageData, PixelType,
 };
 
 /// Image data for polar alignment UI display.
@@ -67,7 +66,7 @@ pub struct PolarAlignConfig {
 impl Default for PolarAlignConfig {
     fn default() -> Self {
         Self {
-            step_size: 15.0,  // Changed from 30.0 to 15.0
+            step_size: 15.0, // Changed from 30.0 to 15.0
             exposure_time: 5.0,
             solve_timeout: 30.0,
             manual_rotation: false,
@@ -77,7 +76,7 @@ impl Default for PolarAlignConfig {
             binning: Some(2),
             start_from_current: true,
             is_north: true,
-            auto_complete_threshold: 30.0,  // 30 arcseconds
+            auto_complete_threshold: 30.0, // 30 arcseconds
         }
     }
 }
@@ -117,23 +116,30 @@ pub async fn perform_polar_alignment(
 
     // 1. Capture and solve 3 points
     let mut points = Vec::new();
-    
+
     // Determine start position - slew to near-pole position if not starting from current
     if !config.start_from_current {
-        status_callback("Slewing to alignment start position...".to_string(), Some(0.0));
-        
+        status_callback(
+            "Slewing to alignment start position...".to_string(),
+            Some(0.0),
+        );
+
         // Slew to a position near the celestial pole for polar alignment
         // Northern hemisphere: near Polaris (RA ~2h, Dec ~89°)
         // Southern hemisphere: near Sigma Octantis (RA ~21h, Dec ~-89°)
         let (start_ra, start_dec) = if config.is_north {
-            (2.0, 89.0)  // Near Polaris
+            (2.0, 89.0) // Near Polaris
         } else {
-            (21.0, -89.0)  // Near southern celestial pole
+            (21.0, -89.0) // Near southern celestial pole
         };
-        
+
         // Slew to start position
         if let Some(mount_id) = &ctx.mount_id {
-            if let Err(e) = ctx.device_ops.mount_slew_to_coordinates(mount_id, start_ra, start_dec).await {
+            if let Err(e) = ctx
+                .device_ops
+                .mount_slew_to_coordinates(mount_id, start_ra, start_dec)
+                .await
+            {
                 tracing::warn!("Failed to slew to start position: {}", e);
                 // Continue anyway - user can manually position if needed
             } else {
@@ -148,17 +154,24 @@ pub async fn perform_polar_alignment(
             return result;
         }
 
-        status_callback(format!("Measuring point {}/3...", i + 1), Some((i as f64) / 3.0));
+        status_callback(
+            format!("Measuring point {}/3...", i + 1),
+            Some((i as f64) / 3.0),
+        );
 
         // Capture image
-        let image_data = match ctx.device_ops.camera_start_exposure(
-            &camera_id,
-            config.exposure_time,
-            None, // Filter
-            None, // FrameType
-            config.binning.unwrap_or(1),
-            config.binning.unwrap_or(1),
-        ).await {
+        let image_data = match ctx
+            .device_ops
+            .camera_start_exposure(
+                &camera_id,
+                config.exposure_time,
+                None, // Filter
+                None, // FrameType
+                config.binning.unwrap_or(1),
+                config.binning.unwrap_or(1),
+            )
+            .await
+        {
             Ok(data) => data,
             Err(e) => return InstructionResult::failure(format!("Failed to capture image: {}", e)),
         };
@@ -178,7 +191,9 @@ pub async fn perform_polar_alignment(
 
         // Convert device_ops ImageData to imaging ImageData for prepare_image_for_display
         // device_ops uses Vec<u16>, imaging uses Vec<u8> (packed little-endian)
-        let packed_data: Vec<u8> = image_data.data.iter()
+        let packed_data: Vec<u8> = image_data
+            .data
+            .iter()
             .flat_map(|&v| v.to_le_bytes())
             .collect();
         let imaging_image_data = ImagingImageData {
@@ -189,7 +204,9 @@ pub async fn perform_polar_alignment(
             data: packed_data,
         };
 
-        if let Ok(jpeg_data) = prepare_image_for_display(&imaging_image_data, is_color, bayer_pattern) {
+        if let Ok(jpeg_data) =
+            prepare_image_for_display(&imaging_image_data, is_color, bayer_pattern)
+        {
             image_callback(PolarAlignmentImageData {
                 image_data: jpeg_data,
                 width: image_data.width,
@@ -202,16 +219,20 @@ pub async fn perform_polar_alignment(
         }
 
         // Plate solve
-        let solve_result = match ctx.device_ops.plate_solve(
-            &image_data, None, None, Some(config.solve_timeout)
-        ).await {
+        let solve_result = match ctx
+            .device_ops
+            .plate_solve(&image_data, None, None, Some(config.solve_timeout))
+            .await
+        {
             Ok(res) if res.success => res,
             Ok(_) => return InstructionResult::failure("Plate solve failed"),
             Err(e) => return InstructionResult::failure(format!("Plate solve error: {}", e)),
         };
 
         // Emit image again with plate solve coordinates
-        if let Ok(jpeg_data) = prepare_image_for_display(&imaging_image_data, is_color, bayer_pattern) {
+        if let Ok(jpeg_data) =
+            prepare_image_for_display(&imaging_image_data, is_color, bayer_pattern)
+        {
             image_callback(PolarAlignmentImageData {
                 image_data: jpeg_data,
                 width: image_data.width,
@@ -228,24 +249,30 @@ pub async fn perform_polar_alignment(
         // Rotate mount for next point (if not last point)
         if i < 2 {
             status_callback(format!("Rotating mount for point {}...", i + 2), None);
-            
+
             if config.manual_rotation {
                 tracing::info!("Waiting for manual rotation...");
-                sleep(Duration::from_secs(10)).await; 
+                sleep(Duration::from_secs(10)).await;
             } else {
                 // Slew relative
                 let current_ra = points[i].0;
                 let current_dec = points[i].1;
-                
-                let move_amount = if config.rotate_east { config.step_size } else { -config.step_size };
+
+                let move_amount = if config.rotate_east {
+                    config.step_size
+                } else {
+                    -config.step_size
+                };
                 let target_ra = (current_ra + move_amount + 360.0) % 360.0;
-                
-                if let Err(e) = ctx.device_ops.mount_slew_to_coordinates(
-                    &mount_id, target_ra / 15.0, current_dec
-                ).await {
+
+                if let Err(e) = ctx
+                    .device_ops
+                    .mount_slew_to_coordinates(&mount_id, target_ra / 15.0, current_dec)
+                    .await
+                {
                     return InstructionResult::failure(format!("Failed to rotate mount: {}", e));
                 }
-                
+
                 // Wait for slew to settle
                 sleep(Duration::from_secs(2)).await;
             }
@@ -254,8 +281,12 @@ pub async fn perform_polar_alignment(
 
     // 2. Calculate Center of Rotation (CR)
     let (center_ra, center_dec) = calculate_center_of_rotation(&points);
-    
-    tracing::info!("Calculated Center of Rotation: RA {:.4}°, Dec {:.4}°", center_ra, center_dec);
+
+    tracing::info!(
+        "Calculated Center of Rotation: RA {:.4}°, Dec {:.4}°",
+        center_ra,
+        center_dec
+    );
 
     // 3. Adjustment Loop
     status_callback("Entering adjustment mode".to_string(), Some(1.0));
@@ -272,31 +303,36 @@ pub async fn perform_polar_alignment(
         }
 
         // Capture and solve
-        let image_data = match ctx.device_ops.camera_start_exposure(
-            &camera_id,
-            config.exposure_time,
-            None, None,
-            config.binning.unwrap_or(1),
-            config.binning.unwrap_or(1),
-        ).await {
+        let image_data = match ctx
+            .device_ops
+            .camera_start_exposure(
+                &camera_id,
+                config.exposure_time,
+                None,
+                None,
+                config.binning.unwrap_or(1),
+                config.binning.unwrap_or(1),
+            )
+            .await
+        {
             Ok(data) => data,
             Err(e) => return InstructionResult::failure(format!("Failed to capture image: {}", e)),
         };
 
         // Emit image for UI display (before plate solve)
         let is_color = image_data.sensor_type.as_deref() == Some("Color");
-        let bayer_pattern = image_data.bayer_offset.map(|(x, y)| {
-            match (x % 2, y % 2) {
-                (0, 0) => BayerPattern::RGGB,
-                (1, 0) => BayerPattern::GRBG,
-                (0, 1) => BayerPattern::GBRG,
-                (1, 1) => BayerPattern::BGGR,
-                _ => BayerPattern::RGGB,
-            }
+        let bayer_pattern = image_data.bayer_offset.map(|(x, y)| match (x % 2, y % 2) {
+            (0, 0) => BayerPattern::RGGB,
+            (1, 0) => BayerPattern::GRBG,
+            (0, 1) => BayerPattern::GBRG,
+            (1, 1) => BayerPattern::BGGR,
+            _ => BayerPattern::RGGB,
         });
 
         // Convert device_ops ImageData to imaging ImageData for prepare_image_for_display
-        let packed_data: Vec<u8> = image_data.data.iter()
+        let packed_data: Vec<u8> = image_data
+            .data
+            .iter()
             .flat_map(|&v| v.to_le_bytes())
             .collect();
         let imaging_image_data = ImagingImageData {
@@ -307,7 +343,9 @@ pub async fn perform_polar_alignment(
             data: packed_data,
         };
 
-        if let Ok(jpeg_data) = prepare_image_for_display(&imaging_image_data, is_color, bayer_pattern) {
+        if let Ok(jpeg_data) =
+            prepare_image_for_display(&imaging_image_data, is_color, bayer_pattern)
+        {
             image_callback(PolarAlignmentImageData {
                 image_data: jpeg_data,
                 width: image_data.width,
@@ -319,15 +357,19 @@ pub async fn perform_polar_alignment(
             });
         }
 
-        let solve_result = match ctx.device_ops.plate_solve(
-            &image_data, None, None, Some(config.solve_timeout)
-        ).await {
+        let solve_result = match ctx
+            .device_ops
+            .plate_solve(&image_data, None, None, Some(config.solve_timeout))
+            .await
+        {
             Ok(res) if res.success => res,
             _ => continue, // Ignore solve failures in loop
         };
 
         // Emit image again with plate solve coordinates
-        if let Ok(jpeg_data) = prepare_image_for_display(&imaging_image_data, is_color, bayer_pattern) {
+        if let Ok(jpeg_data) =
+            prepare_image_for_display(&imaging_image_data, is_color, bayer_pattern)
+        {
             image_callback(PolarAlignmentImageData {
                 image_data: jpeg_data,
                 width: image_data.width,
@@ -342,7 +384,7 @@ pub async fn perform_polar_alignment(
         // Calculate error
         let pole_dec = if config.is_north { 90.0 } else { -90.0 };
         let pole_ra = 0.0; // Celestial pole is at RA 0h (both hemispheres)
-        
+
         // Altitude error: Difference in declination between mechanical axis and pole
         let alt_error_deg = pole_dec - center_dec;
         let alt_error_am = alt_error_deg * 60.0;
@@ -370,8 +412,12 @@ pub async fn perform_polar_alignment(
         if let Err(e) = ctx.device_ops.polar_align_update(&result).await {
             tracing::warn!("Failed to send polar align update: {}", e);
         }
-        
-        tracing::info!("Polar Align Error: Alt {:.1}', Az {:.1}'", result.altitude_error, result.azimuth_error);
+
+        tracing::info!(
+            "Polar Align Error: Alt {:.1}', Az {:.1}'",
+            result.altitude_error,
+            result.azimuth_error
+        );
 
         // Check auto-complete threshold
         if total_error_am < threshold_arcmin {
@@ -382,7 +428,10 @@ pub async fn perform_polar_alignment(
                 }
                 Some(start) => {
                     if start.elapsed().as_secs() >= AUTO_COMPLETE_HOLD_SECS {
-                        tracing::info!("Auto-complete: error held below threshold for {}s", AUTO_COMPLETE_HOLD_SECS);
+                        tracing::info!(
+                            "Auto-complete: error held below threshold for {}s",
+                            AUTO_COMPLETE_HOLD_SECS
+                        );
                         return InstructionResult::success_with_message(format!(
                             "Polar alignment complete! Final error: {:.1}\" (below {:.0}\" threshold)",
                             total_error_am * 60.0,  // Convert to arcsec for display
@@ -414,20 +463,23 @@ fn calculate_center_of_rotation(points: &[(f64, f64)]) -> (f64, f64) {
     // x = cos(dec) * cos(ra)
     // y = cos(dec) * sin(ra)
     // z = sin(dec)
-    let vectors: Vec<(f64, f64, f64)> = points.iter().map(|(ra, dec)| {
-        let ra_rad = ra.to_radians();
-        let dec_rad = dec.to_radians();
-        (
-            dec_rad.cos() * ra_rad.cos(),
-            dec_rad.cos() * ra_rad.sin(),
-            dec_rad.sin()
-        )
-    }).collect();
+    let vectors: Vec<(f64, f64, f64)> = points
+        .iter()
+        .map(|(ra, dec)| {
+            let ra_rad = ra.to_radians();
+            let dec_rad = dec.to_radians();
+            (
+                dec_rad.cos() * ra_rad.cos(),
+                dec_rad.cos() * ra_rad.sin(),
+                dec_rad.sin(),
+            )
+        })
+        .collect();
 
     // The three points define a plane. The mechanical axis is the normal to this plane
     // passing through the origin (center of sphere).
     // Normal n = (p2 - p1) x (p3 - p1)
-    
+
     let p1 = vectors[0];
     let p2 = vectors[1];
     let p3 = vectors[2];
@@ -445,7 +497,7 @@ fn calculate_center_of_rotation(points: &[(f64, f64)]) -> (f64, f64) {
     if mag < 1e-9 {
         return (0.0, 90.0); // Collinear points or error
     }
-    
+
     let nx = nx / mag;
     let ny = ny / mag;
     let nz = nz / mag;
@@ -453,10 +505,10 @@ fn calculate_center_of_rotation(points: &[(f64, f64)]) -> (f64, f64) {
     // Convert normal vector back to RA/Dec
     // dec = asin(z)
     // ra = atan2(y, x)
-    
+
     let center_dec_rad = nz.asin();
     let mut center_ra_rad = ny.atan2(nx);
-    
+
     if center_ra_rad < 0.0 {
         center_ra_rad += 2.0 * std::f64::consts::PI;
     }
@@ -502,20 +554,13 @@ pub fn prepare_image_for_display(
 
         // Calculate auto-stretch parameters for RGB
         // Use linked stretch (same params for all channels) for natural color balance
-        let (_r_params, g_params, _b_params) = auto_stretch_rgb(
-            &rgb16_data,
-            rgb_image.width,
-            rgb_image.height,
-        );
+        let (_r_params, g_params, _b_params) =
+            auto_stretch_rgb(&rgb16_data, rgb_image.width, rgb_image.height);
 
         // Use green channel params as reference for linked stretch
         // (green is most representative of luminosity in astro images)
-        let stretched = apply_stretch_rgb(
-            &rgb16_data,
-            rgb_image.width,
-            rgb_image.height,
-            &g_params,
-        );
+        let stretched =
+            apply_stretch_rgb(&rgb16_data, rgb_image.width, rgb_image.height, &g_params);
 
         (
             stretched,
@@ -557,11 +602,7 @@ mod tests {
     fn test_calculate_center_of_rotation() {
         // Test case 1: Perfect rotation around pole (0, 90)
         // Points at Dec 89, RA 0, 20, 40
-        let points = vec![
-            (0.0, 89.0),
-            (20.0, 89.0),
-            (40.0, 89.0),
-        ];
+        let points = vec![(0.0, 89.0), (20.0, 89.0), (40.0, 89.0)];
         let (ra, dec) = calculate_center_of_rotation(&points);
         println!("Center: RA {}, Dec {}", ra, dec);
         assert!((dec - 90.0).abs() < 0.1); // Should be very close to 90
@@ -573,7 +614,7 @@ mod tests {
         // Let's use points generated by rotating a vector around an axis.
         // Axis: (0, 0, 1) rotated by 1 deg around Y axis -> (sin(1), 0, cos(1))
         // This corresponds to Dec = 89, RA = 0 (or 180 depending on definition).
-        
+
         // Let's trust the math for now and just verify it runs and gives reasonable results for the simple case.
     }
 }

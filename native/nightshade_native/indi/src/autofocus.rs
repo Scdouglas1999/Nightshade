@@ -127,7 +127,10 @@ impl IndiAutofocus {
         }
 
         // Get current focuser position
-        let current_position = self.focuser.get_position().await
+        let current_position = self
+            .focuser
+            .get_position()
+            .await
             .map_err(|e| format!("Failed to get focuser position: {}", e))?;
 
         tracing::info!("Current focuser position: {}", current_position);
@@ -151,16 +154,21 @@ impl IndiAutofocus {
 
         // Move to starting position with backlash compensation
         let start_position = positions[0];
-        self.move_with_backlash(current_position, start_position).await?;
+        self.move_with_backlash(current_position, start_position)
+            .await?;
 
         // Set camera binning
         if self.config.binning > 1 {
-            self.camera.set_binning(self.config.binning, self.config.binning).await
+            self.camera
+                .set_binning(self.config.binning, self.config.binning)
+                .await
                 .map_err(|e| format!("Failed to set binning: {}", e))?;
         }
 
         // Enable BLOB transfer for camera
-        self.camera.enable_blob().await
+        self.camera
+            .enable_blob()
+            .await
             .map_err(|e| format!("Failed to enable BLOB transfer: {}", e))?;
 
         // Collect focus data points
@@ -176,10 +184,12 @@ impl IndiAutofocus {
             );
 
             // Move to position
-            self.focuser.move_to_with_timeout(
-                position,
-                Some(Duration::from_secs(self.config.move_timeout_secs))
-            ).await?;
+            self.focuser
+                .move_to_with_timeout(
+                    position,
+                    Some(Duration::from_secs(self.config.move_timeout_secs)),
+                )
+                .await?;
 
             // Wait for settling
             if self.config.settling_time_ms > 0 {
@@ -192,7 +202,8 @@ impl IndiAutofocus {
             // Check for dramatic star count changes (clouds, tracking issues)
             if let Some(ref_count) = reference_star_count {
                 if let Some(max_change) = self.config.max_star_count_change {
-                    let count_change = ((star_count as f64 - ref_count as f64) / ref_count as f64).abs();
+                    let count_change =
+                        ((star_count as f64 - ref_count as f64) / ref_count as f64).abs();
                     if count_change > max_change {
                         tracing::warn!(
                             "Star count changed by {:.1}% ({} -> {}), possible clouds or tracking issue",
@@ -240,7 +251,8 @@ impl IndiAutofocus {
 
         // Move to best position with backlash compensation
         let last_position = positions[positions.len() - 1];
-        self.move_with_backlash(last_position, best_position).await?;
+        self.move_with_backlash(last_position, best_position)
+            .await?;
 
         Ok(IndiAutofocusResult {
             best_position,
@@ -279,10 +291,12 @@ impl IndiAutofocus {
             );
 
             // Move to overshoot position
-            self.focuser.move_to_with_timeout(
-                overshoot,
-                Some(Duration::from_secs(self.config.move_timeout_secs))
-            ).await?;
+            self.focuser
+                .move_to_with_timeout(
+                    overshoot,
+                    Some(Duration::from_secs(self.config.move_timeout_secs)),
+                )
+                .await?;
 
             // Wait for settling
             if self.config.settling_time_ms > 0 {
@@ -290,16 +304,20 @@ impl IndiAutofocus {
             }
 
             // Move to final position
-            self.focuser.move_to_with_timeout(
-                target,
-                Some(Duration::from_secs(self.config.move_timeout_secs))
-            ).await?;
+            self.focuser
+                .move_to_with_timeout(
+                    target,
+                    Some(Duration::from_secs(self.config.move_timeout_secs)),
+                )
+                .await?;
         } else {
             // Moving outward or no backlash - direct move
-            self.focuser.move_to_with_timeout(
-                target,
-                Some(Duration::from_secs(self.config.move_timeout_secs))
-            ).await?;
+            self.focuser
+                .move_to_with_timeout(
+                    target,
+                    Some(Duration::from_secs(self.config.move_timeout_secs)),
+                )
+                .await?;
         }
 
         Ok(())
@@ -308,12 +326,15 @@ impl IndiAutofocus {
     /// Capture an image and measure HFR/FWHM
     async fn capture_and_measure(&self) -> Result<(f64, u32, Option<f64>), String> {
         // Capture image
-        let image_data = self.camera.capture_image_with_timeout(
-            self.config.exposure_duration,
-            Some(Duration::from_secs(
-                self.config.exposure_duration as u64 + 60
-            ))
-        ).await?;
+        let image_data = self
+            .camera
+            .capture_image_with_timeout(
+                self.config.exposure_duration,
+                Some(Duration::from_secs(
+                    self.config.exposure_duration as u64 + 60,
+                )),
+            )
+            .await?;
 
         // Parse FITS data to extract image
         let image = self.parse_fits_image(&image_data)?;
@@ -334,8 +355,8 @@ impl IndiAutofocus {
             return Err("FITS data too short".to_string());
         }
 
-        let header = std::str::from_utf8(&data[0..2880])
-            .map_err(|_| "Invalid FITS header".to_string())?;
+        let header =
+            std::str::from_utf8(&data[0..2880]).map_err(|_| "Invalid FITS header".to_string())?;
 
         // Parse NAXIS1 (width) and NAXIS2 (height)
         let mut width = 0u32;
@@ -386,12 +407,16 @@ impl IndiAutofocus {
     }
 
     /// Calculate HFR, star count, and FWHM from image data
-    fn calculate_hfr_and_stars(&self, image: &ImageData) -> Result<(f64, u32, Option<f64>), String> {
+    fn calculate_hfr_and_stars(
+        &self,
+        image: &ImageData,
+    ) -> Result<(f64, u32, Option<f64>), String> {
         // Convert to f64 for star detection
         let pixels: Vec<f64> = image.data.iter().map(|&p| p as f64).collect();
 
         // Estimate background using sigma-clipped median
-        let (background, noise) = estimate_background(&pixels, image.width as usize, image.height as usize);
+        let (background, noise) =
+            estimate_background(&pixels, image.width as usize, image.height as usize);
 
         // Detect stars
         let detection_config = StarDetectionConfig {
@@ -403,7 +428,14 @@ impl IndiAutofocus {
             hfr_radius: 20,
         };
 
-        let stars = detect_stars(&pixels, image.width, image.height, background, noise, &detection_config);
+        let stars = detect_stars(
+            &pixels,
+            image.width,
+            image.height,
+            background,
+            noise,
+            &detection_config,
+        );
 
         if stars.is_empty() {
             // No stars detected - return high HFR to indicate bad focus
@@ -412,7 +444,8 @@ impl IndiAutofocus {
 
         // Calculate median HFR from top 50% brightest stars
         let count = (stars.len() / 2).clamp(1, 50);
-        let mut hfrs: Vec<f64> = stars.iter()
+        let mut hfrs: Vec<f64> = stars
+            .iter()
             .take(count)
             .map(|s| s.hfr)
             .filter(|&h| h > 0.0 && h < 20.0)
@@ -426,7 +459,8 @@ impl IndiAutofocus {
         let median_hfr = hfrs[hfrs.len() / 2];
 
         // Calculate median FWHM
-        let mut fwhms: Vec<f64> = stars.iter()
+        let mut fwhms: Vec<f64> = stars
+            .iter()
             .take(count)
             .map(|s| s.fwhm)
             .filter(|&f| f > 0.0)
@@ -505,7 +539,11 @@ impl IndiAutofocus {
     fn fit_vcurve(&self, points: &[FocusDataPoint]) -> Result<(i32, f64), String> {
         let min_point = points
             .iter()
-            .min_by(|a, b| a.hfr.partial_cmp(&b.hfr).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| {
+                a.hfr
+                    .partial_cmp(&b.hfr)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .ok_or("No minimum found")?;
 
         // Calculate fit quality
@@ -692,7 +730,11 @@ impl IndiAutofocus {
                 sum_den += term * term;
             }
         }
-        let a = if sum_den > 1e-10 { sum_num / sum_den } else { 1.0 };
+        let a = if sum_den > 1e-10 {
+            sum_num / sum_den
+        } else {
+            1.0
+        };
 
         for point in points {
             let x = point.position as f64;
@@ -757,7 +799,8 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
         samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let median = samples[samples.len() / 2];
 
-        let mad: f64 = samples.iter().map(|&v| (v - median).abs()).sum::<f64>() / samples.len() as f64;
+        let mad: f64 =
+            samples.iter().map(|&v| (v - median).abs()).sum::<f64>() / samples.len() as f64;
         let sigma = mad * 1.4826;
 
         let lower = median - 3.0 * sigma;
@@ -773,7 +816,11 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
     samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let background = samples[samples.len() / 2];
 
-    let variance: f64 = samples.iter().map(|&v| (v - background).powi(2)).sum::<f64>() / samples.len() as f64;
+    let variance: f64 = samples
+        .iter()
+        .map(|&v| (v - background).powi(2))
+        .sum::<f64>()
+        / samples.len() as f64;
     let noise = variance.sqrt();
 
     (background, noise.max(1.0))
@@ -819,7 +866,16 @@ fn detect_stars(
             }
 
             // Measure star
-            if let Some(star) = measure_star(pixels, width, height, x, y, background, config, &mut visited) {
+            if let Some(star) = measure_star(
+                pixels,
+                width,
+                height,
+                x,
+                y,
+                background,
+                config,
+                &mut visited,
+            ) {
                 let area = star.flux / (star.peak - background);
                 if area >= config.min_area as f64 && area <= config.max_area as f64 {
                     stars.push(star);
@@ -828,7 +884,11 @@ fn detect_stars(
         }
     }
 
-    stars.sort_by(|a, b| b.flux.partial_cmp(&a.flux).unwrap_or(std::cmp::Ordering::Equal));
+    stars.sort_by(|a, b| {
+        b.flux
+            .partial_cmp(&a.flux)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     stars
 }
 
@@ -880,7 +940,9 @@ fn measure_star(
     let centroid_y = sum_y / sum_flux;
 
     // Calculate HFR
-    let hfr = calculate_hfr(pixels, width, height, centroid_x, centroid_y, background, radius);
+    let hfr = calculate_hfr(
+        pixels, width, height, centroid_x, centroid_y, background, radius,
+    );
 
     // FWHM from HFR
     const FWHM_TO_HFR_RATIO: f64 = 2.3548200450309493;
@@ -937,13 +999,48 @@ mod tests {
     #[test]
     fn test_parabolic_fit() {
         let points = vec![
-            FocusDataPoint { position: 4500, hfr: 3.5, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 4700, hfr: 2.5, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 4900, hfr: 2.1, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 5000, hfr: 2.0, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 5100, hfr: 2.1, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 5300, hfr: 2.5, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 5500, hfr: 3.5, fwhm: None, star_count: 50 },
+            FocusDataPoint {
+                position: 4500,
+                hfr: 3.5,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 4700,
+                hfr: 2.5,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 4900,
+                hfr: 2.1,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 5000,
+                hfr: 2.0,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 5100,
+                hfr: 2.1,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 5300,
+                hfr: 2.5,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 5500,
+                hfr: 3.5,
+                fwhm: None,
+                star_count: 50,
+            },
         ];
 
         let config = IndiAutofocusConfig {
@@ -958,28 +1055,56 @@ mod tests {
         let af = IndiAutofocus {
             camera: Arc::new(IndiCamera::new(
                 Arc::new(RwLock::new(crate::IndiClient::new("localhost", None))),
-                "TestCamera"
+                "TestCamera",
             )),
             focuser: Arc::new(IndiFocuser::new(
                 Arc::new(RwLock::new(crate::IndiClient::new("localhost", None))),
-                "TestFocuser"
+                "TestFocuser",
             )),
             config,
         };
 
         let (best_pos, r_squared) = af.fit_parabola(&points).unwrap();
-        assert!((best_pos - 5000).abs() < 100, "Best position should be near 5000");
+        assert!(
+            (best_pos - 5000).abs() < 100,
+            "Best position should be near 5000"
+        );
         assert!(r_squared > 0.9, "R-squared should be high for good fit");
     }
 
     #[test]
     fn test_vcurve_fit() {
         let points = vec![
-            FocusDataPoint { position: 1000, hfr: 5.0, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1100, hfr: 3.5, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1200, hfr: 2.2, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1300, hfr: 3.8, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1400, hfr: 5.5, fwhm: None, star_count: 50 },
+            FocusDataPoint {
+                position: 1000,
+                hfr: 5.0,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1100,
+                hfr: 3.5,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1200,
+                hfr: 2.2,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1300,
+                hfr: 3.8,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1400,
+                hfr: 5.5,
+                fwhm: None,
+                star_count: 50,
+            },
         ];
 
         let config = IndiAutofocusConfig {
@@ -990,11 +1115,11 @@ mod tests {
         let af = IndiAutofocus {
             camera: Arc::new(IndiCamera::new(
                 Arc::new(RwLock::new(crate::IndiClient::new("localhost", None))),
-                "TestCamera"
+                "TestCamera",
             )),
             focuser: Arc::new(IndiFocuser::new(
                 Arc::new(RwLock::new(crate::IndiClient::new("localhost", None))),
-                "TestFocuser"
+                "TestFocuser",
             )),
             config,
         };
@@ -1006,11 +1131,36 @@ mod tests {
     #[test]
     fn test_outlier_rejection() {
         let points = vec![
-            FocusDataPoint { position: 1000, hfr: 3.0, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1100, hfr: 2.8, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1200, hfr: 2.5, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1300, hfr: 15.0, fwhm: None, star_count: 50 }, // Outlier
-            FocusDataPoint { position: 1400, hfr: 3.2, fwhm: None, star_count: 50 },
+            FocusDataPoint {
+                position: 1000,
+                hfr: 3.0,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1100,
+                hfr: 2.8,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1200,
+                hfr: 2.5,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1300,
+                hfr: 15.0,
+                fwhm: None,
+                star_count: 50,
+            }, // Outlier
+            FocusDataPoint {
+                position: 1400,
+                hfr: 3.2,
+                fwhm: None,
+                star_count: 50,
+            },
         ];
 
         let config = IndiAutofocusConfig {
@@ -1021,17 +1171,20 @@ mod tests {
         let af = IndiAutofocus {
             camera: Arc::new(IndiCamera::new(
                 Arc::new(RwLock::new(crate::IndiClient::new("localhost", None))),
-                "TestCamera"
+                "TestCamera",
             )),
             focuser: Arc::new(IndiFocuser::new(
                 Arc::new(RwLock::new(crate::IndiClient::new("localhost", None))),
-                "TestFocuser"
+                "TestFocuser",
             )),
             config,
         };
 
         let filtered = af.reject_outliers(&points).unwrap();
         assert_eq!(filtered.len(), 4, "Should reject 1 outlier");
-        assert!(filtered.iter().all(|p| p.hfr < 10.0), "Outlier should be removed");
+        assert!(
+            filtered.iter().all(|p| p.hfr < 10.0),
+            "Outlier should be removed"
+        );
     }
 }

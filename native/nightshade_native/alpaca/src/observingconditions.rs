@@ -131,11 +131,15 @@ impl AlpacaObservingConditions {
     }
 
     pub async fn set_average_period(&self, period: f64) -> Result<(), String> {
-        self.client.put("averageperiod", &[("AveragePeriod", &period.to_string())]).await
+        self.client
+            .put("averageperiod", &[("AveragePeriod", &period.to_string())])
+            .await
     }
 
     pub async fn time_since_last_update(&self, sensor: &str) -> Result<f64, String> {
-        self.client.get(&format!("timesincelastupdate?SensorName={}", sensor)).await
+        self.client
+            .get(&format!("timesincelastupdate?SensorName={}", sensor))
+            .await
     }
 
     // Control

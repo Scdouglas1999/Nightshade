@@ -50,11 +50,22 @@ impl IndiFilterWheel {
     /// Set filter slot (1-based)
     pub async fn set_slot(&self, slot: i32) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_number(&self.device_name, FILTER_SLOT, "FILTER_SLOT_VALUE", slot as f64).await
+        client
+            .set_number(
+                &self.device_name,
+                FILTER_SLOT,
+                "FILTER_SLOT_VALUE",
+                slot as f64,
+            )
+            .await
     }
 
     /// Set filter slot with timeout (1-based)
-    pub async fn set_slot_with_timeout(&self, slot: i32, timeout: Option<Duration>) -> Result<(), String> {
+    pub async fn set_slot_with_timeout(
+        &self,
+        slot: i32,
+        timeout: Option<Duration>,
+    ) -> Result<(), String> {
         let timeout_duration = timeout.unwrap_or_else(|| {
             let client = tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(self.client.read())
@@ -65,7 +76,14 @@ impl IndiFilterWheel {
         // Start the filter change
         {
             let mut client = self.client.write().await;
-            client.set_number(&self.device_name, FILTER_SLOT, "FILTER_SLOT_VALUE", slot as f64).await?;
+            client
+                .set_number(
+                    &self.device_name,
+                    FILTER_SLOT,
+                    "FILTER_SLOT_VALUE",
+                    slot as f64,
+                )
+                .await?;
         }
 
         // Wait for filter change to complete
@@ -79,7 +97,8 @@ impl IndiFilterWheel {
     /// Get current filter slot (1-based)
     pub async fn get_slot(&self) -> Result<i32, String> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, FILTER_SLOT, "FILTER_SLOT_VALUE")
+        client
+            .get_number(&self.device_name, FILTER_SLOT, "FILTER_SLOT_VALUE")
             .await
             .map(|s| s as i32)
             .ok_or_else(|| "Filter slot not available".to_string())
@@ -90,11 +109,14 @@ impl IndiFilterWheel {
     pub async fn get_names(&self) -> Result<Vec<String>, String> {
         let client = self.client.read().await;
         let props = client.get_properties(&self.device_name).await;
-        
+
         if let Some(prop) = props.iter().find(|p| p.name == FILTER_NAME) {
             let mut names = Vec::new();
             for elem in &prop.elements {
-                if let Some(val) = client.get_property_value(&self.device_name, FILTER_NAME, elem).await {
+                if let Some(val) = client
+                    .get_property_value(&self.device_name, FILTER_NAME, elem)
+                    .await
+                {
                     names.push(val);
                 } else {
                     names.push(elem.clone());
@@ -109,7 +131,9 @@ impl IndiFilterWheel {
     /// Check if filter wheel is currently moving
     pub async fn is_moving(&self) -> bool {
         let client = self.client.read().await;
-        client.is_property_busy(&self.device_name, FILTER_SLOT).await
+        client
+            .is_property_busy(&self.device_name, FILTER_SLOT)
+            .await
     }
 }
 
@@ -131,7 +155,9 @@ mod tests {
         let fw = IndiFilterWheel::new(client, "TestFilterWheel");
 
         // This will fail since we're not connected
-        let result = fw.set_slot_with_timeout(3, Some(Duration::from_millis(100))).await;
+        let result = fw
+            .set_slot_with_timeout(3, Some(Duration::from_millis(100)))
+            .await;
 
         assert!(result.is_err());
         if let Err(e) = result {
@@ -145,9 +171,11 @@ mod tests {
         let mut config = crate::IndiTimeoutConfig::default();
         config.filter_change_timeout_secs = 120; // Custom timeout
 
-        let client = Arc::new(RwLock::new(
-            IndiClient::with_timeout_config("localhost", Some(7624), config)
-        ));
+        let client = Arc::new(RwLock::new(IndiClient::with_timeout_config(
+            "localhost",
+            Some(7624),
+            config,
+        )));
         let _fw = IndiFilterWheel::new(client.clone(), "TestFilterWheel");
 
         // Verify the timeout config is accessible

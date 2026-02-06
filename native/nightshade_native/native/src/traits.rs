@@ -139,19 +139,19 @@ impl NativeTimeoutConfig {
 pub trait NativeDevice: Send + Sync + Debug {
     /// Get the unique device ID
     fn id(&self) -> &str;
-    
+
     /// Get the device name/model
     fn name(&self) -> &str;
-    
+
     /// Get the vendor name
     fn vendor(&self) -> crate::NativeVendor;
-    
+
     /// Check if the device is connected
     fn is_connected(&self) -> bool;
-    
+
     /// Connect to the device
     async fn connect(&mut self) -> Result<(), NativeError>;
-    
+
     /// Disconnect from the device
     async fn disconnect(&mut self) -> Result<(), NativeError>;
 }
@@ -164,61 +164,61 @@ pub trait NativeDevice: Send + Sync + Debug {
 pub trait NativeCamera: NativeDevice {
     /// Get camera capabilities
     fn capabilities(&self) -> CameraCapabilities;
-    
+
     /// Get current camera status
     async fn get_status(&self) -> Result<CameraStatus, NativeError>;
-    
+
     /// Start an exposure
     async fn start_exposure(&mut self, params: ExposureParams) -> Result<(), NativeError>;
-    
+
     /// Abort current exposure
     async fn abort_exposure(&mut self) -> Result<(), NativeError>;
-    
+
     /// Check if exposure is complete
     async fn is_exposure_complete(&self) -> Result<bool, NativeError>;
-    
+
     /// Download the image data from the camera
     async fn download_image(&mut self) -> Result<ImageData, NativeError>;
-    
+
     /// Set cooler state and target temperature
     async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError>;
-    
+
     /// Get current sensor temperature
     async fn get_temperature(&self) -> Result<f64, NativeError>;
-    
+
     /// Get cooler power percentage
     async fn get_cooler_power(&self) -> Result<f64, NativeError>;
-    
+
     /// Set gain
     async fn set_gain(&mut self, gain: i32) -> Result<(), NativeError>;
-    
+
     /// Get current gain
     async fn get_gain(&self) -> Result<i32, NativeError>;
-    
+
     /// Set offset
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError>;
-    
+
     /// Get current offset
     async fn get_offset(&self) -> Result<i32, NativeError>;
-    
+
     /// Set binning
     async fn set_binning(&mut self, bin_x: i32, bin_y: i32) -> Result<(), NativeError>;
-    
+
     /// Get current binning
     async fn get_binning(&self) -> Result<(i32, i32), NativeError>;
-    
+
     /// Set subframe region
     async fn set_subframe(&mut self, subframe: Option<SubFrame>) -> Result<(), NativeError>;
-    
+
     /// Get sensor information
     fn get_sensor_info(&self) -> SensorInfo;
-    
+
     /// Get available readout modes (vendor-specific)
     async fn get_readout_modes(&self) -> Result<Vec<ReadoutMode>, NativeError>;
-    
+
     /// Set readout mode (vendor-specific)
     async fn set_readout_mode(&mut self, mode: &ReadoutMode) -> Result<(), NativeError>;
-    
+
     /// Get vendor-specific features (e.g., QHY sensor chamber readings)
     async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError>;
 
@@ -249,13 +249,21 @@ pub enum TrackingRate {
 #[async_trait]
 pub trait NativeMount: NativeDevice {
     /// Slew to coordinates (RA in hours, Dec in degrees)
-    async fn slew_to_coordinates(&mut self, ra_hours: f64, dec_degrees: f64) -> Result<(), NativeError>;
+    async fn slew_to_coordinates(
+        &mut self,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> Result<(), NativeError>;
 
     /// Get current coordinates
     async fn get_coordinates(&self) -> Result<(f64, f64), NativeError>;
 
     /// Sync to coordinates
-    async fn sync_to_coordinates(&mut self, ra_hours: f64, dec_degrees: f64) -> Result<(), NativeError>;
+    async fn sync_to_coordinates(
+        &mut self,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> Result<(), NativeError>;
 
     /// Park the mount
     async fn park(&mut self) -> Result<(), NativeError>;
@@ -270,7 +278,11 @@ pub trait NativeMount: NativeDevice {
     async fn is_parked(&self) -> Result<bool, NativeError>;
 
     /// Pulse guide (for autoguiding)
-    async fn pulse_guide(&mut self, direction: GuideDirection, duration_ms: u32) -> Result<(), NativeError>;
+    async fn pulse_guide(
+        &mut self,
+        direction: GuideDirection,
+        duration_ms: u32,
+    ) -> Result<(), NativeError>;
 
     /// Abort current slew
     async fn abort_slew(&mut self) -> Result<(), NativeError>;
@@ -313,25 +325,25 @@ pub enum PierSide {
 pub trait NativeFocuser: NativeDevice {
     /// Move to absolute position
     async fn move_to(&mut self, position: i32) -> Result<(), NativeError>;
-    
+
     /// Move relative by steps
     async fn move_relative(&mut self, steps: i32) -> Result<(), NativeError>;
-    
+
     /// Get current position
     async fn get_position(&self) -> Result<i32, NativeError>;
-    
+
     /// Check if focuser is moving
     async fn is_moving(&self) -> Result<bool, NativeError>;
-    
+
     /// Halt movement
     async fn halt(&mut self) -> Result<(), NativeError>;
-    
+
     /// Get temperature (if available)
     async fn get_temperature(&self) -> Result<Option<f64>, NativeError>;
-    
+
     /// Get maximum position
     fn get_max_position(&self) -> i32;
-    
+
     /// Get step size
     fn get_step_size(&self) -> f64;
 }
@@ -341,19 +353,19 @@ pub trait NativeFocuser: NativeDevice {
 pub trait NativeFilterWheel: NativeDevice {
     /// Move to filter position (0-indexed)
     async fn move_to_position(&mut self, position: i32) -> Result<(), NativeError>;
-    
+
     /// Get current filter position
     async fn get_position(&self) -> Result<i32, NativeError>;
-    
+
     /// Check if filter wheel is moving
     async fn is_moving(&self) -> Result<bool, NativeError>;
-    
+
     /// Get number of filter slots
     fn get_filter_count(&self) -> i32;
-    
+
     /// Get filter names
     async fn get_filter_names(&self) -> Result<Vec<String>, NativeError>;
-    
+
     /// Set filter name
     async fn set_filter_name(&mut self, position: i32, name: String) -> Result<(), NativeError>;
 }
@@ -694,8 +706,3 @@ pub trait NativeSafetyMonitor: NativeDevice {
     /// Check if conditions are safe
     async fn is_safe(&self) -> Result<bool, NativeError>;
 }
-
-
-
-
-

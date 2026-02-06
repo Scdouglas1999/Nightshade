@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 pub struct AutofocusResult {
     pub best_position: i32,
     pub best_hfr: f64,
-    pub curve_fit_quality: f64,  // R-squared or similar metric
+    pub curve_fit_quality: f64, // R-squared or similar metric
     pub method_used: AutofocusMethod,
     pub data_points: Vec<FocusDataPoint>,
     pub temperature_celsius: Option<f64>,
@@ -49,8 +49,8 @@ pub struct AutofocusConfig {
     pub exposure_duration: f64,
     pub backlash_compensation: i32,
     pub use_temperature_prediction: bool,
-    pub max_star_count_change: Option<f64>,  // Reject points with >X% star count change
-    pub outlier_rejection_sigma: f64,  // Sigma for outlier rejection (0 = disabled)
+    pub max_star_count_change: Option<f64>, // Reject points with >X% star count change
+    pub outlier_rejection_sigma: f64,       // Sigma for outlier rejection (0 = disabled)
 }
 
 impl Default for AutofocusConfig {
@@ -62,7 +62,7 @@ impl Default for AutofocusConfig {
             exposure_duration: 3.0,
             backlash_compensation: 50,
             use_temperature_prediction: true,
-            max_star_count_change: Some(0.5),  // 50% change threshold
+            max_star_count_change: Some(0.5), // 50% change threshold
             outlier_rejection_sigma: 3.0,
         }
     }
@@ -99,7 +99,10 @@ impl VCurveAutofocus {
     }
 
     /// Process collected data points and find best focus position
-    pub fn find_best_focus(&self, data_points: Vec<FocusDataPoint>) -> Result<AutofocusResult, String> {
+    pub fn find_best_focus(
+        &self,
+        data_points: Vec<FocusDataPoint>,
+    ) -> Result<AutofocusResult, String> {
         if data_points.len() < 3 {
             return Err("Not enough data points for curve fitting".to_string());
         }
@@ -135,7 +138,7 @@ impl VCurveAutofocus {
             curve_fit_quality: curve_quality,
             method_used: self.config.method,
             data_points: filtered_points,
-            temperature_celsius: None,  // Set by caller
+            temperature_celsius: None, // Set by caller
             backlash_applied: self.config.backlash_compensation > 0,
         })
     }
@@ -179,7 +182,11 @@ impl VCurveAutofocus {
         // Simple approach: find minimum HFR point
         let min_point = points
             .iter()
-            .min_by(|a, b| a.hfr.partial_cmp(&b.hfr).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| {
+                a.hfr
+                    .partial_cmp(&b.hfr)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .ok_or("No minimum found")?;
 
         // Calculate fit quality using normalized RMSE
@@ -254,9 +261,9 @@ impl VCurveAutofocus {
             - sum_x * (sum_x * sum_x2y - sum_x2 * sum_xy)
             + sum_y * (sum_x * sum_x3 - sum_x2 * sum_x2);
 
-        let a = det_c / det;  // Coefficient of x^2
-        let b = det_b / det;  // Coefficient of x
-        let c = det_a / det;  // Constant
+        let a = det_c / det; // Coefficient of x^2
+        let b = det_b / det; // Coefficient of x
+        let c = det_a / det; // Constant
 
         // Check if parabola opens upward (minimum exists)
         if a <= 0.0 {
@@ -378,7 +385,11 @@ impl VCurveAutofocus {
                 sum_den += term * term;
             }
         }
-        let a = if sum_den > 1e-10 { sum_num / sum_den } else { 1.0 };
+        let a = if sum_den > 1e-10 {
+            sum_num / sum_den
+        } else {
+            1.0
+        };
 
         for point in points {
             let x = point.position as f64;
@@ -466,8 +477,16 @@ mod tests {
 
         let (best_pos, r_squared) = engine.fit_parabola(&points).unwrap();
 
-        assert!((best_pos - 5000).abs() < 10, "Best position should be near 5000, got {}", best_pos);
-        assert!(r_squared > 0.99, "R-squared should be very high for perfect parabola, got {}", r_squared);
+        assert!(
+            (best_pos - 5000).abs() < 10,
+            "Best position should be near 5000, got {}",
+            best_pos
+        );
+        assert!(
+            r_squared > 0.99,
+            "R-squared should be very high for perfect parabola, got {}",
+            r_squared
+        );
     }
 
     #[test]
@@ -479,11 +498,36 @@ mod tests {
         let engine = VCurveAutofocus::new(config);
 
         let points = vec![
-            FocusDataPoint { position: 1000, hfr: 5.0, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1100, hfr: 3.5, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1200, hfr: 2.2, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1300, hfr: 3.8, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1400, hfr: 5.5, fwhm: None, star_count: 50 },
+            FocusDataPoint {
+                position: 1000,
+                hfr: 5.0,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1100,
+                hfr: 3.5,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1200,
+                hfr: 2.2,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1300,
+                hfr: 3.8,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1400,
+                hfr: 5.5,
+                fwhm: None,
+                star_count: 50,
+            },
         ];
 
         let (best_pos, _) = engine.fit_vcurve(&points).unwrap();
@@ -514,16 +558,44 @@ mod tests {
         let engine = VCurveAutofocus::new(config);
 
         let points = vec![
-            FocusDataPoint { position: 1000, hfr: 3.0, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1100, hfr: 2.8, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1200, hfr: 2.5, fwhm: None, star_count: 50 },
-            FocusDataPoint { position: 1300, hfr: 15.0, fwhm: None, star_count: 50 }, // Outlier
-            FocusDataPoint { position: 1400, hfr: 3.2, fwhm: None, star_count: 50 },
+            FocusDataPoint {
+                position: 1000,
+                hfr: 3.0,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1100,
+                hfr: 2.8,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1200,
+                hfr: 2.5,
+                fwhm: None,
+                star_count: 50,
+            },
+            FocusDataPoint {
+                position: 1300,
+                hfr: 15.0,
+                fwhm: None,
+                star_count: 50,
+            }, // Outlier
+            FocusDataPoint {
+                position: 1400,
+                hfr: 3.2,
+                fwhm: None,
+                star_count: 50,
+            },
         ];
 
         let filtered = engine.reject_outliers(&points).unwrap();
         assert_eq!(filtered.len(), 4, "Should reject 1 outlier");
-        assert!(filtered.iter().all(|p| p.hfr < 10.0), "Outlier should be removed");
+        assert!(
+            filtered.iter().all(|p| p.hfr < 10.0),
+            "Outlier should be removed"
+        );
     }
 
     #[test]

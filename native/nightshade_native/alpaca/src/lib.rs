@@ -4,33 +4,33 @@
 //! This provides network-based access to astronomical equipment without
 //! requiring platform-specific COM or INDI interfaces.
 
-mod client;
-mod discovery;
 mod camera;
-mod telescope;
-mod focuser;
-mod filterwheel;
-mod rotator;
-mod dome;
-mod safetymonitor;
-mod observingconditions;
-mod switch;
+mod client;
 mod covercalibrator;
+mod discovery;
+mod dome;
+mod filterwheel;
+mod focuser;
 mod guard;
+mod observingconditions;
+mod rotator;
+mod safetymonitor;
+mod switch;
+mod telescope;
 
-pub use client::*;
-pub use guard::*;
-pub use discovery::*;
 pub use camera::*;
-pub use telescope::*;
-pub use focuser::*;
-pub use filterwheel::*;
-pub use rotator::*;
-pub use dome::*;
-pub use safetymonitor::*;
-pub use observingconditions::*;
-pub use switch::*;
+pub use client::*;
 pub use covercalibrator::*;
+pub use discovery::*;
+pub use dome::*;
+pub use filterwheel::*;
+pub use focuser::*;
+pub use guard::*;
+pub use observingconditions::*;
+pub use rotator::*;
+pub use safetymonitor::*;
+pub use switch::*;
+pub use telescope::*;
 
 /// Alpaca API version
 pub const ALPACA_API_VERSION: u32 = 1;
@@ -126,13 +126,22 @@ pub struct AlpacaDevice {
 impl AlpacaDevice {
     /// Get a unique identifier for this device
     pub fn id(&self) -> String {
-        format!("alpaca:{}:{}:{}", self.base_url, self.device_type.as_str(), self.device_number)
+        format!(
+            "alpaca:{}:{}:{}",
+            self.base_url,
+            self.device_type.as_str(),
+            self.device_number
+        )
     }
 
     /// Get a display name combining device name and type
     pub fn display_name(&self) -> String {
         if self.device_name.is_empty() {
-            format!("{} #{}", self.device_type.display_name(), self.device_number)
+            format!(
+                "{} #{}",
+                self.device_type.display_name(),
+                self.device_number
+            )
         } else {
             self.device_name.clone()
         }

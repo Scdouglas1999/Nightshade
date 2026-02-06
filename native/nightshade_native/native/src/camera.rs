@@ -148,8 +148,3 @@ pub struct ImageMetadata {
     pub readout_mode: Option<String>,
     pub vendor_data: VendorFeatures,
 }
-
-
-
-
-

@@ -176,7 +176,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
           totalCount: totalCount,
           colors: colors,
           onRetry: widget.onConnectAll,
-          onSkip: () {}, // TODO: Implement skip
+          onSkip: _collapse,
           onSaveSetup: widget.onSaveSetup,
         );
     }
@@ -216,7 +216,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: camera.deviceName ?? _formatDeviceId(profile.cameraId!),
         icon: LucideIcons.camera,
         state: camera.connectionState,
-        error: null, // TODO: Get actual error
+        error: camera.lastError?.userMessage,
       ));
     }
 
@@ -226,7 +226,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: mount.deviceName ?? _formatDeviceId(profile.mountId!),
         icon: LucideIcons.compass,
         state: mount.connectionState,
-        error: null,
+        error: mount.lastError?.userMessage,
       ));
     }
 
@@ -236,7 +236,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: focuser.deviceName ?? _formatDeviceId(profile.focuserId!),
         icon: LucideIcons.focus,
         state: focuser.connectionState,
-        error: null,
+        error: focuser.lastError?.userMessage,
       ));
     }
 
@@ -246,7 +246,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: filterWheel.deviceName ?? _formatDeviceId(profile.filterWheelId!),
         icon: LucideIcons.circle,
         state: filterWheel.connectionState,
-        error: null,
+        error: filterWheel.lastError?.userMessage,
       ));
     }
 
@@ -256,7 +256,7 @@ class _ConnectionStatusZoneState extends ConsumerState<ConnectionStatusZone>
         name: guider.deviceName ?? _formatDeviceId(profile.guiderId!),
         icon: LucideIcons.crosshair,
         state: guider.connectionState,
-        error: null,
+        error: guider.lastError?.userMessage,
       ));
     }
 

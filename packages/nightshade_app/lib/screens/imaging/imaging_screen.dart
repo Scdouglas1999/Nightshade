@@ -2106,54 +2106,6 @@ class _BigActionButtonState extends State<_BigActionButton>
   }
 }
 
-// TODO: Use this widget for compact input fields
-// ignore: unused_element
-class _CompactInput extends StatelessWidget {
-  final String label;
-  final String value;
-  final NightshadeColors colors;
-
-  const _CompactInput({
-    required this.label,
-    required this.value,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: colors.textMuted,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          width: 70,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.border),
-          ),
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: colors.textPrimary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _EditableCompactInput extends StatefulWidget {
   final String label;
   final String value;
@@ -4818,69 +4770,6 @@ class _DropdownRow extends StatelessWidget {
                 onChanged: onChanged,
               ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// TODO: Use this widget for slider rows
-// ignore: unused_element
-class _SliderRow extends StatelessWidget {
-  final String label;
-  final double value;
-  final double min;
-  final double max;
-  final NightshadeColors colors;
-
-  const _SliderRow({
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
-            ),
-            Text(
-              '${value.toInt()}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        SliderTheme(
-          data: SliderThemeData(
-            trackHeight: 4,
-            activeTrackColor: colors.primary,
-            inactiveTrackColor: colors.border,
-            thumbColor: colors.primary,
-            overlayColor: colors.primary.withValues(alpha: 0.1),
-          ),
-          child: Slider(
-            value: value,
-            min: min,
-            max: max,
-            onChanged: (_) {},
           ),
         ),
       ],

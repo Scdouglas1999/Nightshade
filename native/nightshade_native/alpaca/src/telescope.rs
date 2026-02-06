@@ -1,6 +1,9 @@
 //! Alpaca Telescope (Mount) API implementation
 
-use crate::{AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, TimeoutConfig, RetryConfig};
+use crate::{
+    AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, RetryConfig,
+    TimeoutConfig,
+};
 use std::time::Duration;
 
 /// Pier side enum
@@ -331,7 +334,12 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_target_right_ascension(&self, ra: f64) -> Result<(), String> {
-        self.client.put("targetrightascension", &[("TargetRightAscension", &ra.to_string())]).await
+        self.client
+            .put(
+                "targetrightascension",
+                &[("TargetRightAscension", &ra.to_string())],
+            )
+            .await
     }
 
     pub async fn target_declination(&self) -> Result<f64, String> {
@@ -339,7 +347,12 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_target_declination(&self, dec: f64) -> Result<(), String> {
-        self.client.put("targetdeclination", &[("TargetDeclination", &dec.to_string())]).await
+        self.client
+            .put(
+                "targetdeclination",
+                &[("TargetDeclination", &dec.to_string())],
+            )
+            .await
     }
 
     // Status
@@ -353,7 +366,9 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_tracking(&self, tracking: bool) -> Result<(), String> {
-        self.client.put("tracking", &[("Tracking", &tracking.to_string())]).await
+        self.client
+            .put("tracking", &[("Tracking", &tracking.to_string())])
+            .await
     }
 
     pub async fn tracking_rate(&self) -> Result<DriveRate, String> {
@@ -362,7 +377,12 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_tracking_rate(&self, rate: DriveRate) -> Result<(), String> {
-        self.client.put("trackingrate", &[("TrackingRate", &(rate as i32).to_string())]).await
+        self.client
+            .put(
+                "trackingrate",
+                &[("TrackingRate", &(rate as i32).to_string())],
+            )
+            .await
     }
 
     pub async fn at_home(&self) -> Result<bool, String> {
@@ -379,7 +399,9 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_side_of_pier(&self, side: PierSide) -> Result<(), String> {
-        self.client.put("sideofpier", &[("SideOfPier", &(side as i32).to_string())]).await
+        self.client
+            .put("sideofpier", &[("SideOfPier", &(side as i32).to_string())])
+            .await
     }
 
     // Site location
@@ -389,7 +411,9 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_site_latitude(&self, lat: f64) -> Result<(), String> {
-        self.client.put("sitelatitude", &[("SiteLatitude", &lat.to_string())]).await
+        self.client
+            .put("sitelatitude", &[("SiteLatitude", &lat.to_string())])
+            .await
     }
 
     pub async fn site_longitude(&self) -> Result<f64, String> {
@@ -397,7 +421,9 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_site_longitude(&self, lon: f64) -> Result<(), String> {
-        self.client.put("sitelongitude", &[("SiteLongitude", &lon.to_string())]).await
+        self.client
+            .put("sitelongitude", &[("SiteLongitude", &lon.to_string())])
+            .await
     }
 
     pub async fn site_elevation(&self) -> Result<f64, String> {
@@ -405,7 +431,9 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_site_elevation(&self, elev: f64) -> Result<(), String> {
-        self.client.put("siteelevation", &[("SiteElevation", &elev.to_string())]).await
+        self.client
+            .put("siteelevation", &[("SiteElevation", &elev.to_string())])
+            .await
     }
 
     // Capabilities
@@ -482,7 +510,12 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_guide_rate_right_ascension(&self, rate: f64) -> Result<(), String> {
-        self.client.put("guideraterightascension", &[("GuideRateRightAscension", &rate.to_string())]).await
+        self.client
+            .put(
+                "guideraterightascension",
+                &[("GuideRateRightAscension", &rate.to_string())],
+            )
+            .await
     }
 
     pub async fn guide_rate_declination(&self) -> Result<f64, String> {
@@ -490,7 +523,12 @@ impl AlpacaTelescope {
     }
 
     pub async fn set_guide_rate_declination(&self, rate: f64) -> Result<(), String> {
-        self.client.put("guideratedeclination", &[("GuideRateDeclination", &rate.to_string())]).await
+        self.client
+            .put(
+                "guideratedeclination",
+                &[("GuideRateDeclination", &rate.to_string())],
+            )
+            .await
     }
 
     pub async fn is_pulse_guiding(&self) -> Result<bool, String> {
@@ -542,23 +580,35 @@ impl AlpacaTelescope {
     /// Slew to equatorial coordinates (blocking)
     /// Uses long timeout as slewing can take several minutes
     pub async fn slew_to_coordinates(&self, ra: f64, dec: f64) -> Result<(), String> {
-        self.slew_to_coordinates_typed(ra, dec).await.map_err(|e| e.to_string())
+        self.slew_to_coordinates_typed(ra, dec)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Slew to coordinates with typed error handling and long timeout
     pub async fn slew_to_coordinates_typed(&self, ra: f64, dec: f64) -> Result<(), AlpacaError> {
-        self.client.put_long("slewtocoordinates", &[
-            ("RightAscension", &ra.to_string()),
-            ("Declination", &dec.to_string()),
-        ]).await
+        self.client
+            .put_long(
+                "slewtocoordinates",
+                &[
+                    ("RightAscension", &ra.to_string()),
+                    ("Declination", &dec.to_string()),
+                ],
+            )
+            .await
     }
 
     /// Slew to equatorial coordinates (async - starts slew and returns immediately)
     pub async fn slew_to_coordinates_async(&self, ra: f64, dec: f64) -> Result<(), String> {
-        self.client.put("slewtocoordinatesasync", &[
-            ("RightAscension", &ra.to_string()),
-            ("Declination", &dec.to_string()),
-        ]).await
+        self.client
+            .put(
+                "slewtocoordinatesasync",
+                &[
+                    ("RightAscension", &ra.to_string()),
+                    ("Declination", &dec.to_string()),
+                ],
+            )
+            .await
     }
 
     /// Slew to target coordinates (blocking)
@@ -580,31 +630,42 @@ impl AlpacaTelescope {
     /// Slew to alt-az coordinates (blocking)
     /// Uses long timeout as slewing can take several minutes
     pub async fn slew_to_alt_az(&self, alt: f64, az: f64) -> Result<(), String> {
-        self.slew_to_alt_az_typed(alt, az).await.map_err(|e| e.to_string())
+        self.slew_to_alt_az_typed(alt, az)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Slew to alt-az with typed error handling and long timeout
     pub async fn slew_to_alt_az_typed(&self, alt: f64, az: f64) -> Result<(), AlpacaError> {
-        self.client.put_long("slewtoaltaz", &[
-            ("Altitude", &alt.to_string()),
-            ("Azimuth", &az.to_string()),
-        ]).await
+        self.client
+            .put_long(
+                "slewtoaltaz",
+                &[("Altitude", &alt.to_string()), ("Azimuth", &az.to_string())],
+            )
+            .await
     }
 
     /// Slew to alt-az coordinates (async - starts slew and returns immediately)
     pub async fn slew_to_alt_az_async(&self, alt: f64, az: f64) -> Result<(), String> {
-        self.client.put("slewtoaltazasync", &[
-            ("Altitude", &alt.to_string()),
-            ("Azimuth", &az.to_string()),
-        ]).await
+        self.client
+            .put(
+                "slewtoaltazasync",
+                &[("Altitude", &alt.to_string()), ("Azimuth", &az.to_string())],
+            )
+            .await
     }
 
     /// Sync to equatorial coordinates
     pub async fn sync_to_coordinates(&self, ra: f64, dec: f64) -> Result<(), String> {
-        self.client.put("synctocoordinates", &[
-            ("RightAscension", &ra.to_string()),
-            ("Declination", &dec.to_string()),
-        ]).await
+        self.client
+            .put(
+                "synctocoordinates",
+                &[
+                    ("RightAscension", &ra.to_string()),
+                    ("Declination", &dec.to_string()),
+                ],
+            )
+            .await
     }
 
     /// Sync to target coordinates
@@ -614,26 +675,35 @@ impl AlpacaTelescope {
 
     /// Sync to alt-az coordinates
     pub async fn sync_to_alt_az(&self, alt: f64, az: f64) -> Result<(), String> {
-        self.client.put("synctoaltaz", &[
-            ("Altitude", &alt.to_string()),
-            ("Azimuth", &az.to_string()),
-        ]).await
+        self.client
+            .put(
+                "synctoaltaz",
+                &[("Altitude", &alt.to_string()), ("Azimuth", &az.to_string())],
+            )
+            .await
     }
 
     /// Pulse guide in a direction
     pub async fn pulse_guide(&self, direction: i32, duration_ms: i32) -> Result<(), String> {
-        self.client.put("pulseguide", &[
-            ("Direction", &direction.to_string()),
-            ("Duration", &duration_ms.to_string()),
-        ]).await
+        self.client
+            .put(
+                "pulseguide",
+                &[
+                    ("Direction", &direction.to_string()),
+                    ("Duration", &duration_ms.to_string()),
+                ],
+            )
+            .await
     }
 
     /// Move axis at a rate
     pub async fn move_axis(&self, axis: i32, rate: f64) -> Result<(), String> {
-        self.client.put("moveaxis", &[
-            ("Axis", &axis.to_string()),
-            ("Rate", &rate.to_string()),
-        ]).await
+        self.client
+            .put(
+                "moveaxis",
+                &[("Axis", &axis.to_string()), ("Rate", &rate.to_string())],
+            )
+            .await
     }
 
     /// Wait for telescope to stop slewing with configurable timeout
@@ -667,7 +737,8 @@ impl AlpacaTelescope {
         poll_interval: Duration,
         timeout: Duration,
     ) -> Result<bool, AlpacaError> {
-        self.slew_to_coordinates_async(ra, dec).await
+        self.slew_to_coordinates_async(ra, dec)
+            .await
             .map_err(|e| AlpacaError::OperationFailed(e))?;
         self.wait_for_slew_complete(poll_interval, timeout).await
     }
@@ -680,17 +751,21 @@ impl AlpacaTelescope {
         poll_interval: Duration,
         timeout: Duration,
     ) -> Result<bool, AlpacaError> {
-        self.slew_to_alt_az_async(alt, az).await
+        self.slew_to_alt_az_async(alt, az)
+            .await
             .map_err(|e| AlpacaError::OperationFailed(e))?;
         self.wait_for_slew_complete(poll_interval, timeout).await
     }
 
     /// Destination side of pier for slew to coordinates
     pub async fn destination_side_of_pier(&self, ra: f64, dec: f64) -> Result<PierSide, String> {
-        let side: i32 = self.client.get(&format!(
-            "destinationsideofpier?RightAscension={}&Declination={}",
-            ra, dec
-        )).await?;
+        let side: i32 = self
+            .client
+            .get(&format!(
+                "destinationsideofpier?RightAscension={}&Declination={}",
+                ra, dec
+            ))
+            .await?;
         Ok(PierSide::from(side))
     }
 

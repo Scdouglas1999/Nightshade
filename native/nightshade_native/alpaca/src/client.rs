@@ -16,16 +16,10 @@ static TRANSACTION_ID: AtomicU32 = AtomicU32::new(0);
 #[derive(Debug, Error)]
 pub enum AlpacaError {
     #[error("Connection timeout after {duration_ms}ms during {operation}")]
-    Timeout {
-        operation: String,
-        duration_ms: u64,
-    },
+    Timeout { operation: String, duration_ms: u64 },
 
     #[error("Connection refused: {url} - {cause}")]
-    ConnectionRefused {
-        url: String,
-        cause: String,
-    },
+    ConnectionRefused { url: String, cause: String },
 
     #[error("HTTP error {status}: {message}")]
     HttpError { status: u16, message: String },
@@ -102,7 +96,8 @@ impl From<reqwest::Error> for AlpacaError {
                 duration_ms: 30000, // Default timeout - actual tracked in specific methods
             }
         } else if err.is_connect() {
-            let url = err.url()
+            let url = err
+                .url()
                 .map(|u| u.to_string())
                 .unwrap_or_else(|| "unknown".to_string());
             AlpacaError::ConnectionRefused {
@@ -168,10 +163,10 @@ impl Default for TimeoutConfig {
     fn default() -> Self {
         Self {
             quick_query_ms: 5000,           // 5 seconds for quick queries
-            standard_operation_ms: 30000,    // 30 seconds for standard operations
-            long_operation_ms: 300000,       // 5 minutes for long operations
-            very_long_operation_ms: 600000,  // 10 minutes for very long operations
-            connect_ms: 10000,               // 10 seconds for initial connection
+            standard_operation_ms: 30000,   // 30 seconds for standard operations
+            long_operation_ms: 300000,      // 5 minutes for long operations
+            very_long_operation_ms: 600000, // 10 minutes for very long operations
+            connect_ms: 10000,              // 10 seconds for initial connection
         }
     }
 }
@@ -183,8 +178,8 @@ impl TimeoutConfig {
         Self {
             quick_query_ms: 5000,
             standard_operation_ms: 30000,
-            long_operation_ms: 300000,       // 5 minutes for image download
-            very_long_operation_ms: 900000,  // 15 minutes for very large images
+            long_operation_ms: 300000,      // 5 minutes for image download
+            very_long_operation_ms: 900000, // 15 minutes for very large images
             connect_ms: 15000,
         }
     }
@@ -194,9 +189,9 @@ impl TimeoutConfig {
     pub fn for_telescope() -> Self {
         Self {
             quick_query_ms: 5000,
-            standard_operation_ms: 60000,    // 1 minute for sync operations
-            long_operation_ms: 300000,       // 5 minutes for slewing
-            very_long_operation_ms: 600000,  // 10 minutes for parking/homing
+            standard_operation_ms: 60000, // 1 minute for sync operations
+            long_operation_ms: 300000,    // 5 minutes for slewing
+            very_long_operation_ms: 600000, // 10 minutes for parking/homing
             connect_ms: 15000,
         }
     }
@@ -206,9 +201,9 @@ impl TimeoutConfig {
     pub fn for_dome() -> Self {
         Self {
             quick_query_ms: 5000,
-            standard_operation_ms: 60000,    // 1 minute for status queries
-            long_operation_ms: 300000,       // 5 minutes for shutter operations
-            very_long_operation_ms: 600000,  // 10 minutes for full rotation
+            standard_operation_ms: 60000, // 1 minute for status queries
+            long_operation_ms: 300000,    // 5 minutes for shutter operations
+            very_long_operation_ms: 600000, // 10 minutes for full rotation
             connect_ms: 15000,
         }
     }
@@ -218,8 +213,8 @@ impl TimeoutConfig {
         Self {
             quick_query_ms: 5000,
             standard_operation_ms: 30000,
-            long_operation_ms: 120000,       // 2 minutes for long focus moves
-            very_long_operation_ms: 300000,  // 5 minutes for full travel
+            long_operation_ms: 120000, // 2 minutes for long focus moves
+            very_long_operation_ms: 300000, // 5 minutes for full travel
             connect_ms: 10000,
         }
     }
@@ -228,9 +223,9 @@ impl TimeoutConfig {
     pub fn for_filter_wheel() -> Self {
         Self {
             quick_query_ms: 5000,
-            standard_operation_ms: 30000,    // 30 seconds for filter changes
-            long_operation_ms: 60000,        // 1 minute maximum
-            very_long_operation_ms: 120000,  // 2 minutes for slow wheels
+            standard_operation_ms: 30000, // 30 seconds for filter changes
+            long_operation_ms: 60000,     // 1 minute maximum
+            very_long_operation_ms: 120000, // 2 minutes for slow wheels
             connect_ms: 10000,
         }
     }
@@ -240,8 +235,8 @@ impl TimeoutConfig {
         Self {
             quick_query_ms: 5000,
             standard_operation_ms: 30000,
-            long_operation_ms: 120000,       // 2 minutes for 180-degree rotation
-            very_long_operation_ms: 300000,  // 5 minutes for slow rotators
+            long_operation_ms: 120000, // 2 minutes for 180-degree rotation
+            very_long_operation_ms: 300000, // 5 minutes for slow rotators
             connect_ms: 10000,
         }
     }
@@ -288,8 +283,8 @@ impl Default for RetryConfig {
 impl RetryConfig {
     /// Calculate the delay for a given attempt number (0-indexed)
     pub fn delay_for_attempt(&self, attempt: u32) -> Duration {
-        let base_delay = self.initial_delay_ms as f64
-            * self.backoff_multiplier.powi(attempt as i32);
+        let base_delay =
+            self.initial_delay_ms as f64 * self.backoff_multiplier.powi(attempt as i32);
         let capped_delay = base_delay.min(self.max_delay_ms as f64);
 
         let final_delay = if self.use_jitter {
@@ -453,7 +448,9 @@ impl AlpacaClient {
     /// Create a client with a specific timeout for very long operations
     fn create_very_long_timeout_client(&self) -> Result<Client, AlpacaError> {
         Client::builder()
-            .timeout(Duration::from_millis(self.timeout_config.very_long_operation_ms))
+            .timeout(Duration::from_millis(
+                self.timeout_config.very_long_operation_ms,
+            ))
             .connect_timeout(Duration::from_millis(self.timeout_config.connect_ms))
             .build()
             .map_err(|e| AlpacaError::RequestFailed(e.to_string()))
@@ -501,7 +498,10 @@ impl AlpacaClient {
     }
 
     /// Make a GET request with typed error handling
-    pub async fn get_typed<T: for<'de> Deserialize<'de>>(&self, endpoint: &str) -> Result<T, AlpacaError> {
+    pub async fn get_typed<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+    ) -> Result<T, AlpacaError> {
         let endpoint = endpoint.to_string();
         self.execute_with_retry(|| {
             let endpoint = endpoint.clone();
@@ -514,10 +514,7 @@ impl AlpacaClient {
                     transaction_id
                 );
 
-                let response = self.http_client
-                    .get(&url)
-                    .send()
-                    .await?;
+                let response = self.http_client.get(&url).send().await?;
 
                 let status = response.status();
                 if !status.is_success() {
@@ -539,7 +536,8 @@ impl AlpacaClient {
 
                 Ok(alpaca_response.value)
             }
-        }).await
+        })
+        .await
     }
 
     /// Make a GET request (backward compatible with String errors)
@@ -575,11 +573,7 @@ impl AlpacaClient {
                     form_params.push((key.as_str(), value.clone()));
                 }
 
-                let response = self.http_client
-                    .put(&url)
-                    .form(&form_params)
-                    .send()
-                    .await?;
+                let response = self.http_client.put(&url).form(&form_params).send().await?;
 
                 let status = response.status();
                 if !status.is_success() {
@@ -601,7 +595,8 @@ impl AlpacaClient {
 
                 Ok(alpaca_response.value)
             }
-        }).await
+        })
+        .await
     }
 
     /// Make a PUT request (backward compatible with String errors)
@@ -610,11 +605,16 @@ impl AlpacaClient {
         endpoint: &str,
         params: &[(&str, &str)],
     ) -> Result<T, String> {
-        self.put_typed(endpoint, params).await.map_err(|e| e.to_string())
+        self.put_typed(endpoint, params)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Make a quick GET request with shorter timeout (no retry)
-    pub async fn get_quick<T: for<'de> Deserialize<'de>>(&self, endpoint: &str) -> Result<T, AlpacaError> {
+    pub async fn get_quick<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+    ) -> Result<T, AlpacaError> {
         let client = self.create_quick_timeout_client()?;
         let (client_id, transaction_id) = get_client_transaction();
         let url = format!(
@@ -624,10 +624,7 @@ impl AlpacaClient {
             transaction_id
         );
 
-        let response = client
-            .get(&url)
-            .send()
-            .await?;
+        let response = client.get(&url).send().await?;
 
         let status = response.status();
         if !status.is_success() {
@@ -651,7 +648,10 @@ impl AlpacaClient {
     }
 
     /// Make a long-running GET request with extended timeout
-    pub async fn get_long<T: for<'de> Deserialize<'de>>(&self, endpoint: &str) -> Result<T, AlpacaError> {
+    pub async fn get_long<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+    ) -> Result<T, AlpacaError> {
         let client = self.create_long_timeout_client()?;
         let (client_id, transaction_id) = get_client_transaction();
         let url = format!(
@@ -661,10 +661,7 @@ impl AlpacaClient {
             transaction_id
         );
 
-        let response = client
-            .get(&url)
-            .send()
-            .await?;
+        let response = client.get(&url).send().await?;
 
         let status = response.status();
         if !status.is_success() {
@@ -797,7 +794,10 @@ impl AlpacaClient {
 
     /// Make a very long-running GET request with extended timeout
     /// Use for operations like large image downloads
-    pub async fn get_very_long<T: for<'de> Deserialize<'de>>(&self, endpoint: &str) -> Result<T, AlpacaError> {
+    pub async fn get_very_long<T: for<'de> Deserialize<'de>>(
+        &self,
+        endpoint: &str,
+    ) -> Result<T, AlpacaError> {
         let client = self.create_very_long_timeout_client()?;
         let (client_id, transaction_id) = get_client_transaction();
         let url = format!(
@@ -807,17 +807,13 @@ impl AlpacaClient {
             transaction_id
         );
 
-        let response = client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| {
-                if e.is_timeout() {
-                    AlpacaError::timeout(endpoint, self.timeout_config.very_long_operation_ms)
-                } else {
-                    e.into()
-                }
-            })?;
+        let response = client.get(&url).send().await.map_err(|e| {
+            if e.is_timeout() {
+                AlpacaError::timeout(endpoint, self.timeout_config.very_long_operation_ms)
+            } else {
+                e.into()
+            }
+        })?;
 
         let status = response.status();
         if !status.is_success() {
@@ -859,7 +855,8 @@ impl AlpacaClient {
 
     /// Connect to the device (typed error)
     pub async fn connect_typed(&self) -> Result<(), AlpacaError> {
-        self.put_typed::<()>("connected", &[("Connected", "true")]).await
+        self.put_typed::<()>("connected", &[("Connected", "true")])
+            .await
     }
 
     /// Disconnect from the device
@@ -869,7 +866,8 @@ impl AlpacaClient {
 
     /// Disconnect from the device (typed error)
     pub async fn disconnect_typed(&self) -> Result<(), AlpacaError> {
-        self.put_typed::<()>("connected", &[("Connected", "false")]).await
+        self.put_typed::<()>("connected", &[("Connected", "false")])
+            .await
     }
 
     /// Get the device name
@@ -933,30 +931,35 @@ impl AlpacaClient {
         match client.get(&url).send().await {
             Ok(response) => {
                 if !response.status().is_success() {
-                    return Err(AlpacaError::ValidationFailed(
-                        format!("HTTP status: {}", response.status())
-                    ));
+                    return Err(AlpacaError::ValidationFailed(format!(
+                        "HTTP status: {}",
+                        response.status()
+                    )));
                 }
 
                 let result: Result<AlpacaResponse<bool>, _> = response.json().await;
                 match result {
                     Ok(alpaca_response) => {
                         if alpaca_response.error_number != 0 {
-                            Err(AlpacaError::ValidationFailed(
-                                alpaca_response.error_message
-                            ))
+                            Err(AlpacaError::ValidationFailed(alpaca_response.error_message))
                         } else {
                             Ok(alpaca_response.value)
                         }
                     }
-                    Err(e) => Err(AlpacaError::ValidationFailed(e.to_string()))
+                    Err(e) => Err(AlpacaError::ValidationFailed(e.to_string())),
                 }
             }
             Err(e) => {
                 if e.is_timeout() {
-                    Err(AlpacaError::timeout("connection validation", self.timeout_config.quick_query_ms))
+                    Err(AlpacaError::timeout(
+                        "connection validation",
+                        self.timeout_config.quick_query_ms,
+                    ))
                 } else if e.is_connect() {
-                    Err(AlpacaError::connection_refused(&self.base_url, e.to_string()))
+                    Err(AlpacaError::connection_refused(
+                        &self.base_url,
+                        e.to_string(),
+                    ))
                 } else {
                     Err(AlpacaError::ValidationFailed(e.to_string()))
                 }
@@ -1028,9 +1031,10 @@ impl AlpacaClient {
             self.api_version = ApiVersion::V1;
             Ok(ApiVersion::V1)
         } else {
-            Err(AlpacaError::UnsupportedApiVersion(
-                format!("Server supports versions {:?}, but client only supports v1", versions)
-            ))
+            Err(AlpacaError::UnsupportedApiVersion(format!(
+                "Server supports versions {:?}, but client only supports v1",
+                versions
+            )))
         }
     }
 }
@@ -1141,13 +1145,22 @@ mod tests {
             let local_ids = handle.join().unwrap();
             let mut ids_lock = ids.lock().unwrap();
             for id in local_ids {
-                assert!(ids_lock.insert(id), "Transaction ID {} was not unique across threads", id);
+                assert!(
+                    ids_lock.insert(id),
+                    "Transaction ID {} was not unique across threads",
+                    id
+                );
             }
         }
 
         // Should have 1000 unique IDs
         let ids_lock = ids.lock().unwrap();
-        assert_eq!(ids_lock.len(), 1000, "Expected 1000 unique transaction IDs, got {}", ids_lock.len());
+        assert_eq!(
+            ids_lock.len(),
+            1000,
+            "Expected 1000 unique transaction IDs, got {}",
+            ids_lock.len()
+        );
     }
 
     #[test]
@@ -1251,16 +1264,40 @@ mod tests {
         assert!(AlpacaError::timeout("test", 5000).is_retryable());
         assert!(AlpacaError::connection_refused("http://localhost", "refused").is_retryable());
         assert!(AlpacaError::RequestFailed("network error".to_string()).is_retryable());
-        assert!(AlpacaError::HttpError { status: 500, message: "server error".to_string() }.is_retryable());
-        assert!(AlpacaError::HttpError { status: 503, message: "unavailable".to_string() }.is_retryable());
-        assert!(AlpacaError::HttpError { status: 429, message: "rate limited".to_string() }.is_retryable());
+        assert!(AlpacaError::HttpError {
+            status: 500,
+            message: "server error".to_string()
+        }
+        .is_retryable());
+        assert!(AlpacaError::HttpError {
+            status: 503,
+            message: "unavailable".to_string()
+        }
+        .is_retryable());
+        assert!(AlpacaError::HttpError {
+            status: 429,
+            message: "rate limited".to_string()
+        }
+        .is_retryable());
 
         // Non-retryable errors
-        assert!(!AlpacaError::DeviceError { code: 1, message: "device error".to_string() }.is_retryable());
+        assert!(!AlpacaError::DeviceError {
+            code: 1,
+            message: "device error".to_string()
+        }
+        .is_retryable());
         assert!(!AlpacaError::ParseError("parse error".to_string()).is_retryable());
         assert!(!AlpacaError::NotConnected.is_retryable());
-        assert!(!AlpacaError::HttpError { status: 400, message: "bad request".to_string() }.is_retryable());
-        assert!(!AlpacaError::HttpError { status: 404, message: "not found".to_string() }.is_retryable());
+        assert!(!AlpacaError::HttpError {
+            status: 400,
+            message: "bad request".to_string()
+        }
+        .is_retryable());
+        assert!(!AlpacaError::HttpError {
+            status: 404,
+            message: "not found".to_string()
+        }
+        .is_retryable());
     }
 
     #[test]

@@ -7,8 +7,8 @@
 //! - Progress callbacks
 
 use nightshade_imaging::{
-    generate_thumbnail, process_tiled, process_with_progress, MappedFitsReader, ProcessOperation,
-    ImageData, PixelType,
+    generate_thumbnail, process_tiled, process_with_progress, ImageData, MappedFitsReader,
+    PixelType, ProcessOperation,
 };
 use std::path::Path;
 use std::sync::Arc;
@@ -49,13 +49,7 @@ async fn demo_tiled_processing() {
     for tile_size in [256, 512, 1024, 2048] {
         let start = Instant::now();
 
-        let result = process_tiled(
-            &image,
-            tile_size,
-            ProcessOperation::Normalize,
-            None,
-        )
-        .await;
+        let result = process_tiled(&image, tile_size, ProcessOperation::Normalize, None).await;
 
         let elapsed = start.elapsed();
 
@@ -89,8 +83,14 @@ async fn demo_memory_mapped_reading() {
         match MappedFitsReader::open(fits_path) {
             Ok(reader) => {
                 let (width, height, channels) = reader.dimensions();
-                println!("Opened memory-mapped FITS: {}x{}x{}", width, height, channels);
-                println!("File size: {:.2} MB", reader.file_size() as f64 / 1_048_576.0);
+                println!(
+                    "Opened memory-mapped FITS: {}x{}x{}",
+                    width, height, channels
+                );
+                println!(
+                    "File size: {:.2} MB",
+                    reader.file_size() as f64 / 1_048_576.0
+                );
 
                 // Read a small region (much faster than loading full image)
                 let start = Instant::now();
@@ -118,10 +118,7 @@ async fn demo_memory_mapped_reading() {
                             "Generated preview (4x downsample) in {:.2}ms",
                             elapsed.as_secs_f64() * 1000.0
                         );
-                        println!(
-                            "Preview size: {}x{}",
-                            thumbnail.width, thumbnail.height
-                        );
+                        println!("Preview size: {}x{}", thumbnail.width, thumbnail.height);
                     }
                     Err(e) => println!("Error downsampling: {}", e),
                 }
@@ -183,7 +180,10 @@ async fn demo_progress_callbacks() {
     println!("--- Demo 4: Progress Callbacks ---");
 
     let image = ImageData::new(4096, 4096, 1, PixelType::U16);
-    println!("Processing {}x{} image with progress...", image.width, image.height);
+    println!(
+        "Processing {}x{} image with progress...",
+        image.width, image.height
+    );
 
     let start = Instant::now();
 
@@ -232,7 +232,10 @@ async fn performance_comparison() {
     let image = ImageData::new(7680, 7680, 1, PixelType::U16);
     let memory_mb = image.size_bytes() as f64 / 1_048_576.0;
 
-    println!("Image: {}x{} ({:.2} MB)", image.width, image.height, memory_mb);
+    println!(
+        "Image: {}x{} ({:.2} MB)",
+        image.width, image.height, memory_mb
+    );
     println!();
 
     // Traditional: Load entire image

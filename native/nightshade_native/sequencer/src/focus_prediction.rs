@@ -18,9 +18,9 @@ pub struct FocusDataPoint {
 /// Linear regression model for temperature-focus correlation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FocusModel {
-    pub slope: f64,           // Steps per degree C
-    pub intercept: f64,       // Base focus position at 0°C
-    pub r_squared: f64,       // Correlation coefficient
+    pub slope: f64,     // Steps per degree C
+    pub intercept: f64, // Base focus position at 0°C
+    pub r_squared: f64, // Correlation coefficient
     pub data_point_count: usize,
 }
 
@@ -98,7 +98,9 @@ impl FocusPredictionEngine {
         let mut best_points: Vec<&FocusDataPoint> = Vec::new();
         for points in buckets.values() {
             if let Some(best) = points.iter().min_by(|a, b| {
-                a.hfr.partial_cmp(&b.hfr).unwrap_or(std::cmp::Ordering::Equal)
+                a.hfr
+                    .partial_cmp(&b.hfr)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }) {
                 best_points.push(best);
             }
@@ -111,8 +113,7 @@ impl FocusPredictionEngine {
 
         // Linear regression: y = mx + b
         let n = best_points.len() as f64;
-        let (mut sum_x, mut sum_y, mut sum_xy, mut sum_x2) =
-            (0.0, 0.0, 0.0, 0.0);
+        let (mut sum_x, mut sum_y, mut sum_xy, mut sum_x2) = (0.0, 0.0, 0.0, 0.0);
 
         for point in &best_points {
             let x = point.temperature_celsius;
@@ -180,7 +181,10 @@ impl FocusPredictionEngine {
             _ => return,
         };
 
-        let ref_avg: f64 = ref_points.iter().map(|p| p.focus_position as f64).sum::<f64>()
+        let ref_avg: f64 = ref_points
+            .iter()
+            .map(|p| p.focus_position as f64)
+            .sum::<f64>()
             / ref_points.len() as f64;
 
         // Calculate offsets for each filter
@@ -220,7 +224,11 @@ impl FocusPredictionEngine {
     }
 
     /// Predict optimal focus position based on current conditions
-    pub fn predict_position(&self, temperature: f64, filter: Option<&str>) -> Option<PredictionResult> {
+    pub fn predict_position(
+        &self,
+        temperature: f64,
+        filter: Option<&str>,
+    ) -> Option<PredictionResult> {
         let model = self.temperature_model.as_ref()?;
         if !model.is_reliable() {
             return None;

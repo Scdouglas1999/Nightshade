@@ -85,10 +85,12 @@ impl AlpacaSwitch {
     }
 
     pub async fn set_switch(&self, id: i32, state: bool) -> Result<(), String> {
-        self.client.put("setswitch", &[
-            ("Id", &id.to_string()),
-            ("State", &state.to_string()),
-        ]).await
+        self.client
+            .put(
+                "setswitch",
+                &[("Id", &id.to_string()), ("State", &state.to_string())],
+            )
+            .await
     }
 
     pub async fn get_switch_name(&self, id: i32) -> Result<String, String> {
@@ -96,14 +98,15 @@ impl AlpacaSwitch {
     }
 
     pub async fn set_switch_name(&self, id: i32, name: &str) -> Result<(), String> {
-        self.client.put("setswitchname", &[
-            ("Id", &id.to_string()),
-            ("Name", name),
-        ]).await
+        self.client
+            .put("setswitchname", &[("Id", &id.to_string()), ("Name", name)])
+            .await
     }
 
     pub async fn get_switch_description(&self, id: i32) -> Result<String, String> {
-        self.client.get(&format!("getswitchdescription?Id={}", id)).await
+        self.client
+            .get(&format!("getswitchdescription?Id={}", id))
+            .await
     }
 
     pub async fn get_switch_value(&self, id: i32) -> Result<f64, String> {
@@ -111,10 +114,12 @@ impl AlpacaSwitch {
     }
 
     pub async fn set_switch_value(&self, id: i32, value: f64) -> Result<(), String> {
-        self.client.put("setswitchvalue", &[
-            ("Id", &id.to_string()),
-            ("Value", &value.to_string()),
-        ]).await
+        self.client
+            .put(
+                "setswitchvalue",
+                &[("Id", &id.to_string()), ("Value", &value.to_string())],
+            )
+            .await
     }
 
     pub async fn min_switch_value(&self, id: i32) -> Result<f64, String> {

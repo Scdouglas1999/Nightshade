@@ -4,8 +4,8 @@
 //! Supports Atik Horizon, ACIS, APX, and older series cameras.
 
 use crate::camera::{
-    BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams,
-    ImageData, ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
+    BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData,
+    ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
 };
 use crate::sync::atik_mutex;
 use crate::traits::{NativeCamera, NativeDevice, NativeError};
@@ -62,7 +62,8 @@ impl ArtemisError {
     fn to_native_error(self, msg: &str) -> NativeError {
         tracing::error!(
             "Atik SDK error during '{}': {:?}. Check camera connection and SDK installation.",
-            msg, self
+            msg,
+            self
         );
         NativeError::SdkError(format!(
             "Atik {}: {:?}. Ensure camera is connected and AtikCameras driver is installed.",
@@ -103,7 +104,8 @@ type ArtemisDeviceIsCamera = unsafe extern "C" fn(device: c_int) -> c_int;
 type ArtemisConnect = unsafe extern "C" fn(device: c_int) -> ArtemisHandle;
 type ArtemisDisconnect = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
 type ArtemisIsConnected = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
-type ArtemisProperties_ = unsafe extern "C" fn(handle: ArtemisHandle, prop: *mut ArtemisProperties) -> c_int;
+type ArtemisProperties_ =
+    unsafe extern "C" fn(handle: ArtemisHandle, prop: *mut ArtemisProperties) -> c_int;
 type ArtemisColourProperties = unsafe extern "C" fn(
     handle: ArtemisHandle,
     colour_type: *mut c_int,
@@ -113,8 +115,10 @@ type ArtemisColourProperties = unsafe extern "C" fn(
     preview_offset_y: *mut c_int,
 ) -> c_int;
 type ArtemisBin = unsafe extern "C" fn(handle: ArtemisHandle, x: c_int, y: c_int) -> c_int;
-type ArtemisGetMaxBin = unsafe extern "C" fn(handle: ArtemisHandle, x: *mut c_int, y: *mut c_int) -> c_int;
-type ArtemisSubframe = unsafe extern "C" fn(handle: ArtemisHandle, x: c_int, y: c_int, w: c_int, h: c_int) -> c_int;
+type ArtemisGetMaxBin =
+    unsafe extern "C" fn(handle: ArtemisHandle, x: *mut c_int, y: *mut c_int) -> c_int;
+type ArtemisSubframe =
+    unsafe extern "C" fn(handle: ArtemisHandle, x: c_int, y: c_int, w: c_int, h: c_int) -> c_int;
 type ArtemisStartExposure = unsafe extern "C" fn(handle: ArtemisHandle, seconds: c_float) -> c_int;
 type ArtemisAbortExposure = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
 type ArtemisImageReady = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
@@ -139,9 +143,20 @@ type ArtemisCoolingInfo = unsafe extern "C" fn(
     setpoint: *mut c_int,
 ) -> c_int;
 type ArtemisCoolerWarmUp = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
-type ArtemisTemperatureSensorInfo = unsafe extern "C" fn(handle: ArtemisHandle, sensor: c_int, temperature: *mut c_int) -> c_int;
-type ArtemisSetGain = unsafe extern "C" fn(handle: ArtemisHandle, preview: c_int, gain: c_int, offset: c_int) -> c_int;
-type ArtemisGetGain = unsafe extern "C" fn(handle: ArtemisHandle, preview: c_int, gain: *mut c_int, offset: *mut c_int) -> c_int;
+type ArtemisTemperatureSensorInfo =
+    unsafe extern "C" fn(handle: ArtemisHandle, sensor: c_int, temperature: *mut c_int) -> c_int;
+type ArtemisSetGain = unsafe extern "C" fn(
+    handle: ArtemisHandle,
+    preview: c_int,
+    gain: c_int,
+    offset: c_int,
+) -> c_int;
+type ArtemisGetGain = unsafe extern "C" fn(
+    handle: ArtemisHandle,
+    preview: c_int,
+    gain: *mut c_int,
+    offset: *mut c_int,
+) -> c_int;
 type ArtemisAPIVersion = unsafe extern "C" fn() -> c_int;
 type ArtemisSetDarkMode = unsafe extern "C" fn(handle: ArtemisHandle, enable: c_int) -> c_int;
 type ArtemisEightBitMode = unsafe extern "C" fn(handle: ArtemisHandle, eightbit: c_int) -> c_int;
@@ -197,88 +212,154 @@ impl AtikSdk {
             Ok(Self {
                 device_count: *library
                     .get::<ArtemisDeviceCount>(b"ArtemisDeviceCount\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisDeviceCount: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisDeviceCount: {}", e))
+                    })?,
                 device_present: *library
                     .get::<ArtemisDevicePresent>(b"ArtemisDevicePresent\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisDevicePresent: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisDevicePresent: {}", e))
+                    })?,
                 device_name: *library
                     .get::<ArtemisDeviceName>(b"ArtemisDeviceName\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisDeviceName: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisDeviceName: {}", e))
+                    })?,
                 device_serial: *library
                     .get::<ArtemisDeviceSerial>(b"ArtemisDeviceSerial\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisDeviceSerial: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisDeviceSerial: {}", e))
+                    })?,
                 device_is_camera: *library
                     .get::<ArtemisDeviceIsCamera>(b"ArtemisDeviceIsCamera\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisDeviceIsCamera: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "Failed to load ArtemisDeviceIsCamera: {}",
+                            e
+                        ))
+                    })?,
                 connect: *library
                     .get::<ArtemisConnect>(b"ArtemisConnect\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisConnect: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisConnect: {}", e))
+                    })?,
                 disconnect: *library
                     .get::<ArtemisDisconnect>(b"ArtemisDisconnect\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisDisconnect: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisDisconnect: {}", e))
+                    })?,
                 is_connected: *library
                     .get::<ArtemisIsConnected>(b"ArtemisIsConnected\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisIsConnected: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisIsConnected: {}", e))
+                    })?,
                 properties: *library
                     .get::<ArtemisProperties_>(b"ArtemisProperties\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisProperties: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisProperties: {}", e))
+                    })?,
                 colour_properties: *library
                     .get::<ArtemisColourProperties>(b"ArtemisColourProperties\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisColourProperties: {}", e)))?,
-                bin: *library
-                    .get::<ArtemisBin>(b"ArtemisBin\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisBin: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "Failed to load ArtemisColourProperties: {}",
+                            e
+                        ))
+                    })?,
+                bin: *library.get::<ArtemisBin>(b"ArtemisBin\0").map_err(|e| {
+                    NativeError::SdkError(format!("Failed to load ArtemisBin: {}", e))
+                })?,
                 get_max_bin: *library
                     .get::<ArtemisGetMaxBin>(b"ArtemisGetMaxBin\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisGetMaxBin: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisGetMaxBin: {}", e))
+                    })?,
                 subframe: *library
                     .get::<ArtemisSubframe>(b"ArtemisSubframe\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisSubframe: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisSubframe: {}", e))
+                    })?,
                 start_exposure: *library
                     .get::<ArtemisStartExposure>(b"ArtemisStartExposure\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisStartExposure: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisStartExposure: {}", e))
+                    })?,
                 abort_exposure: *library
                     .get::<ArtemisAbortExposure>(b"ArtemisAbortExposure\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisAbortExposure: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisAbortExposure: {}", e))
+                    })?,
                 image_ready: *library
                     .get::<ArtemisImageReady>(b"ArtemisImageReady\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisImageReady: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisImageReady: {}", e))
+                    })?,
                 exposure_time_remaining: *library
                     .get::<ArtemisExposureTimeRemaining>(b"ArtemisExposureTimeRemaining\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisExposureTimeRemaining: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "Failed to load ArtemisExposureTimeRemaining: {}",
+                            e
+                        ))
+                    })?,
                 get_image_data: *library
                     .get::<ArtemisGetImageData>(b"ArtemisGetImageData\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisGetImageData: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisGetImageData: {}", e))
+                    })?,
                 image_buffer: *library
                     .get::<ArtemisImageBuffer>(b"ArtemisImageBuffer\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisImageBuffer: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisImageBuffer: {}", e))
+                    })?,
                 set_cooling: *library
                     .get::<ArtemisSetCooling>(b"ArtemisSetCooling\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisSetCooling: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisSetCooling: {}", e))
+                    })?,
                 cooling_info: *library
                     .get::<ArtemisCoolingInfo>(b"ArtemisCoolingInfo\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisCoolingInfo: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisCoolingInfo: {}", e))
+                    })?,
                 cooler_warm_up: *library
                     .get::<ArtemisCoolerWarmUp>(b"ArtemisCoolerWarmUp\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisCoolerWarmUp: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisCoolerWarmUp: {}", e))
+                    })?,
                 temperature_sensor_info: *library
                     .get::<ArtemisTemperatureSensorInfo>(b"ArtemisTemperatureSensorInfo\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisTemperatureSensorInfo: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "Failed to load ArtemisTemperatureSensorInfo: {}",
+                            e
+                        ))
+                    })?,
                 set_gain: *library
                     .get::<ArtemisSetGain>(b"ArtemisSetGain\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisSetGain: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisSetGain: {}", e))
+                    })?,
                 get_gain: *library
                     .get::<ArtemisGetGain>(b"ArtemisGetGain\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisGetGain: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisGetGain: {}", e))
+                    })?,
                 api_version: *library
                     .get::<ArtemisAPIVersion>(b"ArtemisAPIVersion\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisAPIVersion: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisAPIVersion: {}", e))
+                    })?,
                 set_dark_mode: *library
                     .get::<ArtemisSetDarkMode>(b"ArtemisSetDarkMode\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisSetDarkMode: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisSetDarkMode: {}", e))
+                    })?,
                 eight_bit_mode: *library
                     .get::<ArtemisEightBitMode>(b"ArtemisEightBitMode\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load ArtemisEightBitMode: {}", e)))?,
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load ArtemisEightBitMode: {}", e))
+                    })?,
                 _library: library,
             })
         }
@@ -344,7 +425,11 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
             let s = unsafe { CStr::from_ptr(serial_buf.as_ptr()) }
                 .to_string_lossy()
                 .to_string();
-            if s.is_empty() { None } else { Some(s) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
         } else {
             None
         };
@@ -515,7 +600,14 @@ impl NativeDevice for AtikCamera {
         let mut _maxlvl: c_int = 0;
         let mut _setpoint: c_int = 0;
         let can_cool = unsafe {
-            (sdk.cooling_info)(handle, &mut cooling_flags, &mut _level, &mut _minlvl, &mut _maxlvl, &mut _setpoint) == 0
+            (sdk.cooling_info)(
+                handle,
+                &mut cooling_flags,
+                &mut _level,
+                &mut _minlvl,
+                &mut _maxlvl,
+                &mut _setpoint,
+            ) == 0
                 && (cooling_flags & 1) != 0 // ARTEMIS_COOLING_INFO_HASCOOLING
         };
 
@@ -684,7 +776,17 @@ impl NativeCamera for AtikCamera {
             let mut minlvl: c_int = 0;
             let mut maxlvl: c_int = 0;
             let mut setpoint: c_int = 0;
-            if unsafe { (sdk.cooling_info)(handle, &mut flags, &mut level, &mut minlvl, &mut maxlvl, &mut setpoint) } == 0 {
+            if unsafe {
+                (sdk.cooling_info)(
+                    handle,
+                    &mut flags,
+                    &mut level,
+                    &mut minlvl,
+                    &mut maxlvl,
+                    &mut setpoint,
+                )
+            } == 0
+            {
                 let power = if maxlvl > 0 {
                     Some((level as f64 / maxlvl as f64) * 100.0)
                 } else {
@@ -822,7 +924,9 @@ impl NativeCamera for AtikCamera {
         let mut binx: c_int = 0;
         let mut biny: c_int = 0;
 
-        let result = unsafe { (sdk.get_image_data)(handle, &mut x, &mut y, &mut w, &mut h, &mut binx, &mut biny) };
+        let result = unsafe {
+            (sdk.get_image_data)(handle, &mut x, &mut y, &mut w, &mut h, &mut binx, &mut biny)
+        };
         if ArtemisError::from_i32(result) != ArtemisError::Ok {
             self.state = CameraState::Error;
             return Err(ArtemisError::from_i32(result).to_native_error("get image data"));
@@ -833,7 +937,11 @@ impl NativeCamera for AtikCamera {
         if buffer_ptr.is_null() {
             tracing::error!(
                 "Atik ArtemisImageBuffer() returned NULL for camera '{}'. Image: {}x{}, bin: {}x{}",
-                self.name, w, h, binx, biny
+                self.name,
+                w,
+                h,
+                binx,
+                biny
             );
             self.state = CameraState::Error;
             return Err(NativeError::SdkError(format!(
@@ -844,7 +952,8 @@ impl NativeCamera for AtikCamera {
 
         // Copy image data (16-bit)
         let pixel_count = (w as usize) * (h as usize);
-        let buffer_slice = unsafe { std::slice::from_raw_parts(buffer_ptr as *const u16, pixel_count) };
+        let buffer_slice =
+            unsafe { std::slice::from_raw_parts(buffer_ptr as *const u16, pixel_count) };
         let data: Vec<u16> = buffer_slice.to_vec();
 
         // Get temperature for metadata
@@ -957,7 +1066,16 @@ impl NativeCamera for AtikCamera {
         let mut maxlvl: c_int = 0;
         let mut setpoint: c_int = 0;
 
-        let result = unsafe { (sdk.cooling_info)(handle, &mut flags, &mut level, &mut minlvl, &mut maxlvl, &mut setpoint) };
+        let result = unsafe {
+            (sdk.cooling_info)(
+                handle,
+                &mut flags,
+                &mut level,
+                &mut minlvl,
+                &mut maxlvl,
+                &mut setpoint,
+            )
+        };
         if ArtemisError::from_i32(result) != ArtemisError::Ok {
             return Err(ArtemisError::from_i32(result).to_native_error("get cooler power"));
         }
@@ -980,7 +1098,8 @@ impl NativeCamera for AtikCamera {
         let _lock = atik_mutex().lock().await;
 
         let handle = self.handle.lock().unwrap().0;
-        let result = unsafe { (sdk.set_gain)(handle, 0, gain as c_int, self.current_offset as c_int) };
+        let result =
+            unsafe { (sdk.set_gain)(handle, 0, gain as c_int, self.current_offset as c_int) };
         if ArtemisError::from_i32(result) != ArtemisError::Ok {
             return Err(ArtemisError::from_i32(result).to_native_error("set gain"));
         }
@@ -1004,7 +1123,8 @@ impl NativeCamera for AtikCamera {
         let _lock = atik_mutex().lock().await;
 
         let handle = self.handle.lock().unwrap().0;
-        let result = unsafe { (sdk.set_gain)(handle, 0, self.current_gain as c_int, offset as c_int) };
+        let result =
+            unsafe { (sdk.set_gain)(handle, 0, self.current_gain as c_int, offset as c_int) };
         if ArtemisError::from_i32(result) != ArtemisError::Ok {
             return Err(ArtemisError::from_i32(result).to_native_error("set offset"));
         }

@@ -4,8 +4,8 @@
 //! Moravian Instruments manufactures CCD cameras for astronomy.
 
 use crate::camera::{
-    BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams,
-    ImageData, ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
+    BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData,
+    ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
 };
 use crate::sync::moravian_mutex;
 use crate::traits::{NativeCamera, NativeDevice, NativeError};
@@ -61,20 +61,34 @@ type EnumerateCallback = unsafe extern "C" fn(Cardinal);
 type Enumerate = unsafe extern "C" fn(callback: EnumerateCallback);
 type Initialize = unsafe extern "C" fn(id: Cardinal) -> PCCamera;
 type Release = unsafe extern "C" fn(camera: PCCamera);
-type GetBooleanParameter = unsafe extern "C" fn(camera: PCCamera, index: Cardinal, value: *mut Boolean) -> Boolean;
-type GetIntegerParameter = unsafe extern "C" fn(camera: PCCamera, index: Cardinal, value: *mut Cardinal) -> Boolean;
-type GetStringParameter = unsafe extern "C" fn(camera: PCCamera, index: Cardinal, len: Cardinal, buf: *mut c_char) -> Boolean;
-type GetValue = unsafe extern "C" fn(camera: PCCamera, index: Cardinal, value: *mut Real) -> Boolean;
+type GetBooleanParameter =
+    unsafe extern "C" fn(camera: PCCamera, index: Cardinal, value: *mut Boolean) -> Boolean;
+type GetIntegerParameter =
+    unsafe extern "C" fn(camera: PCCamera, index: Cardinal, value: *mut Cardinal) -> Boolean;
+type GetStringParameter = unsafe extern "C" fn(
+    camera: PCCamera,
+    index: Cardinal,
+    len: Cardinal,
+    buf: *mut c_char,
+) -> Boolean;
+type GetValue =
+    unsafe extern "C" fn(camera: PCCamera, index: Cardinal, value: *mut Real) -> Boolean;
 type SetTemperature = unsafe extern "C" fn(camera: PCCamera, temp: Real) -> Boolean;
 type SetBinning = unsafe extern "C" fn(camera: PCCamera, x: Cardinal, y: Cardinal) -> Boolean;
 type SetGain = unsafe extern "C" fn(camera: PCCamera, gain: Cardinal) -> Boolean;
 type SetReadMode = unsafe extern "C" fn(camera: PCCamera, mode: Cardinal) -> Boolean;
-type EnumerateReadModes = unsafe extern "C" fn(camera: PCCamera, index: Cardinal, len: Cardinal, desc: *mut c_char) -> Boolean;
+type EnumerateReadModes = unsafe extern "C" fn(
+    camera: PCCamera,
+    index: Cardinal,
+    len: Cardinal,
+    desc: *mut c_char,
+) -> Boolean;
 type ClearSensor = unsafe extern "C" fn(camera: PCCamera) -> Boolean;
 type Open_ = unsafe extern "C" fn(camera: PCCamera) -> Boolean;
 type Close_ = unsafe extern "C" fn(camera: PCCamera) -> Boolean;
 type BeginExposure = unsafe extern "C" fn(camera: PCCamera, use_shutter: Boolean) -> Boolean;
-type EndExposure = unsafe extern "C" fn(camera: PCCamera, use_shutter: Boolean, abort: Boolean) -> Boolean;
+type EndExposure =
+    unsafe extern "C" fn(camera: PCCamera, use_shutter: Boolean, abort: Boolean) -> Boolean;
 type GetImage16b = unsafe extern "C" fn(
     camera: PCCamera,
     x: Integer,
@@ -131,43 +145,66 @@ impl MoravianSdk {
 
         unsafe {
             Ok(Self {
-                enumerate: *library.get::<Enumerate>(b"Enumerate\0")
+                enumerate: *library
+                    .get::<Enumerate>(b"Enumerate\0")
                     .map_err(|e| format!("Failed to get Enumerate: {}", e))?,
-                initialize: *library.get::<Initialize>(b"Initialize\0")
+                initialize: *library
+                    .get::<Initialize>(b"Initialize\0")
                     .map_err(|e| format!("Failed to get Initialize: {}", e))?,
-                release: *library.get::<Release>(b"Release\0")
+                release: *library
+                    .get::<Release>(b"Release\0")
                     .map_err(|e| format!("Failed to get Release: {}", e))?,
-                get_boolean_parameter: *library.get::<GetBooleanParameter>(b"GetBooleanParameter\0")
+                get_boolean_parameter: *library
+                    .get::<GetBooleanParameter>(b"GetBooleanParameter\0")
                     .map_err(|e| format!("Failed to get GetBooleanParameter: {}", e))?,
-                get_integer_parameter: *library.get::<GetIntegerParameter>(b"GetIntegerParameter\0")
+                get_integer_parameter: *library
+                    .get::<GetIntegerParameter>(b"GetIntegerParameter\0")
                     .map_err(|e| format!("Failed to get GetIntegerParameter: {}", e))?,
-                get_string_parameter: *library.get::<GetStringParameter>(b"GetStringParameter\0")
-                    .map_err(|e| format!("Failed to get GetStringParameter: {}", e))?,
-                get_value: *library.get::<GetValue>(b"GetValue\0")
+                get_string_parameter: *library
+                    .get::<GetStringParameter>(b"GetStringParameter\0")
+                    .map_err(|e| {
+                    format!("Failed to get GetStringParameter: {}", e)
+                })?,
+                get_value: *library
+                    .get::<GetValue>(b"GetValue\0")
                     .map_err(|e| format!("Failed to get GetValue: {}", e))?,
-                set_temperature: *library.get::<SetTemperature>(b"SetTemperature\0")
+                set_temperature: *library
+                    .get::<SetTemperature>(b"SetTemperature\0")
                     .map_err(|e| format!("Failed to get SetTemperature: {}", e))?,
-                set_binning: *library.get::<SetBinning>(b"SetBinning\0")
+                set_binning: *library
+                    .get::<SetBinning>(b"SetBinning\0")
                     .map_err(|e| format!("Failed to get SetBinning: {}", e))?,
-                set_gain: *library.get::<SetGain>(b"SetGain\0")
+                set_gain: *library
+                    .get::<SetGain>(b"SetGain\0")
                     .map_err(|e| format!("Failed to get SetGain: {}", e))?,
-                set_read_mode: *library.get::<SetReadMode>(b"SetReadMode\0")
+                set_read_mode: *library
+                    .get::<SetReadMode>(b"SetReadMode\0")
                     .map_err(|e| format!("Failed to get SetReadMode: {}", e))?,
-                enumerate_read_modes: *library.get::<EnumerateReadModes>(b"EnumerateReadModes\0")
-                    .map_err(|e| format!("Failed to get EnumerateReadModes: {}", e))?,
-                clear_sensor: *library.get::<ClearSensor>(b"ClearSensor\0")
+                enumerate_read_modes: *library
+                    .get::<EnumerateReadModes>(b"EnumerateReadModes\0")
+                    .map_err(|e| {
+                    format!("Failed to get EnumerateReadModes: {}", e)
+                })?,
+                clear_sensor: *library
+                    .get::<ClearSensor>(b"ClearSensor\0")
                     .map_err(|e| format!("Failed to get ClearSensor: {}", e))?,
-                open: *library.get::<Open_>(b"Open\0")
+                open: *library
+                    .get::<Open_>(b"Open\0")
                     .map_err(|e| format!("Failed to get Open: {}", e))?,
-                close: *library.get::<Close_>(b"Close\0")
+                close: *library
+                    .get::<Close_>(b"Close\0")
                     .map_err(|e| format!("Failed to get Close: {}", e))?,
-                begin_exposure: *library.get::<BeginExposure>(b"BeginExposure\0")
+                begin_exposure: *library
+                    .get::<BeginExposure>(b"BeginExposure\0")
                     .map_err(|e| format!("Failed to get BeginExposure: {}", e))?,
-                end_exposure: *library.get::<EndExposure>(b"EndExposure\0")
+                end_exposure: *library
+                    .get::<EndExposure>(b"EndExposure\0")
                     .map_err(|e| format!("Failed to get EndExposure: {}", e))?,
-                get_image_16b: *library.get::<GetImage16b>(b"GetImage16b\0")
+                get_image_16b: *library
+                    .get::<GetImage16b>(b"GetImage16b\0")
                     .map_err(|e| format!("Failed to get GetImage16b: {}", e))?,
-                adjust_subframe: *library.get::<AdjustSubFrame>(b"AdjustSubFrame\0")
+                adjust_subframe: *library
+                    .get::<AdjustSubFrame>(b"AdjustSubFrame\0")
                     .map_err(|e| format!("Failed to get AdjustSubFrame: {}", e))?,
                 _library: library,
             })
@@ -237,18 +274,28 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
 
         // Get camera description
         let mut name_buf = [0i8; 256];
-        if unsafe { (sdk.get_string_parameter)(handle, GSP_CAMERA_DESCRIPTION, 256, name_buf.as_mut_ptr()) } != 0 {
+        if unsafe {
+            (sdk.get_string_parameter)(handle, GSP_CAMERA_DESCRIPTION, 256, name_buf.as_mut_ptr())
+        } != 0
+        {
             let name = unsafe { std::ffi::CStr::from_ptr(name_buf.as_ptr()) }
                 .to_string_lossy()
                 .to_string();
 
             // Get serial number
             let mut serial_buf = [0i8; 64];
-            let serial_number = if unsafe { (sdk.get_string_parameter)(handle, GSP_CAMERA_SERIAL, 64, serial_buf.as_mut_ptr()) } != 0 {
+            let serial_number = if unsafe {
+                (sdk.get_string_parameter)(handle, GSP_CAMERA_SERIAL, 64, serial_buf.as_mut_ptr())
+            } != 0
+            {
                 let serial = unsafe { std::ffi::CStr::from_ptr(serial_buf.as_ptr()) }
                     .to_string_lossy()
                     .to_string();
-                if !serial.is_empty() { Some(serial) } else { None }
+                if !serial.is_empty() {
+                    Some(serial)
+                } else {
+                    None
+                }
             } else {
                 None
             };
@@ -333,7 +380,6 @@ impl MoravianCamera {
             use_shutter: true,
         }
     }
-
 }
 
 #[async_trait]
@@ -389,7 +435,15 @@ impl NativeDevice for MoravianCamera {
 
             // Get name
             let mut name_buf = [0i8; 256];
-            if unsafe { (sdk.get_string_parameter)(handle, GSP_CAMERA_DESCRIPTION, 256, name_buf.as_mut_ptr()) } != 0 {
+            if unsafe {
+                (sdk.get_string_parameter)(
+                    handle,
+                    GSP_CAMERA_DESCRIPTION,
+                    256,
+                    name_buf.as_mut_ptr(),
+                )
+            } != 0
+            {
                 self.name = unsafe { std::ffi::CStr::from_ptr(name_buf.as_ptr()) }
                     .to_string_lossy()
                     .to_string();
@@ -413,11 +467,12 @@ impl NativeDevice for MoravianCamera {
 
             // Check if color camera
             let mut is_color: Boolean = 0;
-            let color = if unsafe { (sdk.get_boolean_parameter)(handle, GBP_RGB, &mut is_color) } != 0 {
-                is_color != 0
-            } else {
-                false
-            };
+            let color =
+                if unsafe { (sdk.get_boolean_parameter)(handle, GBP_RGB, &mut is_color) } != 0 {
+                    is_color != 0
+                } else {
+                    false
+                };
 
             self.sensor_info = SensorInfo {
                 width,
@@ -427,7 +482,11 @@ impl NativeDevice for MoravianCamera {
                 max_adu: 65535,
                 bit_depth: 16,
                 color,
-                bayer_pattern: if color { Some(BayerPattern::Rggb) } else { None },
+                bayer_pattern: if color {
+                    Some(BayerPattern::Rggb)
+                } else {
+                    None
+                },
             };
 
             // Get capabilities
@@ -723,11 +782,16 @@ impl NativeCamera for MoravianCamera {
         if result == 0 {
             tracing::error!(
                 "Moravian GetImage16b() failed for camera '{}'. Requested {}x{} pixels at ({}, {})",
-                self.name, binned_width, binned_height, x, y
+                self.name,
+                binned_width,
+                binned_height,
+                x,
+                y
             );
             return Err(NativeError::SdkError(format!(
                 "Failed to download image from Moravian camera '{}'. Buffer size: {} bytes",
-                self.name, buffer_size * 2
+                self.name,
+                buffer_size * 2
             )));
         }
 
@@ -795,7 +859,8 @@ impl NativeCamera for MoravianCamera {
             if unsafe { (sdk.set_temperature)(handle, target_temp as f32) } == 0 {
                 tracing::error!(
                     "Moravian SetTemperature() failed for camera '{}'. Target: {:.1}°C",
-                    self.name, target_temp
+                    self.name,
+                    target_temp
                 );
                 return Err(NativeError::SdkError(format!(
                     "Failed to set cooler temperature to {:.1}°C on Moravian camera '{}'. Camera may not have a cooler.",
@@ -878,7 +943,8 @@ impl NativeCamera for MoravianCamera {
         if unsafe { (sdk.set_gain)(handle, gain as Cardinal) } == 0 {
             tracing::error!(
                 "Moravian SetGain() failed for camera '{}'. Requested gain: {}",
-                self.name, gain
+                self.name,
+                gain
             );
             return Err(NativeError::SdkError(format!(
                 "Failed to set gain to {} on Moravian camera '{}'. Value may be out of range.",
@@ -915,7 +981,11 @@ impl NativeCamera for MoravianCamera {
         if unsafe { (sdk.set_binning)(handle, bin_x as Cardinal, bin_y as Cardinal) } == 0 {
             tracing::error!(
                 "Moravian SetBinning() failed for camera '{}'. Requested: {}x{}. Max: {}x{}",
-                self.name, bin_x, bin_y, self.capabilities.max_bin_x, self.capabilities.max_bin_y
+                self.name,
+                bin_x,
+                bin_y,
+                self.capabilities.max_bin_x,
+                self.capabilities.max_bin_y
             );
             return Err(NativeError::SdkError(format!(
                 "Failed to set binning to {}x{} on Moravian camera '{}'. Max supported: {}x{}",
@@ -1062,7 +1132,9 @@ impl NativeCamera for MoravianCamera {
         if unsafe { (sdk.set_read_mode)(handle, mode.index as Cardinal) } == 0 {
             tracing::error!(
                 "Moravian SetReadMode() failed for camera '{}'. Mode index: {} ('{}')",
-                self.name, mode.index, mode.name
+                self.name,
+                mode.index,
+                mode.name
             );
             return Err(NativeError::SdkError(format!(
                 "Failed to set readout mode '{}' (index {}) on Moravian camera '{}'. Mode may not be supported.",

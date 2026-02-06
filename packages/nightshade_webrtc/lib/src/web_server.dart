@@ -330,6 +330,9 @@ class NightshadeWebServer {
   set sequencerLoadHandler(SequencerLoadHandler? h) => _sequencerLoadHandler = h;
   set sequencerSetSimulationHandler(SequencerSetSimulationHandler? h) => _sequencerSetSimulationHandler = h;
 
+  // Images handler
+  set imagesHandler(ImagesHandler? h) => _imagesHandler = h;
+
   // Plate solve handler
   set plateSolveHandler(PlateSolveHandler? h) => _plateSolveHandler = h;
 
@@ -2368,23 +2371,9 @@ class NightshadeWebServer {
             return;
           }
         }
-        // Fallback if handler not set
-        response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({
-            'state': 'idle',
-            'currentNodeId': null,
-            'currentNodeName': null,
-            'totalExposures': 0,
-            'completedExposures': 0,
-            'totalIntegrationSecs': 0.0,
-            'elapsedSecs': 0.0,
-            'estimatedRemainingSecs': null,
-            'currentTarget': null,
-            'currentFilter': null,
-            'message': null,
-          }));
+        // Handler not configured
+        _writeErrorResponse(response, 'Sequence status handler not configured',
+            statusCode: HttpStatus.serviceUnavailable, category: 'sequence');
         response.close();
         return;
       }
@@ -2407,16 +2396,9 @@ class NightshadeWebServer {
             return;
           }
         }
-        // Fallback if handler not set
-        final body = await utf8.decoder.bind(request).join();
-        response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({
-            'status': 'accepted',
-            'message': 'Sequence start not yet implemented',
-            'body': body.isEmpty ? null : body,
-          }));
+        // Handler not configured
+        _writeErrorResponse(response, 'Sequence start handler not configured',
+            statusCode: HttpStatus.serviceUnavailable, category: 'sequence');
         response.close();
         return;
       }
@@ -2438,14 +2420,9 @@ class NightshadeWebServer {
             return;
           }
         }
-        // Fallback if handler not set
-        response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({
-            'status': 'accepted',
-            'message': 'Sequence stop not yet implemented',
-          }));
+        // Handler not configured
+        _writeErrorResponse(response, 'Sequence stop handler not configured',
+            statusCode: HttpStatus.serviceUnavailable, category: 'sequence');
         response.close();
         return;
       }
@@ -2474,14 +2451,9 @@ class NightshadeWebServer {
             return;
           }
         }
-        // Fallback if handler not set
-        response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({
-            'images': [],
-            'message': 'Image listing not yet implemented',
-          }));
+        // Handler not configured
+        _writeErrorResponse(response, 'Image listing handler not configured',
+            statusCode: HttpStatus.serviceUnavailable, category: 'imaging');
         response.close();
         return;
       }

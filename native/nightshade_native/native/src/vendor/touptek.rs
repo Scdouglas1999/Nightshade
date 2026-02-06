@@ -9,8 +9,8 @@
 //! - And many other white-label brands
 
 use crate::camera::{
-    CameraCapabilities, CameraState, CameraStatus, ExposureParams,
-    ImageData, ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
+    CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData, ImageMetadata,
+    ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
 };
 use crate::sync::touptek_mutex;
 use crate::traits::{NativeCamera, NativeDevice, NativeError};
@@ -222,36 +222,71 @@ impl TouptekSdk {
 
         unsafe {
             Ok(Self {
-                enum_v2: *library.get::<OgmacamEnumV2>(&sym("EnumV2"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                open_by_index: *library.get::<OgmacamOpenByIndex>(&sym("OpenByIndex"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                close: *library.get::<OgmacamClose>(&sym("Close"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                stop: *library.get::<OgmacamStop>(&sym("Stop"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                pull_image_v3: *library.get::<OgmacamPullImageV3>(&sym("PullImageV3"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                put_expo_time: *library.get::<OgmacamPutExpoTime>(&sym("put_ExpoTime"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                put_expo_again: *library.get::<OgmacamPutExpoAGain>(&sym("put_ExpoAGain"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                get_expo_again_range: *library.get::<OgmacamGetExpoAGainRange>(&sym("get_ExpoAGainRange"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                get_temperature: *library.get::<OgmacamGetTemperature>(&sym("get_Temperature"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                put_temperature: *library.get::<OgmacamPutTemperature>(&sym("put_Temperature"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                put_option: *library.get::<OgmacamPutOption>(&sym("put_Option"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                get_size: *library.get::<OgmacamGetSize>(&sym("get_Size"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                put_roi: *library.get::<OgmacamPutRoi>(&sym("put_Roi"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                get_serial_number: *library.get::<OgmacamGetSerialNumber>(&sym("get_SerialNumber"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
-                snap: *library.get::<OgmacamSnap>(&sym("Snap"))
-                    .map_err(|e| NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e)))?,
+                enum_v2: *library.get::<OgmacamEnumV2>(&sym("EnumV2")).map_err(|e| {
+                    NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                })?,
+                open_by_index: *library
+                    .get::<OgmacamOpenByIndex>(&sym("OpenByIndex"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                close: *library.get::<OgmacamClose>(&sym("Close")).map_err(|e| {
+                    NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                })?,
+                stop: *library.get::<OgmacamStop>(&sym("Stop")).map_err(|e| {
+                    NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                })?,
+                pull_image_v3: *library
+                    .get::<OgmacamPullImageV3>(&sym("PullImageV3"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                put_expo_time: *library
+                    .get::<OgmacamPutExpoTime>(&sym("put_ExpoTime"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                put_expo_again: *library
+                    .get::<OgmacamPutExpoAGain>(&sym("put_ExpoAGain"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                get_expo_again_range: *library
+                    .get::<OgmacamGetExpoAGainRange>(&sym("get_ExpoAGainRange"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                get_temperature: *library
+                    .get::<OgmacamGetTemperature>(&sym("get_Temperature"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                put_temperature: *library
+                    .get::<OgmacamPutTemperature>(&sym("put_Temperature"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                put_option: *library
+                    .get::<OgmacamPutOption>(&sym("put_Option"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                get_size: *library
+                    .get::<OgmacamGetSize>(&sym("get_Size"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                put_roi: *library.get::<OgmacamPutRoi>(&sym("put_Roi")).map_err(|e| {
+                    NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                })?,
+                get_serial_number: *library
+                    .get::<OgmacamGetSerialNumber>(&sym("get_SerialNumber"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                snap: *library.get::<OgmacamSnap>(&sym("Snap")).map_err(|e| {
+                    NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                })?,
                 _library: library,
             })
         }
@@ -269,11 +304,17 @@ fn get_sdk_for_brand(brand: &str) -> Result<(), NativeError> {
     let sdks = get_sdks();
     let mut map = sdks.lock().unwrap();
     if map.contains_key(brand) {
-        return map.get(brand).unwrap().as_ref().map(|_| ()).map_err(|e| NativeError::SdkError(e.clone()));
+        return map
+            .get(brand)
+            .unwrap()
+            .as_ref()
+            .map(|_| ())
+            .map_err(|e| NativeError::SdkError(e.clone()));
     }
 
     // Find the brand's DLL info
-    let brand_info = TOUPTEK_BRANDS.iter()
+    let brand_info = TOUPTEK_BRANDS
+        .iter()
         .find(|(_, _, name)| name.eq_ignore_ascii_case(brand))
         .ok_or_else(|| NativeError::SdkError(format!("Unknown Touptek brand: {}", brand)))?;
 
@@ -297,10 +338,13 @@ where
     get_sdk_for_brand(brand)?;
     let sdks = get_sdks();
     let map = sdks.lock().unwrap();
-    let sdk = map.get(brand).unwrap().as_ref().map_err(|e| NativeError::SdkError(e.clone()))?;
+    let sdk = map
+        .get(brand)
+        .unwrap()
+        .as_ref()
+        .map_err(|e| NativeError::SdkError(e.clone()))?;
     f(sdk)
 }
-
 
 // ============================================================================
 // Discovery
@@ -335,7 +379,11 @@ pub async fn discover_devices() -> Result<Vec<TouptekDeviceInfo>, NativeError> {
     for &(dll_name, _func_prefix, brand_name) in TOUPTEK_BRANDS {
         // Try to load this brand's SDK -- skip silently if DLL not present
         if get_sdk_for_brand(brand_name).is_err() {
-            tracing::debug!("Touptek brand SDK '{}' ({}) not available, skipping", brand_name, dll_name);
+            tracing::debug!(
+                "Touptek brand SDK '{}' ({}) not available, skipping",
+                brand_name,
+                dll_name
+            );
             continue;
         }
 
@@ -350,19 +398,25 @@ pub async fn discover_devices() -> Result<Vec<TouptekDeviceInfo>, NativeError> {
 
                 // Convert wide string display name to String
                 let name = String::from_utf16_lossy(
-                    &dev.displayname[..dev.displayname.iter().position(|&c| c == 0).unwrap_or(64)]
+                    &dev.displayname[..dev.displayname.iter().position(|&c| c == 0).unwrap_or(64)],
                 );
 
                 // Convert wide string ID to String
                 let id = String::from_utf16_lossy(
-                    &dev.id[..dev.id.iter().position(|&c| c == 0).unwrap_or(64)]
+                    &dev.id[..dev.id.iter().position(|&c| c == 0).unwrap_or(64)],
                 );
 
                 // Get model info
                 let (flags, width, height, pixel_x, pixel_y) = if !dev.model.is_null() {
                     let model = unsafe { &*dev.model };
                     let res = model.res[0]; // Primary resolution
-                    (model.flag, res.width, res.height, model.xpixsz, model.ypixsz)
+                    (
+                        model.flag,
+                        res.width,
+                        res.height,
+                        model.xpixsz,
+                        model.ypixsz,
+                    )
                 } else {
                     (0, 0, 0, 0.0, 0.0)
                 };
@@ -394,7 +448,9 @@ pub async fn discover_devices() -> Result<Vec<TouptekDeviceInfo>, NativeError> {
 }
 
 /// Discover connected Touptek cameras for a specific brand only
-pub async fn discover_devices_for_brand(brand: &str) -> Result<Vec<TouptekDeviceInfo>, NativeError> {
+pub async fn discover_devices_for_brand(
+    brand: &str,
+) -> Result<Vec<TouptekDeviceInfo>, NativeError> {
     let _lock = touptek_mutex().lock().await;
 
     get_sdk_for_brand(brand)?;
@@ -407,15 +463,21 @@ pub async fn discover_devices_for_brand(brand: &str) -> Result<Vec<TouptekDevice
         for i in 0..count as usize {
             let dev = &arr[i];
             let name = String::from_utf16_lossy(
-                &dev.displayname[..dev.displayname.iter().position(|&c| c == 0).unwrap_or(64)]
+                &dev.displayname[..dev.displayname.iter().position(|&c| c == 0).unwrap_or(64)],
             );
             let id = String::from_utf16_lossy(
-                &dev.id[..dev.id.iter().position(|&c| c == 0).unwrap_or(64)]
+                &dev.id[..dev.id.iter().position(|&c| c == 0).unwrap_or(64)],
             );
             let (flags, width, height, pixel_x, pixel_y) = if !dev.model.is_null() {
                 let model = unsafe { &*dev.model };
                 let res = model.res[0];
-                (model.flag, res.width, res.height, model.xpixsz, model.ypixsz)
+                (
+                    model.flag,
+                    res.width,
+                    res.height,
+                    model.xpixsz,
+                    model.ypixsz,
+                )
             } else {
                 (0, 0, 0, 0.0, 0.0)
             };
@@ -591,7 +653,14 @@ impl NativeDevice for TouptekCamera {
                     let mut gain_min: u16 = 100;
                     let mut gain_max: u16 = 10000;
                     let mut gain_def: u16 = 100;
-                    let _ = unsafe { (sdk.get_expo_again_range)(handle_val, &mut gain_min, &mut gain_max, &mut gain_def) };
+                    let _ = unsafe {
+                        (sdk.get_expo_again_range)(
+                            handle_val,
+                            &mut gain_min,
+                            &mut gain_max,
+                            &mut gain_def,
+                        )
+                    };
                     self.current_gain = gain_def as i32;
                     Ok(())
                 })?;
@@ -801,7 +870,9 @@ impl NativeCamera for TouptekCamera {
             if result < 0 {
                 tracing::error!(
                     "Touptek Snap() failed for camera '{}'. Duration: {:.3}s, error code: {}",
-                    name, params.duration_secs, result
+                    name,
+                    params.duration_secs,
+                    result
                 );
                 return Err(NativeError::SdkError(format!(
                     "Failed to start exposure on Touptek camera '{}'. SDK error: {}",
@@ -835,7 +906,8 @@ impl NativeCamera for TouptekCamera {
             if result < 0 {
                 tracing::error!(
                     "Touptek Stop() failed for camera '{}'. Error code: {}",
-                    name, result
+                    name,
+                    result
                 );
                 return Err(NativeError::SdkError(format!(
                     "Failed to abort exposure on Touptek camera '{}'. SDK error: {}",
@@ -878,9 +950,9 @@ impl NativeCamera for TouptekCamera {
                 (sdk.pull_image_v3)(
                     handle,
                     buffer.as_mut_ptr() as *mut c_void,
-                    1, // bStill = true
+                    1,  // bStill = true
                     16, // 16 bits
-                    0, // auto row pitch
+                    0,  // auto row pitch
                     &mut info,
                 )
             };
@@ -957,15 +1029,21 @@ impl NativeCamera for TouptekCamera {
         // Enable/disable TEC
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
-            let result = unsafe { (sdk.put_option)(handle, OGMACAM_OPTION_TEC, if enabled { 1 } else { 0 }) };
+            let result = unsafe {
+                (sdk.put_option)(handle, OGMACAM_OPTION_TEC, if enabled { 1 } else { 0 })
+            };
             if result < 0 {
                 tracing::error!(
                     "Touptek put_Option(TEC) failed for camera '{}'. Enabled: {}, error code: {}",
-                    name, enabled, result
+                    name,
+                    enabled,
+                    result
                 );
                 return Err(NativeError::SdkError(format!(
                     "Failed to {} cooler on Touptek camera '{}'. SDK error: {}",
-                    if enabled { "enable" } else { "disable" }, name, result
+                    if enabled { "enable" } else { "disable" },
+                    name,
+                    result
                 )));
             }
 
@@ -1011,7 +1089,8 @@ impl NativeCamera for TouptekCamera {
             if result < 0 {
                 tracing::error!(
                     "Touptek get_Temperature() failed for camera '{}'. Error code: {}",
-                    name, result
+                    name,
+                    result
                 );
                 return Err(NativeError::SdkError(format!(
                     "Failed to read temperature from Touptek camera '{}'. SDK error: {}. Camera may not have a temperature sensor.",

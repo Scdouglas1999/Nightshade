@@ -1,6 +1,9 @@
 //! Alpaca Dome API implementation
 
-use crate::{AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, TimeoutConfig, RetryConfig};
+use crate::{
+    AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, RetryConfig,
+    TimeoutConfig,
+};
 use std::time::Duration;
 
 /// Shutter state enum
@@ -175,7 +178,9 @@ impl AlpacaDome {
     }
 
     pub async fn set_slaved(&self, slaved: bool) -> Result<(), String> {
-        self.client.put("slaved", &[("Slaved", &slaved.to_string())]).await
+        self.client
+            .put("slaved", &[("Slaved", &slaved.to_string())])
+            .await
     }
 
     // Capabilities
@@ -265,27 +270,37 @@ impl AlpacaDome {
     /// Slew dome to altitude
     /// Uses long timeout as dome rotation can take time
     pub async fn slew_to_altitude(&self, altitude: f64) -> Result<(), String> {
-        self.slew_to_altitude_typed(altitude).await.map_err(|e| e.to_string())
+        self.slew_to_altitude_typed(altitude)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Slew to altitude with typed error handling and long timeout
     pub async fn slew_to_altitude_typed(&self, altitude: f64) -> Result<(), AlpacaError> {
-        self.client.put_long("slewtoaltitude", &[("Altitude", &altitude.to_string())]).await
+        self.client
+            .put_long("slewtoaltitude", &[("Altitude", &altitude.to_string())])
+            .await
     }
 
     /// Slew dome to azimuth
     /// Uses very long timeout as full rotation can take many minutes
     pub async fn slew_to_azimuth(&self, azimuth: f64) -> Result<(), String> {
-        self.slew_to_azimuth_typed(azimuth).await.map_err(|e| e.to_string())
+        self.slew_to_azimuth_typed(azimuth)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     /// Slew to azimuth with typed error handling and very long timeout
     pub async fn slew_to_azimuth_typed(&self, azimuth: f64) -> Result<(), AlpacaError> {
-        self.client.put_very_long("slewtoazimuth", &[("Azimuth", &azimuth.to_string())]).await
+        self.client
+            .put_very_long("slewtoazimuth", &[("Azimuth", &azimuth.to_string())])
+            .await
     }
 
     pub async fn sync_to_azimuth(&self, azimuth: f64) -> Result<(), String> {
-        self.client.put("synctoazimuth", &[("Azimuth", &azimuth.to_string())]).await
+        self.client
+            .put("synctoazimuth", &[("Azimuth", &azimuth.to_string())])
+            .await
     }
 
     /// Wait for dome to stop slewing with configurable timeout
@@ -326,7 +341,9 @@ impl AlpacaDome {
                         return Ok(true);
                     }
                     if state == ShutterStatus::Error {
-                        return Err(AlpacaError::OperationFailed("Shutter in error state".to_string()));
+                        return Err(AlpacaError::OperationFailed(
+                            "Shutter in error state".to_string(),
+                        ));
                     }
                     if std::time::Instant::now() >= deadline {
                         return Ok(false);
@@ -347,7 +364,8 @@ impl AlpacaDome {
         // Start opening
         self.open_shutter_typed().await?;
         // Wait for open state
-        self.wait_for_shutter_state(ShutterStatus::Open, poll_interval, timeout).await
+        self.wait_for_shutter_state(ShutterStatus::Open, poll_interval, timeout)
+            .await
     }
 
     /// Close shutter and wait for completion
@@ -359,7 +377,8 @@ impl AlpacaDome {
         // Start closing
         self.close_shutter_typed().await?;
         // Wait for closed state
-        self.wait_for_shutter_state(ShutterStatus::Closed, poll_interval, timeout).await
+        self.wait_for_shutter_state(ShutterStatus::Closed, poll_interval, timeout)
+            .await
     }
 
     // Status aggregation

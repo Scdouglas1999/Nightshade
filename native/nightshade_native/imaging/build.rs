@@ -29,12 +29,18 @@ fn main() {
 
         println!("cargo:rustc-link-search=native={}", search_dir.display());
         println!("cargo:rustc-link-lib=dylib=libraw");
-        println!("cargo:rerun-if-changed={}", search_dir.join("libraw.dll").display());
+        println!(
+            "cargo:rerun-if-changed={}",
+            search_dir.join("libraw.dll").display()
+        );
         println!("cargo:rerun-if-env-changed=LIBRAW_DIR");
 
         let libraw_lib = search_dir.join("libraw.lib");
         if !libraw_lib.exists() {
-            println!("cargo:warning=libraw.lib not found at: {}", libraw_lib.display());
+            println!(
+                "cargo:warning=libraw.lib not found at: {}",
+                libraw_lib.display()
+            );
             println!("cargo:warning=Set LIBRAW_DIR environment variable or place libraw.lib in workspace root");
         } else {
             println!("cargo:rustc-env=LIBRAW_PATH={}", search_dir.display());

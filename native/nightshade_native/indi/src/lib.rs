@@ -41,37 +41,40 @@
 //! - Protocol version negotiation support (1.7, 1.8, 1.9)
 //! - Exponential backoff with jitter for reconnection
 
-mod client;
-mod protocol;
-mod error;
-mod camera;
-mod mount;
-mod focuser;
-mod filterwheel;
-mod rotator;
-mod dome;
-mod safetymonitor;
-mod covercalibrator;
-mod weather;
-mod switch_device;
-pub mod discovery;
 pub mod autofocus;
+mod camera;
+mod client;
+mod covercalibrator;
+pub mod discovery;
+mod dome;
+mod error;
+mod filterwheel;
+mod focuser;
+mod mount;
+mod protocol;
+mod rotator;
+mod safetymonitor;
+mod switch_device;
+mod weather;
 
-pub use client::*;
-pub use error::{IndiError, IndiResult};
-pub use protocol::{CcdFrameType, standard_properties, INDI_PROTOCOL_VERSION};
+pub use autofocus::{AutofocusMethod, IndiAutofocus, IndiAutofocusConfig, IndiAutofocusResult};
 pub use camera::IndiCamera;
-pub use mount::IndiMount;
-pub use focuser::IndiFocuser;
-pub use filterwheel::IndiFilterWheel;
-pub use rotator::IndiRotator;
+pub use client::*;
+pub use covercalibrator::{IndiCalibratorState, IndiCoverCalibrator, IndiCoverState};
+pub use discovery::{
+    discover_common_hosts, discover_local_network, discover_localhost, discover_mdns,
+    discover_server, IndiDeviceInfo, IndiDeviceType, IndiServer,
+};
 pub use dome::{IndiDome, IndiShutterStatus};
+pub use error::{IndiError, IndiResult};
+pub use filterwheel::IndiFilterWheel;
+pub use focuser::IndiFocuser;
+pub use mount::IndiMount;
+pub use protocol::{standard_properties, CcdFrameType, INDI_PROTOCOL_VERSION};
+pub use rotator::IndiRotator;
 pub use safetymonitor::IndiSafetyMonitor;
-pub use covercalibrator::{IndiCoverCalibrator, IndiCoverState, IndiCalibratorState};
-pub use weather::{IndiWeather, IndiWeatherStatus};
 pub use switch_device::{IndiSwitchDevice, IndiSwitchInfo};
-pub use discovery::{discover_localhost, discover_server, discover_common_hosts, discover_local_network, discover_mdns, IndiServer, IndiDeviceInfo, IndiDeviceType};
-pub use autofocus::{IndiAutofocus, IndiAutofocusConfig, IndiAutofocusResult, AutofocusMethod};
+pub use weather::{IndiWeather, IndiWeatherStatus};
 
 /// Error returned when an INDI feature is not supported
 #[derive(Debug, Clone)]
@@ -83,7 +86,11 @@ pub struct UnsupportedFeatureError {
 
 impl std::fmt::Display for UnsupportedFeatureError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "INDI does not support {} for {}.", self.feature, self.device_type)?;
+        write!(
+            f,
+            "INDI does not support {} for {}.",
+            self.feature, self.device_type
+        )?;
         if let Some(alt) = &self.alternative {
             write!(f, " Alternative: {}", alt)?;
         }
@@ -114,18 +121,26 @@ impl std::error::Error for UnsupportedFeatureError {}
 /// // Weather devices are not supported
 /// assert!(check_feature_support("weather", "temperature").is_err());
 /// ```
-pub fn check_feature_support(device_type: &str, feature: &str) -> Result<(), UnsupportedFeatureError> {
-    match (device_type.to_lowercase().as_str(), feature.to_lowercase().as_str()) {
+pub fn check_feature_support(
+    device_type: &str,
+    feature: &str,
+) -> Result<(), UnsupportedFeatureError> {
+    match (
+        device_type.to_lowercase().as_str(),
+        feature.to_lowercase().as_str(),
+    ) {
         ("covercalibrator", "halt") => Err(UnsupportedFeatureError {
             device_type: device_type.to_string(),
             feature: feature.to_string(),
             alternative: None,
         }),
-        ("covercalibrator", "blob_streaming") | ("camera", "blob_streaming") => Err(UnsupportedFeatureError {
-            device_type: device_type.to_string(),
-            feature: feature.to_string(),
-            alternative: Some("Use standard BLOB transfers instead of streaming".to_string()),
-        }),
+        ("covercalibrator", "blob_streaming") | ("camera", "blob_streaming") => {
+            Err(UnsupportedFeatureError {
+                device_type: device_type.to_string(),
+                feature: feature.to_string(),
+                alternative: Some("Use standard BLOB transfers instead of streaming".to_string()),
+            })
+        }
         _ => Ok(()),
     }
 }

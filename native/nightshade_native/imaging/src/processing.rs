@@ -22,7 +22,12 @@ pub struct TileRegion {
 impl TileRegion {
     /// Create a new tile region
     pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
-        Self { x, y, width, height }
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
     }
 
     /// Calculate the actual pixel count in this tile
@@ -35,7 +40,11 @@ impl TileRegion {
 #[derive(Debug, Clone)]
 pub enum ProcessOperation {
     /// Auto-stretch with given parameters
-    AutoStretch { shadow: f64, midtone: f64, highlight: f64 },
+    AutoStretch {
+        shadow: f64,
+        midtone: f64,
+        highlight: f64,
+    },
     /// Normalize to 0-1 range
     Normalize,
     /// Apply gamma correction
@@ -121,7 +130,13 @@ pub async fn process_tiled(
     let tile_results = results?;
 
     // Merge results
-    merge_tile_results(tile_results, image.width, image.height, image.channels, image.pixel_type)
+    merge_tile_results(
+        tile_results,
+        image.width,
+        image.height,
+        image.channels,
+        image.pixel_type,
+    )
 }
 
 /// Process a single tile
@@ -135,12 +150,12 @@ fn process_tile(
 
     // Apply operation to tile
     match operation {
-        ProcessOperation::AutoStretch { shadow, midtone, highlight } => {
-            apply_stretch_to_tile(&tile_data, image.pixel_type, *shadow, *midtone, *highlight)
-        }
-        ProcessOperation::Normalize => {
-            normalize_tile(&tile_data, image.pixel_type)
-        }
+        ProcessOperation::AutoStretch {
+            shadow,
+            midtone,
+            highlight,
+        } => apply_stretch_to_tile(&tile_data, image.pixel_type, *shadow, *midtone, *highlight),
+        ProcessOperation::Normalize => normalize_tile(&tile_data, image.pixel_type),
         ProcessOperation::Gamma { gamma } => {
             apply_gamma_to_tile(&tile_data, image.pixel_type, *gamma)
         }
@@ -376,12 +391,7 @@ mod tests {
     #[tokio::test]
     async fn test_process_tiled_normalize() {
         let image = ImageData::new(512, 512, 1, PixelType::U16);
-        let result = process_tiled(
-            &image,
-            256,
-            ProcessOperation::Normalize,
-            None,
-        ).await;
+        let result = process_tiled(&image, 256, ProcessOperation::Normalize, None).await;
 
         assert!(result.is_ok());
         let processed = result.unwrap();

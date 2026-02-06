@@ -6,7 +6,7 @@
 //! - Region-of-interest extraction
 //! - Streaming operations
 
-use crate::{ImageData, PixelType, FitsHeader, FitsError};
+use crate::{FitsError, FitsHeader, ImageData, PixelType};
 use image::GenericImageView;
 use memmap2::Mmap;
 use std::fs::File;
@@ -34,17 +34,23 @@ impl MappedFitsReader {
         let header = crate::fits::read_header(&mut cursor)?;
 
         // Get image dimensions from header
-        let bitpix = header.get_int("BITPIX")
+        let bitpix = header
+            .get_int("BITPIX")
             .ok_or_else(|| FitsError::MissingKeyword("BITPIX".to_string()))?;
-        let naxis = header.get_int("NAXIS")
+        let naxis = header
+            .get_int("NAXIS")
             .ok_or_else(|| FitsError::MissingKeyword("NAXIS".to_string()))?;
 
         if naxis == 0 {
-            return Err(FitsError::InvalidFormat("No image data in FITS file".to_string()));
+            return Err(FitsError::InvalidFormat(
+                "No image data in FITS file".to_string(),
+            ));
         }
 
-        let width = header.get_int("NAXIS1")
-            .ok_or_else(|| FitsError::MissingKeyword("NAXIS1".to_string()))? as u32;
+        let width = header
+            .get_int("NAXIS1")
+            .ok_or_else(|| FitsError::MissingKeyword("NAXIS1".to_string()))?
+            as u32;
         let height = header.get_int("NAXIS2").unwrap_or(1) as u32;
         let channels = if naxis >= 3 {
             header.get_int("NAXIS3").unwrap_or(1) as u32
@@ -69,7 +75,11 @@ impl MappedFitsReader {
 
         tracing::info!(
             "Opened memory-mapped FITS: {}x{}x{}, type {:?}, data offset: {}",
-            width, height, channels, pixel_type, data_offset
+            width,
+            height,
+            channels,
+            pixel_type,
+            data_offset
         );
 
         Ok(Self {
@@ -111,10 +121,10 @@ impl MappedFitsReader {
     ) -> Result<ImageData, FitsError> {
         // Validate bounds
         if x + width > self.width || y + height > self.height {
-            return Err(FitsError::InvalidFormat(
-                format!("Region {}x{} at ({},{}) exceeds image bounds {}x{}",
-                    width, height, x, y, self.width, self.height)
-            ));
+            return Err(FitsError::InvalidFormat(format!(
+                "Region {}x{} at ({},{}) exceeds image bounds {}x{}",
+                width, height, x, y, self.width, self.height
+            )));
         }
 
         let bytes_per_pixel = self.pixel_type.byte_size();
@@ -136,7 +146,9 @@ impl MappedFitsReader {
                 let row_data = &self.mmap[offset..offset + length];
                 region_data.extend_from_slice(row_data);
             } else {
-                return Err(FitsError::InvalidFormat("Region read out of bounds".to_string()));
+                return Err(FitsError::InvalidFormat(
+                    "Region read out of bounds".to_string(),
+                ));
             }
         }
 
@@ -200,7 +212,9 @@ impl MappedFitsReader {
     /// This is much faster than reading the full image and then downsampling.
     pub fn read_downsampled(&self, downsample_factor: u32) -> Result<ImageData, FitsError> {
         if downsample_factor == 0 {
-            return Err(FitsError::InvalidFormat("Downsample factor must be > 0".to_string()));
+            return Err(FitsError::InvalidFormat(
+                "Downsample factor must be > 0".to_string(),
+            ));
         }
 
         let out_width = (self.width + downsample_factor - 1) / downsample_factor;
@@ -223,7 +237,8 @@ impl MappedFitsReader {
                 let pixel_offset = row_offset + src_x * bytes_per_pixel * channels;
 
                 if pixel_offset + bytes_per_pixel * channels <= self.mmap.len() {
-                    let pixel_data = &self.mmap[pixel_offset..pixel_offset + bytes_per_pixel * channels];
+                    let pixel_data =
+                        &self.mmap[pixel_offset..pixel_offset + bytes_per_pixel * channels];
                     output_data.extend_from_slice(pixel_data);
                 }
             }
@@ -234,7 +249,11 @@ impl MappedFitsReader {
 
         tracing::info!(
             "Downsampled {}x{} to {}x{} (factor {})",
-            self.width, self.height, out_width, out_height, downsample_factor
+            self.width,
+            self.height,
+            out_width,
+            out_height,
+            downsample_factor
         );
 
         Ok(ImageData {
@@ -258,27 +277,20 @@ impl MappedFitsReader {
 /// - For RAW files: extract embedded JPEG preview
 /// - For FITS: use memory-mapped downsampling
 /// - For TIFF/PNG: use image library with subsampling
-pub fn generate_thumbnail(
-    path: &Path,
-    max_dimension: u32,
-) -> Result<ImageData, String> {
-    let ext = path.extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
+pub fn generate_thumbnail(path: &Path, max_dimension: u32) -> Result<ImageData, String> {
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
     match ext.to_lowercase().as_str() {
         // RAW formats - use LibRaw embedded preview
         "cr2" | "cr3" | "nef" | "arw" | "raf" | "pef" | "orf" | "rw2" => {
             tracing::info!("Extracting RAW thumbnail from {}", path.display());
-            crate::raw::extract_thumbnail(path)
-                .map_err(|e| e.to_string())
+            crate::raw::extract_thumbnail(path).map_err(|e| e.to_string())
         }
 
         // FITS - use memory-mapped downsampling
         "fits" | "fit" | "fts" => {
             tracing::info!("Generating FITS thumbnail from {}", path.display());
-            let reader = MappedFitsReader::open(path)
-                .map_err(|e| e.to_string())?;
+            let reader = MappedFitsReader::open(path).map_err(|e| e.to_string())?;
 
             let (width, height, _) = reader.dimensions();
             let max_dim = width.max(height);
@@ -286,10 +298,12 @@ pub fn generate_thumbnail(
 
             if downsample <= 1 {
                 // Image is already small, read full
-                reader.read_region(0, 0, width, height)
+                reader
+                    .read_region(0, 0, width, height)
                     .map_err(|e| e.to_string())
             } else {
-                reader.read_downsampled(downsample)
+                reader
+                    .read_downsampled(downsample)
                     .map_err(|e| e.to_string())
             }
         }
@@ -297,8 +311,7 @@ pub fn generate_thumbnail(
         // Other formats - use image crate
         _ => {
             tracing::info!("Loading thumbnail with image crate from {}", path.display());
-            let img = image::open(path)
-                .map_err(|e| format!("Failed to open image: {}", e))?;
+            let img = image::open(path).map_err(|e| format!("Failed to open image: {}", e))?;
 
             let (width, height) = img.dimensions();
             let scale = (width.max(height) as f32) / (max_dimension as f32);

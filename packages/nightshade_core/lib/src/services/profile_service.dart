@@ -313,6 +313,34 @@ class ProfileService {
     await dao.deleteProfile(profileId);
   }
   
+  /// Clear specific device assignments from a profile
+  ///
+  /// [deviceTypes] is a set of device type names (e.g., 'Camera', 'Mount')
+  /// that should be cleared (set to null) in the profile.
+  Future<void> clearDevicesFromProfile(
+    int profileId,
+    Set<String> deviceTypes,
+  ) async {
+    final dao = _ref.read(equipmentProfilesDaoProvider);
+    final profile = await dao.getProfileById(profileId);
+
+    if (profile == null) {
+      throw Exception('Profile not found');
+    }
+
+    await dao.updateProfile(profile.copyWith(
+      cameraId: deviceTypes.contains('Camera') ? const Value(null) : Value(profile.cameraId),
+      mountId: deviceTypes.contains('Mount') ? const Value(null) : Value(profile.mountId),
+      focuserId: deviceTypes.contains('Focuser') ? const Value(null) : Value(profile.focuserId),
+      filterWheelId: deviceTypes.contains('Filter Wheel') ? const Value(null) : Value(profile.filterWheelId),
+      guiderId: deviceTypes.contains('Guider') ? const Value(null) : Value(profile.guiderId),
+      rotatorId: deviceTypes.contains('Rotator') ? const Value(null) : Value(profile.rotatorId),
+      domeId: deviceTypes.contains('Dome') ? const Value(null) : Value(profile.domeId),
+      weatherId: deviceTypes.contains('Weather') ? const Value(null) : Value(profile.weatherId),
+      updatedAt: DateTime.now(),
+    ));
+  }
+
   /// Update profile device assignments
   Future<void> updateProfileDevices(
     int profileId, {

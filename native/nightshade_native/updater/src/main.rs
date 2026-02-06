@@ -129,9 +129,7 @@ fn wait_for_process_exit(pid: u32, timeout: Duration) -> Result<()> {
         let start = std::time::Instant::now();
         while start.elapsed() < timeout {
             // Check if process exists
-            let output = Command::new("kill")
-                .args(["-0", &pid.to_string()])
-                .output();
+            let output = Command::new("kill").args(["-0", &pid.to_string()]).output();
 
             if let Ok(output) = output {
                 if !output.status.success() {
@@ -149,11 +147,9 @@ fn wait_for_process_exit(pid: u32, timeout: Duration) -> Result<()> {
 fn backup_installation(install_dir: &Path, backup_dir: &Path) -> Result<()> {
     // Clear previous backup
     if backup_dir.exists() {
-        fs::remove_dir_all(backup_dir)
-            .context("Failed to clear previous backup")?;
+        fs::remove_dir_all(backup_dir).context("Failed to clear previous backup")?;
     }
-    fs::create_dir_all(backup_dir)
-        .context("Failed to create backup directory")?;
+    fs::create_dir_all(backup_dir).context("Failed to create backup directory")?;
 
     // Copy critical files (not the whole installation, just what we'll replace)
     let critical_files = [
@@ -167,8 +163,7 @@ fn backup_installation(install_dir: &Path, backup_dir: &Path) -> Result<()> {
         let dst = backup_dir.join(file);
 
         if src.exists() {
-            fs::copy(&src, &dst)
-                .with_context(|| format!("Failed to backup {}", file))?;
+            fs::copy(&src, &dst).with_context(|| format!("Failed to backup {}", file))?;
         }
     }
 
@@ -176,8 +171,7 @@ fn backup_installation(install_dir: &Path, backup_dir: &Path) -> Result<()> {
     let data_src = install_dir.join("data");
     let data_dst = backup_dir.join("data");
     if data_src.exists() {
-        copy_dir_recursive(&data_src, &data_dst)
-            .context("Failed to backup data directory")?;
+        copy_dir_recursive(&data_src, &data_dst).context("Failed to backup data directory")?;
     }
 
     Ok(())
@@ -225,8 +219,9 @@ fn apply_update(staging_dir: &Path, install_dir: &Path) -> Result<()> {
                     }
                 } else {
                     // Files are different, must update
-                    try_update_file(src_path, &dst_path)
-                        .with_context(|| format!("Failed to update critical file: {:?}", dst_path))?;
+                    try_update_file(src_path, &dst_path).with_context(|| {
+                        format!("Failed to update critical file: {:?}", dst_path)
+                    })?;
                 }
             } else {
                 // New file, just copy

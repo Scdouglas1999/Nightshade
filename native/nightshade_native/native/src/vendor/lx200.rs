@@ -53,7 +53,7 @@ mod commands {
 
     pub const SET_TRACK_SIDEREAL: &str = ":TQ#";
     pub const SET_TRACK_LUNAR: &str = ":TL#";
-    pub const SET_TRACK_SOLAR: &str = ":TS#";  // OnStep: :TS# for solar rate
+    pub const SET_TRACK_SOLAR: &str = ":TS#"; // OnStep: :TS# for solar rate
     pub const SET_RATE_GUIDE: &str = ":RG#";
 
     // OnStep tracking rate commands
@@ -109,19 +109,24 @@ fn parse_ra(response: &str) -> Result<f64, NativeError> {
     let s = response.trim_end_matches('#');
 
     if let Some((h, rest)) = s.split_once(':') {
-        let hours: f64 = h.parse()
+        let hours: f64 = h
+            .parse()
             .map_err(|_| NativeError::SdkError("Invalid RA hours".into()))?;
 
         if let Some((m, sec)) = rest.split_once(':') {
-            let minutes: f64 = m.parse()
+            let minutes: f64 = m
+                .parse()
                 .map_err(|_| NativeError::SdkError("Invalid RA minutes".into()))?;
-            let seconds: f64 = sec.parse()
+            let seconds: f64 = sec
+                .parse()
                 .map_err(|_| NativeError::SdkError("Invalid RA seconds".into()))?;
             return Ok(hours + minutes / 60.0 + seconds / 3600.0);
         } else if let Some((m, t)) = rest.split_once('.') {
-            let minutes: f64 = m.parse()
+            let minutes: f64 = m
+                .parse()
                 .map_err(|_| NativeError::SdkError("Invalid RA minutes".into()))?;
-            let tenths: f64 = t.parse()
+            let tenths: f64 = t
+                .parse()
                 .map_err(|_| NativeError::SdkError("Invalid RA tenths".into()))?;
             return Ok(hours + (minutes + tenths / 10.0) / 60.0);
         }
@@ -144,9 +149,11 @@ fn parse_dec(response: &str) -> Result<f64, NativeError> {
     let parts: Vec<&str> = rest.split(|c| c == '*' || c == '°' || c == ':').collect();
 
     if parts.len() >= 2 {
-        let degrees: f64 = parts[0].parse()
+        let degrees: f64 = parts[0]
+            .parse()
             .map_err(|_| NativeError::SdkError("Invalid Dec degrees".into()))?;
-        let arcmin: f64 = parts[1].parse()
+        let arcmin: f64 = parts[1]
+            .parse()
             .map_err(|_| NativeError::SdkError("Invalid Dec arcmin".into()))?;
 
         let arcsec: f64 = if parts.len() >= 3 {
@@ -214,7 +221,11 @@ impl Lx200Mount {
             Lx200MountType::Generic => "lx200",
         };
 
-        let device_id = format!("native:{}:{}", type_prefix, port.replace("/", "_").replace("\\", "_"));
+        let device_id = format!(
+            "native:{}:{}",
+            type_prefix,
+            port.replace("/", "_").replace("\\", "_")
+        );
         let display_name = match &mount_type {
             Lx200MountType::Meade => "Meade LX200",
             Lx200MountType::OnStep => "OnStep Mount",
@@ -276,7 +287,10 @@ impl Lx200Mount {
     }
 
     fn send_command(&self, command: &str) -> Result<String, NativeError> {
-        let mut port_guard = self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let mut port_guard = self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
@@ -289,7 +303,9 @@ impl Lx200Mount {
 
         loop {
             if timeout.elapsed() > Duration::from_secs(5) {
-                return Err(NativeError::Timeout("LX200 command response timed out".to_string()));
+                return Err(NativeError::Timeout(
+                    "LX200 command response timed out".to_string(),
+                ));
             }
 
             match port.read(&mut buf) {
@@ -309,7 +325,10 @@ impl Lx200Mount {
     }
 
     fn send_command_bool(&self, command: &str) -> Result<bool, NativeError> {
-        let mut port_guard = self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let mut port_guard = self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
@@ -321,7 +340,9 @@ impl Lx200Mount {
 
         loop {
             if timeout.elapsed() > Duration::from_secs(5) {
-                return Err(NativeError::Timeout("LX200 command bool response timed out".to_string()));
+                return Err(NativeError::Timeout(
+                    "LX200 command bool response timed out".to_string(),
+                ));
             }
 
             match port.read(&mut buf) {
@@ -334,7 +355,10 @@ impl Lx200Mount {
     }
 
     fn send_command_no_response(&self, command: &str) -> Result<(), NativeError> {
-        let mut port_guard = self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+        let mut port_guard = self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
         let port = port_guard.as_mut().ok_or(NativeError::NotConnected)?;
 
         port.write_all(command.as_bytes())
@@ -373,11 +397,17 @@ impl NativeDevice for Lx200Mount {
             .open()
             .map_err(|e| NativeError::SdkError(format!("Failed to open serial port: {}", e)))?;
 
-        *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(serial);
+        *self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = Some(serial);
 
         match self.send_command(commands::GET_PRODUCT_NAME) {
             Ok(name) => {
-                *self.product_name.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = name.clone();
+                *self
+                    .product_name
+                    .lock()
+                    .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = name.clone();
                 self.name = format!("{} ({})", name, self.port_name);
             }
             Err(_) => {
@@ -385,8 +415,14 @@ impl NativeDevice for Lx200Mount {
             }
         }
 
-        *self.connected.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
-        *self.is_tracking.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
+        *self
+            .connected
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
+        *self
+            .is_tracking
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
 
         tracing::info!("Connected to LX200 mount: {}", self.name);
 
@@ -400,8 +436,14 @@ impl NativeDevice for Lx200Mount {
 
         let _ = self.send_command_no_response(commands::STOP_SLEW);
 
-        *self.serial_port.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
-        *self.connected.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = false;
+        *self
+            .serial_port
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = None;
+        *self
+            .connected
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = false;
 
         tracing::info!("Disconnected from LX200 mount");
 
@@ -411,7 +453,11 @@ impl NativeDevice for Lx200Mount {
 
 #[async_trait]
 impl NativeMount for Lx200Mount {
-    async fn slew_to_coordinates(&mut self, ra_hours: f64, dec_degrees: f64) -> Result<(), NativeError> {
+    async fn slew_to_coordinates(
+        &mut self,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> Result<(), NativeError> {
         if !self.is_connected() {
             return Err(NativeError::NotConnected);
         }
@@ -432,12 +478,19 @@ impl NativeMount for Lx200Mount {
         if response != "0" && !response.is_empty() {
             match response.chars().next() {
                 Some('1') => return Err(NativeError::SdkError("Object is below horizon".into())),
-                Some('2') => return Err(NativeError::SdkError("Object is below altitude limit".into())),
+                Some('2') => {
+                    return Err(NativeError::SdkError(
+                        "Object is below altitude limit".into(),
+                    ))
+                }
                 _ => return Err(NativeError::SdkError(format!("Slew failed: {}", response))),
             }
         }
 
-        *self.is_slewing.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
+        *self
+            .is_slewing
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
 
         Ok(())
     }
@@ -456,7 +509,11 @@ impl NativeMount for Lx200Mount {
         Ok((ra, dec))
     }
 
-    async fn sync_to_coordinates(&mut self, ra_hours: f64, dec_degrees: f64) -> Result<(), NativeError> {
+    async fn sync_to_coordinates(
+        &mut self,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> Result<(), NativeError> {
         if !self.is_connected() {
             return Err(NativeError::NotConnected);
         }
@@ -535,7 +592,11 @@ impl NativeMount for Lx200Mount {
         Ok(false)
     }
 
-    async fn pulse_guide(&mut self, direction: GuideDirection, duration_ms: u32) -> Result<(), NativeError> {
+    async fn pulse_guide(
+        &mut self,
+        direction: GuideDirection,
+        duration_ms: u32,
+    ) -> Result<(), NativeError> {
         if !self.is_connected() {
             return Err(NativeError::NotConnected);
         }
@@ -552,7 +613,12 @@ impl NativeMount for Lx200Mount {
 
             // Clamp duration to OnStep's valid range (20-16399ms)
             let clamped_ms = duration_ms.clamp(20, 16399);
-            let cmd = format!("{}{}{}#", commands::ONSTEP_PULSE_GUIDE_PREFIX, dir_char, clamped_ms);
+            let cmd = format!(
+                "{}{}{}#",
+                commands::ONSTEP_PULSE_GUIDE_PREFIX,
+                dir_char,
+                clamped_ms
+            );
             self.send_command_no_response(&cmd)?;
 
             return Ok(());
@@ -589,7 +655,10 @@ impl NativeMount for Lx200Mount {
 
         tracing::info!("Aborting slew");
         self.send_command_no_response(commands::STOP_SLEW)?;
-        *self.is_slewing.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = false;
+        *self
+            .is_slewing
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = false;
 
         Ok(())
     }
@@ -617,7 +686,10 @@ impl NativeMount for Lx200Mount {
             }
         }
 
-        *self.is_tracking.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = enabled;
+        *self
+            .is_tracking
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = enabled;
         tracing::info!("Tracking {}", if enabled { "enabled" } else { "disabled" });
 
         Ok(())
@@ -703,7 +775,10 @@ impl NativeMount for Lx200Mount {
         };
 
         self.send_command_no_response(cmd)?;
-        *self.tracking_rate.lock().map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = rate;
+        *self
+            .tracking_rate
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = rate;
         tracing::info!("Set tracking rate to {:?}", rate);
 
         Ok(())
@@ -740,7 +815,10 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
     let ports = serialport::available_ports()
         .map_err(|e| NativeError::SdkError(format!("Failed to enumerate ports: {}", e)))?;
 
-    tracing::info!("LX200 discovery: found {} serial ports to scan", ports.len());
+    tracing::info!(
+        "LX200 discovery: found {} serial ports to scan",
+        ports.len()
+    );
 
     for port_info in ports {
         let port_name = port_info.port_name.clone();
@@ -748,9 +826,12 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
         // Log port info for debugging
         let port_type = match &port_info.port_type {
             serialport::SerialPortType::UsbPort(usb) => {
-                format!("USB (VID:{:04X} PID:{:04X} {})",
-                    usb.vid, usb.pid,
-                    usb.product.as_deref().unwrap_or("unknown"))
+                format!(
+                    "USB (VID:{:04X} PID:{:04X} {})",
+                    usb.vid,
+                    usb.pid,
+                    usb.product.as_deref().unwrap_or("unknown")
+                )
             }
             serialport::SerialPortType::PciPort => "PCI".to_string(),
             serialport::SerialPortType::BluetoothPort => "Bluetooth".to_string(),
@@ -788,7 +869,9 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                     } else {
                         tracing::debug!(
                             "Could not open port {} at {} baud for LX200 detection: {}",
-                            port_name, baud_rate, msg
+                            port_name,
+                            baud_rate,
+                            msg
                         );
                     }
                     // If we can't open at any baud rate, skip to next port
@@ -797,7 +880,10 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                 Ok(mut port) => {
                     // First, try OnStep status command to detect OnStep-based mounts (Pegasus NYX, etc.)
                     // OnStep responds to :GU# with a status string like "nNpPHT..." or similar flags
-                    let is_onstep = if port.write_all(commands::ONSTEP_GET_STATUS.as_bytes()).is_ok() {
+                    let is_onstep = if port
+                        .write_all(commands::ONSTEP_GET_STATUS.as_bytes())
+                        .is_ok()
+                    {
                         let _ = port.flush();
                         let mut buf = [0u8; 32];
                         std::thread::sleep(Duration::from_millis(200));
@@ -805,7 +891,12 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                         if let Ok(n) = port.read(&mut buf) {
                             let response = String::from_utf8_lossy(&buf[..n]);
                             let trimmed = response.trim();
-                            tracing::debug!("OnStep detection response from {} at {} baud: {:?}", port_name, baud_rate, trimmed);
+                            tracing::debug!(
+                                "OnStep detection response from {} at {} baud: {:?}",
+                                port_name,
+                                baud_rate,
+                                trimmed
+                            );
                             // OnStep status ends with # and has some content
                             // Be more permissive - just check it ends with # and has reasonable length
                             trimmed.ends_with('#') && trimmed.len() >= 2 && trimmed.len() <= 30
@@ -818,7 +909,10 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
 
                     if is_onstep {
                         // Get product name for display
-                        let name = if port.write_all(commands::GET_PRODUCT_NAME.as_bytes()).is_ok() {
+                        let name = if port
+                            .write_all(commands::GET_PRODUCT_NAME.as_bytes())
+                            .is_ok()
+                        {
                             let _ = port.flush();
                             let mut buf = [0u8; 64];
                             std::thread::sleep(Duration::from_millis(200));
@@ -834,7 +928,9 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                         };
 
                         // Check if it's a Pegasus NYX specifically
-                        let display_name = if name.to_lowercase().contains("pegasus") || name.to_lowercase().contains("nyx") {
+                        let display_name = if name.to_lowercase().contains("pegasus")
+                            || name.to_lowercase().contains("nyx")
+                        {
                             format!("Pegasus {} ({})", name, port_name)
                         } else if name.to_lowercase().contains("onstep") {
                             format!("{} ({})", name, port_name)
@@ -848,13 +944,21 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                             mount_type: Lx200MountType::OnStep,
                             baud_rate,
                         });
-                        tracing::info!("Found OnStep mount on {} at {} baud: {}", port_name, baud_rate, display_name);
+                        tracing::info!(
+                            "Found OnStep mount on {} at {} baud: {}",
+                            port_name,
+                            baud_rate,
+                            display_name
+                        );
                         found_mount = true;
                         continue;
                     }
 
                     // Try standard LX200 detection
-                    if port.write_all(commands::GET_PRODUCT_NAME.as_bytes()).is_ok() {
+                    if port
+                        .write_all(commands::GET_PRODUCT_NAME.as_bytes())
+                        .is_ok()
+                    {
                         let _ = port.flush();
 
                         let mut buf = [0u8; 64];
@@ -864,13 +968,20 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                             let response = String::from_utf8_lossy(&buf[..n]);
                             let name = response.trim_end_matches('#').to_string();
 
-                            let mount_type = if name.to_lowercase().contains("meade") || name.to_lowercase().contains("lx") {
+                            let mount_type = if name.to_lowercase().contains("meade")
+                                || name.to_lowercase().contains("lx")
+                            {
                                 Some(Lx200MountType::Meade)
-                            } else if name.to_lowercase().contains("gemini") || name.to_lowercase().contains("losmandy") {
+                            } else if name.to_lowercase().contains("gemini")
+                                || name.to_lowercase().contains("losmandy")
+                            {
                                 Some(Lx200MountType::Losmandy)
                             } else if name.to_lowercase().contains("10micron") {
                                 Some(Lx200MountType::TenMicron)
-                            } else if !name.is_empty() && name != "\0" && name.chars().any(|c| c.is_alphanumeric()) {
+                            } else if !name.is_empty()
+                                && name != "\0"
+                                && name.chars().any(|c| c.is_alphanumeric())
+                            {
                                 Some(Lx200MountType::Generic)
                             } else {
                                 None
@@ -884,7 +995,12 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                                     mount_type,
                                     baud_rate,
                                 });
-                                tracing::info!("Found LX200 mount on {} at {} baud: {}", port_name, baud_rate, display_name);
+                                tracing::info!(
+                                    "Found LX200 mount on {} at {} baud: {}",
+                                    port_name,
+                                    baud_rate,
+                                    display_name
+                                );
                                 found_mount = true;
                                 continue;
                             }
@@ -908,7 +1024,11 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                                     mount_type: Lx200MountType::Generic,
                                     baud_rate,
                                 });
-                                tracing::info!("Found generic LX200 mount on {} at {} baud", port_name, baud_rate);
+                                tracing::info!(
+                                    "Found generic LX200 mount on {} at {} baud",
+                                    port_name,
+                                    baud_rate
+                                );
                                 found_mount = true;
                             }
                         }

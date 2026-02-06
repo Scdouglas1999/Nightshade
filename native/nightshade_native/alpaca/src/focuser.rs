@@ -1,6 +1,9 @@
 //! Alpaca Focuser API implementation
 
-use crate::{AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, TimeoutConfig, RetryConfig};
+use crate::{
+    AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, RetryConfig,
+    TimeoutConfig,
+};
 
 /// Focuser status aggregate for parallel status query
 #[derive(Debug, Clone)]
@@ -184,7 +187,9 @@ impl AlpacaFocuser {
 
     /// Enable or disable temperature compensation
     pub async fn set_temp_comp(&self, enabled: bool) -> Result<(), String> {
-        self.client.put("tempcomp", &[("TempComp", &enabled.to_string())]).await
+        self.client
+            .put("tempcomp", &[("TempComp", &enabled.to_string())])
+            .await
     }
 
     /// Get the current temperature from the focuser (if available)
@@ -197,14 +202,18 @@ impl AlpacaFocuser {
     /// Move the focuser to an absolute position
     /// Note: This uses standard timeout. For long moves, use move_to_typed() instead.
     pub async fn move_to(&self, position: i32) -> Result<(), String> {
-        self.client.put("move", &[("Position", &position.to_string())]).await
+        self.client
+            .put("move", &[("Position", &position.to_string())])
+            .await
     }
 
     /// Move the focuser to an absolute position with long timeout
     /// Uses extended timeout appropriate for focuser operations that may take
     /// significant time, especially for full travel moves on slow focusers.
     pub async fn move_to_typed(&self, position: i32) -> Result<(), AlpacaError> {
-        self.client.put_long("move", &[("Position", &position.to_string())]).await
+        self.client
+            .put_long("move", &[("Position", &position.to_string())])
+            .await
     }
 
     /// Halt any focuser motion

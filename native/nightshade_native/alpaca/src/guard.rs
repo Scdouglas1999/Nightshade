@@ -5,7 +5,9 @@
 //! synchronous but Alpaca operations are async, we use a pattern that
 //! spawns cleanup tasks on drop.
 
-use crate::{AlpacaCamera, AlpacaTelescope, AlpacaFocuser, AlpacaFilterWheel, AlpacaRotator, AlpacaDome};
+use crate::{
+    AlpacaCamera, AlpacaDome, AlpacaFilterWheel, AlpacaFocuser, AlpacaRotator, AlpacaTelescope,
+};
 use std::sync::Arc;
 
 // ============================================================================
@@ -242,7 +244,10 @@ impl<T: AlpacaConnectable> AlpacaConnectionGuard<T> {
 impl<T: AlpacaConnectable> Drop for AlpacaConnectionGuard<T> {
     fn drop(&mut self) {
         if let Some(device) = self.device.take() {
-            tracing::debug!("AlpacaConnectionGuard: cleaning up connection to {}", self.device_name);
+            tracing::debug!(
+                "AlpacaConnectionGuard: cleaning up connection to {}",
+                self.device_name
+            );
             device.disconnect_sync();
         }
     }
@@ -290,7 +295,10 @@ where
     impl<'a, T: AlpacaConnectable> Drop for CleanupOnDrop<'a, T> {
         fn drop(&mut self) {
             if self.should_cleanup {
-                tracing::debug!("with_alpaca_connection: cleaning up {} after error", self.device_name);
+                tracing::debug!(
+                    "with_alpaca_connection: cleaning up {} after error",
+                    self.device_name
+                );
                 self.device.disconnect_sync();
             }
         }

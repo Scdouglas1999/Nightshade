@@ -4,7 +4,10 @@
 //! are safe for operation. This is typically used to check weather conditions,
 //! power status, or other safety-critical parameters.
 
-use crate::{AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, TimeoutConfig, RetryConfig};
+use crate::{
+    AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, RetryConfig,
+    TimeoutConfig,
+};
 
 /// Safety monitor status aggregate for parallel status query
 #[derive(Debug, Clone)]
@@ -168,11 +171,17 @@ impl AlpacaSafetyMonitor {
     /// # Arguments
     /// * `action_name` - The name of the action to invoke
     /// * `action_parameters` - Optional parameters for the action
-    pub async fn action(&self, action_name: &str, action_parameters: &str) -> Result<String, String> {
-        self.client.put("action", &[
-            ("Action", action_name),
-            ("Parameters", action_parameters),
-        ]).await
+    pub async fn action(
+        &self,
+        action_name: &str,
+        action_parameters: &str,
+    ) -> Result<String, String> {
+        self.client
+            .put(
+                "action",
+                &[("Action", action_name), ("Parameters", action_parameters)],
+            )
+            .await
     }
 
     /// Send a command directly to the device
@@ -181,10 +190,12 @@ impl AlpacaSafetyMonitor {
     /// * `command` - The command string to send
     /// * `raw` - If true, the command is sent without interpretation
     pub async fn command_string(&self, command: &str, raw: bool) -> Result<String, String> {
-        self.client.put("commandstring", &[
-            ("Command", command),
-            ("Raw", &raw.to_string()),
-        ]).await
+        self.client
+            .put(
+                "commandstring",
+                &[("Command", command), ("Raw", &raw.to_string())],
+            )
+            .await
     }
 
     /// Send a blind command to the device (no response expected)
@@ -193,10 +204,12 @@ impl AlpacaSafetyMonitor {
     /// * `command` - The command string to send
     /// * `raw` - If true, the command is sent without interpretation
     pub async fn command_blind(&self, command: &str, raw: bool) -> Result<(), String> {
-        self.client.put("commandblind", &[
-            ("Command", command),
-            ("Raw", &raw.to_string()),
-        ]).await
+        self.client
+            .put(
+                "commandblind",
+                &[("Command", command), ("Raw", &raw.to_string())],
+            )
+            .await
     }
 
     /// Send a command and expect a boolean response
@@ -205,10 +218,12 @@ impl AlpacaSafetyMonitor {
     /// * `command` - The command string to send
     /// * `raw` - If true, the command is sent without interpretation
     pub async fn command_bool(&self, command: &str, raw: bool) -> Result<bool, String> {
-        self.client.put("commandbool", &[
-            ("Command", command),
-            ("Raw", &raw.to_string()),
-        ]).await
+        self.client
+            .put(
+                "commandbool",
+                &[("Command", command), ("Raw", &raw.to_string())],
+            )
+            .await
     }
 
     // ============================================================
@@ -234,10 +249,7 @@ impl AlpacaSafetyMonitor {
 
     /// Get comprehensive safety monitor status in a single parallel query
     pub async fn get_status(&self) -> Result<SafetyMonitorStatus, String> {
-        let (connected, is_safe) = tokio::join!(
-            self.is_connected(),
-            self.is_safe(),
-        );
+        let (connected, is_safe) = tokio::join!(self.is_connected(), self.is_safe(),);
 
         Ok(SafetyMonitorStatus {
             connected: connected?,
@@ -247,10 +259,7 @@ impl AlpacaSafetyMonitor {
 
     /// Get safety monitor status with typed errors
     pub async fn get_status_typed(&self) -> Result<SafetyMonitorStatus, AlpacaError> {
-        let (connected, is_safe) = tokio::join!(
-            self.is_connected_typed(),
-            self.is_safe_typed(),
-        );
+        let (connected, is_safe) = tokio::join!(self.is_connected_typed(), self.is_safe_typed(),);
 
         Ok(SafetyMonitorStatus {
             connected: connected?,

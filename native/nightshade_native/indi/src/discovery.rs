@@ -3,9 +3,9 @@
 //! Provides network scanning for INDI servers and device enumeration.
 
 use crate::{IndiClient, IndiProperty, INDI_DEFAULT_PORT};
+use mdns_sd::{ServiceDaemon, ServiceEvent};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
-use mdns_sd::{ServiceDaemon, ServiceEvent};
 
 /// Discovered INDI server information
 #[derive(Debug, Clone)]
@@ -135,7 +135,10 @@ pub async fn discover_mdns(timeout: Duration) -> Vec<IndiServer> {
     let mdns = match ServiceDaemon::new() {
         Ok(d) => d,
         Err(e) => {
-            tracing::warn!("Failed to create mDNS daemon: {}. mDNS discovery unavailable.", e);
+            tracing::warn!(
+                "Failed to create mDNS daemon: {}. mDNS discovery unavailable.",
+                e
+            );
             return discovered_servers;
         }
     };
@@ -147,7 +150,10 @@ pub async fn discover_mdns(timeout: Duration) -> Vec<IndiServer> {
     let receiver = match mdns.browse(service_type) {
         Ok(r) => r,
         Err(e) => {
-            tracing::warn!("Failed to browse mDNS services: {}. mDNS discovery unavailable.", e);
+            tracing::warn!(
+                "Failed to browse mDNS services: {}. mDNS discovery unavailable.",
+                e
+            );
             return discovered_servers;
         }
     };
@@ -161,10 +167,15 @@ pub async fn discover_mdns(timeout: Duration) -> Vec<IndiServer> {
     while start.elapsed() < timeout {
         let remaining = timeout - start.elapsed();
 
-        match tokio::time::timeout(remaining, tokio::task::spawn_blocking({
-            let receiver = receiver.clone();
-            move || receiver.recv()
-        })).await {
+        match tokio::time::timeout(
+            remaining,
+            tokio::task::spawn_blocking({
+                let receiver = receiver.clone();
+                move || receiver.recv()
+            }),
+        )
+        .await
+        {
             Ok(Ok(Ok(event))) => {
                 match event {
                     ServiceEvent::ServiceResolved(info) => {
@@ -233,7 +244,10 @@ pub async fn discover_mdns(timeout: Duration) -> Vec<IndiServer> {
         tracing::warn!("Failed to shutdown mDNS daemon: {}", e);
     }
 
-    tracing::info!("mDNS discovery complete. Found {} INDI server(s).", discovered_servers.len());
+    tracing::info!(
+        "mDNS discovery complete. Found {} INDI server(s).",
+        discovered_servers.len()
+    );
     discovered_servers
 }
 
@@ -308,9 +322,10 @@ fn infer_device_type(properties: &[IndiProperty]) -> IndiDeviceType {
     let prop_names: Vec<&str> = properties.iter().map(|p| p.name.as_str()).collect();
 
     // Check for camera-specific properties
-    if prop_names.iter().any(|p| {
-        *p == "CCD_EXPOSURE" || *p == "CCD_INFO" || *p == "CCD_FRAME" || *p == "CCD1"
-    }) {
+    if prop_names
+        .iter()
+        .any(|p| *p == "CCD_EXPOSURE" || *p == "CCD_INFO" || *p == "CCD_FRAME" || *p == "CCD1")
+    {
         return IndiDeviceType::Camera;
     }
 
@@ -325,48 +340,58 @@ fn infer_device_type(properties: &[IndiProperty]) -> IndiDeviceType {
     }
 
     // Check for focuser properties
-    if prop_names.iter().any(|p| {
-        *p == "ABS_FOCUS_POSITION"
-            || *p == "REL_FOCUS_POSITION"
-            || *p == "FOCUS_MOTION"
-    }) {
+    if prop_names
+        .iter()
+        .any(|p| *p == "ABS_FOCUS_POSITION" || *p == "REL_FOCUS_POSITION" || *p == "FOCUS_MOTION")
+    {
         return IndiDeviceType::Focuser;
     }
 
     // Check for filter wheel properties
-    if prop_names.iter().any(|p| *p == "FILTER_SLOT" || *p == "FILTER_NAME") {
+    if prop_names
+        .iter()
+        .any(|p| *p == "FILTER_SLOT" || *p == "FILTER_NAME")
+    {
         return IndiDeviceType::FilterWheel;
     }
 
     // Check for dome properties
-    if prop_names.iter().any(|p| {
-        *p == "DOME_SHUTTER" || *p == "DOME_MOTION" || *p == "ABS_DOME_POSITION"
-    }) {
+    if prop_names
+        .iter()
+        .any(|p| *p == "DOME_SHUTTER" || *p == "DOME_MOTION" || *p == "ABS_DOME_POSITION")
+    {
         return IndiDeviceType::Dome;
     }
 
     // Check for rotator properties
-    if prop_names.iter().any(|p| *p == "ABS_ROTATOR_ANGLE" || *p == "ROTATOR_ANGLE") {
+    if prop_names
+        .iter()
+        .any(|p| *p == "ABS_ROTATOR_ANGLE" || *p == "ROTATOR_ANGLE")
+    {
         return IndiDeviceType::Rotator;
     }
 
     // Check for guider properties
-    if prop_names.iter().any(|p| *p == "TELESCOPE_TIMED_GUIDE_NS" || *p == "TELESCOPE_TIMED_GUIDE_WE")
+    if prop_names
+        .iter()
+        .any(|p| *p == "TELESCOPE_TIMED_GUIDE_NS" || *p == "TELESCOPE_TIMED_GUIDE_WE")
     {
         return IndiDeviceType::Guider;
     }
 
     // Check for safety monitor properties (before weather since safety may include weather)
-    if prop_names.iter().any(|p| {
-        *p == "SAFETY_STATUS" || *p == "AUX_SAFETY"
-    }) {
+    if prop_names
+        .iter()
+        .any(|p| *p == "SAFETY_STATUS" || *p == "AUX_SAFETY")
+    {
         return IndiDeviceType::SafetyMonitor;
     }
 
     // Check for weather properties
-    if prop_names.iter().any(|p| {
-        *p == "WEATHER_STATUS" || *p == "WEATHER_PARAMETERS"
-    }) {
+    if prop_names
+        .iter()
+        .any(|p| *p == "WEATHER_STATUS" || *p == "WEATHER_PARAMETERS")
+    {
         // Weather devices with safety status are primarily safety monitors
         if prop_names.iter().any(|p| p.contains("SAFE")) {
             return IndiDeviceType::SafetyMonitor;

@@ -79,73 +79,125 @@ impl IndiWeather {
     /// Get temperature in Celsius
     pub async fn get_temperature(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_TEMPERATURE").await
+        client
+            .get_number(
+                &self.device_name,
+                "WEATHER_PARAMETERS",
+                "WEATHER_TEMPERATURE",
+            )
+            .await
     }
 
     /// Get humidity percentage (0-100)
     pub async fn get_humidity(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_HUMIDITY").await
+        client
+            .get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_HUMIDITY")
+            .await
     }
 
     /// Get barometric pressure in hPa
     pub async fn get_pressure(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_PRESSURE").await
+        client
+            .get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_PRESSURE")
+            .await
     }
 
     /// Get wind speed in m/s
     pub async fn get_wind_speed(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_WIND_SPEED").await
+        client
+            .get_number(
+                &self.device_name,
+                "WEATHER_PARAMETERS",
+                "WEATHER_WIND_SPEED",
+            )
+            .await
     }
 
     /// Get wind gust speed in m/s
     pub async fn get_wind_gust(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_WIND_GUST").await
+        client
+            .get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_WIND_GUST")
+            .await
     }
 
     /// Get wind direction in degrees (0-360)
     pub async fn get_wind_direction(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_WIND_DIRECTION").await
+        client
+            .get_number(
+                &self.device_name,
+                "WEATHER_PARAMETERS",
+                "WEATHER_WIND_DIRECTION",
+            )
+            .await
     }
 
     /// Get cloud cover percentage (0-100)
     pub async fn get_cloud_cover(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_CLOUD_COVER").await
+        client
+            .get_number(
+                &self.device_name,
+                "WEATHER_PARAMETERS",
+                "WEATHER_CLOUD_COVER",
+            )
+            .await
     }
 
     /// Get rain rate in mm/hr
     pub async fn get_rain_rate(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_RAIN_RATE").await
+        client
+            .get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_RAIN_RATE")
+            .await
     }
 
     /// Get dew point in Celsius
     pub async fn get_dew_point(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_DEWPOINT").await
+        client
+            .get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_DEWPOINT")
+            .await
     }
 
     /// Get sky quality in mag/arcsec^2
     pub async fn get_sky_quality(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_SKY_QUALITY").await
+        client
+            .get_number(
+                &self.device_name,
+                "WEATHER_PARAMETERS",
+                "WEATHER_SKY_QUALITY",
+            )
+            .await
     }
 
     /// Get sky temperature in Celsius
     pub async fn get_sky_temperature(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_SKY_TEMPERATURE").await
+        client
+            .get_number(
+                &self.device_name,
+                "WEATHER_PARAMETERS",
+                "WEATHER_SKY_TEMPERATURE",
+            )
+            .await
     }
 
     /// Get sky brightness in lux
     pub async fn get_sky_brightness(&self) -> Option<f64> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "WEATHER_PARAMETERS", "WEATHER_SKY_BRIGHTNESS").await
+        client
+            .get_number(
+                &self.device_name,
+                "WEATHER_PARAMETERS",
+                "WEATHER_SKY_BRIGHTNESS",
+            )
+            .await
     }
 
     // =========================================================================
@@ -160,7 +212,10 @@ impl IndiWeather {
         let client = self.client.read().await;
 
         // Check overall WEATHER_SAFE element first
-        if let Some(state) = client.get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_SAFE").await {
+        if let Some(state) = client
+            .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_SAFE")
+            .await
+        {
             return match state {
                 0 | 1 => IndiWeatherStatus::Ok,
                 2 => IndiWeatherStatus::Warning,
@@ -171,15 +226,21 @@ impl IndiWeather {
 
         // Fall back to checking individual weather status elements
         let elements = [
-            "WEATHER_RAIN", "WEATHER_WIND", "WEATHER_CLOUDS",
-            "WEATHER_HUMIDITY", "WEATHER_TEMPERATURE",
+            "WEATHER_RAIN",
+            "WEATHER_WIND",
+            "WEATHER_CLOUDS",
+            "WEATHER_HUMIDITY",
+            "WEATHER_TEMPERATURE",
         ];
 
         let mut worst_state = 0i32;
         let mut found_any = false;
 
         for element in &elements {
-            if let Some(state) = client.get_light_state(&self.device_name, "WEATHER_STATUS", element).await {
+            if let Some(state) = client
+                .get_light_state(&self.device_name, "WEATHER_STATUS", element)
+                .await
+            {
                 found_any = true;
                 if state > worst_state {
                     worst_state = state;
@@ -216,7 +277,8 @@ impl IndiWeather {
     /// Check if there's a rain alert
     pub async fn has_rain_alert(&self) -> bool {
         let client = self.client.read().await;
-        client.get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_RAIN")
+        client
+            .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_RAIN")
             .await
             .map(|s| s == 3)
             .unwrap_or(false)
@@ -225,7 +287,8 @@ impl IndiWeather {
     /// Check if there's a wind alert
     pub async fn has_wind_alert(&self) -> bool {
         let client = self.client.read().await;
-        client.get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_WIND")
+        client
+            .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_WIND")
             .await
             .map(|s| s == 3)
             .unwrap_or(false)
@@ -234,7 +297,8 @@ impl IndiWeather {
     /// Check if there's a cloud alert
     pub async fn has_cloud_alert(&self) -> bool {
         let client = self.client.read().await;
-        client.get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_CLOUDS")
+        client
+            .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_CLOUDS")
             .await
             .map(|s| s == 3)
             .unwrap_or(false)
@@ -243,7 +307,8 @@ impl IndiWeather {
     /// Check if there's a humidity alert
     pub async fn has_humidity_alert(&self) -> bool {
         let client = self.client.read().await;
-        client.get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_HUMIDITY")
+        client
+            .get_light_state(&self.device_name, "WEATHER_STATUS", "WEATHER_HUMIDITY")
             .await
             .map(|s| s == 3)
             .unwrap_or(false)
@@ -256,13 +321,17 @@ impl IndiWeather {
     /// Check if WEATHER_STATUS property is available (device reports weather states)
     pub async fn has_weather_status(&self) -> bool {
         let client = self.client.read().await;
-        client.has_property(&self.device_name, "WEATHER_STATUS").await
+        client
+            .has_property(&self.device_name, "WEATHER_STATUS")
+            .await
     }
 
     /// Check if WEATHER_PARAMETERS property is available (device reports readings)
     pub async fn has_weather_parameters(&self) -> bool {
         let client = self.client.read().await;
-        client.has_property(&self.device_name, "WEATHER_PARAMETERS").await
+        client
+            .has_property(&self.device_name, "WEATHER_PARAMETERS")
+            .await
     }
 
     /// Check if temperature sensor is available

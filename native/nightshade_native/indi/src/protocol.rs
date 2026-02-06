@@ -34,7 +34,7 @@ pub mod standard_properties {
     pub const CCD_GAIN: &str = "CCD_GAIN";
     pub const CCD_OFFSET: &str = "CCD_OFFSET";
     pub const CCD_INFO: &str = "CCD_INFO";
-    pub const CCD1: &str = "CCD1";  // BLOB property for image data
+    pub const CCD1: &str = "CCD1"; // BLOB property for image data
 
     // Mount properties
     pub const EQUATORIAL_EOD_COORD: &str = "EQUATORIAL_EOD_COORD";
@@ -83,8 +83,3 @@ pub mod coord_elements {
     pub const ALT: &str = "ALT";
     pub const AZ: &str = "AZ";
 }
-
-
-
-
-

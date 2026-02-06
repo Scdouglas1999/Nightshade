@@ -103,13 +103,13 @@ impl Default for XsdkDeviceInformation {
 #[derive(Clone)]
 struct XsdkImageInformation {
     str_internal_name: [c_char; 32],
-    l_format: c_long,           // XSDK_IMAGEFORMAT_RAW = 1, XSDK_IMAGEFORMAT_JPEG = 7
-    l_data_size: c_long,        // Size of image data in bytes
+    l_format: c_long,    // XSDK_IMAGEFORMAT_RAW = 1, XSDK_IMAGEFORMAT_JPEG = 7
+    l_data_size: c_long, // Size of image data in bytes
     l_image_pix_height: c_long,
     l_image_pix_width: c_long,
     l_image_bit_depth: c_long,
     l_preview_size: c_long,
-    h_image: *mut c_void,       // XSDK_HANDLE
+    h_image: *mut c_void, // XSDK_HANDLE
 }
 
 impl Default for XsdkImageInformation {
@@ -163,12 +163,12 @@ const XSDK_RELEASE_BULBS2_ON: c_long = 0x0500;
 const XSDK_RELEASE_N_S1OFF: c_long = 0x0004;
 #[allow(dead_code)]
 const XSDK_RELEASE_N_BULBOFF: c_long = 0x0008;
-const XSDK_RELEASE_N_BULBS1OFF: c_long = 0x000C;  // BULBS2OFF | S1OFF
+const XSDK_RELEASE_N_BULBS1OFF: c_long = 0x000C; // BULBS2OFF | S1OFF
 #[allow(dead_code)]
 const XSDK_RELEASE_CANCEL: c_long = 0x000F;
 
 // Combined release modes (XAPI.h lines 313-324)
-const XSDK_RELEASE_SHOOT_S1OFF: c_long = 0x0104;  // Normal single shot
+const XSDK_RELEASE_SHOOT_S1OFF: c_long = 0x0104; // Normal single shot
 
 // Image format (XAPI.h lines 376-393)
 const XSDK_IMAGEFORMAT_RAW: c_long = 1;
@@ -192,11 +192,11 @@ const SDK_LIVEVIEW_QUALITY_NORMAL: c_long = 0x0002;
 const SDK_LIVEVIEW_QUALITY_BASIC: c_long = 0x0003;
 
 // Live view size (XAPIOpt.h lines 582-590)
-const SDK_LIVEVIEW_SIZE_L: c_long = 0x0001;  // 1280px
+const SDK_LIVEVIEW_SIZE_L: c_long = 0x0001; // 1280px
 #[allow(dead_code)]
-const SDK_LIVEVIEW_SIZE_M: c_long = 0x0002;  // 800px
+const SDK_LIVEVIEW_SIZE_M: c_long = 0x0002; // 800px
 #[allow(dead_code)]
-const SDK_LIVEVIEW_SIZE_S: c_long = 0x0003;  // 640px
+const SDK_LIVEVIEW_SIZE_S: c_long = 0x0003; // 640px
 
 // Focus control API codes (XAPIOpt.h lines 265-275, 316)
 const API_CODE_SET_FOCUS_POS: c_long = 0x2207;
@@ -267,26 +267,86 @@ struct ShutterSpeedEntry {
 /// Common shutter speeds from XAPI.h
 /// The SDK uses integer codes proportional to time
 static SHUTTER_SPEEDS: &[ShutterSpeedEntry] = &[
-    ShutterSpeedEntry { code: 122, seconds: 1.0/8000.0 },
-    ShutterSpeedEntry { code: 244, seconds: 1.0/4000.0 },
-    ShutterSpeedEntry { code: 488, seconds: 1.0/2000.0 },
-    ShutterSpeedEntry { code: 976, seconds: 1.0/1000.0 },
-    ShutterSpeedEntry { code: 1953, seconds: 1.0/500.0 },
-    ShutterSpeedEntry { code: 3906, seconds: 1.0/250.0 },
-    ShutterSpeedEntry { code: 7812, seconds: 1.0/125.0 },
-    ShutterSpeedEntry { code: 15625, seconds: 1.0/60.0 },
-    ShutterSpeedEntry { code: 31250, seconds: 1.0/30.0 },
-    ShutterSpeedEntry { code: 62500, seconds: 1.0/15.0 },
-    ShutterSpeedEntry { code: 125000, seconds: 1.0/8.0 },
-    ShutterSpeedEntry { code: 250000, seconds: 1.0/4.0 },
-    ShutterSpeedEntry { code: 500000, seconds: 1.0/2.0 },
-    ShutterSpeedEntry { code: 1000000, seconds: 1.0 },
-    ShutterSpeedEntry { code: 2000000, seconds: 2.0 },
-    ShutterSpeedEntry { code: 4000000, seconds: 4.0 },
-    ShutterSpeedEntry { code: 8000000, seconds: 8.0 },
-    ShutterSpeedEntry { code: 16000000, seconds: 15.0 },
-    ShutterSpeedEntry { code: 32000000, seconds: 30.0 },
-    ShutterSpeedEntry { code: 64000000, seconds: 60.0 },
+    ShutterSpeedEntry {
+        code: 122,
+        seconds: 1.0 / 8000.0,
+    },
+    ShutterSpeedEntry {
+        code: 244,
+        seconds: 1.0 / 4000.0,
+    },
+    ShutterSpeedEntry {
+        code: 488,
+        seconds: 1.0 / 2000.0,
+    },
+    ShutterSpeedEntry {
+        code: 976,
+        seconds: 1.0 / 1000.0,
+    },
+    ShutterSpeedEntry {
+        code: 1953,
+        seconds: 1.0 / 500.0,
+    },
+    ShutterSpeedEntry {
+        code: 3906,
+        seconds: 1.0 / 250.0,
+    },
+    ShutterSpeedEntry {
+        code: 7812,
+        seconds: 1.0 / 125.0,
+    },
+    ShutterSpeedEntry {
+        code: 15625,
+        seconds: 1.0 / 60.0,
+    },
+    ShutterSpeedEntry {
+        code: 31250,
+        seconds: 1.0 / 30.0,
+    },
+    ShutterSpeedEntry {
+        code: 62500,
+        seconds: 1.0 / 15.0,
+    },
+    ShutterSpeedEntry {
+        code: 125000,
+        seconds: 1.0 / 8.0,
+    },
+    ShutterSpeedEntry {
+        code: 250000,
+        seconds: 1.0 / 4.0,
+    },
+    ShutterSpeedEntry {
+        code: 500000,
+        seconds: 1.0 / 2.0,
+    },
+    ShutterSpeedEntry {
+        code: 1000000,
+        seconds: 1.0,
+    },
+    ShutterSpeedEntry {
+        code: 2000000,
+        seconds: 2.0,
+    },
+    ShutterSpeedEntry {
+        code: 4000000,
+        seconds: 4.0,
+    },
+    ShutterSpeedEntry {
+        code: 8000000,
+        seconds: 8.0,
+    },
+    ShutterSpeedEntry {
+        code: 16000000,
+        seconds: 15.0,
+    },
+    ShutterSpeedEntry {
+        code: 32000000,
+        seconds: 30.0,
+    },
+    ShutterSpeedEntry {
+        code: 64000000,
+        seconds: 60.0,
+    },
 ];
 
 /// Find the closest shutter speed code for a given duration
@@ -421,9 +481,14 @@ impl FujifilmModel {
 
     /// Check if this is an X-Trans sensor (non-Bayer)
     fn is_xtrans(&self) -> bool {
-        !matches!(self,
-            Self::Gfx100 | Self::Gfx100II | Self::Gfx100SII |
-            Self::Gfx50R | Self::Gfx50S | Self::Gfx50SII
+        !matches!(
+            self,
+            Self::Gfx100
+                | Self::Gfx100II
+                | Self::Gfx100SII
+                | Self::Gfx50R
+                | Self::Gfx50S
+                | Self::Gfx50SII
         )
     }
 
@@ -432,9 +497,9 @@ impl FujifilmModel {
         match self {
             Self::Gfx100 | Self::Gfx100II | Self::Gfx100SII => (11648, 8736, 3.76, 14),
             Self::Gfx50R | Self::Gfx50S | Self::Gfx50SII => (8256, 6192, 5.3, 14),
-            Self::XH2 | Self::XT5 => (9728, 7296, 3.0, 14),  // 40MP X-Trans
-            Self::XH2S => (6240, 4160, 3.76, 14),  // 26MP X-Trans stacked
-            _ => (6240, 4160, 3.76, 14),  // 26MP X-Trans default
+            Self::XH2 | Self::XT5 => (9728, 7296, 3.0, 14), // 40MP X-Trans
+            Self::XH2S => (6240, 4160, 3.76, 14),           // 26MP X-Trans stacked
+            _ => (6240, 4160, 3.76, 14),                    // 26MP X-Trans default
         }
     }
 }
@@ -457,14 +522,14 @@ struct FujifilmSdk {
         l_interface: c_long,
         p_interface: *mut c_char,
         p_device_name: *mut c_char,
-        pl_count: *mut c_long
+        pl_count: *mut c_long,
     ) -> c_long,
     append: unsafe extern "C" fn(
         l_interface: c_long,
         p_interface: *mut c_char,
         p_device_name: *mut c_char,
         pl_count: *mut c_long,
-        p_camera_list: *mut XsdkCameraList
+        p_camera_list: *mut XsdkCameraList,
     ) -> c_long,
 
     // Session management
@@ -472,7 +537,7 @@ struct FujifilmSdk {
         p_device: *const c_char,
         ph_camera: *mut XsdkHandle,
         pl_camera_mode: *mut c_long,
-        p_option: *mut c_void
+        p_option: *mut c_void,
     ) -> c_long,
     close: unsafe extern "C" fn(h_camera: XsdkHandle) -> c_long,
 
@@ -480,39 +545,32 @@ struct FujifilmSdk {
     get_error_number: unsafe extern "C" fn(
         h_camera: XsdkHandle,
         pl_api_code: *mut c_long,
-        pl_err_code: *mut c_long
+        pl_err_code: *mut c_long,
     ) -> c_long,
 
     // Device Information
     get_device_info: unsafe extern "C" fn(
         h_camera: XsdkHandle,
-        p_dev_info: *mut XsdkDeviceInformation
+        p_dev_info: *mut XsdkDeviceInformation,
     ) -> c_long,
 
     // Priority Mode
-    set_priority_mode: unsafe extern "C" fn(
-        h_camera: XsdkHandle,
-        l_priority_mode: c_long
-    ) -> c_long,
+    set_priority_mode:
+        unsafe extern "C" fn(h_camera: XsdkHandle, l_priority_mode: c_long) -> c_long,
 
     // Release Control
     release: unsafe extern "C" fn(
         h_camera: XsdkHandle,
         l_release_mode: c_long,
         pl_shot_opt: *mut c_long,
-        pl_af_status: *mut c_long
+        pl_af_status: *mut c_long,
     ) -> c_long,
 
     // Image acquisition
-    read_image_info: unsafe extern "C" fn(
-        h_camera: XsdkHandle,
-        p_img_info: *mut XsdkImageInformation
-    ) -> c_long,
-    read_image: unsafe extern "C" fn(
-        h_camera: XsdkHandle,
-        p_data: *mut u8,
-        l_data_size: c_ulong
-    ) -> c_long,
+    read_image_info:
+        unsafe extern "C" fn(h_camera: XsdkHandle, p_img_info: *mut XsdkImageInformation) -> c_long,
+    read_image:
+        unsafe extern "C" fn(h_camera: XsdkHandle, p_data: *mut u8, l_data_size: c_ulong) -> c_long,
     delete_image: unsafe extern "C" fn(h_camera: XsdkHandle) -> c_long,
 
     // Exposure control
@@ -520,30 +578,23 @@ struct FujifilmSdk {
         h_camera: XsdkHandle,
         pl_num: *mut c_long,
         pl_shutter_speed: *mut c_long,
-        pl_bulb_capable: *mut c_long
+        pl_bulb_capable: *mut c_long,
     ) -> c_long,
     set_shutter_speed: unsafe extern "C" fn(
         h_camera: XsdkHandle,
         l_shutter_speed: c_long,
-        l_bulb: c_long
+        l_bulb: c_long,
     ) -> c_long,
     cap_sensitivity: unsafe extern "C" fn(
         h_camera: XsdkHandle,
         pl_num: *mut c_long,
-        pl_sensitivity: *mut c_long
+        pl_sensitivity: *mut c_long,
     ) -> c_long,
-    set_sensitivity: unsafe extern "C" fn(
-        h_camera: XsdkHandle,
-        l_sensitivity: c_long
-    ) -> c_long,
-    get_sensitivity: unsafe extern "C" fn(
-        h_camera: XsdkHandle,
-        pl_sensitivity: *mut c_long
-    ) -> c_long,
-    set_dynamic_range: unsafe extern "C" fn(
-        h_camera: XsdkHandle,
-        l_dynamic_range: c_long
-    ) -> c_long,
+    set_sensitivity: unsafe extern "C" fn(h_camera: XsdkHandle, l_sensitivity: c_long) -> c_long,
+    get_sensitivity:
+        unsafe extern "C" fn(h_camera: XsdkHandle, pl_sensitivity: *mut c_long) -> c_long,
+    set_dynamic_range:
+        unsafe extern "C" fn(h_camera: XsdkHandle, l_dynamic_range: c_long) -> c_long,
 
     // Optional functions via XSDK_SetProp/XSDK_GetProp (lines 2390-2392)
     // These are varargs functions for live view, focus control, and other optional features
@@ -611,11 +662,19 @@ impl FujifilmSdk {
                     tracing::info!("Found Fujifilm SDK at: {:?}", lib_path);
 
                     // Helper to load and log function pointer failures
-                    fn load_symbol<T: Copy>(lib: &libloading::Library, name: &[u8], name_str: &str) -> Option<T> {
+                    fn load_symbol<T: Copy>(
+                        lib: &libloading::Library,
+                        name: &[u8],
+                        name_str: &str,
+                    ) -> Option<T> {
                         match unsafe { lib.get::<T>(name) } {
                             Ok(sym) => Some(*sym),
                             Err(e) => {
-                                tracing::error!("Failed to load Fujifilm function '{}': {}", name_str, e);
+                                tracing::error!(
+                                    "Failed to load Fujifilm function '{}': {}",
+                                    name_str,
+                                    e
+                                );
                                 None
                             }
                         }
@@ -627,19 +686,30 @@ impl FujifilmSdk {
                     let append = load_symbol(&lib, b"XSDK_Append\0", "XSDK_Append")?;
                     let open_ex = load_symbol(&lib, b"XSDK_OpenEx\0", "XSDK_OpenEx")?;
                     let close = load_symbol(&lib, b"XSDK_Close\0", "XSDK_Close")?;
-                    let get_error_number = load_symbol(&lib, b"XSDK_GetErrorNumber\0", "XSDK_GetErrorNumber")?;
-                    let get_device_info = load_symbol(&lib, b"XSDK_GetDeviceInfo\0", "XSDK_GetDeviceInfo")?;
-                    let set_priority_mode = load_symbol(&lib, b"XSDK_SetPriorityMode\0", "XSDK_SetPriorityMode")?;
+                    let get_error_number =
+                        load_symbol(&lib, b"XSDK_GetErrorNumber\0", "XSDK_GetErrorNumber")?;
+                    let get_device_info =
+                        load_symbol(&lib, b"XSDK_GetDeviceInfo\0", "XSDK_GetDeviceInfo")?;
+                    let set_priority_mode =
+                        load_symbol(&lib, b"XSDK_SetPriorityMode\0", "XSDK_SetPriorityMode")?;
                     let release = load_symbol(&lib, b"XSDK_Release\0", "XSDK_Release")?;
-                    let read_image_info = load_symbol(&lib, b"XSDK_ReadImageInfo\0", "XSDK_ReadImageInfo")?;
+                    let read_image_info =
+                        load_symbol(&lib, b"XSDK_ReadImageInfo\0", "XSDK_ReadImageInfo")?;
                     let read_image = load_symbol(&lib, b"XSDK_ReadImage\0", "XSDK_ReadImage")?;
-                    let delete_image = load_symbol(&lib, b"XSDK_DeleteImage\0", "XSDK_DeleteImage")?;
-                    let cap_shutter_speed = load_symbol(&lib, b"XSDK_CapShutterSpeed\0", "XSDK_CapShutterSpeed")?;
-                    let set_shutter_speed = load_symbol(&lib, b"XSDK_SetShutterSpeed\0", "XSDK_SetShutterSpeed")?;
-                    let cap_sensitivity = load_symbol(&lib, b"XSDK_CapSensitivity\0", "XSDK_CapSensitivity")?;
-                    let set_sensitivity = load_symbol(&lib, b"XSDK_SetSensitivity\0", "XSDK_SetSensitivity")?;
-                    let get_sensitivity = load_symbol(&lib, b"XSDK_GetSensitivity\0", "XSDK_GetSensitivity")?;
-                    let set_dynamic_range = load_symbol(&lib, b"XSDK_SetDynamicRange\0", "XSDK_SetDynamicRange")?;
+                    let delete_image =
+                        load_symbol(&lib, b"XSDK_DeleteImage\0", "XSDK_DeleteImage")?;
+                    let cap_shutter_speed =
+                        load_symbol(&lib, b"XSDK_CapShutterSpeed\0", "XSDK_CapShutterSpeed")?;
+                    let set_shutter_speed =
+                        load_symbol(&lib, b"XSDK_SetShutterSpeed\0", "XSDK_SetShutterSpeed")?;
+                    let cap_sensitivity =
+                        load_symbol(&lib, b"XSDK_CapSensitivity\0", "XSDK_CapSensitivity")?;
+                    let set_sensitivity =
+                        load_symbol(&lib, b"XSDK_SetSensitivity\0", "XSDK_SetSensitivity")?;
+                    let get_sensitivity =
+                        load_symbol(&lib, b"XSDK_GetSensitivity\0", "XSDK_GetSensitivity")?;
+                    let set_dynamic_range =
+                        load_symbol(&lib, b"XSDK_SetDynamicRange\0", "XSDK_SetDynamicRange")?;
                     let set_prop = load_symbol(&lib, b"XSDK_SetProp\0", "XSDK_SetProp")?;
                     let get_prop = load_symbol(&lib, b"XSDK_GetProp\0", "XSDK_GetProp")?;
 
@@ -707,7 +777,7 @@ fn check_xapi_error(h_camera: XsdkHandle, sdk: &FujifilmSdk) -> Result<(), Nativ
         XSDK_ERRCODE_INVALID_CAMERA => Err(NativeError::NotConnected),
 
         // SDK/hardware errors
-        XSDK_ERRCODE_LOADLIB => Ok(()),  // Already initialized, recoverable
+        XSDK_ERRCODE_LOADLIB => Ok(()), // Already initialized, recoverable
         XSDK_ERRCODE_UNSUPPORTED => Err(NativeError::NotSupported),
         XSDK_ERRCODE_BUSY => Err(NativeError::SdkError("Camera is busy".into())),
         XSDK_ERRCODE_AF_TIMEOUT => Err(NativeError::Timeout("Autofocus timeout".into())),
@@ -717,17 +787,29 @@ fn check_xapi_error(h_camera: XsdkHandle, sdk: &FujifilmSdk) -> Result<(), Nativ
 
         // Driver/model errors
         XSDK_ERRCODE_NODRIVER => Err(NativeError::SdkNotLoaded),
-        XSDK_ERRCODE_NO_MODEL_MODULE => Err(NativeError::SdkError("Model-specific DLL not found".into())),
+        XSDK_ERRCODE_NO_MODEL_MODULE => {
+            Err(NativeError::SdkError("Model-specific DLL not found".into()))
+        }
         XSDK_ERRCODE_API_NOTFOUND => Err(NativeError::NotSupported),
         XSDK_ERRCODE_API_MISMATCH => Err(NativeError::SdkError("API version mismatch".into())),
-        XSDK_ERRCODE_INVALID_USBMODE => Err(NativeError::SdkError("Camera not in correct USB mode".into())),
-        XSDK_ERRCODE_FORCEMODE_BUSY => Err(NativeError::SdkError("Force mode operation in progress".into())),
-        XSDK_ERRCODE_RUNNING_OTHER_FUNCTION => Err(NativeError::SdkError("Another operation running".into())),
+        XSDK_ERRCODE_INVALID_USBMODE => Err(NativeError::SdkError(
+            "Camera not in correct USB mode".into(),
+        )),
+        XSDK_ERRCODE_FORCEMODE_BUSY => Err(NativeError::SdkError(
+            "Force mode operation in progress".into(),
+        )),
+        XSDK_ERRCODE_RUNNING_OTHER_FUNCTION => {
+            Err(NativeError::SdkError("Another operation running".into()))
+        }
 
         // Communication errors
-        XSDK_ERRCODE_COMMUNICATION => Err(NativeError::SdkError("USB/WiFi communication error".into())),
+        XSDK_ERRCODE_COMMUNICATION => {
+            Err(NativeError::SdkError("USB/WiFi communication error".into()))
+        }
         XSDK_ERRCODE_TIMEOUT => Err(NativeError::Timeout("Operation timeout".into())),
-        XSDK_ERRCODE_COMBINATION => Err(NativeError::InvalidParameter("Invalid parameter combination".into())),
+        XSDK_ERRCODE_COMBINATION => Err(NativeError::InvalidParameter(
+            "Invalid parameter combination".into(),
+        )),
         XSDK_ERRCODE_WRITEERROR => Err(NativeError::SdkError("Write error".into())),
         XSDK_ERRCODE_CARDFULL => Err(NativeError::SdkError("Memory card full".into())),
 
@@ -750,7 +832,8 @@ fn check_xapi_error(h_camera: XsdkHandle, sdk: &FujifilmSdk) -> Result<(), Nativ
 
 /// Safely convert C string array to Rust String
 fn cstr_to_string(arr: &[c_char; 256]) -> String {
-    let bytes: Vec<u8> = arr.iter()
+    let bytes: Vec<u8> = arr
+        .iter()
         .take_while(|&&c| c != 0)
         .map(|&c| c as u8)
         .collect();
@@ -758,7 +841,8 @@ fn cstr_to_string(arr: &[c_char; 256]) -> String {
 }
 
 fn cstr_to_string_32(arr: &[c_char; 32]) -> String {
-    let bytes: Vec<u8> = arr.iter()
+    let bytes: Vec<u8> = arr
+        .iter()
         .take_while(|&&c| c != 0)
         .map(|&c| c as u8)
         .collect();
@@ -796,7 +880,7 @@ pub async fn discover_devices() -> Result<Vec<FujifilmDeviceInfo>, NativeError> 
                 XSDK_DSC_IF_USB,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
-                &mut count
+                &mut count,
             )
         };
         if result == XSDK_COMPLETE && count > 0 {
@@ -820,7 +904,7 @@ pub async fn discover_devices() -> Result<Vec<FujifilmDeviceInfo>, NativeError> 
             std::ptr::null_mut(),
             std::ptr::null_mut(),
             &mut actual_count,
-            camera_list.as_mut_ptr()
+            camera_list.as_mut_ptr(),
         )
     };
 
@@ -841,7 +925,11 @@ pub async fn discover_devices() -> Result<Vec<FujifilmDeviceInfo>, NativeError> 
 
         devices.push(FujifilmDeviceInfo {
             name: name.clone(),
-            serial_number: if serial.is_empty() { None } else { Some(serial) },
+            serial_number: if serial.is_empty() {
+                None
+            } else {
+                Some(serial)
+            },
             firmware_version: None,
             model: FujifilmModel::from_product_name(&name),
             connection_type: framework,
@@ -908,7 +996,10 @@ pub struct FujifilmCamera {
 impl FujifilmCamera {
     /// Create a new Fujifilm camera instance
     pub fn new(device_info: &FujifilmDeviceInfo) -> Self {
-        let serial = device_info.serial_number.clone().unwrap_or_else(|| device_info.name.clone());
+        let serial = device_info
+            .serial_number
+            .clone()
+            .unwrap_or_else(|| device_info.name.clone());
         let (width, height, pixel_size, bit_depth) = device_info.model.sensor_specs();
 
         Self {
@@ -928,9 +1019,9 @@ impl FujifilmCamera {
                 bit_depth,
                 color: true,
                 bayer_pattern: if device_info.model.is_xtrans() {
-                    None  // X-Trans is not Bayer
+                    None // X-Trans is not Bayer
                 } else {
-                    Some(BayerPattern::Rggb)  // GFX uses standard Bayer
+                    Some(BayerPattern::Rggb) // GFX uses standard Bayer
                 },
             },
             is_exposing: false,
@@ -960,7 +1051,12 @@ impl FujifilmCamera {
 
         // Start bulb: Half-press (S1ON)
         let result = unsafe {
-            (sdk.release)(self.camera_handle.0, XSDK_RELEASE_S1ON, &mut shot_opt, &mut af_status)
+            (sdk.release)(
+                self.camera_handle.0,
+                XSDK_RELEASE_S1ON,
+                &mut shot_opt,
+                &mut af_status,
+            )
         };
         if result != XSDK_COMPLETE {
             return check_xapi_error(self.camera_handle.0, sdk);
@@ -969,7 +1065,12 @@ impl FujifilmCamera {
 
         // Full press to open shutter (BULBS2_ON)
         let result = unsafe {
-            (sdk.release)(self.camera_handle.0, XSDK_RELEASE_BULBS2_ON, &mut shot_opt, &mut af_status)
+            (sdk.release)(
+                self.camera_handle.0,
+                XSDK_RELEASE_BULBS2_ON,
+                &mut shot_opt,
+                &mut af_status,
+            )
         };
         if result != XSDK_COMPLETE {
             return check_xapi_error(self.camera_handle.0, sdk);
@@ -991,7 +1092,12 @@ impl FujifilmCamera {
 
         // End bulb: Release S2 and S1
         let result = unsafe {
-            (sdk.release)(self.camera_handle.0, XSDK_RELEASE_N_BULBS1OFF, &mut shot_opt, &mut af_status)
+            (sdk.release)(
+                self.camera_handle.0,
+                XSDK_RELEASE_N_BULBS1OFF,
+                &mut shot_opt,
+                &mut af_status,
+            )
         };
         if result != XSDK_COMPLETE {
             return check_xapi_error(self.camera_handle.0, sdk);
@@ -1035,10 +1141,10 @@ impl FujifilmCamera {
             (sdk.get_prop)(
                 self.camera_handle.0,
                 API_CODE_CAP_FOCUS_POS,
-                0,  // lApiParam
+                0, // lApiParam
                 &mut focus_min,
                 &mut focus_max,
-                &mut focus_cap
+                &mut focus_cap,
             )
         };
 
@@ -1082,8 +1188,8 @@ impl FujifilmCamera {
             (sdk.get_prop)(
                 self.camera_handle.0,
                 API_CODE_GET_FOCUS_POS,
-                0,  // lApiParam
-                &mut pos
+                0, // lApiParam
+                &mut pos,
             )
         };
 
@@ -1130,8 +1236,8 @@ impl FujifilmCamera {
             (sdk.set_prop)(
                 self.camera_handle.0,
                 API_CODE_SET_FOCUS_POS,
-                0,  // lApiParam
-                position as c_long
+                0, // lApiParam
+                position as c_long,
             )
         };
 
@@ -1201,7 +1307,12 @@ impl FujifilmCamera {
         // Set quality via XSDK_SetProp(hCamera, API_CODE, 0, value)
         let quality_code = quality.to_sdk_code();
         let result = unsafe {
-            (sdk.set_prop)(handle, API_CODE_SET_LIVE_VIEW_IMAGE_QUALITY, 0, quality_code)
+            (sdk.set_prop)(
+                handle,
+                API_CODE_SET_LIVE_VIEW_IMAGE_QUALITY,
+                0,
+                quality_code,
+            )
         };
         if result != XSDK_COMPLETE {
             tracing::warn!("Failed to set live view quality: {}", result);
@@ -1213,7 +1324,12 @@ impl FujifilmCamera {
 
         // Set size (use Large for best framing assistance in astrophotography)
         let result = unsafe {
-            (sdk.set_prop)(handle, API_CODE_SET_LIVE_VIEW_IMAGE_SIZE, 0, SDK_LIVEVIEW_SIZE_L)
+            (sdk.set_prop)(
+                handle,
+                API_CODE_SET_LIVE_VIEW_IMAGE_SIZE,
+                0,
+                SDK_LIVEVIEW_SIZE_L,
+            )
         };
         if result != XSDK_COMPLETE {
             tracing::warn!("Failed to set live view size: {}", result);
@@ -1223,9 +1339,7 @@ impl FujifilmCamera {
         std::thread::sleep(Duration::from_millis(50));
 
         // Start live view
-        let result = unsafe {
-            (sdk.set_prop)(handle, API_CODE_START_LIVE_VIEW, 0)
-        };
+        let result = unsafe { (sdk.set_prop)(handle, API_CODE_START_LIVE_VIEW, 0) };
         if result != XSDK_COMPLETE {
             return Err(NativeError::SdkError(format!(
                 "Failed to start live view: SDK returned {}",
@@ -1274,7 +1388,9 @@ impl FujifilmCamera {
         let data_size = img_info.l_data_size;
 
         if result != XSDK_COMPLETE {
-            return Err(NativeError::SdkError("Failed to read live view frame info".into()));
+            return Err(NativeError::SdkError(
+                "Failed to read live view frame info".into(),
+            ));
         }
 
         if img_format != XSDK_IMAGEFORMAT_LIVE {
@@ -1290,18 +1406,19 @@ impl FujifilmCamera {
 
         let buffer_size = data_size as usize;
         let mut buffer = vec![0u8; buffer_size];
-        let result = unsafe {
-            (sdk.read_image)(handle, buffer.as_mut_ptr(), buffer_size as c_ulong)
-        };
+        let result =
+            unsafe { (sdk.read_image)(handle, buffer.as_mut_ptr(), buffer_size as c_ulong) };
 
         if result != XSDK_COMPLETE {
-            return Err(NativeError::SdkError("Failed to read live view frame data".into()));
+            return Err(NativeError::SdkError(
+                "Failed to read live view frame data".into(),
+            ));
         }
 
         // Delete the image from the buffer to make room for the next frame
         unsafe { (sdk.delete_image)(handle) };
 
-        Ok(buffer)  // Returns JPEG data
+        Ok(buffer) // Returns JPEG data
     }
 
     /// Stop live view streaming
@@ -1325,9 +1442,7 @@ impl FujifilmCamera {
         // Copy handle to local variable for safety
         let handle = self.camera_handle.0;
 
-        let result = unsafe {
-            (sdk.set_prop)(handle, API_CODE_STOP_LIVE_VIEW, 0)
-        };
+        let result = unsafe { (sdk.set_prop)(handle, API_CODE_STOP_LIVE_VIEW, 0) };
 
         if result != XSDK_COMPLETE {
             tracing::warn!("Failed to stop live view cleanly: SDK returned {}", result);
@@ -1379,7 +1494,10 @@ impl NativeDevice for FujifilmCamera {
             let mut err_code: c_long = 0;
             unsafe { (sdk.get_error_number)(std::ptr::null_mut(), &mut api_code, &mut err_code) };
             if err_code != XSDK_ERRCODE_LOADLIB {
-                return Err(NativeError::SdkError(format!("XSDK_Init failed: 0x{:08X}", err_code)));
+                return Err(NativeError::SdkError(format!(
+                    "XSDK_Init failed: 0x{:08X}",
+                    err_code
+                )));
             }
         }
 
@@ -1397,14 +1515,16 @@ impl NativeDevice for FujifilmCamera {
                         serial_cstr.as_ptr(),
                         &mut handle,
                         &mut camera_mode,
-                        std::ptr::null_mut()
+                        std::ptr::null_mut(),
                     )
                 };
                 if result == XSDK_COMPLETE {
                     break;
                 }
                 if attempt == 3 {
-                    return Err(NativeError::SdkError("XSDK_OpenEx failed after 3 attempts".into()));
+                    return Err(NativeError::SdkError(
+                        "XSDK_OpenEx failed after 3 attempts".into(),
+                    ));
                 }
                 // Use blocking sleep here to avoid raw pointer across await
                 std::thread::sleep(Duration::from_millis(100 * (1 << attempt)));
@@ -1449,7 +1569,14 @@ impl NativeDevice for FujifilmCamera {
         let mut ss_count: c_long = 0;
         let mut ss_values: [c_long; 128] = [0; 128];
         let mut bulb_capable: c_long = 0;
-        unsafe { (sdk.cap_shutter_speed)(camera_handle, &mut ss_count, ss_values.as_mut_ptr(), &mut bulb_capable) };
+        unsafe {
+            (sdk.cap_shutter_speed)(
+                camera_handle,
+                &mut ss_count,
+                ss_values.as_mut_ptr(),
+                &mut bulb_capable,
+            )
+        };
         self.supports_bulb = bulb_capable != 0;
 
         // 8. Get current ISO
@@ -1458,7 +1585,11 @@ impl NativeDevice for FujifilmCamera {
         self.current_iso = current_iso as i32;
 
         self.connected = true;
-        tracing::info!("Connected to Fujifilm {} ({})", self.name, self.firmware_version);
+        tracing::info!(
+            "Connected to Fujifilm {} ({})",
+            self.name,
+            self.firmware_version
+        );
 
         Ok(())
     }
@@ -1494,13 +1625,13 @@ impl NativeDevice for FujifilmCamera {
 impl NativeCamera for FujifilmCamera {
     fn capabilities(&self) -> CameraCapabilities {
         CameraCapabilities {
-            can_cool: false,           // No cooling in mirrorless
-            can_set_gain: true,        // ISO control
-            can_set_offset: false,     // No offset control
-            can_set_binning: false,    // No binning in DSLR/mirrorless
-            can_subframe: false,       // Full sensor only
-            has_shutter: true,         // Mechanical shutter
-            has_guider_port: false,    // No ST-4
+            can_cool: false,        // No cooling in mirrorless
+            can_set_gain: true,     // ISO control
+            can_set_offset: false,  // No offset control
+            can_set_binning: false, // No binning in DSLR/mirrorless
+            can_subframe: false,    // Full sensor only
+            has_shutter: true,      // Mechanical shutter
+            has_guider_port: false, // No ST-4
             max_bin_x: 1,
             max_bin_y: 1,
             supports_readout_modes: false,
@@ -1568,7 +1699,12 @@ impl NativeCamera for FujifilmCamera {
         let mut shot_opt: c_long = 0;
         let mut af_status: c_long = 0;
         let result = unsafe {
-            (sdk.release)(self.camera_handle.0, XSDK_RELEASE_SHOOT_S1OFF, &mut shot_opt, &mut af_status)
+            (sdk.release)(
+                self.camera_handle.0,
+                XSDK_RELEASE_SHOOT_S1OFF,
+                &mut shot_opt,
+                &mut af_status,
+            )
         };
 
         if result != XSDK_COMPLETE {
@@ -1631,7 +1767,9 @@ impl NativeCamera for FujifilmCamera {
                 break;
             }
             if attempt == 30 {
-                return Err(NativeError::Timeout("Image not ready after 15 seconds".into()));
+                return Err(NativeError::Timeout(
+                    "Image not ready after 15 seconds".into(),
+                ));
             }
             std::thread::sleep(Duration::from_millis(500));
         }
@@ -1648,7 +1786,11 @@ impl NativeCamera for FujifilmCamera {
         // Download image data (RAF format)
         let mut buffer = vec![0u8; data_size];
         let result = unsafe {
-            (sdk.read_image)(self.camera_handle.0, buffer.as_mut_ptr(), data_size as c_ulong)
+            (sdk.read_image)(
+                self.camera_handle.0,
+                buffer.as_mut_ptr(),
+                data_size as c_ulong,
+            )
         };
 
         if result != XSDK_COMPLETE {
@@ -1735,11 +1877,11 @@ impl NativeCamera for FujifilmCamera {
     }
 
     async fn get_binning(&self) -> Result<(i32, i32), NativeError> {
-        Ok((1, 1))  // Fujifilm cameras don't support binning
+        Ok((1, 1)) // Fujifilm cameras don't support binning
     }
 
     async fn set_subframe(&mut self, _subframe: Option<SubFrame>) -> Result<(), NativeError> {
-        Err(NativeError::NotSupported)  // Full frame only
+        Err(NativeError::NotSupported) // Full frame only
     }
 
     async fn get_readout_modes(&self) -> Result<Vec<ReadoutMode>, NativeError> {
@@ -1767,7 +1909,7 @@ impl NativeCamera for FujifilmCamera {
     }
 
     async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
-        Err(NativeError::NotSupported)  // Fujifilm cameras don't support offset
+        Err(NativeError::NotSupported) // Fujifilm cameras don't support offset
     }
 }
 
@@ -1776,7 +1918,10 @@ impl NativeCamera for FujifilmCamera {
 // =============================================================================
 
 /// Process RAF buffer and convert to 16-bit image data
-fn process_raf_buffer(buffer: &[u8], _is_xtrans: bool) -> Result<(u32, u32, Vec<u16>), NativeError> {
+fn process_raf_buffer(
+    buffer: &[u8],
+    _is_xtrans: bool,
+) -> Result<(u32, u32, Vec<u16>), NativeError> {
     // Write to temp file for LibRaw processing
     let temp_path = std::env::temp_dir().join(format!("fuji_raw_{}.raf", std::process::id()));
     std::fs::write(&temp_path, buffer)
@@ -1797,7 +1942,7 @@ fn process_raf_with_libraw(path: &std::path::Path) -> Result<(u32, u32, Vec<u16>
     // Try to use nightshade_imaging's LibRaw integration
     // Use DHT demosaic for best X-Trans quality
     let params = nightshade_imaging::RawProcessingParams {
-        output_bps: 16,  // 16-bit output
+        output_bps: 16, // 16-bit output
         ..Default::default()
     };
 
@@ -1809,16 +1954,19 @@ fn process_raf_with_libraw(path: &std::path::Path) -> Result<(u32, u32, Vec<u16>
                 data
             } else {
                 // Fallback: convert raw bytes to u16
-                image_data.data.chunks_exact(2)
+                image_data
+                    .data
+                    .chunks_exact(2)
                     .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                     .collect()
             };
 
             Ok((image_data.width, image_data.height, u16_data))
         }
-        Err(e) => {
-            Err(NativeError::SdkError(format!("LibRaw processing failed: {}", e)))
-        }
+        Err(e) => Err(NativeError::SdkError(format!(
+            "LibRaw processing failed: {}",
+            e
+        ))),
     }
 }
 
@@ -1839,53 +1987,122 @@ mod tests {
         // X-T series
         assert_eq!(FujifilmModel::from_product_name("X-T5"), FujifilmModel::XT5);
         assert_eq!(FujifilmModel::from_product_name("XT5"), FujifilmModel::XT5);
-        assert_eq!(FujifilmModel::from_product_name("FUJIFILM X-T5"), FujifilmModel::XT5);
+        assert_eq!(
+            FujifilmModel::from_product_name("FUJIFILM X-T5"),
+            FujifilmModel::XT5
+        );
         assert_eq!(FujifilmModel::from_product_name("X-T4"), FujifilmModel::XT4);
         assert_eq!(FujifilmModel::from_product_name("X-T3"), FujifilmModel::XT3);
 
         // X-H series
-        assert_eq!(FujifilmModel::from_product_name("X-H2S"), FujifilmModel::XH2S);
-        assert_eq!(FujifilmModel::from_product_name("XH2S"), FujifilmModel::XH2S);
+        assert_eq!(
+            FujifilmModel::from_product_name("X-H2S"),
+            FujifilmModel::XH2S
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("XH2S"),
+            FujifilmModel::XH2S
+        );
         assert_eq!(FujifilmModel::from_product_name("X-H2"), FujifilmModel::XH2);
         assert_eq!(FujifilmModel::from_product_name("XH2"), FujifilmModel::XH2);
 
         // Other X-series
-        assert_eq!(FujifilmModel::from_product_name("X-S20"), FujifilmModel::XS20);
-        assert_eq!(FujifilmModel::from_product_name("X-S10"), FujifilmModel::XS10);
-        assert_eq!(FujifilmModel::from_product_name("X-Pro3"), FujifilmModel::XPro3);
+        assert_eq!(
+            FujifilmModel::from_product_name("X-S20"),
+            FujifilmModel::XS20
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("X-S10"),
+            FujifilmModel::XS10
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("X-Pro3"),
+            FujifilmModel::XPro3
+        );
         assert_eq!(FujifilmModel::from_product_name("X-E4"), FujifilmModel::XE4);
         assert_eq!(FujifilmModel::from_product_name("X-M5"), FujifilmModel::XM5);
 
         // X100 series
-        assert_eq!(FujifilmModel::from_product_name("X100V"), FujifilmModel::X100V);
-        assert_eq!(FujifilmModel::from_product_name("X100VI"), FujifilmModel::X100VI);
+        assert_eq!(
+            FujifilmModel::from_product_name("X100V"),
+            FujifilmModel::X100V
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("X100VI"),
+            FujifilmModel::X100VI
+        );
     }
 
     #[test]
     fn test_model_from_product_name_gfx_series() {
         // GFX 100 series (102MP)
-        assert_eq!(FujifilmModel::from_product_name("GFX100 II"), FujifilmModel::Gfx100II);
-        assert_eq!(FujifilmModel::from_product_name("GFX 100 II"), FujifilmModel::Gfx100II);
-        assert_eq!(FujifilmModel::from_product_name("GFX100S II"), FujifilmModel::Gfx100SII);
-        assert_eq!(FujifilmModel::from_product_name("GFX 100S II"), FujifilmModel::Gfx100SII);
-        assert_eq!(FujifilmModel::from_product_name("GFX100"), FujifilmModel::Gfx100);
-        assert_eq!(FujifilmModel::from_product_name("GFX 100"), FujifilmModel::Gfx100);
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX100 II"),
+            FujifilmModel::Gfx100II
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX 100 II"),
+            FujifilmModel::Gfx100II
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX100S II"),
+            FujifilmModel::Gfx100SII
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX 100S II"),
+            FujifilmModel::Gfx100SII
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX100"),
+            FujifilmModel::Gfx100
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX 100"),
+            FujifilmModel::Gfx100
+        );
 
         // GFX 50 series (51MP)
-        assert_eq!(FujifilmModel::from_product_name("GFX 50S II"), FujifilmModel::Gfx50SII);
-        assert_eq!(FujifilmModel::from_product_name("GFX50S II"), FujifilmModel::Gfx50SII);
-        assert_eq!(FujifilmModel::from_product_name("GFX 50S"), FujifilmModel::Gfx50S);
-        assert_eq!(FujifilmModel::from_product_name("GFX50S"), FujifilmModel::Gfx50S);
-        assert_eq!(FujifilmModel::from_product_name("GFX 50R"), FujifilmModel::Gfx50R);
-        assert_eq!(FujifilmModel::from_product_name("GFX50R"), FujifilmModel::Gfx50R);
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX 50S II"),
+            FujifilmModel::Gfx50SII
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX50S II"),
+            FujifilmModel::Gfx50SII
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX 50S"),
+            FujifilmModel::Gfx50S
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX50S"),
+            FujifilmModel::Gfx50S
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX 50R"),
+            FujifilmModel::Gfx50R
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX50R"),
+            FujifilmModel::Gfx50R
+        );
     }
 
     #[test]
     fn test_model_from_product_name_unknown() {
-        assert_eq!(FujifilmModel::from_product_name("Unknown Camera"), FujifilmModel::Unknown);
-        assert_eq!(FujifilmModel::from_product_name("Sony A7IV"), FujifilmModel::Unknown);
+        assert_eq!(
+            FujifilmModel::from_product_name("Unknown Camera"),
+            FujifilmModel::Unknown
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("Sony A7IV"),
+            FujifilmModel::Unknown
+        );
         assert_eq!(FujifilmModel::from_product_name(""), FujifilmModel::Unknown);
-        assert_eq!(FujifilmModel::from_product_name("Random String"), FujifilmModel::Unknown);
+        assert_eq!(
+            FujifilmModel::from_product_name("Random String"),
+            FujifilmModel::Unknown
+        );
     }
 
     #[test]
@@ -1893,9 +2110,18 @@ mod tests {
         // Should work with any case
         assert_eq!(FujifilmModel::from_product_name("x-t5"), FujifilmModel::XT5);
         assert_eq!(FujifilmModel::from_product_name("X-T5"), FujifilmModel::XT5);
-        assert_eq!(FujifilmModel::from_product_name("x-h2s"), FujifilmModel::XH2S);
-        assert_eq!(FujifilmModel::from_product_name("gfx100 ii"), FujifilmModel::Gfx100II);
-        assert_eq!(FujifilmModel::from_product_name("GFX100 II"), FujifilmModel::Gfx100II);
+        assert_eq!(
+            FujifilmModel::from_product_name("x-h2s"),
+            FujifilmModel::XH2S
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("gfx100 ii"),
+            FujifilmModel::Gfx100II
+        );
+        assert_eq!(
+            FujifilmModel::from_product_name("GFX100 II"),
+            FujifilmModel::Gfx100II
+        );
     }
 
     // =========================================================================
@@ -1919,7 +2145,10 @@ mod tests {
 
         // Verify total resolution is approximately 40MP (71 million pixels)
         let megapixels = (w as u64 * h as u64) as f64 / 1_000_000.0;
-        assert!((megapixels - 71.0).abs() < 1.0, "40MP sensor should have ~71 million pixels");
+        assert!(
+            (megapixels - 71.0).abs() < 1.0,
+            "40MP sensor should have ~71 million pixels"
+        );
     }
 
     #[test]
@@ -1933,7 +2162,10 @@ mod tests {
 
         // Verify total resolution is approximately 102MP
         let megapixels = (w as u64 * h as u64) as f64 / 1_000_000.0;
-        assert!((megapixels - 102.0).abs() < 2.0, "GFX100 II should have ~102 million pixels");
+        assert!(
+            (megapixels - 102.0).abs() < 2.0,
+            "GFX100 II should have ~102 million pixels"
+        );
     }
 
     #[test]
@@ -1947,7 +2179,10 @@ mod tests {
 
         // Verify total resolution is approximately 51MP
         let megapixels = (w as u64 * h as u64) as f64 / 1_000_000.0;
-        assert!((megapixels - 51.0).abs() < 2.0, "GFX 50S II should have ~51 million pixels");
+        assert!(
+            (megapixels - 51.0).abs() < 2.0,
+            "GFX 50S II should have ~51 million pixels"
+        );
     }
 
     #[test]
@@ -1961,7 +2196,10 @@ mod tests {
 
         // Verify total resolution is approximately 26MP
         let megapixels = (w as u64 * h as u64) as f64 / 1_000_000.0;
-        assert!((megapixels - 26.0).abs() < 1.0, "X-H2S should have ~26 million pixels");
+        assert!(
+            (megapixels - 26.0).abs() < 1.0,
+            "X-H2S should have ~26 million pixels"
+        );
     }
 
     #[test]
@@ -1998,24 +2236,48 @@ mod tests {
         assert!(FujifilmModel::XE4.is_xtrans(), "X-E4 should be X-Trans");
         assert!(FujifilmModel::XM5.is_xtrans(), "X-M5 should be X-Trans");
         assert!(FujifilmModel::X100V.is_xtrans(), "X100V should be X-Trans");
-        assert!(FujifilmModel::X100VI.is_xtrans(), "X100VI should be X-Trans");
+        assert!(
+            FujifilmModel::X100VI.is_xtrans(),
+            "X100VI should be X-Trans"
+        );
     }
 
     #[test]
     fn test_is_xtrans_gfx_series_bayer() {
         // All GFX cameras use standard Bayer sensors (NOT X-Trans)
-        assert!(!FujifilmModel::Gfx100.is_xtrans(), "GFX100 should NOT be X-Trans");
-        assert!(!FujifilmModel::Gfx100II.is_xtrans(), "GFX100 II should NOT be X-Trans");
-        assert!(!FujifilmModel::Gfx100SII.is_xtrans(), "GFX100S II should NOT be X-Trans");
-        assert!(!FujifilmModel::Gfx50R.is_xtrans(), "GFX 50R should NOT be X-Trans");
-        assert!(!FujifilmModel::Gfx50S.is_xtrans(), "GFX 50S should NOT be X-Trans");
-        assert!(!FujifilmModel::Gfx50SII.is_xtrans(), "GFX 50S II should NOT be X-Trans");
+        assert!(
+            !FujifilmModel::Gfx100.is_xtrans(),
+            "GFX100 should NOT be X-Trans"
+        );
+        assert!(
+            !FujifilmModel::Gfx100II.is_xtrans(),
+            "GFX100 II should NOT be X-Trans"
+        );
+        assert!(
+            !FujifilmModel::Gfx100SII.is_xtrans(),
+            "GFX100S II should NOT be X-Trans"
+        );
+        assert!(
+            !FujifilmModel::Gfx50R.is_xtrans(),
+            "GFX 50R should NOT be X-Trans"
+        );
+        assert!(
+            !FujifilmModel::Gfx50S.is_xtrans(),
+            "GFX 50S should NOT be X-Trans"
+        );
+        assert!(
+            !FujifilmModel::Gfx50SII.is_xtrans(),
+            "GFX 50S II should NOT be X-Trans"
+        );
     }
 
     #[test]
     fn test_is_xtrans_unknown() {
         // Unknown defaults to X-Trans (assumes X-series)
-        assert!(FujifilmModel::Unknown.is_xtrans(), "Unknown should default to X-Trans");
+        assert!(
+            FujifilmModel::Unknown.is_xtrans(),
+            "Unknown should default to X-Trans"
+        );
     }
 
     // =========================================================================
@@ -2025,37 +2287,121 @@ mod tests {
     #[test]
     fn test_find_shutter_code_exact_matches() {
         // Test exact shutter speed matches
-        assert_eq!(find_shutter_code(1.0), 1000000, "1 second should return 1000000");
-        assert_eq!(find_shutter_code(0.5), 500000, "1/2 second should return 500000");
-        assert_eq!(find_shutter_code(30.0), 32000000, "30 seconds should return 32000000");
-        assert_eq!(find_shutter_code(60.0), 64000000, "60 seconds should return 64000000");
-        assert_eq!(find_shutter_code(2.0), 2000000, "2 seconds should return 2000000");
-        assert_eq!(find_shutter_code(4.0), 4000000, "4 seconds should return 4000000");
-        assert_eq!(find_shutter_code(8.0), 8000000, "8 seconds should return 8000000");
-        assert_eq!(find_shutter_code(15.0), 16000000, "15 seconds should return 16000000");
+        assert_eq!(
+            find_shutter_code(1.0),
+            1000000,
+            "1 second should return 1000000"
+        );
+        assert_eq!(
+            find_shutter_code(0.5),
+            500000,
+            "1/2 second should return 500000"
+        );
+        assert_eq!(
+            find_shutter_code(30.0),
+            32000000,
+            "30 seconds should return 32000000"
+        );
+        assert_eq!(
+            find_shutter_code(60.0),
+            64000000,
+            "60 seconds should return 64000000"
+        );
+        assert_eq!(
+            find_shutter_code(2.0),
+            2000000,
+            "2 seconds should return 2000000"
+        );
+        assert_eq!(
+            find_shutter_code(4.0),
+            4000000,
+            "4 seconds should return 4000000"
+        );
+        assert_eq!(
+            find_shutter_code(8.0),
+            8000000,
+            "8 seconds should return 8000000"
+        );
+        assert_eq!(
+            find_shutter_code(15.0),
+            16000000,
+            "15 seconds should return 16000000"
+        );
     }
 
     #[test]
     fn test_find_shutter_code_bulb_mode() {
         // Exposures > 60 seconds should return BULB mode
-        assert_eq!(find_shutter_code(61.0), XSDK_SHUTTER_BULB, "61s should trigger BULB mode");
-        assert_eq!(find_shutter_code(120.0), XSDK_SHUTTER_BULB, "120s should trigger BULB mode");
-        assert_eq!(find_shutter_code(300.0), XSDK_SHUTTER_BULB, "300s (5min) should trigger BULB mode");
-        assert_eq!(find_shutter_code(3600.0), XSDK_SHUTTER_BULB, "3600s (1hr) should trigger BULB mode");
+        assert_eq!(
+            find_shutter_code(61.0),
+            XSDK_SHUTTER_BULB,
+            "61s should trigger BULB mode"
+        );
+        assert_eq!(
+            find_shutter_code(120.0),
+            XSDK_SHUTTER_BULB,
+            "120s should trigger BULB mode"
+        );
+        assert_eq!(
+            find_shutter_code(300.0),
+            XSDK_SHUTTER_BULB,
+            "300s (5min) should trigger BULB mode"
+        );
+        assert_eq!(
+            find_shutter_code(3600.0),
+            XSDK_SHUTTER_BULB,
+            "3600s (1hr) should trigger BULB mode"
+        );
     }
 
     #[test]
     fn test_find_shutter_code_fast_speeds() {
         // Test fast shutter speeds (fractions of a second)
-        assert_eq!(find_shutter_code(1.0/8000.0), 122, "1/8000s should return 122");
-        assert_eq!(find_shutter_code(1.0/4000.0), 244, "1/4000s should return 244");
-        assert_eq!(find_shutter_code(1.0/2000.0), 488, "1/2000s should return 488");
-        assert_eq!(find_shutter_code(1.0/1000.0), 976, "1/1000s should return 976");
-        assert_eq!(find_shutter_code(1.0/500.0), 1953, "1/500s should return 1953");
-        assert_eq!(find_shutter_code(1.0/250.0), 3906, "1/250s should return 3906");
-        assert_eq!(find_shutter_code(1.0/125.0), 7812, "1/125s should return 7812");
-        assert_eq!(find_shutter_code(1.0/60.0), 15625, "1/60s should return 15625");
-        assert_eq!(find_shutter_code(1.0/30.0), 31250, "1/30s should return 31250");
+        assert_eq!(
+            find_shutter_code(1.0 / 8000.0),
+            122,
+            "1/8000s should return 122"
+        );
+        assert_eq!(
+            find_shutter_code(1.0 / 4000.0),
+            244,
+            "1/4000s should return 244"
+        );
+        assert_eq!(
+            find_shutter_code(1.0 / 2000.0),
+            488,
+            "1/2000s should return 488"
+        );
+        assert_eq!(
+            find_shutter_code(1.0 / 1000.0),
+            976,
+            "1/1000s should return 976"
+        );
+        assert_eq!(
+            find_shutter_code(1.0 / 500.0),
+            1953,
+            "1/500s should return 1953"
+        );
+        assert_eq!(
+            find_shutter_code(1.0 / 250.0),
+            3906,
+            "1/250s should return 3906"
+        );
+        assert_eq!(
+            find_shutter_code(1.0 / 125.0),
+            7812,
+            "1/125s should return 7812"
+        );
+        assert_eq!(
+            find_shutter_code(1.0 / 60.0),
+            15625,
+            "1/60s should return 15625"
+        );
+        assert_eq!(
+            find_shutter_code(1.0 / 30.0),
+            31250,
+            "1/30s should return 31250"
+        );
     }
 
     #[test]
@@ -2063,11 +2409,17 @@ mod tests {
         // Test that we find the closest shutter speed for in-between values
         // 0.75s is between 0.5s (500000) and 1.0s (1000000), closer to 1.0s
         let code = find_shutter_code(0.75);
-        assert!(code == 500000 || code == 1000000, "0.75s should match either 0.5s or 1.0s code");
+        assert!(
+            code == 500000 || code == 1000000,
+            "0.75s should match either 0.5s or 1.0s code"
+        );
 
         // Very small values should match the fastest available speed
         let code = find_shutter_code(0.0001);
-        assert_eq!(code, 122, "Very small values should match fastest speed (1/8000s)");
+        assert_eq!(
+            code, 122,
+            "Very small values should match fastest speed (1/8000s)"
+        );
     }
 
     #[test]
@@ -2084,17 +2436,47 @@ mod tests {
     fn test_error_codes_defined() {
         // Verify key error codes are defined correctly per XAPI.h
         assert_eq!(XSDK_ERRCODE_NOERR, 0x00000000, "No error code should be 0");
-        assert_eq!(XSDK_ERRCODE_SEQUENCE, 0x00001001, "Sequence error code mismatch");
-        assert_eq!(XSDK_ERRCODE_PARAM, 0x00001002, "Parameter error code mismatch");
-        assert_eq!(XSDK_ERRCODE_INVALID_CAMERA, 0x00001003, "Invalid camera error code mismatch");
-        assert_eq!(XSDK_ERRCODE_LOADLIB, 0x00001004, "Load library error code mismatch");
-        assert_eq!(XSDK_ERRCODE_UNSUPPORTED, 0x00001005, "Unsupported error code mismatch");
+        assert_eq!(
+            XSDK_ERRCODE_SEQUENCE, 0x00001001,
+            "Sequence error code mismatch"
+        );
+        assert_eq!(
+            XSDK_ERRCODE_PARAM, 0x00001002,
+            "Parameter error code mismatch"
+        );
+        assert_eq!(
+            XSDK_ERRCODE_INVALID_CAMERA, 0x00001003,
+            "Invalid camera error code mismatch"
+        );
+        assert_eq!(
+            XSDK_ERRCODE_LOADLIB, 0x00001004,
+            "Load library error code mismatch"
+        );
+        assert_eq!(
+            XSDK_ERRCODE_UNSUPPORTED, 0x00001005,
+            "Unsupported error code mismatch"
+        );
         assert_eq!(XSDK_ERRCODE_BUSY, 0x00001006, "Busy error code mismatch");
-        assert_eq!(XSDK_ERRCODE_TIMEOUT, 0x00002002, "Timeout error code mismatch");
-        assert_eq!(XSDK_ERRCODE_COMMUNICATION, 0x00002001, "Communication error code mismatch");
-        assert_eq!(XSDK_ERRCODE_HARDWARE, 0x00003001, "Hardware error code mismatch");
-        assert_eq!(XSDK_ERRCODE_INTERNAL, 0x00009001, "Internal error code mismatch");
-        assert_eq!(XSDK_ERRCODE_UNKNOWN, 0x00009100, "Unknown error code mismatch");
+        assert_eq!(
+            XSDK_ERRCODE_TIMEOUT, 0x00002002,
+            "Timeout error code mismatch"
+        );
+        assert_eq!(
+            XSDK_ERRCODE_COMMUNICATION, 0x00002001,
+            "Communication error code mismatch"
+        );
+        assert_eq!(
+            XSDK_ERRCODE_HARDWARE, 0x00003001,
+            "Hardware error code mismatch"
+        );
+        assert_eq!(
+            XSDK_ERRCODE_INTERNAL, 0x00009001,
+            "Internal error code mismatch"
+        );
+        assert_eq!(
+            XSDK_ERRCODE_UNKNOWN, 0x00009100,
+            "Unknown error code mismatch"
+        );
     }
 
     #[test]
@@ -2110,24 +2492,45 @@ mod tests {
 
     #[test]
     fn test_connection_interface_constants() {
-        assert_eq!(XSDK_DSC_IF_USB, 0x00000001, "USB interface constant mismatch");
-        assert_eq!(XSDK_DSC_IF_WIFI_LOCAL, 0x00000010, "WiFi local constant mismatch");
+        assert_eq!(
+            XSDK_DSC_IF_USB, 0x00000001,
+            "USB interface constant mismatch"
+        );
+        assert_eq!(
+            XSDK_DSC_IF_WIFI_LOCAL, 0x00000010,
+            "WiFi local constant mismatch"
+        );
         assert_eq!(XSDK_DSC_IF_WIFI_IP, 0x00000020, "WiFi IP constant mismatch");
     }
 
     #[test]
     fn test_priority_mode_constants() {
-        assert_eq!(XSDK_PRIORITY_CAMERA, 0x0001, "Camera priority constant mismatch");
+        assert_eq!(
+            XSDK_PRIORITY_CAMERA, 0x0001,
+            "Camera priority constant mismatch"
+        );
         assert_eq!(XSDK_PRIORITY_PC, 0x0002, "PC priority constant mismatch");
     }
 
     #[test]
     fn test_release_mode_constants() {
-        assert_eq!(XSDK_RELEASE_SHOOT, 0x0100, "Shoot release constant mismatch");
+        assert_eq!(
+            XSDK_RELEASE_SHOOT, 0x0100,
+            "Shoot release constant mismatch"
+        );
         assert_eq!(XSDK_RELEASE_S1ON, 0x0200, "S1 ON release constant mismatch");
-        assert_eq!(XSDK_RELEASE_BULBS2_ON, 0x0500, "Bulb S2 ON release constant mismatch");
-        assert_eq!(XSDK_RELEASE_N_BULBS1OFF, 0x000C, "Bulb S1 OFF release constant mismatch");
-        assert_eq!(XSDK_RELEASE_SHOOT_S1OFF, 0x0104, "Shoot S1 OFF release constant mismatch");
+        assert_eq!(
+            XSDK_RELEASE_BULBS2_ON, 0x0500,
+            "Bulb S2 ON release constant mismatch"
+        );
+        assert_eq!(
+            XSDK_RELEASE_N_BULBS1OFF, 0x000C,
+            "Bulb S1 OFF release constant mismatch"
+        );
+        assert_eq!(
+            XSDK_RELEASE_SHOOT_S1OFF, 0x0104,
+            "Shoot S1 OFF release constant mismatch"
+        );
     }
 
     #[test]

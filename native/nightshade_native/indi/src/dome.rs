@@ -68,7 +68,12 @@ impl IndiDome {
     /// Get the current dome azimuth position in degrees (0-360)
     pub async fn get_azimuth(&self) -> Result<f64, String> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION")
+        client
+            .get_number(
+                &self.device_name,
+                "ABS_DOME_POSITION",
+                "DOME_ABSOLUTE_POSITION",
+            )
             .await
             .ok_or_else(|| "Azimuth not available".to_string())
     }
@@ -76,7 +81,14 @@ impl IndiDome {
     /// Slew dome to specific azimuth
     pub async fn slew_to_azimuth(&self, azimuth: f64) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_number(&self.device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION", azimuth).await
+        client
+            .set_number(
+                &self.device_name,
+                "ABS_DOME_POSITION",
+                "DOME_ABSOLUTE_POSITION",
+                azimuth,
+            )
+            .await
     }
 
     /// Slew dome to specific azimuth with timeout
@@ -96,7 +108,14 @@ impl IndiDome {
         // Start the slew
         {
             let mut client = self.client.write().await;
-            client.set_number(&self.device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION", azimuth).await?;
+            client
+                .set_number(
+                    &self.device_name,
+                    "ABS_DOME_POSITION",
+                    "DOME_ABSOLUTE_POSITION",
+                    azimuth,
+                )
+                .await?;
         }
 
         // Wait for slew to complete
@@ -110,7 +129,9 @@ impl IndiDome {
     /// Sync dome to current azimuth
     pub async fn sync_to_azimuth(&self, azimuth: f64) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_number(&self.device_name, "DOME_SYNC", "DOME_SYNC_VALUE", azimuth).await
+        client
+            .set_number(&self.device_name, "DOME_SYNC", "DOME_SYNC_VALUE", azimuth)
+            .await
     }
 
     // =========================================================================
@@ -120,13 +141,17 @@ impl IndiDome {
     /// Open the dome shutter
     pub async fn open_shutter(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN", true).await
+        client
+            .set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN", true)
+            .await
     }
 
     /// Close the dome shutter
     pub async fn close_shutter(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE", true).await
+        client
+            .set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE", true)
+            .await
     }
 
     /// Open the dome shutter with timeout
@@ -143,7 +168,9 @@ impl IndiDome {
         // Start shutter operation
         {
             let mut client = self.client.write().await;
-            client.set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN", true).await?;
+            client
+                .set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN", true)
+                .await?;
         }
 
         // Wait for shutter operation to complete
@@ -155,7 +182,10 @@ impl IndiDome {
     }
 
     /// Close the dome shutter with timeout
-    pub async fn close_shutter_with_timeout(&self, timeout: Option<Duration>) -> Result<(), String> {
+    pub async fn close_shutter_with_timeout(
+        &self,
+        timeout: Option<Duration>,
+    ) -> Result<(), String> {
         // Read config outside the closure - async-friendly
         let timeout_duration = if let Some(t) = timeout {
             t
@@ -168,7 +198,9 @@ impl IndiDome {
         // Start shutter operation
         {
             let mut client = self.client.write().await;
-            client.set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE", true).await?;
+            client
+                .set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE", true)
+                .await?;
         }
 
         // Wait for shutter operation to complete
@@ -184,12 +216,14 @@ impl IndiDome {
         let client = self.client.read().await;
 
         // Check if shutter is open
-        let is_open = client.get_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN")
+        let is_open = client
+            .get_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN")
             .await
             .unwrap_or(false);
 
         // Check if shutter is closed
-        let is_closed = client.get_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE")
+        let is_closed = client
+            .get_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE")
             .await
             .unwrap_or(false);
 
@@ -213,25 +247,33 @@ impl IndiDome {
     pub async fn is_slewing(&self) -> bool {
         let client = self.client.read().await;
         // Check if the dome position property is in "Busy" state
-        client.is_property_busy(&self.device_name, "ABS_DOME_POSITION").await
+        client
+            .is_property_busy(&self.device_name, "ABS_DOME_POSITION")
+            .await
     }
 
     /// Abort all dome motion
     pub async fn abort_slew(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_switch(&self.device_name, "DOME_ABORT_MOTION", "ABORT", true).await
+        client
+            .set_switch(&self.device_name, "DOME_ABORT_MOTION", "ABORT", true)
+            .await
     }
 
     /// Move dome clockwise (manual jog)
     pub async fn move_clockwise(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_switch(&self.device_name, "DOME_MOTION", "DOME_CW", true).await
+        client
+            .set_switch(&self.device_name, "DOME_MOTION", "DOME_CW", true)
+            .await
     }
 
     /// Move dome counter-clockwise (manual jog)
     pub async fn move_counter_clockwise(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_switch(&self.device_name, "DOME_MOTION", "DOME_CCW", true).await
+        client
+            .set_switch(&self.device_name, "DOME_MOTION", "DOME_CCW", true)
+            .await
     }
 
     // =========================================================================
@@ -241,26 +283,33 @@ impl IndiDome {
     /// Go to home position
     pub async fn find_home(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_switch(&self.device_name, "DOME_GOTO", "DOME_HOME", true).await
+        client
+            .set_switch(&self.device_name, "DOME_GOTO", "DOME_HOME", true)
+            .await
     }
 
     /// Park the dome
     pub async fn park(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_switch(&self.device_name, "DOME_GOTO", "DOME_PARK", true).await
+        client
+            .set_switch(&self.device_name, "DOME_GOTO", "DOME_PARK", true)
+            .await
     }
 
     /// Unpark the dome
     pub async fn unpark(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
         // INDI uses DOME_PARK property with UNPARK element
-        client.set_switch(&self.device_name, "DOME_PARK", "UNPARK", true).await
+        client
+            .set_switch(&self.device_name, "DOME_PARK", "UNPARK", true)
+            .await
     }
 
     /// Check if dome is at home position
     pub async fn at_home(&self) -> bool {
         let client = self.client.read().await;
-        client.get_switch(&self.device_name, "DOME_GOTO", "DOME_HOME")
+        client
+            .get_switch(&self.device_name, "DOME_GOTO", "DOME_HOME")
             .await
             .unwrap_or(false)
     }
@@ -268,7 +317,8 @@ impl IndiDome {
     /// Check if dome is parked
     pub async fn is_parked(&self) -> bool {
         let client = self.client.read().await;
-        client.get_switch(&self.device_name, "DOME_PARK", "PARK")
+        client
+            .get_switch(&self.device_name, "DOME_PARK", "PARK")
             .await
             .unwrap_or(false)
     }
@@ -281,16 +331,31 @@ impl IndiDome {
     pub async fn set_slaved(&self, slaved: bool) -> IndiResult<()> {
         let mut client = self.client.write().await;
         if slaved {
-            client.set_switch(&self.device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_ENABLE", true).await
+            client
+                .set_switch(
+                    &self.device_name,
+                    "DOME_AUTOSYNC",
+                    "DOME_AUTOSYNC_ENABLE",
+                    true,
+                )
+                .await
         } else {
-            client.set_switch(&self.device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_DISABLE", true).await
+            client
+                .set_switch(
+                    &self.device_name,
+                    "DOME_AUTOSYNC",
+                    "DOME_AUTOSYNC_DISABLE",
+                    true,
+                )
+                .await
         }
     }
 
     /// Check if dome is slaved to mount
     pub async fn is_slaved(&self) -> bool {
         let client = self.client.read().await;
-        client.get_switch(&self.device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_ENABLE")
+        client
+            .get_switch(&self.device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_ENABLE")
             .await
             .unwrap_or(false)
     }
@@ -302,19 +367,24 @@ impl IndiDome {
     /// Set home position
     pub async fn set_home_position(&self, azimuth: f64) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_number(&self.device_name, "DOME_PARAMS", "HOME_POSITION", azimuth).await
+        client
+            .set_number(&self.device_name, "DOME_PARAMS", "HOME_POSITION", azimuth)
+            .await
     }
 
     /// Set park position
     pub async fn set_park_position(&self, azimuth: f64) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.set_number(&self.device_name, "DOME_PARAMS", "PARK_POSITION", azimuth).await
+        client
+            .set_number(&self.device_name, "DOME_PARAMS", "PARK_POSITION", azimuth)
+            .await
     }
 
     /// Get home position
     pub async fn get_home_position(&self) -> Result<f64, String> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "DOME_PARAMS", "HOME_POSITION")
+        client
+            .get_number(&self.device_name, "DOME_PARAMS", "HOME_POSITION")
             .await
             .ok_or_else(|| "Home position not available".to_string())
     }
@@ -322,7 +392,8 @@ impl IndiDome {
     /// Get park position
     pub async fn get_park_position(&self) -> Result<f64, String> {
         let client = self.client.read().await;
-        client.get_number(&self.device_name, "DOME_PARAMS", "PARK_POSITION")
+        client
+            .get_number(&self.device_name, "DOME_PARAMS", "PARK_POSITION")
             .await
             .ok_or_else(|| "Park position not available".to_string())
     }
@@ -346,7 +417,9 @@ mod tests {
         let dome = IndiDome::new(client, "TestDome");
 
         // This will fail since we're not connected
-        let result = dome.slew_to_azimuth_with_timeout(180.0, Some(Duration::from_millis(100))).await;
+        let result = dome
+            .slew_to_azimuth_with_timeout(180.0, Some(Duration::from_millis(100)))
+            .await;
 
         assert!(result.is_err());
         if let Err(e) = result {
@@ -361,7 +434,9 @@ mod tests {
         let dome = IndiDome::new(client, "TestDome");
 
         // This will fail since we're not connected
-        let result = dome.open_shutter_with_timeout(Some(Duration::from_millis(100))).await;
+        let result = dome
+            .open_shutter_with_timeout(Some(Duration::from_millis(100)))
+            .await;
 
         assert!(result.is_err());
         if let Err(e) = result {
@@ -375,9 +450,11 @@ mod tests {
         let mut config = crate::IndiTimeoutConfig::default();
         config.dome_slew_timeout_secs = 600; // Custom timeout
 
-        let client = Arc::new(RwLock::new(
-            IndiClient::with_timeout_config("localhost", Some(7624), config)
-        ));
+        let client = Arc::new(RwLock::new(IndiClient::with_timeout_config(
+            "localhost",
+            Some(7624),
+            config,
+        )));
         let _dome = IndiDome::new(client.clone(), "TestDome");
 
         // Verify the timeout config is accessible

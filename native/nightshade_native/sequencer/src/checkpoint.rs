@@ -366,7 +366,10 @@ mod tests {
         fs::write(&primary, "{not valid json").unwrap();
 
         let result = manager.load();
-        assert!(result.is_err(), "Expected error for corrupt primary checkpoint");
+        assert!(
+            result.is_err(),
+            "Expected error for corrupt primary checkpoint"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }

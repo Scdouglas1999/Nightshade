@@ -118,7 +118,10 @@ impl MeridianFlipExecutor {
                 }
                 Err(e) => {
                     // Check for abort
-                    if self.abort_requested.load(std::sync::atomic::Ordering::Relaxed) {
+                    if self
+                        .abort_requested
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                    {
                         self.emit_event(MeridianFlipEvent::Aborted {
                             reason: "User requested abort".to_string(),
                         });
@@ -212,7 +215,10 @@ impl MeridianFlipExecutor {
 
         for (idx, step) in steps.iter().enumerate() {
             // Check abort before each step
-            if self.abort_requested.load(std::sync::atomic::Ordering::Relaxed) {
+            if self
+                .abort_requested
+                .load(std::sync::atomic::Ordering::Relaxed)
+            {
                 return Err("Abort requested".to_string());
             }
 
@@ -241,9 +247,7 @@ impl MeridianFlipExecutor {
                     }
                 }
                 FlipStep::ResumingTracking => self.resume_tracking(&ctx.mount_id).await,
-                FlipStep::PlateSolvingAndCentering => {
-                    self.plate_solve_and_center(ctx).await
-                }
+                FlipStep::PlateSolvingAndCentering => self.plate_solve_and_center(ctx).await,
                 FlipStep::Refocusing => self.run_autofocus(ctx).await,
                 FlipStep::ResumingGuider => self.resume_guider().await,
                 FlipStep::Settling => self.wait_settle().await,
@@ -308,7 +312,10 @@ impl MeridianFlipExecutor {
 
         // Wait for slew to complete
         loop {
-            if self.abort_requested.load(std::sync::atomic::Ordering::Relaxed) {
+            if self
+                .abort_requested
+                .load(std::sync::atomic::Ordering::Relaxed)
+            {
                 self.device_ops.mount_abort_slew(mount_id).await?;
                 return Err("Abort requested during slew".to_string());
             }
@@ -372,7 +379,8 @@ impl MeridianFlipExecutor {
         let dec_offset = result.dec_degrees - ctx.target_dec_degrees; // degrees
 
         // Convert to arcseconds for comparison
-        let ra_offset_arcsec = ra_offset * 15.0 * 3600.0 * ctx.target_dec_degrees.to_radians().cos();
+        let ra_offset_arcsec =
+            ra_offset * 15.0 * 3600.0 * ctx.target_dec_degrees.to_radians().cos();
         let dec_offset_arcsec = dec_offset * 3600.0;
         let total_offset = (ra_offset_arcsec.powi(2) + dec_offset_arcsec.powi(2)).sqrt();
 
@@ -463,8 +471,11 @@ impl MeridianFlipExecutor {
         };
 
         // Execute autofocus
-        tracing::info!("[MERIDIAN] Starting V-curve autofocus with {} steps, {} step size",
-            af_config.steps_out, af_config.step_size);
+        tracing::info!(
+            "[MERIDIAN] Starting V-curve autofocus with {} steps, {} step size",
+            af_config.steps_out,
+            af_config.step_size
+        );
 
         let result = execute_autofocus(&af_config, &instruction_ctx, None).await;
 
@@ -478,7 +489,9 @@ impl MeridianFlipExecutor {
                 Ok(())
             }
             crate::NodeStatus::Failure => {
-                let error = result.message.unwrap_or_else(|| "Unknown autofocus error".to_string());
+                let error = result
+                    .message
+                    .unwrap_or_else(|| "Unknown autofocus error".to_string());
                 tracing::error!("[MERIDIAN] Autofocus failed: {}", error);
                 Err(format!("Autofocus failed: {}", error))
             }
@@ -492,7 +505,10 @@ impl MeridianFlipExecutor {
             }
             _ => {
                 // Handle Pending, Running states (shouldn't normally happen)
-                tracing::warn!("[MERIDIAN] Autofocus returned unexpected status: {:?}", result.status);
+                tracing::warn!(
+                    "[MERIDIAN] Autofocus returned unexpected status: {:?}",
+                    result.status
+                );
                 Ok(())
             }
         }
@@ -502,9 +518,7 @@ impl MeridianFlipExecutor {
         tracing::info!("[MERIDIAN] Resuming guider...");
 
         // Start guiding with reasonable defaults
-        self.device_ops
-            .guider_start(1.5, 10.0, 60.0)
-            .await
+        self.device_ops.guider_start(1.5, 10.0, 60.0).await
     }
 
     async fn wait_settle(&self) -> Result<(), String> {
@@ -516,7 +530,10 @@ impl MeridianFlipExecutor {
         let mut elapsed = std::time::Duration::ZERO;
 
         while elapsed < settle_duration {
-            if self.abort_requested.load(std::sync::atomic::Ordering::Relaxed) {
+            if self
+                .abort_requested
+                .load(std::sync::atomic::Ordering::Relaxed)
+            {
                 return Err("Abort requested during settle".to_string());
             }
 
@@ -617,12 +634,13 @@ fn julian_day(utc: chrono::DateTime<chrono::Utc>) -> f64 {
     let y = utc.year() as f64;
     let m = utc.month() as f64;
     let d = utc.day() as f64
-        + (utc.hour() as f64
-            + utc.minute() as f64 / 60.0
-            + utc.second() as f64 / 3600.0)
-            / 24.0;
+        + (utc.hour() as f64 + utc.minute() as f64 / 60.0 + utc.second() as f64 / 3600.0) / 24.0;
 
-    let (y, m) = if m <= 2.0 { (y - 1.0, m + 12.0) } else { (y, m) };
+    let (y, m) = if m <= 2.0 {
+        (y - 1.0, m + 12.0)
+    } else {
+        (y, m)
+    };
 
     let a = (y / 100.0).floor();
     let b = 2.0 - a + (a / 4.0).floor();

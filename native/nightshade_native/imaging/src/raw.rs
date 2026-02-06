@@ -6,10 +6,10 @@
 //! Supports 600+ camera models including Fujifilm X-Trans sensors.
 
 use crate::{ImageData, PixelType};
-use std::path::Path;
-use std::ffi::{CStr, CString};
-use std::os::raw::{c_int, c_uint, c_ushort, c_void, c_char, c_float, c_double};
 use image::GenericImageView;
+use std::ffi::{CStr, CString};
+use std::os::raw::{c_char, c_double, c_float, c_int, c_uint, c_ushort, c_void};
+use std::path::Path;
 
 // =============================================================================
 // LibRaw FFI Declarations (matching libraw.dll structures and functions)
@@ -136,8 +136,14 @@ extern "C" {
     fn libraw_open_file(data: *mut libraw_data_t, path: *const c_char) -> c_int;
     fn libraw_unpack(data: *mut libraw_data_t) -> c_int;
     fn libraw_dcraw_process(data: *mut libraw_data_t) -> c_int;
-    fn libraw_dcraw_make_mem_image(data: *mut libraw_data_t, errcode: *mut c_int) -> *mut libraw_processed_image_t;
-    fn libraw_dcraw_make_mem_thumb(data: *mut libraw_data_t, errcode: *mut c_int) -> *mut libraw_processed_image_t;
+    fn libraw_dcraw_make_mem_image(
+        data: *mut libraw_data_t,
+        errcode: *mut c_int,
+    ) -> *mut libraw_processed_image_t;
+    fn libraw_dcraw_make_mem_thumb(
+        data: *mut libraw_data_t,
+        errcode: *mut c_int,
+    ) -> *mut libraw_processed_image_t;
     fn libraw_dcraw_clear_mem(image: *mut libraw_processed_image_t);
     fn libraw_close(data: *mut libraw_data_t);
     fn libraw_strerror(errorcode: c_int) -> *const c_char;
@@ -260,7 +266,7 @@ impl Default for RawProcessingParams {
             highlight_mode: HighlightMode::Clip,
             brightness: 1.0,
             user_sat: None,
-            gamma: None, // Use default sRGB gamma
+            gamma: None,        // Use default sRGB gamma
             auto_bright: false, // Disable auto brightness for consistency
             half_size: false,
             bad_pixels_path: None,
@@ -272,18 +278,22 @@ impl Default for RawProcessingParams {
 }
 
 /// Read a RAW file with native X-Trans support
-/// 
+///
 /// Returns 3-channel RGB image data with NO synthetic Bayer conversion!
 /// Read a RAW file with native X-Trans support
-/// 
+///
 /// Returns 3-channel RGB image data with NO synthetic Bayer conversion!
-pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(ImageData, RawMetadata), RawError> {
+pub fn read_raw(
+    path: &Path,
+    params: Option<&RawProcessingParams>,
+) -> Result<(ImageData, RawMetadata), RawError> {
     let default_params = RawProcessingParams::default();
     let params = params.unwrap_or(&default_params);
     // Validate path
-    let path_str = path.to_str()
+    let path_str = path
+        .to_str()
         .ok_or_else(|| RawError::InvalidPath("Path contains invalid UTF-8".to_string()))?;
-    
+
     if !path.exists() {
         return Err(RawError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
@@ -304,10 +314,9 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
         }
 
         // Open file
-        let c_path = CString::new(path_str).map_err(|_| {
-            RawError::InvalidPath("Path contains null bytes".to_string())
-        })?;
-        
+        let c_path = CString::new(path_str)
+            .map_err(|_| RawError::InvalidPath("Path contains null bytes".to_string()))?;
+
         let ret = libraw_open_file(processor, c_path.as_ptr());
         if ret != LIBRAW_SUCCESS {
             let err_msg = get_error_string(ret);
@@ -320,50 +329,50 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
 
         // Access the data structure to extract metadata
         let data = &*processor;
-        
+
         // Extract camera info
         let camera_make = CStr::from_ptr(data.idata.make.as_ptr())
             .to_string_lossy()
             .trim()
             .to_string();
-        
+
         let camera_model = CStr::from_ptr(data.idata.model.as_ptr())
             .to_string_lossy()
             .trim()
             .to_string();
-        
+
         let color_desc = CStr::from_ptr(data.idata.cdesc.as_ptr())
             .to_string_lossy()
             .to_string();
-        
+
         // Detect X-Trans (filters == 9 indicates X-Trans)
         let is_xtrans = data.idata.filters == 9;
-        
+
         // Extract exposure metadata
         let iso_speed = if data.other.iso_speed > 0.0 {
             Some(data.other.iso_speed)
         } else {
             None
         };
-        
+
         let shutter_speed = if data.other.shutter > 0.0 {
             Some(data.other.shutter)
         } else {
             None
         };
-        
+
         let aperture = if data.other.aperture > 0.0 {
             Some(data.other.aperture)
         } else {
             None
         };
-        
+
         let focal_length = if data.other.focal_len > 0.0 {
             Some(data.other.focal_len)
         } else {
             None
         };
-        
+
         let timestamp = if data.other.timestamp > 0 {
             Some(data.other.timestamp as i64)
         } else {
@@ -371,41 +380,45 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
         };
         // We scan for the sRGB gamma signature: 0.45045 (1/2.222) and 4.5
         let mut params_ptr: *mut libraw_output_params_t = std::ptr::null_mut();
-        
+
         // Keep CStrings alive until processing is done
         let mut _bad_pixels_c_str: Option<CString> = None;
         let mut _dark_frame_c_str: Option<CString> = None;
-        
+
         let start_ptr = (processor as *mut u8).add(512); // Skip header
         let end_ptr = (processor as *mut u8).add(32768); // Search 32KB
-        
+
         let mut ptr = start_ptr;
         while ptr < end_ptr {
             let p = ptr as *mut libraw_output_params_t;
             // Check signature
-            if ((*p).gamm[0] - 0.45045).abs() < 0.001 && 
-               ((*p).gamm[1] - 4.5).abs() < 0.001 &&
-               (*p).output_color == 1 {
+            if ((*p).gamm[0] - 0.45045).abs() < 0.001
+                && ((*p).gamm[1] - 4.5).abs() < 0.001
+                && (*p).output_color == 1
+            {
                 params_ptr = p;
                 break;
             }
             ptr = ptr.add(8); // 8-byte alignment
         }
-        
+
         if !params_ptr.is_null() {
-            tracing::info!("Found LibRaw output params at offset {}", ptr.offset_from(processor as *mut u8));
+            tracing::info!(
+                "Found LibRaw output params at offset {}",
+                ptr.offset_from(processor as *mut u8)
+            );
             let out = &mut *params_ptr;
-            
+
             // 1. White Balance
             match params.white_balance {
                 WhiteBalanceMode::Camera => {
                     out.use_camera_wb = 1;
                     out.use_auto_wb = 0;
-                },
+                }
                 WhiteBalanceMode::Auto => {
                     out.use_camera_wb = 0;
                     out.use_auto_wb = 1;
-                },
+                }
                 WhiteBalanceMode::Custom(r, g1, b, g2) => {
                     out.use_camera_wb = 0;
                     out.use_auto_wb = 0;
@@ -415,7 +428,7 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
                     out.user_mul[3] = g2;
                 }
             }
-            
+
             // 2. Color Space
             out.output_color = match params.output_color {
                 ColorSpace::Raw => 0,
@@ -426,10 +439,10 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
                 ColorSpace::XYZ => 5,
                 ColorSpace::ACES => 6,
             };
-            
+
             // 3. Bit Depth
             out.output_bps = params.output_bps as c_int;
-            
+
             // 4. Demosaic Algorithm
             out.user_qual = match params.demosaic {
                 DemosaicAlgorithm::Linear => 0,
@@ -440,7 +453,7 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
                 DemosaicAlgorithm::DHT => 11,
                 DemosaicAlgorithm::AAHD => 12,
             };
-            
+
             // 5. Highlight Mode
             out.highlight = match params.highlight_mode {
                 HighlightMode::Clip => 0,
@@ -448,42 +461,42 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
                 HighlightMode::Blend => 2,
                 HighlightMode::Rebuild(n) => (3 + n).min(9) as c_int,
             };
-            
+
             // 6. Brightness / Gamma
             out.bright = params.brightness;
             out.no_auto_bright = if params.auto_bright { 0 } else { 1 };
-            
+
             if let Some((power, slope)) = params.gamma {
                 out.gamm[0] = 1.0 / power;
                 out.gamm[1] = slope;
             }
-            
+
             if let Some(sat) = params.user_sat {
                 out.user_sat = sat;
             }
-            
+
             out.half_size = if params.half_size { 1 } else { 0 };
-            
+
             // 7. Bad Pixels
             if let Some(path) = &params.bad_pixels_path {
                 if let Some(s) = path.to_str() {
-                     if let Ok(c_str) = CString::new(s) {
-                         out.bad_pixels = c_str.as_ptr() as *mut c_char;
-                         _bad_pixels_c_str = Some(c_str);
-                     }
+                    if let Ok(c_str) = CString::new(s) {
+                        out.bad_pixels = c_str.as_ptr() as *mut c_char;
+                        _bad_pixels_c_str = Some(c_str);
+                    }
                 }
             }
-            
+
             // 8. Dark Frame
             if let Some(path) = &params.dark_frame_path {
                 if let Some(s) = path.to_str() {
-                     if let Ok(c_str) = CString::new(s) {
-                         out.dark_frame = c_str.as_ptr() as *mut c_char;
-                         _dark_frame_c_str = Some(c_str);
-                     }
+                    if let Ok(c_str) = CString::new(s) {
+                        out.dark_frame = c_str.as_ptr() as *mut c_char;
+                        _dark_frame_c_str = Some(c_str);
+                    }
                 }
             }
-            
+
             // 9. Chromatic Aberration
             if let Some((r, b)) = params.chromatic_aberration {
                 out.aber[0] = r;
@@ -491,7 +504,6 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
                 out.aber[1] = 1.0;
                 out.aber[3] = 1.0;
             }
-            
         } else {
             tracing::warn!("Could not locate LibRaw output params in memory! Using defaults.");
         }
@@ -547,30 +559,33 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
         let img = &*processed_image;
         let img_width = img.width as u32;
         let img_height = img.height as u32;
-        let channels = img.colors as u32;  // Should be 3 for RGB
+        let channels = img.colors as u32; // Should be 3 for RGB
         let bits = img.bits as u32;
 
         tracing::info!(
             "Processed: {}x{}, {} channels, {} bits - Native RGB!",
-            img_width, img_height, channels, bits
+            img_width,
+            img_height,
+            channels,
+            bits
         );
 
         // Calculate data size
         let pixel_count = (img_width * img_height * channels) as usize;
-        
+
         // Get pointer to image data (located right after the struct header)
         let header_size = std::mem::size_of::<libraw_processed_image_t>();
         let data_ptr = (processed_image as *const u8).add(header_size);
 
         // Copy RGB data
         let mut rgb_data = vec![0u16; pixel_count];
-        
+
         if bits == 16 {
             // 16-bit data - direct copy
             std::ptr::copy_nonoverlapping(
                 data_ptr as *const u16,
                 rgb_data.as_mut_ptr(),
-                pixel_count
+                pixel_count,
             );
         } else if bits == 8 {
             // 8-bit data - scale to 16-bit
@@ -581,13 +596,14 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
         } else {
             libraw_dcraw_clear_mem(processed_image);
             libraw_close(processor);
-            return Err(RawError::UnsupportedFormat(format!("Unsupported bit depth: {}", bits)));
+            return Err(RawError::UnsupportedFormat(format!(
+                "Unsupported bit depth: {}",
+                bits
+            )));
         }
 
         // Convert to byte array for ImageData
-        let data: Vec<u8> = rgb_data.iter()
-            .flat_map(|&val| val.to_le_bytes())
-            .collect();
+        let data: Vec<u8> = rgb_data.iter().flat_map(|&val| val.to_le_bytes()).collect();
 
         // Cleanup
         libraw_dcraw_clear_mem(processed_image);
@@ -597,7 +613,7 @@ pub fn read_raw(path: &Path, params: Option<&RawProcessingParams>) -> Result<(Im
         let image = ImageData {
             width: img_width,
             height: img_height,
-            channels,  // 3 for RGB - NO synthetic Bayer conversion!
+            channels, // 3 for RGB - NO synthetic Bayer conversion!
             pixel_type: PixelType::U16,
             data,
         };
@@ -614,18 +630,17 @@ unsafe fn get_error_string(code: c_int) -> String {
     if ptr.is_null() {
         format!("Unknown error code: {}", code)
     } else {
-        CStr::from_ptr(ptr)
-            .to_string_lossy()
-            .to_string()
+        CStr::from_ptr(ptr).to_string_lossy().to_string()
     }
 }
 
 /// Extract thumbnail from RAW file (Fast Preview)
 pub fn extract_thumbnail(path: &Path) -> Result<ImageData, RawError> {
     // Validate path
-    let path_str = path.to_str()
+    let path_str = path
+        .to_str()
         .ok_or_else(|| RawError::InvalidPath("Path contains invalid UTF-8".to_string()))?;
-    
+
     if !path.exists() {
         return Err(RawError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
@@ -644,10 +659,9 @@ pub fn extract_thumbnail(path: &Path) -> Result<ImageData, RawError> {
         }
 
         // Open file
-        let c_path = CString::new(path_str).map_err(|_| {
-            RawError::InvalidPath("Path contains null bytes".to_string())
-        })?;
-        
+        let c_path = CString::new(path_str)
+            .map_err(|_| RawError::InvalidPath("Path contains null bytes".to_string()))?;
+
         let ret = libraw_open_file(processor, c_path.as_ptr());
         if ret != LIBRAW_SUCCESS {
             libraw_close(processor);
@@ -658,16 +672,21 @@ pub fn extract_thumbnail(path: &Path) -> Result<ImageData, RawError> {
         let ret = libraw_unpack_thumb(processor);
         if ret != LIBRAW_SUCCESS {
             libraw_close(processor);
-            return Err(RawError::LibRawError("Failed to unpack thumbnail".to_string()));
+            return Err(RawError::LibRawError(
+                "Failed to unpack thumbnail".to_string(),
+            ));
         }
 
         // Make memory thumbnail
         let mut err = 0;
         let processed = libraw_dcraw_make_mem_thumb(processor, &mut err);
-        
+
         if processed.is_null() || err != LIBRAW_SUCCESS {
             libraw_close(processor);
-            return Err(RawError::LibRawError(format!("Failed to create memory thumbnail: {}", err)));
+            return Err(RawError::LibRawError(format!(
+                "Failed to create memory thumbnail: {}",
+                err
+            )));
         }
 
         // Convert to ImageData
@@ -676,34 +695,40 @@ pub fn extract_thumbnail(path: &Path) -> Result<ImageData, RawError> {
         let colors = (*processed).colors as u32;
         let bits = (*processed).bits as u32;
         let data_size = (*processed).data_size as usize;
-        
+
         let data_ptr = (processed as *mut u8).add(std::mem::size_of::<libraw_processed_image_t>());
         let data_slice = std::slice::from_raw_parts(data_ptr, data_size);
-        
+
         // Thumbnails are usually JPEG (compressed) or RGB bitmap
         let type_ = (*processed).type_;
-        
+
         let image = if type_ == 1 {
             // Bitmap (RGB)
             let mut pixels = Vec::with_capacity(data_size);
             pixels.extend_from_slice(data_slice);
-            
+
             ImageData {
                 width,
                 height,
                 channels: colors,
-                pixel_type: if bits == 16 { PixelType::U16 } else { PixelType::U8 },
+                pixel_type: if bits == 16 {
+                    PixelType::U16
+                } else {
+                    PixelType::U8
+                },
                 data: pixels,
             }
-        } else if type_ == 2 || type_ == 4 { // JPEG or KODAK_THUMB (usually JPEG)
+        } else if type_ == 2 || type_ == 4 {
+            // JPEG or KODAK_THUMB (usually JPEG)
             // Decode JPEG from memory
-            let img = image::load_from_memory(data_slice)
-                .map_err(|e| RawError::UnsupportedFormat(format!("Failed to decode thumbnail: {}", e)))?;
-            
+            let img = image::load_from_memory(data_slice).map_err(|e| {
+                RawError::UnsupportedFormat(format!("Failed to decode thumbnail: {}", e))
+            })?;
+
             let (w, h) = img.dimensions();
             let rgba = img.to_rgba8();
             let pixels = rgba.into_raw();
-            
+
             // Convert RGBA to RGB if needed, or keep RGBA
             // ImageData supports 4 channels
             ImageData {
@@ -717,12 +742,15 @@ pub fn extract_thumbnail(path: &Path) -> Result<ImageData, RawError> {
             // Other format
             libraw_dcraw_clear_mem(processed);
             libraw_close(processor);
-            return Err(RawError::UnsupportedFormat(format!("Unsupported thumbnail type: {}", type_)));
+            return Err(RawError::UnsupportedFormat(format!(
+                "Unsupported thumbnail type: {}",
+                type_
+            )));
         };
 
         libraw_dcraw_clear_mem(processed);
         libraw_close(processor);
-        
+
         Ok(image)
     }
 }
@@ -733,8 +761,9 @@ pub fn process_raw_batch(
     params: Option<&RawProcessingParams>,
 ) -> Vec<Result<(ImageData, RawMetadata), RawError>> {
     use rayon::prelude::*;
-    
-    paths.par_iter()
+
+    paths
+        .par_iter()
         .map(|path| read_raw(path, params))
         .collect()
 }
@@ -765,13 +794,12 @@ pub fn is_raw_file(path: &Path) -> bool {
                 | "ptx" | "pxn"         // Pentax
                 | "r3d"                 // RED
                 | "srw"                 // Samsung
-                | "x3f"                 // Sigma
+                | "x3f" // Sigma
             );
         }
     }
     false
 }
-
 
 /// Read a RAW file from in-memory bytes
 ///
@@ -786,18 +814,16 @@ pub fn read_raw_from_bytes(
 
     // Create temp file with appropriate extension (LibRaw uses extension for format hints)
     let temp_dir = std::env::temp_dir();
-    let temp_path = temp_dir.join(format!("nightshade_raw_{}.{}",
+    let temp_path = temp_dir.join(format!(
+        "nightshade_raw_{}.{}",
         std::process::id(),
         extension.trim_start_matches('.')
     ));
 
     // Write data to temp file
-    let mut file = std::fs::File::create(&temp_path)
-        .map_err(RawError::Io)?;
-    file.write_all(data)
-        .map_err(RawError::Io)?;
-    file.flush()
-        .map_err(RawError::Io)?;
+    let mut file = std::fs::File::create(&temp_path).map_err(RawError::Io)?;
+    file.write_all(data).map_err(RawError::Io)?;
+    file.flush().map_err(RawError::Io)?;
     drop(file); // Close file before LibRaw opens it
 
     // Process with LibRaw
@@ -835,7 +861,7 @@ mod tests {
     fn test_is_raw_file() {
         assert!(is_raw_file(Path::new("test.cr2")));
         assert!(is_raw_file(Path::new("test.NEF")));
-        assert!(is_raw_file(Path::new("test.raf")));  // Fujifilm X-Trans!
+        assert!(is_raw_file(Path::new("test.raf"))); // Fujifilm X-Trans!
         assert!(!is_raw_file(Path::new("test.fits")));
         assert!(!is_raw_file(Path::new("test.jpg")));
     }

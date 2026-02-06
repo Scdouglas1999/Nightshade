@@ -3,7 +3,7 @@
 //! This module provides astronomical calculations for determining when a target
 //! crosses the meridian and when a meridian flip should be performed.
 
-use chrono::{DateTime, Utc, Datelike, Timelike};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 
 /// Pier side enumeration for German Equatorial Mounts
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -171,8 +171,7 @@ pub fn calculate_altitude(
     let lat_rad = latitude.to_radians();
 
     // Calculate altitude using the altitude formula
-    let sin_alt = lat_rad.sin() * dec_rad.sin() +
-                  lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
+    let sin_alt = lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
 
     sin_alt.asin().to_degrees()
 }
@@ -208,8 +207,8 @@ pub fn local_sidereal_time(jd: f64, longitude: f64) -> f64 {
     let t = (jd - 2451545.0) / 36525.0;
 
     // Greenwich Mean Sidereal Time in degrees
-    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) +
-               0.000387933 * t * t - t * t * t / 38710000.0;
+    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * t * t
+        - t * t * t / 38710000.0;
 
     // Add longitude to get Local Sidereal Time
     let lst = (gmst + longitude) % 360.0;

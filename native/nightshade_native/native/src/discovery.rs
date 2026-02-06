@@ -56,7 +56,11 @@ pub struct NativeDeviceInfo {
 impl NativeDeviceInfo {
     /// Generate a display name with disambiguation info
     /// Priority: serial_number > discovery_index > plain name
-    fn generate_display_name(name: &str, serial_number: Option<&str>, discovery_index: Option<usize>) -> String {
+    fn generate_display_name(
+        name: &str,
+        serial_number: Option<&str>,
+        discovery_index: Option<usize>,
+    ) -> String {
         if let Some(serial) = serial_number {
             if !serial.is_empty() {
                 return format!("{} ({})", name, serial);
@@ -444,7 +448,10 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
                         None,
                     );
                     NativeDeviceInfo {
-                        id: format!("native:fujifilm:{}", info.serial_number.as_deref().unwrap_or(&info.name)),
+                        id: format!(
+                            "native:fujifilm:{}",
+                            info.serial_number.as_deref().unwrap_or(&info.name)
+                        ),
                         name: info.name,
                         vendor: NativeVendor::Fujifilm,
                         device_type: DeviceType::Camera,
@@ -544,7 +551,10 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
     }
     tracing::info!("LX200 discovery complete.");
 
-    tracing::info!("Native device discovery finished. Found {} total devices.", devices.len());
+    tracing::info!(
+        "Native device discovery finished. Found {} total devices.",
+        devices.len()
+    );
 
     // Cache the results for future calls
     {
@@ -567,7 +577,9 @@ pub async fn invalidate_discovery_cache() {
 }
 
 /// Discover devices of a specific type
-pub async fn discover_devices(device_type: DeviceType) -> Result<Vec<NativeDeviceInfo>, NativeError> {
+pub async fn discover_devices(
+    device_type: DeviceType,
+) -> Result<Vec<NativeDeviceInfo>, NativeError> {
     let all_devices = discover_all_devices().await?;
     Ok(all_devices
         .into_iter()
@@ -576,11 +588,12 @@ pub async fn discover_devices(device_type: DeviceType) -> Result<Vec<NativeDevic
 }
 
 /// Discover devices from a specific vendor
-pub async fn discover_vendor_devices(vendor: NativeVendor) -> Result<Vec<NativeDeviceInfo>, NativeError> {
+pub async fn discover_vendor_devices(
+    vendor: NativeVendor,
+) -> Result<Vec<NativeDeviceInfo>, NativeError> {
     let all_devices = discover_all_devices().await?;
     Ok(all_devices
         .into_iter()
         .filter(|d| d.vendor == vendor)
         .collect())
 }
-

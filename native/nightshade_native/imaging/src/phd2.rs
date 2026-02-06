@@ -276,7 +276,10 @@ pub enum Phd2Event {
     /// Settling started
     SettleBegin,
     /// Settling complete
-    SettleDone { total_frames: u32, dropped_frames: u32 },
+    SettleDone {
+        total_frames: u32,
+        dropped_frames: u32,
+    },
     /// Star lost
     StarLost,
     /// Star selected
@@ -387,7 +390,10 @@ impl Phd2Client {
 
     /// Get rolling guide statistics
     pub fn get_rolling_stats(&self) -> GuideStats {
-        self.rolling_stats.lock().map(|mut s| s.get_stats()).unwrap_or_default()
+        self.rolling_stats
+            .lock()
+            .map(|mut s| s.get_stats())
+            .unwrap_or_default()
     }
 
     /// Reset rolling guide statistics
@@ -399,7 +405,10 @@ impl Phd2Client {
 
     /// Get current connection state
     pub fn get_state(&self) -> Phd2State {
-        self.state.lock().map(|s| s.clone()).unwrap_or(Phd2State::Disconnected)
+        self.state
+            .lock()
+            .map(|s| s.clone())
+            .unwrap_or(Phd2State::Disconnected)
     }
 
     /// Set event callback
@@ -420,12 +429,14 @@ impl Phd2Client {
         let mut delay = self.config.initial_reconnect_delay_ms;
 
         for attempt in 1..=max_attempts {
-            self.reconnect_attempts.store(attempt, std::sync::atomic::Ordering::SeqCst);
+            self.reconnect_attempts
+                .store(attempt, std::sync::atomic::Ordering::SeqCst);
             tracing::info!("PHD2 reconnection attempt {}/{}", attempt, max_attempts);
 
             match self.connect() {
                 Ok(()) => {
-                    self.reconnect_attempts.store(0, std::sync::atomic::Ordering::SeqCst);
+                    self.reconnect_attempts
+                        .store(0, std::sync::atomic::Ordering::SeqCst);
                     tracing::info!("PHD2 reconnection successful");
                     return Ok(());
                 }
@@ -440,20 +451,27 @@ impl Phd2Client {
             }
         }
 
-        Err(format!("Failed to reconnect after {} attempts", max_attempts))
+        Err(format!(
+            "Failed to reconnect after {} attempts",
+            max_attempts
+        ))
     }
-    
+
     /// Connect to PHD2
     pub fn connect(&mut self) -> Result<(), String> {
         let addr = format!("{}:{}", self.host, self.port);
         tracing::info!("Connecting to PHD2 at {}", addr);
 
         let stream = TcpStream::connect_timeout(
-            &addr.parse().map_err(|e| format!("Invalid address: {}", e))?,
+            &addr
+                .parse()
+                .map_err(|e| format!("Invalid address: {}", e))?,
             Duration::from_secs(5),
-        ).map_err(|e| format!("Failed to connect to PHD2: {}", e))?;
+        )
+        .map_err(|e| format!("Failed to connect to PHD2: {}", e))?;
 
-        stream.set_read_timeout(Some(Duration::from_millis(100)))
+        stream
+            .set_read_timeout(Some(Duration::from_millis(100)))
             .map_err(|e| format!("Failed to set timeout: {}", e))?;
 
         self.stream = Some(stream);
@@ -532,14 +550,16 @@ impl Phd2Client {
                                     }
                                 }
 
-                                        // Call user callback
+                                // Call user callback
                                 if let Some(ref cb) = callback {
                                     tracing::trace!("PHD2: Calling event callback for {:?}", event);
                                     if let Ok(cb) = cb.lock() {
                                         cb(event);
                                     }
                                 } else {
-                                    tracing::warn!("PHD2: No event callback registered, dropping event");
+                                    tracing::warn!(
+                                        "PHD2: No event callback registered, dropping event"
+                                    );
                                 }
                             }
                         }
@@ -567,37 +587,47 @@ impl Phd2Client {
             }
         });
     }
-    
+
     /// Send a JSON-RPC request
-    fn send_request(&mut self, method: &str, params: Option<serde_json::Value>) -> Result<serde_json::Value, String> {
-        let stream = self.stream.as_mut()
+    fn send_request(
+        &mut self,
+        method: &str,
+        params: Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, String> {
+        let stream = self
+            .stream
+            .as_mut()
             .ok_or_else(|| "Not connected to PHD2".to_string())?;
-        
+
         self.request_id += 1;
         let request = JsonRpcRequest {
             method: method.to_string(),
             params,
             id: self.request_id,
         };
-        
+
         let json = serde_json::to_string(&request)
             .map_err(|e| format!("Failed to serialize request: {}", e))?;
-        
-        stream.write_all(json.as_bytes())
+
+        stream
+            .write_all(json.as_bytes())
             .map_err(|e| format!("Failed to send request: {}", e))?;
-        stream.write_all(b"\r\n")
+        stream
+            .write_all(b"\r\n")
             .map_err(|e| format!("Failed to send newline: {}", e))?;
-        stream.flush()
+        stream
+            .flush()
             .map_err(|e| format!("Failed to flush: {}", e))?;
-        
+
         // Read response (simplified - real impl would handle async)
         let mut reader = BufReader::new(stream.try_clone().unwrap());
         let mut response_line = String::new();
-        
+
         // Wait for response with timeout
-        stream.set_read_timeout(Some(Duration::from_secs(10)))
+        stream
+            .set_read_timeout(Some(Duration::from_secs(10)))
             .map_err(|e| format!("Failed to set timeout: {}", e))?;
-        
+
         loop {
             response_line.clear();
             match reader.read_line(&mut response_line) {
@@ -622,16 +652,16 @@ impl Phd2Client {
             }
         }
     }
-    
+
     // ========================================================================
     // PHD2 Commands
     // ========================================================================
-    
+
     /// Get PHD2 application state
     pub fn get_app_state(&mut self) -> Result<Phd2State, String> {
         let result = self.send_request("get_app_state", None)?;
         let state_str = result.as_str().unwrap_or("Unknown");
-        
+
         Ok(match state_str {
             "Stopped" => Phd2State::Connected,
             "Selected" => Phd2State::Connected,
@@ -643,21 +673,26 @@ impl Phd2Client {
             _ => Phd2State::Connected,
         })
     }
-    
+
     /// Get connected equipment
     pub fn get_connected(&mut self) -> Result<bool, String> {
         let result = self.send_request("get_connected", None)?;
         Ok(result.as_bool().unwrap_or(false))
     }
-    
+
     /// Connect PHD2 to equipment
     pub fn set_connected(&mut self, connected: bool) -> Result<(), String> {
         self.send_request("set_connected", Some(serde_json::json!(connected)))?;
         Ok(())
     }
-    
+
     /// Start guiding
-    pub fn guide(&mut self, settle_pixels: f64, settle_time: f64, settle_timeout: f64) -> Result<(), String> {
+    pub fn guide(
+        &mut self,
+        settle_pixels: f64,
+        settle_time: f64,
+        settle_timeout: f64,
+    ) -> Result<(), String> {
         let params = serde_json::json!({
             "settle": {
                 "pixels": settle_pixels,
@@ -668,21 +703,28 @@ impl Phd2Client {
         self.send_request("guide", Some(params))?;
         Ok(())
     }
-    
+
     /// Stop guiding
     pub fn stop_capture(&mut self) -> Result<(), String> {
         self.send_request("stop_capture", None)?;
         Ok(())
     }
-    
+
     /// Pause guiding
     pub fn set_paused(&mut self, paused: bool) -> Result<(), String> {
         self.send_request("set_paused", Some(serde_json::json!([paused, "full"])))?;
         Ok(())
     }
-    
+
     /// Dither the guide star
-    pub fn dither(&mut self, amount: f64, ra_only: bool, settle_pixels: f64, settle_time: f64, settle_timeout: f64) -> Result<(), String> {
+    pub fn dither(
+        &mut self,
+        amount: f64,
+        ra_only: bool,
+        settle_pixels: f64,
+        settle_time: f64,
+        settle_timeout: f64,
+    ) -> Result<(), String> {
         let params = serde_json::json!({
             "amount": amount,
             "raOnly": ra_only,
@@ -695,55 +737,56 @@ impl Phd2Client {
         self.send_request("dither", Some(params))?;
         Ok(())
     }
-    
+
     /// Set lock position (guide star position)
     pub fn set_lock_position(&mut self, x: f64, y: f64, exact: bool) -> Result<(), String> {
         self.send_request("set_lock_position", Some(serde_json::json!([x, y, exact])))?;
         Ok(())
     }
-    
+
     /// Clear calibration
     pub fn clear_calibration(&mut self, which: &str) -> Result<(), String> {
         self.send_request("clear_calibration", Some(serde_json::json!(which)))?;
         Ok(())
     }
-    
+
     /// Flip calibration (after meridian flip)
     pub fn flip_calibration(&mut self) -> Result<(), String> {
         self.send_request("flip_calibration", None)?;
         Ok(())
     }
-    
+
     /// Get current guide star position
     pub fn get_lock_position(&mut self) -> Result<(f64, f64), String> {
         let result = self.send_request("get_lock_position", None)?;
-        let arr = result.as_array()
+        let arr = result
+            .as_array()
             .ok_or_else(|| "Invalid response".to_string())?;
-        
+
         let x = arr.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
         let y = arr.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0);
-        
+
         Ok((x, y))
     }
-    
+
     /// Get exposure time
     pub fn get_exposure(&mut self) -> Result<u32, String> {
         let result = self.send_request("get_exposure", None)?;
         Ok(result.as_u64().unwrap_or(0) as u32)
     }
-    
+
     /// Set exposure time (milliseconds)
     pub fn set_exposure(&mut self, exposure_ms: u32) -> Result<(), String> {
         self.send_request("set_exposure", Some(serde_json::json!(exposure_ms)))?;
         Ok(())
     }
-    
+
     /// Get pixel scale (arcsec/pixel)
     pub fn get_pixel_scale(&mut self) -> Result<f64, String> {
         let result = self.send_request("get_pixel_scale", None)?;
         Ok(result.as_f64().unwrap_or(0.0))
     }
-    
+
     /// Get current star image (raw bytes only - deprecated, use get_star_image_data instead)
     pub fn get_star_image(&mut self) -> Result<Vec<u8>, String> {
         let data = self.get_star_image_data(32)?;
@@ -757,21 +800,14 @@ impl Phd2Client {
         let result = self.send_request("get_star_image", Some(params))?;
 
         // Parse response fields
-        let frame = result.get("frame")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u32;
+        let frame = result.get("frame").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
 
-        let width = result.get("width")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u32;
+        let width = result.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
 
-        let height = result.get("height")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as u32;
+        let height = result.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
 
         // star_pos is [x, y] array
-        let star_pos = result.get("star_pos")
-            .and_then(|v| v.as_array());
+        let star_pos = result.get("star_pos").and_then(|v| v.as_array());
         let (star_x, star_y) = match star_pos {
             Some(arr) => {
                 let x = arr.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -782,7 +818,8 @@ impl Phd2Client {
         };
 
         // Decode base64 pixel data
-        let pixels_b64 = result.get("pixels")
+        let pixels_b64 = result
+            .get("pixels")
             .and_then(|v| v.as_str())
             .ok_or_else(|| "No pixel data in response".to_string())?;
         let pixels = base64_decode(pixels_b64)?;
@@ -796,17 +833,18 @@ impl Phd2Client {
             pixels,
         })
     }
-    
+
     /// Loop exposures (without guiding)
     pub fn loop_exposures(&mut self) -> Result<(), String> {
         self.send_request("loop", None)?;
         Ok(())
     }
-    
+
     /// Find a guide star automatically
     pub fn find_star(&mut self) -> Result<(f64, f64), String> {
         let result = self.send_request("find_star", None)?;
-        let arr = result.as_array()
+        let arr = result
+            .as_array()
             .ok_or_else(|| "Invalid response".to_string())?;
 
         let x = arr.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0);
@@ -825,10 +863,12 @@ impl Phd2Client {
         let params = serde_json::json!({ "axis": axis });
         let result = self.send_request("get_algo_param_names", Some(params))?;
 
-        let arr = result.as_array()
+        let arr = result
+            .as_array()
             .ok_or_else(|| "Invalid response: expected array".to_string())?;
 
-        let names: Vec<String> = arr.iter()
+        let names: Vec<String> = arr
+            .iter()
             .filter_map(|v| v.as_str().map(|s| s.to_string()))
             .collect();
 
@@ -845,7 +885,8 @@ impl Phd2Client {
         });
         let result = self.send_request("get_algo_param", Some(params))?;
 
-        result.as_f64()
+        result
+            .as_f64()
             .ok_or_else(|| format!("Invalid response for parameter {}: expected number", name))
     }
 
@@ -864,7 +905,10 @@ impl Phd2Client {
         // Result should be 0 on success
         let code = result.as_i64().unwrap_or(-1);
         if code != 0 {
-            return Err(format!("Failed to set parameter {}: error code {}", name, code));
+            return Err(format!(
+                "Failed to set parameter {}: error code {}",
+                name, code
+            ));
         }
 
         Ok(())
@@ -877,10 +921,7 @@ impl Phd2Client {
 
         for name in names {
             let value = self.get_algo_param(axis, &name)?;
-            params.push(AlgoParam {
-                name,
-                value,
-            });
+            params.push(AlgoParam { name, value });
         }
 
         Ok(params)
@@ -901,7 +942,8 @@ impl Phd2Client {
     /// Get current camera frame dimensions
     pub fn get_camera_frame_size(&mut self) -> Result<(u32, u32), String> {
         let result = self.send_request("get_camera_frame_size", None)?;
-        let arr = result.as_array()
+        let arr = result
+            .as_array()
             .ok_or_else(|| "Invalid response".to_string())?;
 
         let width = arr.get(0).and_then(|v| v.as_u64()).unwrap_or(0) as u32;
@@ -925,7 +967,8 @@ impl Phd2Client {
     /// Get current profile name
     pub fn get_profile(&mut self) -> Result<String, String> {
         let result = self.send_request("get_profile", None)?;
-        let profile = result.get("name")
+        let profile = result
+            .get("name")
             .and_then(|v| v.as_str())
             .unwrap_or("Unknown");
         Ok(profile.to_string())
@@ -946,21 +989,48 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
             Some(Phd2Event::GuideStep(GuideFrame {
                 frame: extra.get("Frame").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
                 timestamp: msg.timestamp.unwrap_or(0.0),
-                ra_distance: extra.get("RADistanceRaw").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                dec_distance: extra.get("DECDistanceRaw").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                ra_duration: extra.get("RADuration").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
-                dec_duration: extra.get("DECDuration").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
-                ra_direction: extra.get("RADirection").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                dec_direction: extra.get("DECDirection").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                ra_distance: extra
+                    .get("RADistanceRaw")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0),
+                dec_distance: extra
+                    .get("DECDistanceRaw")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0),
+                ra_duration: extra
+                    .get("RADuration")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0) as i32,
+                dec_duration: extra
+                    .get("DECDuration")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0) as i32,
+                ra_direction: extra
+                    .get("RADirection")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                dec_direction: extra
+                    .get("DECDirection")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string(),
                 snr: extra.get("SNR").and_then(|v| v.as_f64()).unwrap_or(0.0),
-                star_mass: extra.get("StarMass").and_then(|v| v.as_f64()).unwrap_or(0.0),
+                star_mass: extra
+                    .get("StarMass")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0),
                 star_x: extra.get("StarX").and_then(|v| v.as_f64()).unwrap_or(0.0),
                 star_y: extra.get("StarY").and_then(|v| v.as_f64()).unwrap_or(0.0),
                 avg_dist: extra.get("AvgDist").and_then(|v| v.as_f64()).unwrap_or(0.0),
             }))
         }
         "AppState" => {
-            let state_str = msg.extra.get("State").and_then(|v| v.as_str()).unwrap_or("");
+            let state_str = msg
+                .extra
+                .get("State")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
             let state = match state_str {
                 "Stopped" => Phd2State::Connected,
                 "Selected" => Phd2State::Connected,
@@ -989,14 +1059,38 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
         "SettleBegin" => Some(Phd2Event::SettleBegin),
         "Settling" => Some(Phd2Event::StateChanged(Phd2State::Settling)),
         "SettleDone" => {
-            let total = msg.extra.get("TotalFrames").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-            let dropped = msg.extra.get("DroppedFrames").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-            Some(Phd2Event::SettleDone { total_frames: total, dropped_frames: dropped })
+            let total = msg
+                .extra
+                .get("TotalFrames")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            let dropped = msg
+                .extra
+                .get("DroppedFrames")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0) as u32;
+            Some(Phd2Event::SettleDone {
+                total_frames: total,
+                dropped_frames: dropped,
+            })
         }
         "Alert" => {
-            let message = msg.extra.get("Msg").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let alert_type = msg.extra.get("Type").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            Some(Phd2Event::Alert { message, alert_type })
+            let message = msg
+                .extra
+                .get("Msg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let alert_type = msg
+                .extra
+                .get("Type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            Some(Phd2Event::Alert {
+                message,
+                alert_type,
+            })
         }
         _ => None,
     }
@@ -1005,31 +1099,33 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
 /// Simple base64 decoder
 fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    
+
     let input = input.trim().replace('\n', "").replace('\r', "");
     let mut output = Vec::with_capacity(input.len() * 3 / 4);
-    
+
     let mut buf = 0u32;
     let mut bits = 0;
-    
+
     for c in input.bytes() {
         if c == b'=' {
             break;
         }
-        
-        let val = ALPHABET.iter().position(|&x| x == c)
+
+        let val = ALPHABET
+            .iter()
+            .position(|&x| x == c)
             .ok_or_else(|| format!("Invalid base64 character: {}", c as char))?;
-        
+
         buf = (buf << 6) | (val as u32);
         bits += 6;
-        
+
         if bits >= 8 {
             bits -= 8;
             output.push((buf >> bits) as u8);
             buf &= (1 << bits) - 1;
         }
     }
-    
+
     Ok(output)
 }
 
@@ -1054,7 +1150,7 @@ pub fn is_phd2_installed() -> bool {
         let output = Command::new("reg")
             .args(&["query", "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PHD 2_is1", "/v", "InstallLocation"])
             .output();
-            
+
         match output {
             Ok(o) => o.status.success(),
             Err(_) => false,
@@ -1072,30 +1168,37 @@ pub fn launch_phd2() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
-        
+
         // Get install location
         let output = Command::new("reg")
             .args(&["query", "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PHD 2_is1", "/v", "InstallLocation"])
             .output()
             .map_err(|e| format!("Failed to query registry: {}", e))?;
-            
+
         if !output.status.success() {
             return Err("PHD2 not found in registry".to_string());
         }
-        
+
         let stdout = String::from_utf8_lossy(&output.stdout);
         // Parse path from output
-        let path_line = stdout.lines().find(|l| l.contains("InstallLocation")).ok_or("InstallLocation not found")?;
-        let path_part = path_line.split("REG_SZ").nth(1).ok_or("Invalid registry output")?.trim();
-        
+        let path_line = stdout
+            .lines()
+            .find(|l| l.contains("InstallLocation"))
+            .ok_or("InstallLocation not found")?;
+        let path_part = path_line
+            .split("REG_SZ")
+            .nth(1)
+            .ok_or("Invalid registry output")?
+            .trim();
+
         let exe_path = std::path::Path::new(path_part).join("phd2.exe");
-        
+
         tracing::info!("Launching PHD2 from: {:?}", exe_path);
-        
+
         Command::new(exe_path)
             .spawn()
             .map_err(|e| format!("Failed to launch PHD2: {}", e))?;
-            
+
         Ok(())
     }
     #[cfg(not(target_os = "windows"))]
@@ -1103,8 +1206,3 @@ pub fn launch_phd2() -> Result<(), String> {
         Err("Auto-launch not supported on this platform".to_string())
     }
 }
-
-
-
-
-

@@ -4,11 +4,11 @@
 //! This is an open-source library with cross-platform support.
 
 use crate::camera::{
-    CameraCapabilities, CameraState, CameraStatus, ExposureParams,
-    ImageData, ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
+    CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData, ImageMetadata,
+    ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
 };
 use crate::sync::fli_mutex;
-use crate::traits::{NativeCamera, NativeDevice, NativeError, NativeFocuser, NativeFilterWheel};
+use crate::traits::{NativeCamera, NativeDevice, NativeError, NativeFilterWheel, NativeFocuser};
 use crate::NativeVendor;
 use async_trait::async_trait;
 use std::ffi::{c_char, c_double, c_long, CStr, CString};
@@ -42,14 +42,29 @@ const FLI_CAMERA_DATA_READY: c_long = 0x80000000u32 as c_long;
 // SDK Function Pointers
 // =============================================================================
 
-type FLIOpen = unsafe extern "C" fn(dev: *mut FliDev, name: *const c_char, domain: c_long) -> c_long;
+type FLIOpen =
+    unsafe extern "C" fn(dev: *mut FliDev, name: *const c_char, domain: c_long) -> c_long;
 type FLIClose = unsafe extern "C" fn(dev: FliDev) -> c_long;
 type FLIGetModel = unsafe extern "C" fn(dev: FliDev, model: *mut c_char, len: usize) -> c_long;
-type FLIGetSerialString = unsafe extern "C" fn(dev: FliDev, serial: *mut c_char, len: usize) -> c_long;
-type FLIGetPixelSize = unsafe extern "C" fn(dev: FliDev, pixel_x: *mut c_double, pixel_y: *mut c_double) -> c_long;
-type FLIGetVisibleArea = unsafe extern "C" fn(dev: FliDev, ul_x: *mut c_long, ul_y: *mut c_long, lr_x: *mut c_long, lr_y: *mut c_long) -> c_long;
+type FLIGetSerialString =
+    unsafe extern "C" fn(dev: FliDev, serial: *mut c_char, len: usize) -> c_long;
+type FLIGetPixelSize =
+    unsafe extern "C" fn(dev: FliDev, pixel_x: *mut c_double, pixel_y: *mut c_double) -> c_long;
+type FLIGetVisibleArea = unsafe extern "C" fn(
+    dev: FliDev,
+    ul_x: *mut c_long,
+    ul_y: *mut c_long,
+    lr_x: *mut c_long,
+    lr_y: *mut c_long,
+) -> c_long;
 type FLISetExposureTime = unsafe extern "C" fn(dev: FliDev, exptime: c_long) -> c_long;
-type FLISetImageArea = unsafe extern "C" fn(dev: FliDev, ul_x: c_long, ul_y: c_long, lr_x: c_long, lr_y: c_long) -> c_long;
+type FLISetImageArea = unsafe extern "C" fn(
+    dev: FliDev,
+    ul_x: c_long,
+    ul_y: c_long,
+    lr_x: c_long,
+    lr_y: c_long,
+) -> c_long;
 type FLISetHBin = unsafe extern "C" fn(dev: FliDev, hbin: c_long) -> c_long;
 type FLISetVBin = unsafe extern "C" fn(dev: FliDev, vbin: c_long) -> c_long;
 type FLISetFrameType = unsafe extern "C" fn(dev: FliDev, frametype: c_long) -> c_long;
@@ -65,8 +80,20 @@ type FLIGetDeviceStatus = unsafe extern "C" fn(dev: FliDev, status: *mut c_long)
 type FLIGetLibVersion = unsafe extern "C" fn(ver: *mut c_char, len: usize) -> c_long;
 type FLICreateList = unsafe extern "C" fn(domain: c_long) -> c_long;
 type FLIDeleteList = unsafe extern "C" fn() -> c_long;
-type FLIListFirst = unsafe extern "C" fn(domain: *mut c_long, filename: *mut c_char, fnlen: usize, name: *mut c_char, namelen: usize) -> c_long;
-type FLIListNext = unsafe extern "C" fn(domain: *mut c_long, filename: *mut c_char, fnlen: usize, name: *mut c_char, namelen: usize) -> c_long;
+type FLIListFirst = unsafe extern "C" fn(
+    domain: *mut c_long,
+    filename: *mut c_char,
+    fnlen: usize,
+    name: *mut c_char,
+    namelen: usize,
+) -> c_long;
+type FLIListNext = unsafe extern "C" fn(
+    domain: *mut c_long,
+    filename: *mut c_char,
+    fnlen: usize,
+    name: *mut c_char,
+    namelen: usize,
+) -> c_long;
 type FLISetFilterPos = unsafe extern "C" fn(dev: FliDev, filter: c_long) -> c_long;
 type FLIGetFilterPos = unsafe extern "C" fn(dev: FliDev, filter: *mut c_long) -> c_long;
 type FLIGetFilterCount = unsafe extern "C" fn(dev: FliDev, filter: *mut c_long) -> c_long;
@@ -75,7 +102,8 @@ type FLIStepMotorAsync = unsafe extern "C" fn(dev: FliDev, steps: c_long) -> c_l
 type FLIGetStepperPosition = unsafe extern "C" fn(dev: FliDev, position: *mut c_long) -> c_long;
 type FLIGetStepsRemaining = unsafe extern "C" fn(dev: FliDev, steps: *mut c_long) -> c_long;
 type FLIGetFocuserExtent = unsafe extern "C" fn(dev: FliDev, extent: *mut c_long) -> c_long;
-type FLIReadTemperature = unsafe extern "C" fn(dev: FliDev, channel: c_long, temperature: *mut c_double) -> c_long;
+type FLIReadTemperature =
+    unsafe extern "C" fn(dev: FliDev, channel: c_long, temperature: *mut c_double) -> c_long;
 type FLIEndExposure = unsafe extern "C" fn(dev: FliDev) -> c_long;
 
 /// FLI SDK wrapper with dynamically loaded functions
@@ -134,76 +162,168 @@ impl FliSdk {
 
         unsafe {
             Ok(Self {
-                open: *library.get::<FLIOpen>(b"FLIOpen\0")
+                open: *library
+                    .get::<FLIOpen>(b"FLIOpen\0")
                     .map_err(|e| NativeError::SdkError(format!("Failed to load FLIOpen: {}", e)))?,
-                close: *library.get::<FLIClose>(b"FLIClose\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIClose: {}", e)))?,
-                get_model: *library.get::<FLIGetModel>(b"FLIGetModel\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetModel: {}", e)))?,
-                get_serial_string: *library.get::<FLIGetSerialString>(b"FLIGetSerialString\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetSerialString: {}", e)))?,
-                get_pixel_size: *library.get::<FLIGetPixelSize>(b"FLIGetPixelSize\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetPixelSize: {}", e)))?,
-                get_visible_area: *library.get::<FLIGetVisibleArea>(b"FLIGetVisibleArea\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetVisibleArea: {}", e)))?,
-                set_exposure_time: *library.get::<FLISetExposureTime>(b"FLISetExposureTime\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLISetExposureTime: {}", e)))?,
-                set_image_area: *library.get::<FLISetImageArea>(b"FLISetImageArea\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLISetImageArea: {}", e)))?,
-                set_hbin: *library.get::<FLISetHBin>(b"FLISetHBin\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLISetHBin: {}", e)))?,
-                set_vbin: *library.get::<FLISetVBin>(b"FLISetVBin\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLISetVBin: {}", e)))?,
-                set_frame_type: *library.get::<FLISetFrameType>(b"FLISetFrameType\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLISetFrameType: {}", e)))?,
-                expose_frame: *library.get::<FLIExposeFrame>(b"FLIExposeFrame\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIExposeFrame: {}", e)))?,
-                cancel_exposure: *library.get::<FLICancelExposure>(b"FLICancelExposure\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLICancelExposure: {}", e)))?,
-                get_exposure_status: *library.get::<FLIGetExposureStatus>(b"FLIGetExposureStatus\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetExposureStatus: {}", e)))?,
-                set_temperature: *library.get::<FLISetTemperature>(b"FLISetTemperature\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLISetTemperature: {}", e)))?,
-                get_temperature: *library.get::<FLIGetTemperature>(b"FLIGetTemperature\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetTemperature: {}", e)))?,
-                get_cooler_power: *library.get::<FLIGetCoolerPower>(b"FLIGetCoolerPower\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetCoolerPower: {}", e)))?,
-                grab_row: *library.get::<FLIGrabRow>(b"FLIGrabRow\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGrabRow: {}", e)))?,
-                set_bit_depth: *library.get::<FLISetBitDepth>(b"FLISetBitDepth\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLISetBitDepth: {}", e)))?,
-                get_device_status: *library.get::<FLIGetDeviceStatus>(b"FLIGetDeviceStatus\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetDeviceStatus: {}", e)))?,
-                get_lib_version: *library.get::<FLIGetLibVersion>(b"FLIGetLibVersion\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetLibVersion: {}", e)))?,
-                create_list: *library.get::<FLICreateList>(b"FLICreateList\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLICreateList: {}", e)))?,
-                delete_list: *library.get::<FLIDeleteList>(b"FLIDeleteList\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIDeleteList: {}", e)))?,
-                list_first: *library.get::<FLIListFirst>(b"FLIListFirst\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIListFirst: {}", e)))?,
-                list_next: *library.get::<FLIListNext>(b"FLIListNext\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIListNext: {}", e)))?,
-                set_filter_pos: *library.get::<FLISetFilterPos>(b"FLISetFilterPos\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLISetFilterPos: {}", e)))?,
-                get_filter_pos: *library.get::<FLIGetFilterPos>(b"FLIGetFilterPos\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetFilterPos: {}", e)))?,
-                get_filter_count: *library.get::<FLIGetFilterCount>(b"FLIGetFilterCount\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetFilterCount: {}", e)))?,
-                step_motor: *library.get::<FLIStepMotor>(b"FLIStepMotor\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIStepMotor: {}", e)))?,
-                step_motor_async: *library.get::<FLIStepMotorAsync>(b"FLIStepMotorAsync\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIStepMotorAsync: {}", e)))?,
-                get_stepper_position: *library.get::<FLIGetStepperPosition>(b"FLIGetStepperPosition\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetStepperPosition: {}", e)))?,
-                get_steps_remaining: *library.get::<FLIGetStepsRemaining>(b"FLIGetStepsRemaining\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetStepsRemaining: {}", e)))?,
-                get_focuser_extent: *library.get::<FLIGetFocuserExtent>(b"FLIGetFocuserExtent\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIGetFocuserExtent: {}", e)))?,
-                read_temperature: *library.get::<FLIReadTemperature>(b"FLIReadTemperature\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIReadTemperature: {}", e)))?,
-                end_exposure: *library.get::<FLIEndExposure>(b"FLIEndExposure\0")
-                    .map_err(|e| NativeError::SdkError(format!("Failed to load FLIEndExposure: {}", e)))?,
+                close: *library.get::<FLIClose>(b"FLIClose\0").map_err(|e| {
+                    NativeError::SdkError(format!("Failed to load FLIClose: {}", e))
+                })?,
+                get_model: *library.get::<FLIGetModel>(b"FLIGetModel\0").map_err(|e| {
+                    NativeError::SdkError(format!("Failed to load FLIGetModel: {}", e))
+                })?,
+                get_serial_string: *library
+                    .get::<FLIGetSerialString>(b"FLIGetSerialString\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetSerialString: {}", e))
+                    })?,
+                get_pixel_size: *library
+                    .get::<FLIGetPixelSize>(b"FLIGetPixelSize\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetPixelSize: {}", e))
+                    })?,
+                get_visible_area: *library
+                    .get::<FLIGetVisibleArea>(b"FLIGetVisibleArea\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetVisibleArea: {}", e))
+                    })?,
+                set_exposure_time: *library
+                    .get::<FLISetExposureTime>(b"FLISetExposureTime\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLISetExposureTime: {}", e))
+                    })?,
+                set_image_area: *library
+                    .get::<FLISetImageArea>(b"FLISetImageArea\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLISetImageArea: {}", e))
+                    })?,
+                set_hbin: *library.get::<FLISetHBin>(b"FLISetHBin\0").map_err(|e| {
+                    NativeError::SdkError(format!("Failed to load FLISetHBin: {}", e))
+                })?,
+                set_vbin: *library.get::<FLISetVBin>(b"FLISetVBin\0").map_err(|e| {
+                    NativeError::SdkError(format!("Failed to load FLISetVBin: {}", e))
+                })?,
+                set_frame_type: *library
+                    .get::<FLISetFrameType>(b"FLISetFrameType\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLISetFrameType: {}", e))
+                    })?,
+                expose_frame: *library
+                    .get::<FLIExposeFrame>(b"FLIExposeFrame\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIExposeFrame: {}", e))
+                    })?,
+                cancel_exposure: *library
+                    .get::<FLICancelExposure>(b"FLICancelExposure\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLICancelExposure: {}", e))
+                    })?,
+                get_exposure_status: *library
+                    .get::<FLIGetExposureStatus>(b"FLIGetExposureStatus\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetExposureStatus: {}", e))
+                    })?,
+                set_temperature: *library
+                    .get::<FLISetTemperature>(b"FLISetTemperature\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLISetTemperature: {}", e))
+                    })?,
+                get_temperature: *library
+                    .get::<FLIGetTemperature>(b"FLIGetTemperature\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetTemperature: {}", e))
+                    })?,
+                get_cooler_power: *library
+                    .get::<FLIGetCoolerPower>(b"FLIGetCoolerPower\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetCoolerPower: {}", e))
+                    })?,
+                grab_row: *library.get::<FLIGrabRow>(b"FLIGrabRow\0").map_err(|e| {
+                    NativeError::SdkError(format!("Failed to load FLIGrabRow: {}", e))
+                })?,
+                set_bit_depth: *library.get::<FLISetBitDepth>(b"FLISetBitDepth\0").map_err(
+                    |e| NativeError::SdkError(format!("Failed to load FLISetBitDepth: {}", e)),
+                )?,
+                get_device_status: *library
+                    .get::<FLIGetDeviceStatus>(b"FLIGetDeviceStatus\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetDeviceStatus: {}", e))
+                    })?,
+                get_lib_version: *library
+                    .get::<FLIGetLibVersion>(b"FLIGetLibVersion\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetLibVersion: {}", e))
+                    })?,
+                create_list: *library
+                    .get::<FLICreateList>(b"FLICreateList\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLICreateList: {}", e))
+                    })?,
+                delete_list: *library
+                    .get::<FLIDeleteList>(b"FLIDeleteList\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIDeleteList: {}", e))
+                    })?,
+                list_first: *library
+                    .get::<FLIListFirst>(b"FLIListFirst\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIListFirst: {}", e))
+                    })?,
+                list_next: *library.get::<FLIListNext>(b"FLIListNext\0").map_err(|e| {
+                    NativeError::SdkError(format!("Failed to load FLIListNext: {}", e))
+                })?,
+                set_filter_pos: *library
+                    .get::<FLISetFilterPos>(b"FLISetFilterPos\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLISetFilterPos: {}", e))
+                    })?,
+                get_filter_pos: *library
+                    .get::<FLIGetFilterPos>(b"FLIGetFilterPos\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetFilterPos: {}", e))
+                    })?,
+                get_filter_count: *library
+                    .get::<FLIGetFilterCount>(b"FLIGetFilterCount\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetFilterCount: {}", e))
+                    })?,
+                step_motor: *library
+                    .get::<FLIStepMotor>(b"FLIStepMotor\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIStepMotor: {}", e))
+                    })?,
+                step_motor_async: *library
+                    .get::<FLIStepMotorAsync>(b"FLIStepMotorAsync\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIStepMotorAsync: {}", e))
+                    })?,
+                get_stepper_position: *library
+                    .get::<FLIGetStepperPosition>(b"FLIGetStepperPosition\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "Failed to load FLIGetStepperPosition: {}",
+                            e
+                        ))
+                    })?,
+                get_steps_remaining: *library
+                    .get::<FLIGetStepsRemaining>(b"FLIGetStepsRemaining\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetStepsRemaining: {}", e))
+                    })?,
+                get_focuser_extent: *library
+                    .get::<FLIGetFocuserExtent>(b"FLIGetFocuserExtent\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIGetFocuserExtent: {}", e))
+                    })?,
+                read_temperature: *library
+                    .get::<FLIReadTemperature>(b"FLIReadTemperature\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIReadTemperature: {}", e))
+                    })?,
+                end_exposure: *library
+                    .get::<FLIEndExposure>(b"FLIEndExposure\0")
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Failed to load FLIEndExposure: {}", e))
+                    })?,
                 _library: library,
             })
         }
@@ -269,7 +389,10 @@ pub async fn discover_filter_wheels() -> Result<Vec<FliDiscoveryInfo>, NativeErr
     discover_devices_by_type(FLIDEVICE_FILTERWHEEL, FliDeviceType::FilterWheel).await
 }
 
-async fn discover_devices_by_type(device_flag: c_long, device_type: FliDeviceType) -> Result<Vec<FliDiscoveryInfo>, NativeError> {
+async fn discover_devices_by_type(
+    device_flag: c_long,
+    device_type: FliDeviceType,
+) -> Result<Vec<FliDiscoveryInfo>, NativeError> {
     let sdk = match get_sdk() {
         Ok(sdk) => sdk,
         Err(_) => return Ok(Vec::new()),
@@ -318,11 +441,18 @@ async fn discover_devices_by_type(device_flag: c_long, device_type: FliDeviceTyp
 
             if unsafe { (sdk.open)(&mut dev, path_cstr.as_ptr(), domain) } == 0 {
                 let mut serial_buf = [0i8; 64];
-                let serial = if unsafe { (sdk.get_serial_string)(dev, serial_buf.as_mut_ptr(), serial_buf.len()) } == 0 {
+                let serial = if unsafe {
+                    (sdk.get_serial_string)(dev, serial_buf.as_mut_ptr(), serial_buf.len())
+                } == 0
+                {
                     let s = unsafe { CStr::from_ptr(serial_buf.as_ptr()) }
                         .to_string_lossy()
                         .to_string();
-                    if s.is_empty() { None } else { Some(s) }
+                    if s.is_empty() {
+                        None
+                    } else {
+                        Some(s)
+                    }
                 } else {
                     None
                 };
@@ -478,11 +608,16 @@ impl NativeDevice for FliCamera {
         let _lock = fli_mutex().lock().await;
 
         // Open device
-        let path_cstr = CString::new(self.device_path.clone())
-            .map_err(|_| {
-                tracing::error!("FLI camera device path contains null bytes: '{}'", self.device_path);
-                NativeError::SdkError(format!("Invalid device path '{}' contains null bytes", self.device_path))
-            })?;
+        let path_cstr = CString::new(self.device_path.clone()).map_err(|_| {
+            tracing::error!(
+                "FLI camera device path contains null bytes: '{}'",
+                self.device_path
+            );
+            NativeError::SdkError(format!(
+                "Invalid device path '{}' contains null bytes",
+                self.device_path
+            ))
+        })?;
         let domain = FLIDOMAIN_USB | FLIDEVICE_CAMERA;
 
         let result = unsafe { (sdk.open)(&mut self.handle, path_cstr.as_ptr(), domain) };
@@ -515,7 +650,9 @@ impl NativeDevice for FliCamera {
         let mut ul_y: c_long = 0;
         let mut lr_x: c_long = 0;
         let mut lr_y: c_long = 0;
-        let result = unsafe { (sdk.get_visible_area)(self.handle, &mut ul_x, &mut ul_y, &mut lr_x, &mut lr_y) };
+        let result = unsafe {
+            (sdk.get_visible_area)(self.handle, &mut ul_x, &mut ul_y, &mut lr_x, &mut lr_y)
+        };
         check_fli_error(result, "get visible area")?;
 
         self.visible_ul_x = ul_x as i32;
@@ -540,7 +677,7 @@ impl NativeDevice for FliCamera {
 
         // Set capabilities
         self.capabilities = CameraCapabilities {
-            can_cool: true, // FLI cameras typically have cooling
+            can_cool: true,      // FLI cameras typically have cooling
             can_set_gain: false, // FLI doesn't expose gain control
             can_set_offset: false,
             can_set_binning: true,
@@ -746,11 +883,15 @@ impl NativeCamera for FliCamera {
 
         // Calculate image dimensions based on subframe and binning
         let (width, height) = if let Some(sf) = &self.subframe {
-            (sf.width as usize / self.current_bin_x as usize,
-             sf.height as usize / self.current_bin_y as usize)
+            (
+                sf.width as usize / self.current_bin_x as usize,
+                sf.height as usize / self.current_bin_y as usize,
+            )
         } else {
-            ((self.visible_lr_x - self.visible_ul_x) as usize / self.current_bin_x as usize,
-             (self.visible_lr_y - self.visible_ul_y) as usize / self.current_bin_y as usize)
+            (
+                (self.visible_lr_x - self.visible_ul_x) as usize / self.current_bin_x as usize,
+                (self.visible_lr_y - self.visible_ul_y) as usize / self.current_bin_y as usize,
+            )
         };
 
         // Allocate buffer (16-bit = 2 bytes per pixel)
@@ -941,7 +1082,13 @@ impl NativeCamera for FliCamera {
         };
 
         let result = unsafe {
-            (sdk.set_image_area)(self.handle, ul_x as c_long, ul_y as c_long, lr_x as c_long, lr_y as c_long)
+            (sdk.set_image_area)(
+                self.handle,
+                ul_x as c_long,
+                ul_y as c_long,
+                lr_x as c_long,
+                lr_y as c_long,
+            )
         };
         check_fli_error(result, "set image area")?;
 
@@ -1058,18 +1205,24 @@ impl NativeDevice for FliFocuser {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
-        let path_cstr = CString::new(self.device_path.clone())
-            .map_err(|_| {
-                tracing::error!("FLI focuser device path contains null bytes: '{}'", self.device_path);
-                NativeError::SdkError(format!("Invalid device path '{}' contains null bytes", self.device_path))
-            })?;
+        let path_cstr = CString::new(self.device_path.clone()).map_err(|_| {
+            tracing::error!(
+                "FLI focuser device path contains null bytes: '{}'",
+                self.device_path
+            );
+            NativeError::SdkError(format!(
+                "Invalid device path '{}' contains null bytes",
+                self.device_path
+            ))
+        })?;
         let domain = FLIDOMAIN_USB | FLIDEVICE_FOCUSER;
 
         let result = unsafe { (sdk.open)(&mut self.handle, path_cstr.as_ptr(), domain) };
         if result != 0 {
             tracing::error!(
                 "FLI Open() failed for focuser at '{}'. Error code: {}. Check USB connection.",
-                self.device_path, result
+                self.device_path,
+                result
             );
             return Err(NativeError::SdkError(format!(
                 "Failed to open FLI focuser at '{}'. SDK error: {}",
@@ -1307,18 +1460,24 @@ impl NativeDevice for FliFilterWheel {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
-        let path_cstr = CString::new(self.device_path.clone())
-            .map_err(|_| {
-                tracing::error!("FLI filter wheel device path contains null bytes: '{}'", self.device_path);
-                NativeError::SdkError(format!("Invalid device path '{}' contains null bytes", self.device_path))
-            })?;
+        let path_cstr = CString::new(self.device_path.clone()).map_err(|_| {
+            tracing::error!(
+                "FLI filter wheel device path contains null bytes: '{}'",
+                self.device_path
+            );
+            NativeError::SdkError(format!(
+                "Invalid device path '{}' contains null bytes",
+                self.device_path
+            ))
+        })?;
         let domain = FLIDOMAIN_USB | FLIDEVICE_FILTERWHEEL;
 
         let result = unsafe { (sdk.open)(&mut self.handle, path_cstr.as_ptr(), domain) };
         if result != 0 {
             tracing::error!(
                 "FLI Open() failed for filter wheel at '{}'. Error code: {}. Check USB connection.",
-                self.device_path, result
+                self.device_path,
+                result
             );
             return Err(NativeError::SdkError(format!(
                 "Failed to open FLI filter wheel at '{}'. SDK error: {}",
@@ -1341,7 +1500,11 @@ impl NativeDevice for FliFilterWheel {
         }
 
         self.connected = true;
-        tracing::info!("Connected to FLI filter wheel: {} ({} positions)", self.name, self.filter_count);
+        tracing::info!(
+            "Connected to FLI filter wheel: {} ({} positions)",
+            self.name,
+            self.filter_count
+        );
 
         Ok(())
     }
@@ -1394,7 +1557,8 @@ impl NativeFilterWheel for FliFilterWheel {
         if position < 0 || position >= self.filter_count {
             return Err(NativeError::InvalidParameter(format!(
                 "Invalid filter position: {} (max {})",
-                position, self.filter_count - 1
+                position,
+                self.filter_count - 1
             )));
         }
 
