@@ -492,14 +492,29 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       final activeProfile = _ref.read(activeEquipmentProfileProvider);
       if (activeProfile != null && activeProfile.filterNames.isNotEmpty) {
         final profileFilterNames = activeProfile.filterNames;
-        debugPrint('FilterWheelStateNotifier: Syncing ${profileFilterNames.length} filter names from profile: $profileFilterNames');
+        final driverNames = state.filterNames;
+        debugPrint('FilterWheelStateNotifier: Profile has ${profileFilterNames.length} names, driver has ${driverNames.length} slots');
+
+        // Pad profile names to match the wheel's actual slot count so no slots are lost
+        final List<String> syncedNames;
+        if (profileFilterNames.length < driverNames.length) {
+          syncedNames = [
+            ...profileFilterNames,
+            ...driverNames.sublist(profileFilterNames.length),
+          ];
+          debugPrint('FilterWheelStateNotifier: Padded profile names to ${syncedNames.length}: $syncedNames');
+        } else {
+          syncedNames = profileFilterNames.length > driverNames.length
+              ? profileFilterNames.sublist(0, driverNames.length)
+              : profileFilterNames;
+        }
 
         await bridge_api.apiFilterwheelSetFilterNames(
           deviceId: deviceId,
-          names: profileFilterNames,
+          names: syncedNames,
         );
 
-        state = state.copyWith(filterNames: profileFilterNames);
+        state = state.copyWith(filterNames: syncedNames);
         debugPrint('FilterWheelStateNotifier: Profile filter names synced successfully');
         return;
       }
@@ -507,14 +522,28 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
       // Priority 2: Check session filter names
       final sessionFilterNames = _ref.read(sessionFilterNamesProvider);
       if (sessionFilterNames != null && sessionFilterNames.isNotEmpty) {
-        debugPrint('FilterWheelStateNotifier: Syncing ${sessionFilterNames.length} filter names from session: $sessionFilterNames');
+        final driverNames = state.filterNames;
+        debugPrint('FilterWheelStateNotifier: Session has ${sessionFilterNames.length} names, driver has ${driverNames.length} slots');
+
+        // Pad session names to match the wheel's actual slot count
+        final List<String> syncedNames;
+        if (sessionFilterNames.length < driverNames.length) {
+          syncedNames = [
+            ...sessionFilterNames,
+            ...driverNames.sublist(sessionFilterNames.length),
+          ];
+        } else {
+          syncedNames = sessionFilterNames.length > driverNames.length
+              ? sessionFilterNames.sublist(0, driverNames.length)
+              : sessionFilterNames;
+        }
 
         await bridge_api.apiFilterwheelSetFilterNames(
           deviceId: deviceId,
-          names: sessionFilterNames,
+          names: syncedNames,
         );
 
-        state = state.copyWith(filterNames: sessionFilterNames);
+        state = state.copyWith(filterNames: syncedNames);
         debugPrint('FilterWheelStateNotifier: Session filter names synced successfully');
         return;
       }
