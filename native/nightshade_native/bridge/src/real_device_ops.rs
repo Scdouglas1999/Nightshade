@@ -2838,57 +2838,34 @@ impl DeviceOps for RealDeviceOps {
     }
 
     async fn safety_is_safe(&self, safety_id: Option<&str>) -> DeviceResult<bool> {
-        // If no safety monitor configured, assume safe (fail-open for usability)
+        // Resolve safety source from explicit ID or active profile.
+        // Return errors when unresolved so sequencer fail-mode can decide policy.
         let device_id = match safety_id {
             Some(id) => id.to_string(),
-            None => {
-                // Try to get from profile
-                match self.get_device_id(crate::device::DeviceType::Weather) {
-                    Some(id) => id,
-                    None => {
-                        tracing::debug!("No safety monitor configured, assuming safe");
-                        return Ok(true);
-                    }
+            None => match self.get_device_id(crate::device::DeviceType::Weather) {
+                Some(id) => id,
+                None => {
+                    return Err(
+                        "No safety/weather device configured for sequencer safety checks"
+                            .to_string(),
+                    );
                 }
-            }
+            },
         };
 
         tracing::debug!("Checking safety status for device: {}", device_id);
 
-        // Alpaca Safety Monitor
-        if device_id.starts_with("alpaca:") {
-            let alpaca_info = parse_alpaca_device_id(&device_id)?;
-            let safety =
-                AlpacaSafetyMonitor::from_server(&alpaca_info.base_url, alpaca_info.device_num);
-
-            match safety.connect().await {
-                Ok(()) => {
-                    let is_safe = safety.is_safe().await.unwrap_or_else(|e| {
-                        tracing::warn!("Failed to get safety status: {}", e);
-                        true // Fail-open
-                    });
-                    safety.disconnect().await.ok();
-                    tracing::info!(
-                        "Safety monitor {} reports: {}",
-                        device_id,
-                        if is_safe { "SAFE" } else { "UNSAFE" }
-                    );
-                    return Ok(is_safe);
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to connect to safety monitor {}: {}", device_id, e);
-                    return Ok(true); // Fail-open
-                }
+        match get_device_manager().safety_is_safe(&device_id).await {
+            Ok(is_safe) => {
+                tracing::info!(
+                    "Safety monitor {} reports: {}",
+                    device_id,
+                    if is_safe { "SAFE" } else { "UNSAFE" }
+                );
+                Ok(is_safe)
             }
+            Err(e) => Err(format!("Safety check failed for {}: {}", device_id, e)),
         }
-
-        // INDI safety monitors are checked via the IndiSafetyMonitor wrapper
-        // For now, if we don't recognize the device type, assume safe
-        tracing::debug!(
-            "Unknown safety monitor type for {}, assuming safe",
-            device_id
-        );
-        Ok(true)
     }
 
     // =========================================================================

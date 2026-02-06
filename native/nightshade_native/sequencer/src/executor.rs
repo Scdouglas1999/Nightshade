@@ -1,15 +1,18 @@
 //! Sequence execution engine
 
-use crate::{NodeId, NodeStatus, NodeType, SequenceDefinition, NodeDefinition, RecoveryAction, SafetyFailMode};
-use crate::node::{Node, RuntimeNode, ExecutionContext, ProgressUpdate};
 use crate::device_ops::SharedDeviceOps;
+use crate::node::{ExecutionContext, Node, ProgressUpdate, RuntimeNode};
 use crate::triggers::{TriggerManager, TriggerState};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::RwLock as StdRwLock;
-use tokio::sync::{mpsc, RwLock, broadcast};
+use crate::{
+    NodeDefinition, NodeId, NodeStatus, NodeType, RecoveryAction, SafetyFailMode,
+    SequenceDefinition,
+};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::sync::RwLock as StdRwLock;
+use tokio::sync::{broadcast, mpsc, RwLock};
 
 /// Commands that can be sent to the executor
 #[derive(Debug, Clone)]
@@ -78,17 +81,49 @@ impl Default for SequenceProgress {
 pub enum ExecutorEvent {
     StateChanged(ExecutorState),
     ProgressUpdated(SequenceProgress),
-    NodeStarted { id: NodeId, name: String },
-    NodeCompleted { id: NodeId, status: NodeStatus },
-    NodeProgress { node_id: NodeId, instruction: String, progress_percent: f64, detail: String },
-    ExposureStarted { frame: u32, total: u32, filter: Option<String> },
-    ExposureCompleted { frame: u32, total: u32 },
-    TargetStarted { name: String, ra: f64, dec: f64 },
-    TargetCompleted { name: String },
-    TriggerFired { trigger_id: String, trigger_name: String, action: String },
-    Error { message: String },
+    NodeStarted {
+        id: NodeId,
+        name: String,
+    },
+    NodeCompleted {
+        id: NodeId,
+        status: NodeStatus,
+    },
+    NodeProgress {
+        node_id: NodeId,
+        instruction: String,
+        progress_percent: f64,
+        detail: String,
+    },
+    ExposureStarted {
+        frame: u32,
+        total: u32,
+        filter: Option<String>,
+    },
+    ExposureCompleted {
+        frame: u32,
+        total: u32,
+    },
+    TargetStarted {
+        name: String,
+        ra: f64,
+        dec: f64,
+    },
+    TargetCompleted {
+        name: String,
+    },
+    TriggerFired {
+        trigger_id: String,
+        trigger_name: String,
+        action: String,
+    },
+    Error {
+        message: String,
+    },
     SequenceCompleted,
-    SequenceFailed { error: String },
+    SequenceFailed {
+        error: String,
+    },
 }
 
 /// The sequence executor manages running a sequence
@@ -133,7 +168,7 @@ impl SequenceExecutor {
         let (event_tx, _) = broadcast::channel(256);
         let mut trigger_manager = TriggerManager::new();
         trigger_manager.create_standard_triggers(); // Add default triggers
-        
+
         Self {
             sequence: None,
             state: Arc::new(RwLock::new(ExecutorState::Idle)),
@@ -170,23 +205,23 @@ impl SequenceExecutor {
     pub fn trigger_manager(&self) -> Arc<RwLock<TriggerManager>> {
         self.trigger_manager.clone()
     }
-    
+
     /// Enable or disable trigger monitoring
     pub fn set_triggers_enabled(&mut self, enabled: bool) {
         self.triggers_enabled = enabled;
     }
-    
+
     /// Update trigger state with current readings
-    pub async fn update_trigger_state<F>(&self, updater: F) 
-    where 
-        F: FnOnce(&mut TriggerState)
+    pub async fn update_trigger_state<F>(&self, updater: F)
+    where
+        F: FnOnce(&mut TriggerState),
     {
         let manager = self.trigger_manager.read().await;
         let state_lock = manager.state();
         let mut state = state_lock.write().await;
         updater(&mut state);
     }
-    
+
     /// Set the device operations handler
     /// This MUST be called before starting a sequence, otherwise start() will return an error.
     pub fn set_device_ops(&mut self, ops: SharedDeviceOps) {
@@ -197,9 +232,10 @@ impl SequenceExecutor {
     pub fn has_device_ops(&self) -> bool {
         self.device_ops.is_some()
     }
-    
+
     /// Set connected device IDs
-    pub fn set_devices(&mut self,
+    pub fn set_devices(
+        &mut self,
         camera: Option<String>,
         mount: Option<String>,
         focuser: Option<String>,
@@ -222,12 +258,12 @@ impl SequenceExecutor {
     pub fn set_cover_calibrator(&mut self, cover_calibrator_id: Option<String>) {
         self.cover_calibrator_id = cover_calibrator_id;
     }
-    
+
     /// Set save path for images
     pub fn set_save_path(&mut self, path: Option<std::path::PathBuf>) {
         self.save_path = path;
     }
-    
+
     /// Set observer location
     pub fn set_location(&mut self, lat: Option<f64>, lon: Option<f64>) {
         self.latitude = lat;
@@ -245,12 +281,20 @@ impl SequenceExecutor {
         let root_node = self.build_node_tree(&sequence)?;
 
         // Calculate totals
-        let (total_exposures, total_integration) = self.calculate_totals(&sequence);
+        let (total_exposures, total_integration, totals_indeterminate) =
+            self.calculate_totals(&sequence);
 
         {
             let mut progress = self.progress.write().unwrap();
-            progress.total_exposures = total_exposures;
-            progress.total_integration_secs = total_integration;
+            if totals_indeterminate {
+                // Unbounded loops (while-dark/forever/etc.) don't have a meaningful finite ETA.
+                progress.total_exposures = 0;
+                progress.total_integration_secs = 0.0;
+                progress.estimated_remaining_secs = None;
+            } else {
+                progress.total_exposures = total_exposures;
+                progress.total_integration_secs = total_integration;
+            }
         }
 
         self.sequence = Some(sequence);
@@ -262,16 +306,17 @@ impl SequenceExecutor {
     /// Build the node tree from the sequence definition
     fn build_node_tree(&self, sequence: &SequenceDefinition) -> Result<Box<dyn Node>, String> {
         // Create a map of nodes by ID
-        let node_map: HashMap<&str, &NodeDefinition> = sequence.nodes
-            .iter()
-            .map(|n| (n.id.as_str(), n))
-            .collect();
+        let node_map: HashMap<&str, &NodeDefinition> =
+            sequence.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
 
         // Find root node
-        let root_id = sequence.root_node_id.as_ref()
+        let root_id = sequence
+            .root_node_id
+            .as_ref()
             .ok_or("No root node specified")?;
-        
-        let root_def = node_map.get(root_id.as_str())
+
+        let root_def = node_map
+            .get(root_id.as_str())
             .ok_or_else(|| format!("Root node {} not found", root_id))?;
 
         // Recursively build the tree
@@ -281,19 +326,31 @@ impl SequenceExecutor {
         ) -> Box<dyn Node> {
             let mut node = RuntimeNode::from_definition(def.clone());
 
-            tracing::debug!("Building node '{}' (id={}) with {} children defined: {:?}",
-                def.name, def.id, def.children.len(), def.children);
+            tracing::debug!(
+                "Building node '{}' (id={}) with {} children defined: {:?}",
+                def.name,
+                def.id,
+                def.children.len(),
+                def.children
+            );
 
             // Add children recursively
             for child_id in &def.children {
                 if let Some(child_def) = node_map.get(child_id.as_str()) {
-                    tracing::debug!("  Adding child '{}' (id={}) to '{}'",
-                        child_def.name, child_def.id, def.name);
+                    tracing::debug!(
+                        "  Adding child '{}' (id={}) to '{}'",
+                        child_def.name,
+                        child_def.id,
+                        def.name
+                    );
                     let child = build_node(child_def, node_map);
                     node.add_child(child);
                 } else {
-                    tracing::warn!("  Child node '{}' not found in node_map for parent '{}'",
-                        child_id, def.name);
+                    tracing::warn!(
+                        "  Child node '{}' not found in node_map for parent '{}'",
+                        child_id,
+                        def.name
+                    );
                 }
             }
 
@@ -304,20 +361,179 @@ impl SequenceExecutor {
     }
 
     /// Calculate total exposures and integration time
-    fn calculate_totals(&self, sequence: &SequenceDefinition) -> (u32, f64) {
-        let mut total_exposures = 0u32;
-        let mut total_integration = 0.0f64;
+    fn calculate_totals(&self, sequence: &SequenceDefinition) -> (u32, f64, bool) {
+        let root_id = match &sequence.root_node_id {
+            Some(id) => id,
+            None => return (0, 0.0, false),
+        };
 
-        for node in &sequence.nodes {
-            if let NodeType::TakeExposure(config) = &node.node_type {
-                if node.enabled {
-                    total_exposures += config.count;
-                    total_integration += config.count as f64 * config.duration_secs;
-                }
+        let node_map: HashMap<&str, &NodeDefinition> =
+            sequence.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+
+        let mut total_exposures = 0u64;
+        let mut total_integration = 0.0f64;
+        let mut totals_indeterminate = false;
+        let mut recursion_guard = std::collections::HashSet::new();
+
+        fn walk(
+            node_id: &str,
+            multiplier: u64,
+            node_map: &HashMap<&str, &NodeDefinition>,
+            total_exposures: &mut u64,
+            total_integration: &mut f64,
+            totals_indeterminate: &mut bool,
+            recursion_guard: &mut std::collections::HashSet<String>,
+        ) {
+            if multiplier == 0 {
+                return;
             }
+
+            if !recursion_guard.insert(node_id.to_string()) {
+                tracing::warn!(
+                    "Detected cycle while calculating sequence totals at node '{}'; marking totals indeterminate",
+                    node_id
+                );
+                *totals_indeterminate = true;
+                return;
+            }
+
+            let node = match node_map.get(node_id) {
+                Some(node) => *node,
+                None => {
+                    *totals_indeterminate = true;
+                    recursion_guard.remove(node_id);
+                    return;
+                }
+            };
+
+            if !node.enabled {
+                recursion_guard.remove(node_id);
+                return;
+            }
+
+            match &node.node_type {
+                NodeType::TakeExposure(config) => {
+                    let count = config.count as u64;
+                    *total_exposures =
+                        total_exposures.saturating_add(count.saturating_mul(multiplier));
+                    *total_integration += config.duration_secs * count as f64 * multiplier as f64;
+                }
+                NodeType::Loop(config) => {
+                    let child_multiplier = match config.condition {
+                        crate::LoopCondition::Count => {
+                            multiplier.saturating_mul(config.iterations.unwrap_or(1) as u64)
+                        }
+                        _ => {
+                            *totals_indeterminate = true;
+                            multiplier
+                        }
+                    };
+
+                    for child_id in &node.children {
+                        walk(
+                            child_id,
+                            child_multiplier,
+                            node_map,
+                            total_exposures,
+                            total_integration,
+                            totals_indeterminate,
+                            recursion_guard,
+                        );
+                    }
+
+                    recursion_guard.remove(node_id);
+                    return;
+                }
+                _ => {}
+            }
+
+            for child_id in &node.children {
+                walk(
+                    child_id,
+                    multiplier,
+                    node_map,
+                    total_exposures,
+                    total_integration,
+                    totals_indeterminate,
+                    recursion_guard,
+                );
+            }
+
+            recursion_guard.remove(node_id);
         }
 
-        (total_exposures, total_integration)
+        walk(
+            root_id,
+            1,
+            &node_map,
+            &mut total_exposures,
+            &mut total_integration,
+            &mut totals_indeterminate,
+            &mut recursion_guard,
+        );
+
+        let capped_total_exposures = if total_exposures > u32::MAX as u64 {
+            tracing::warn!(
+                "Total exposure count {} exceeds u32::MAX; clamping totals",
+                total_exposures
+            );
+            totals_indeterminate = true;
+            u32::MAX
+        } else {
+            total_exposures as u32
+        };
+
+        (
+            capped_total_exposures,
+            total_integration,
+            totals_indeterminate,
+        )
+    }
+
+    fn build_execution_order(&self, sequence: &SequenceDefinition) -> HashMap<NodeId, usize> {
+        let mut order = HashMap::new();
+        let mut index = 0usize;
+        let node_map: HashMap<&str, &NodeDefinition> =
+            sequence.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+        let mut recursion_guard = std::collections::HashSet::new();
+
+        fn walk(
+            node_id: &str,
+            node_map: &HashMap<&str, &NodeDefinition>,
+            order: &mut HashMap<NodeId, usize>,
+            index: &mut usize,
+            recursion_guard: &mut std::collections::HashSet<String>,
+        ) {
+            if !recursion_guard.insert(node_id.to_string()) {
+                tracing::warn!(
+                    "Detected cycle while computing execution order at node '{}'",
+                    node_id
+                );
+                return;
+            }
+
+            if let Some(node) = node_map.get(node_id) {
+                order.insert(node.id.clone(), *index);
+                *index = index.saturating_add(1);
+                for child_id in &node.children {
+                    walk(child_id, node_map, order, index, recursion_guard);
+                }
+            }
+
+            recursion_guard.remove(node_id);
+        }
+
+        if let Some(root_id) = &sequence.root_node_id {
+            walk(
+                root_id,
+                &node_map,
+                &mut order,
+                &mut index,
+                &mut recursion_guard,
+            );
+        }
+
+        order
     }
 
     /// Get the current state
@@ -379,7 +595,9 @@ impl SequenceExecutor {
         let progress = self.progress.clone();
         let event_tx = self.event_tx.clone();
         let is_cancelled = self.is_cancelled.clone();
-        let mut root_node = self.root_node.take()
+        let mut root_node = self
+            .root_node
+            .take()
             .ok_or("No root node available - sequence may not be properly loaded".to_string())?;
 
         // device_ops already cloned and validated above
@@ -393,7 +611,7 @@ impl SequenceExecutor {
         let save_path = self.save_path.clone();
         let latitude = self.latitude;
         let longitude = self.longitude;
-        
+
         // Clone trigger manager for the async task
         let trigger_manager = self.trigger_manager.clone();
         let triggers_enabled = self.triggers_enabled;
@@ -401,10 +619,12 @@ impl SequenceExecutor {
 
         // Create shared pause state for context
         let is_paused = Arc::new(AtomicBool::new(false));
+        let skip_to_next_target = Arc::new(AtomicBool::new(false));
         let resume_notify = Arc::new(tokio::sync::Notify::new());
 
         // Spawn execution task
         let is_paused_clone = is_paused.clone();
+        let skip_to_next_target_clone = skip_to_next_target.clone();
         let resume_notify_clone = resume_notify.clone();
         tokio::spawn(async move {
             let start_time = std::time::Instant::now();
@@ -413,10 +633,10 @@ impl SequenceExecutor {
             let device_ops_for_triggers = device_ops.clone();
 
             // Set up execution context with device ops and IDs
-            let mut context = ExecutionContext::new("root".to_string())
-                .with_device_ops(device_ops);
+            let mut context = ExecutionContext::new("root".to_string()).with_device_ops(device_ops);
             context.is_cancelled = is_cancelled.clone();
             context.is_paused = is_paused_clone;
+            context.skip_to_next_target = skip_to_next_target_clone;
             context.resume_notify = resume_notify_clone;
             context.camera_id = camera_id;
             context.mount_id = mount_id;
@@ -431,18 +651,27 @@ impl SequenceExecutor {
             context.safety_fail_mode = safety_fail_mode;
             // Set trigger state for HFR tracking and exposure counts
             context.trigger_state = Some(trigger_manager.read().await.state());
-            
+
             // Set up progress callback
             let progress_clone = progress.clone();
             let event_tx_clone = event_tx.clone();
             // Track nodes that have already had NodeStarted emitted (thread-safe)
-            let started_nodes = Arc::new(std::sync::RwLock::new(std::collections::HashSet::<NodeId>::new()));
+            let started_nodes = Arc::new(std::sync::RwLock::new(
+                std::collections::HashSet::<NodeId>::new(),
+            ));
+            // Track per-node exposure frame counters so completed_exposures is monotonic and global.
+            let node_frame_progress =
+                Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    NodeId,
+                    u32,
+                >::new()));
             context.progress_callback = Some(Box::new(move |update: ProgressUpdate| {
                 let mut prog = progress_clone.write().unwrap();
                 prog.current_node_id = Some(update.node_id.clone());
                 prog.current_node_status = Some(update.status);
                 prog.message = update.message.clone();
-                prog.node_statuses.insert(update.node_id.clone(), update.status);
+                prog.node_statuses
+                    .insert(update.node_id.clone(), update.status);
                 prog.elapsed_secs = start_time.elapsed().as_secs_f64();
 
                 // Emit NodeStarted event when a node transitions to Running
@@ -451,33 +680,58 @@ impl SequenceExecutor {
                     if !started.contains(&update.node_id) {
                         started.insert(update.node_id.clone());
                         // Extract node name from message (format: "Executing: <name>" or "Step X/Y: <name>")
-                        let node_name = update.message.as_ref()
+                        let node_name = update
+                            .message
+                            .as_ref()
                             .and_then(|m| {
                                 if let Some(name) = m.strip_prefix("Executing: ") {
                                     Some(name.to_string())
-                                } else if let Some(rest) = m.split_once(": ").map(|(_, rest)| rest) {
+                                } else if let Some(rest) = m.split_once(": ").map(|(_, rest)| rest)
+                                {
                                     Some(rest.to_string())
                                 } else {
                                     Some(m.clone())
                                 }
                             })
                             .unwrap_or_else(|| "Unknown".to_string());
-                        tracing::info!("[PROGRESS_CB] Emitting NodeStarted: id={}, name={}", update.node_id, node_name);
+                        tracing::info!(
+                            "[PROGRESS_CB] Emitting NodeStarted: id={}, name={}",
+                            update.node_id,
+                            node_name
+                        );
                         let _ = event_tx_clone.send(ExecutorEvent::NodeStarted {
                             id: update.node_id.clone(),
                             name: node_name,
                         });
                     }
-                } else if matches!(update.status, NodeStatus::Success | NodeStatus::Failure | NodeStatus::Cancelled | NodeStatus::Skipped) {
+                } else if matches!(
+                    update.status,
+                    NodeStatus::Success
+                        | NodeStatus::Failure
+                        | NodeStatus::Cancelled
+                        | NodeStatus::Skipped
+                ) {
                     // Clear node from started set when it completes, so it can emit NodeStarted again
                     // on the next loop iteration (fixes UI not updating when loop cycles back)
                     let mut started = started_nodes.write().unwrap();
                     started.remove(&update.node_id);
-                    tracing::debug!("[PROGRESS_CB] Cleared node {} from started set (status={:?})", update.node_id, update.status);
+                    let mut frame_progress = node_frame_progress.write().unwrap();
+                    frame_progress.remove(&update.node_id);
+                    tracing::debug!(
+                        "[PROGRESS_CB] Cleared node {} from started set (status={:?})",
+                        update.node_id,
+                        update.status
+                    );
                 }
 
                 if let (Some(current), Some(_total)) = (update.current_frame, update.total_frames) {
-                    prog.completed_exposures = current;
+                    let mut frame_progress = node_frame_progress.write().unwrap();
+                    let last = frame_progress.entry(update.node_id.clone()).or_insert(0);
+                    if current > *last {
+                        prog.completed_exposures =
+                            prog.completed_exposures.saturating_add(current - *last);
+                        *last = current;
+                    }
                 }
 
                 // Track completed integration time
@@ -485,12 +739,30 @@ impl SequenceExecutor {
                     prog.completed_integration_secs += exposure_secs;
                 }
 
+                if prog.total_exposures > 0 && prog.completed_exposures > 0 {
+                    let completed = prog.completed_exposures.min(prog.total_exposures);
+                    let remaining = prog.total_exposures.saturating_sub(completed);
+                    if remaining > 0 {
+                        let avg_secs_per_exposure = prog.elapsed_secs / completed as f64;
+                        prog.estimated_remaining_secs =
+                            Some(avg_secs_per_exposure * remaining as f64);
+                    } else {
+                        prog.estimated_remaining_secs = Some(0.0);
+                    }
+                } else {
+                    prog.estimated_remaining_secs = None;
+                }
+
                 // Emit NodeProgress event for instruction-specific progress
                 // Parse messages like "Autofocus: Moving to start position: 25000 (5%)"
                 if let Some(ref message) = update.message {
                     tracing::debug!("[PROGRESS_CB] Received message: {}", message);
                     if let Some((instruction, rest)) = message.split_once(':') {
-                        tracing::debug!("[PROGRESS_CB] Parsed instruction='{}', rest='{}'", instruction, rest);
+                        tracing::debug!(
+                            "[PROGRESS_CB] Parsed instruction='{}', rest='{}'",
+                            instruction,
+                            rest
+                        );
                         // Look for percentage in parentheses at the end
                         if let Some(pct_start) = rest.rfind('(') {
                             if let Some(pct_end) = rest[pct_start..].find(')') {
@@ -508,10 +780,16 @@ impl SequenceExecutor {
                                             detail,
                                         });
                                     } else {
-                                        tracing::debug!("[PROGRESS_CB] Failed to parse pct_val='{}' as f64", pct_val);
+                                        tracing::debug!(
+                                            "[PROGRESS_CB] Failed to parse pct_val='{}' as f64",
+                                            pct_val
+                                        );
                                     }
                                 } else {
-                                    tracing::debug!("[PROGRESS_CB] pct_str '{}' doesn't end with '%'", pct_str);
+                                    tracing::debug!(
+                                        "[PROGRESS_CB] pct_str '{}' doesn't end with '%'",
+                                        pct_str
+                                    );
                                 }
                             } else {
                                 tracing::debug!("[PROGRESS_CB] No ')' found after '(' in rest");
@@ -531,6 +809,7 @@ impl SequenceExecutor {
 
             // Handle commands during execution
             let is_paused_cmd = is_paused.clone();
+            let skip_to_next_target_cmd = skip_to_next_target.clone();
             let resume_notify_cmd = resume_notify.clone();
             let command_handler = async {
                 while let Some(cmd) = rx.recv().await {
@@ -538,29 +817,27 @@ impl SequenceExecutor {
                         ExecutorCommand::Pause => {
                             is_paused_cmd.store(true, Ordering::Relaxed);
                             *state.write().await = ExecutorState::Paused;
-                            let _ = event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                            let _ =
+                                event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Paused));
                         }
                         ExecutorCommand::Resume => {
                             // Signal context to resume if it's waiting
                             is_paused_cmd.store(false, Ordering::Relaxed);
                             resume_notify_cmd.notify_waiters();
                             *state.write().await = ExecutorState::Running;
-                            let _ = event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Running));
+                            let _ =
+                                event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Running));
                         }
                         ExecutorCommand::Stop => {
                             is_cancelled.store(true, Ordering::Relaxed);
                             *state.write().await = ExecutorState::Stopping;
-                            let _ = event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Stopping));
+                            let _ =
+                                event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Stopping));
                             break;
                         }
                         ExecutorCommand::Skip => {
-                            // Signal skip by emitting a skip event
-                            // The current node should check for this and abort gracefully
-                            tracing::info!("Skip requested - aborting current node");
-                            let _ = event_tx.send(ExecutorEvent::NodeCompleted { 
-                                id: "current".to_string(), 
-                                status: NodeStatus::Skipped 
-                            });
+                            tracing::info!("Skip requested - advancing to next target");
+                            skip_to_next_target_cmd.store(true, Ordering::Relaxed);
                         }
                         _ => {}
                     }
@@ -570,17 +847,18 @@ impl SequenceExecutor {
             // Clone device IDs for trigger monitor BEFORE execution borrow
             let mount_id_for_triggers = context.mount_id.clone();
             let camera_id_for_triggers = context.camera_id.clone();
+            let focuser_id_for_triggers = context.focuser_id.clone();
             let dome_id_for_triggers = context.dome_id.clone();
 
             // Execute the sequence
-            let execution = async {
-                root_node.execute(&mut context).await
-            };
+            let execution = async { root_node.execute(&mut context).await };
 
             // Trigger monitoring loop
             let state_clone = state.clone();
             let event_tx_clone2 = event_tx.clone();
             let is_cancelled_clone = is_cancelled.clone();
+            let is_paused_for_triggers = is_paused.clone();
+            let skip_to_next_target_for_triggers = skip_to_next_target.clone();
             let trigger_monitor = async {
                 if !triggers_enabled {
                     // If triggers disabled, just wait forever (let other tasks complete)
@@ -612,11 +890,17 @@ impl SequenceExecutor {
                             // Handle error based on configured safety fail mode
                             match safety_fail_mode {
                                 SafetyFailMode::FailOpen => {
-                                    tracing::trace!("Safety poll error: {} - assuming safe (fail-open)", e);
+                                    tracing::trace!(
+                                        "Safety poll error: {} - assuming safe (fail-open)",
+                                        e
+                                    );
                                     true
                                 }
                                 SafetyFailMode::FailClosed => {
-                                    tracing::warn!("Safety poll error: {} - assuming UNSAFE (fail-closed)", e);
+                                    tracing::warn!(
+                                        "Safety poll error: {} - assuming UNSAFE (fail-closed)",
+                                        e
+                                    );
                                     false
                                 }
                                 SafetyFailMode::WarnOnly => {
@@ -628,7 +912,9 @@ impl SequenceExecutor {
                     };
 
                     // Poll guiding status if guiding is enabled
-                    let guiding_rms = device_ops_for_triggers.guider_get_status().await
+                    let guiding_rms = device_ops_for_triggers
+                        .guider_get_status()
+                        .await
                         .ok()
                         .map(|status| status.rms_total);
 
@@ -646,19 +932,28 @@ impl SequenceExecutor {
 
                         // Update observer location for dawn calculation (and calculate dawn time)
                         if state.observer_latitude.is_none() {
-                            if let Some((lat, lon)) = device_ops_for_triggers.get_observer_location() {
+                            if let Some((lat, lon)) =
+                                device_ops_for_triggers.get_observer_location()
+                            {
                                 state.observer_latitude = Some(lat);
                                 state.observer_longitude = Some(lon);
                                 // Pre-calculate dawn time when location is set
-                                state.dawn_time = Some(crate::triggers::calculate_dawn_time(lat, lon));
-                                tracing::debug!("Observer location set for dawn trigger: {}, {}", lat, lon);
+                                state.dawn_time =
+                                    Some(crate::triggers::calculate_dawn_time(lat, lon));
+                                tracing::debug!(
+                                    "Observer location set for dawn trigger: {}, {}",
+                                    lat,
+                                    lon
+                                );
                             }
                         }
                     }
 
                     // Poll mount tracking status
                     if let Some(mount_id) = &mount_id_for_triggers {
-                        if let Ok(is_tracking) = device_ops_for_triggers.mount_is_tracking(mount_id).await {
+                        if let Ok(is_tracking) =
+                            device_ops_for_triggers.mount_is_tracking(mount_id).await
+                        {
                             let manager = trigger_manager.read().await;
                             let trigger_state = manager.state();
                             let mut state = trigger_state.write().await;
@@ -672,7 +967,10 @@ impl SequenceExecutor {
 
                     // Poll camera temperature
                     if let Some(camera_id) = &camera_id_for_triggers {
-                        if let Ok(temp) = device_ops_for_triggers.camera_get_temperature(camera_id).await {
+                        if let Ok(temp) = device_ops_for_triggers
+                            .camera_get_temperature(camera_id)
+                            .await
+                        {
                             let manager = trigger_manager.read().await;
                             let trigger_state = manager.state();
                             let mut state = trigger_state.write().await;
@@ -683,7 +981,10 @@ impl SequenceExecutor {
 
                     // Poll dome shutter status
                     if let Some(dome_id) = &dome_id_for_triggers {
-                        if let Ok(status) = device_ops_for_triggers.dome_get_shutter_status(dome_id).await {
+                        if let Ok(status) = device_ops_for_triggers
+                            .dome_get_shutter_status(dome_id)
+                            .await
+                        {
                             let manager = trigger_manager.read().await;
                             let trigger_state = manager.state();
                             let mut state = trigger_state.write().await;
@@ -700,13 +1001,19 @@ impl SequenceExecutor {
 
                     for (trigger_id, action) in fired {
                         // Get trigger name for better logging
-                        let trigger_name = manager.get_trigger(&trigger_id)
+                        let trigger_name = manager
+                            .get_trigger(&trigger_id)
                             .map(|t| t.name.clone())
                             .unwrap_or_else(|| trigger_id.clone());
 
                         let action_str = format!("{:?}", action);
 
-                        tracing::warn!("Trigger fired: {} ({}) - action: {:?}", trigger_name, trigger_id, action);
+                        tracing::warn!(
+                            "Trigger fired: {} ({}) - action: {:?}",
+                            trigger_name,
+                            trigger_id,
+                            action
+                        );
 
                         // Emit TriggerFired event
                         let _ = event_tx_clone2.send(ExecutorEvent::TriggerFired {
@@ -718,8 +1025,10 @@ impl SequenceExecutor {
                         // Handle recovery actions
                         match &action {
                             RecoveryAction::Pause => {
+                                is_paused_for_triggers.store(true, Ordering::Relaxed);
                                 *state_clone.write().await = ExecutorState::Paused;
-                                let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                                let _ = event_tx_clone2
+                                    .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
                             }
                             RecoveryAction::ParkAndAbort => {
                                 // Signal cancellation
@@ -728,20 +1037,84 @@ impl SequenceExecutor {
                                 return fired_triggers;
                             }
                             RecoveryAction::NextTarget => {
-                                // Signal to skip to next target
-                                let _ = event_tx_clone2.send(ExecutorEvent::NodeCompleted {
-                                    id: "current".to_string(),
-                                    status: NodeStatus::Skipped
-                                });
+                                tracing::info!("Trigger requested advance to next target");
+                                skip_to_next_target_for_triggers.store(true, Ordering::Relaxed);
                             }
                             RecoveryAction::Autofocus => {
-                                // Autofocus will be handled by the trigger system
-                                // Just log it here
-                                tracing::info!("Autofocus trigger action will be executed by sequence");
+                                tracing::info!("Executing autofocus as trigger recovery action");
+
+                                match (&camera_id_for_triggers, &focuser_id_for_triggers) {
+                                    (Some(camera_id), Some(focuser_id)) => {
+                                        let af_ctx = crate::instructions::InstructionContext {
+                                            target_ra: None,
+                                            target_dec: None,
+                                            target_name: None,
+                                            current_filter: None,
+                                            current_binning: crate::Binning::One,
+                                            cancellation_token: is_cancelled_clone.clone(),
+                                            camera_id: Some(camera_id.clone()),
+                                            mount_id: mount_id_for_triggers.clone(),
+                                            focuser_id: Some(focuser_id.clone()),
+                                            filterwheel_id: None,
+                                            rotator_id: None,
+                                            dome_id: dome_id_for_triggers.clone(),
+                                            cover_calibrator_id: None,
+                                            save_path: None,
+                                            latitude: None,
+                                            longitude: None,
+                                            device_ops: device_ops_for_triggers.clone(),
+                                            trigger_state: Some(
+                                                trigger_manager.read().await.state(),
+                                            ),
+                                        };
+
+                                        let af_result = crate::instructions::execute_autofocus(
+                                            &crate::AutofocusConfig::default(),
+                                            &af_ctx,
+                                            None,
+                                        )
+                                        .await;
+
+                                        if af_result.status == NodeStatus::Success {
+                                            if let Some(best_hfr) = af_result.hfr_values.first() {
+                                                let manager = trigger_manager.read().await;
+                                                let state = manager.state();
+                                                let mut ts = state.write().await;
+                                                ts.update_hfr(*best_hfr);
+                                                ts.reset_baseline_hfr();
+                                                ts.mark_autofocus_performed();
+                                            }
+                                        } else {
+                                            is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                            *state_clone.write().await = ExecutorState::Paused;
+                                            let _ = event_tx_clone2.send(
+                                                ExecutorEvent::StateChanged(ExecutorState::Paused),
+                                            );
+                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                message: af_result.message.unwrap_or_else(|| {
+                                                    "Autofocus trigger failed; sequence paused for intervention".to_string()
+                                                }),
+                                            });
+                                        }
+                                    }
+                                    _ => {
+                                        is_paused_for_triggers.store(true, Ordering::Relaxed);
+                                        *state_clone.write().await = ExecutorState::Paused;
+                                        let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(
+                                            ExecutorState::Paused,
+                                        ));
+                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                            message: "Autofocus trigger requested but camera/focuser is not connected"
+                                                .to_string(),
+                                        });
+                                    }
+                                }
                             }
                             RecoveryAction::MeridianFlip(config) => {
                                 // Execute meridian flip
-                                tracing::info!("[MERIDIAN] Trigger fired - executing meridian flip");
+                                tracing::info!(
+                                    "[MERIDIAN] Trigger fired - executing meridian flip"
+                                );
 
                                 // Get target info from trigger state
                                 let (target_name, target_ra, target_dec) = {
@@ -749,13 +1122,17 @@ impl SequenceExecutor {
                                     let state = manager.state();
                                     let ts = state.read().await;
                                     (
-                                        ts.current_target_name.clone().unwrap_or_else(|| "Unknown".to_string()),
+                                        ts.current_target_name
+                                            .clone()
+                                            .unwrap_or_else(|| "Unknown".to_string()),
                                         ts.target_ra.map(|ra| ra / 15.0), // Convert degrees to hours
                                         ts.target_dec,
                                     )
                                 };
 
-                                if let (Some(mount_id), Some(ra), Some(dec)) = (&mount_id_for_triggers, target_ra, target_dec) {
+                                if let (Some(mount_id), Some(ra), Some(dec)) =
+                                    (&mount_id_for_triggers, target_ra, target_dec)
+                                {
                                     let flip_ctx = crate::meridian_flip_executor::FlipContext {
                                         target_name: target_name.clone(),
                                         target_ra_hours: ra,
@@ -765,13 +1142,17 @@ impl SequenceExecutor {
                                         focuser_id: None, // Could add focuser ID if needed
                                     };
 
-                                    let mut flip_executor = crate::meridian_flip_executor::MeridianFlipExecutor::new(
-                                        config.clone(),
-                                        device_ops_for_triggers.clone(),
-                                    );
+                                    let mut flip_executor =
+                                        crate::meridian_flip_executor::MeridianFlipExecutor::new(
+                                            config.clone(),
+                                            device_ops_for_triggers.clone(),
+                                        );
 
                                     match flip_executor.execute(&flip_ctx).await {
-                                        crate::meridian_flip_executor::FlipResult::Success { new_pier_side, duration_secs } => {
+                                        crate::meridian_flip_executor::FlipResult::Success {
+                                            new_pier_side,
+                                            duration_secs,
+                                        } => {
                                             tracing::info!(
                                                 "[MERIDIAN] Flip completed successfully: new pier side {:?}, took {:.1}s",
                                                 new_pier_side, duration_secs
@@ -783,23 +1164,43 @@ impl SequenceExecutor {
                                             let mut ts = state.write().await;
                                             ts.mark_flip_performed();
                                         }
-                                        crate::meridian_flip_executor::FlipResult::Failed { error, action_taken } => {
-                                            tracing::error!("[MERIDIAN] Flip failed: {} (action: {:?})", error, action_taken);
+                                        crate::meridian_flip_executor::FlipResult::Failed {
+                                            error,
+                                            action_taken,
+                                        } => {
+                                            tracing::error!(
+                                                "[MERIDIAN] Flip failed: {} (action: {:?})",
+                                                error,
+                                                action_taken
+                                            );
 
                                             // Handle based on configured failure action
                                             match action_taken {
                                                 crate::FlipFailureAction::PauseAndAlert => {
-                                                    *state_clone.write().await = ExecutorState::Paused;
-                                                    let _ = event_tx_clone2.send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                                                    is_paused_for_triggers
+                                                        .store(true, Ordering::Relaxed);
+                                                    *state_clone.write().await =
+                                                        ExecutorState::Paused;
+                                                    let _ = event_tx_clone2.send(
+                                                        ExecutorEvent::StateChanged(
+                                                            ExecutorState::Paused,
+                                                        ),
+                                                    );
                                                 }
                                                 crate::FlipFailureAction::AbortAndPark => {
-                                                    is_cancelled_clone.store(true, Ordering::Relaxed);
-                                                    fired_triggers.push((trigger_id.clone(), RecoveryAction::ParkAndAbort));
+                                                    is_cancelled_clone
+                                                        .store(true, Ordering::Relaxed);
+                                                    fired_triggers.push((
+                                                        trigger_id.clone(),
+                                                        RecoveryAction::ParkAndAbort,
+                                                    ));
                                                     return fired_triggers;
                                                 }
                                             }
                                         }
-                                        crate::meridian_flip_executor::FlipResult::Aborted { reason } => {
+                                        crate::meridian_flip_executor::FlipResult::Aborted {
+                                            reason,
+                                        } => {
                                             tracing::warn!("[MERIDIAN] Flip aborted: {}", reason);
                                         }
                                     }
@@ -813,7 +1214,7 @@ impl SequenceExecutor {
                         fired_triggers.push((trigger_id, action));
                     }
                 }
-                
+
                 fired_triggers
             };
 
@@ -826,7 +1227,7 @@ impl SequenceExecutor {
 
             // Update final state
             let final_state = match result {
-                NodeStatus::Success => ExecutorState::Completed,
+                NodeStatus::Success | NodeStatus::Skipped => ExecutorState::Completed,
                 NodeStatus::Cancelled => ExecutorState::Idle,
                 _ => ExecutorState::Failed,
             };
@@ -837,17 +1238,19 @@ impl SequenceExecutor {
                 prog.state = final_state;
                 prog.elapsed_secs = start_time.elapsed().as_secs_f64();
             }
-            
+
             match result {
-                NodeStatus::Success => {
+                NodeStatus::Success | NodeStatus::Skipped => {
                     let _ = event_tx.send(ExecutorEvent::SequenceCompleted);
                 }
                 NodeStatus::Failure => {
-                    let _ = event_tx.send(ExecutorEvent::SequenceFailed { error: "Sequence failed".into() });
+                    let _ = event_tx.send(ExecutorEvent::SequenceFailed {
+                        error: "Sequence failed".into(),
+                    });
                 }
                 _ => {}
             }
-            
+
             let _ = event_tx.send(ExecutorEvent::StateChanged(final_state));
         });
 
@@ -857,7 +1260,9 @@ impl SequenceExecutor {
     /// Pause the sequence
     pub async fn pause(&self) -> Result<(), String> {
         if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::Pause).await.map_err(|e| e.to_string())?;
+            tx.send(ExecutorCommand::Pause)
+                .await
+                .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -865,7 +1270,9 @@ impl SequenceExecutor {
     /// Resume the sequence
     pub async fn resume(&self) -> Result<(), String> {
         if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::Resume).await.map_err(|e| e.to_string())?;
+            tx.send(ExecutorCommand::Resume)
+                .await
+                .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -873,16 +1280,16 @@ impl SequenceExecutor {
     /// Stop the sequence
     pub async fn stop(&mut self) -> Result<(), String> {
         self.is_cancelled.store(true, Ordering::Relaxed);
-        
+
         if let Some(tx) = &self.command_tx {
             let _ = tx.send(ExecutorCommand::Stop).await;
         }
-        
+
         self.command_tx = None;
-        
+
         // Wait a bit for graceful shutdown
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        
+
         self.set_state(ExecutorState::Idle).await;
         Ok(())
     }
@@ -890,7 +1297,9 @@ impl SequenceExecutor {
     /// Skip to the next item
     pub async fn skip(&self) -> Result<(), String> {
         if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::Skip).await.map_err(|e| e.to_string())?;
+            tx.send(ExecutorCommand::Skip)
+                .await
+                .map_err(|e| e.to_string())?;
         }
         Ok(())
     }
@@ -932,8 +1341,11 @@ impl SequenceExecutor {
     }
 
     /// Load and prepare to resume from a checkpoint
-    pub fn load_checkpoint(&mut self) -> Result<Option<crate::checkpoint::SessionCheckpoint>, String> {
-        let checkpoint = self.checkpoint_manager
+    pub fn load_checkpoint(
+        &mut self,
+    ) -> Result<Option<crate::checkpoint::SessionCheckpoint>, String> {
+        let checkpoint = self
+            .checkpoint_manager
             .as_ref()
             .ok_or("No checkpoint manager configured")?
             .load()?;
@@ -964,13 +1376,12 @@ impl SequenceExecutor {
 
     /// Save current execution state as a checkpoint
     pub async fn save_checkpoint(&self) -> Result<(), String> {
-        let manager = self.checkpoint_manager
+        let manager = self
+            .checkpoint_manager
             .as_ref()
             .ok_or("No checkpoint manager configured")?;
 
-        let sequence = self.sequence
-            .as_ref()
-            .ok_or("No sequence loaded")?;
+        let sequence = self.sequence.as_ref().ok_or("No sequence loaded")?;
 
         let progress = self.progress.read().unwrap().clone();
         let state = self.get_state().await;
@@ -981,13 +1392,16 @@ impl SequenceExecutor {
         checkpoint.executor_state = state;
         checkpoint.completed_exposures = progress.completed_exposures;
         checkpoint.completed_integration_secs = progress.completed_integration_secs;
-        checkpoint.is_active = state == ExecutorState::Running;
+        checkpoint.is_active = matches!(state, ExecutorState::Running | ExecutorState::Paused);
 
-        // Find last completed node
-        checkpoint.last_completed_node = progress.node_statuses
+        // Find last completed node by execution order (not lexical node ID ordering)
+        let execution_order = self.build_execution_order(sequence);
+        checkpoint.last_completed_node = progress
+            .node_statuses
             .iter()
             .filter(|(_, status)| matches!(status, NodeStatus::Success))
-            .max_by_key(|(id, _)| *id)
+            .filter_map(|(id, _)| execution_order.get(id).map(|order| (id, *order)))
+            .max_by_key(|(_, order)| *order)
             .map(|(id, _)| (*id).clone());
 
         // Set device info
@@ -1027,7 +1441,8 @@ impl SequenceExecutor {
     /// This loads the sequence from checkpoint and prepares it for resumed execution.
     /// The sequence will skip already-completed nodes.
     pub async fn resume_from_checkpoint(&mut self) -> Result<(), String> {
-        let checkpoint = self.load_checkpoint()?
+        let checkpoint = self
+            .load_checkpoint()?
             .ok_or("No checkpoint to resume from")?;
 
         if !checkpoint.can_resume() {
@@ -1106,7 +1521,11 @@ mod tests {
         sequence.root_node_id = Some("root".to_string());
 
         let result = executor.load_sequence(sequence);
-        assert!(result.is_ok(), "Failed to load sequence: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to load sequence: {:?}",
+            result.err()
+        );
         assert!(executor.sequence.is_some());
     }
 

@@ -902,17 +902,20 @@ impl DeviceOps for BridgeDeviceOps {
     }
 
     async fn safety_is_safe(&self, safety_id: Option<&str>) -> DeviceResult<bool> {
-        // If no safety monitor specified, check profile
+        // Resolve safety source from explicit ID or active profile.
+        // We intentionally return errors when no source is configured so the sequencer's
+        // SafetyFailMode policy decides how to proceed (fail-open/fail-closed/warn-only).
         let device_id = match safety_id {
             Some(id) => id.to_string(),
             None => {
-                // Try to get from profile
                 let profile = self.app_state.get_profile().await;
                 match profile.and_then(|p| p.weather_id) {
                     Some(id) => id,
                     None => {
-                        tracing::debug!("No safety monitor configured, assuming safe");
-                        return Ok(true);
+                        return Err(
+                            "No safety/weather device configured for sequencer safety checks"
+                                .to_string(),
+                        );
                     }
                 }
             }
@@ -920,46 +923,18 @@ impl DeviceOps for BridgeDeviceOps {
 
         tracing::debug!("Checking safety status for device: {}", device_id);
 
-        // Alpaca Safety Monitor
-        if device_id.starts_with("alpaca:") {
-            let id_str = device_id.strip_prefix("alpaca:").unwrap_or("");
-            let parts: Vec<&str> = id_str.split(':').collect();
-
-            if parts.len() >= 5 {
-                let protocol = parts[0];
-                let host_part = parts[1].trim_start_matches("//");
-                let port = parts[2];
-                let device_num: u32 = parts[4].parse().unwrap_or(0);
-
-                let base_url = format!("{}://{}:{}", protocol, host_part, port);
-                let safety =
-                    nightshade_alpaca::AlpacaSafetyMonitor::from_server(&base_url, device_num);
-
-                match safety.connect().await {
-                    Ok(()) => {
-                        let is_safe = safety.is_safe().await.unwrap_or(true);
-                        safety.disconnect().await.ok();
-                        tracing::info!(
-                            "Safety monitor {} reports: {}",
-                            device_id,
-                            if is_safe { "SAFE" } else { "UNSAFE" }
-                        );
-                        return Ok(is_safe);
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to connect to safety monitor {}: {}", device_id, e);
-                        return Ok(true); // Fail-open
-                    }
-                }
+        // Route through DeviceManager for all driver types.
+        match get_device_manager().safety_is_safe(&device_id).await {
+            Ok(is_safe) => {
+                tracing::info!(
+                    "Safety monitor {} reports: {}",
+                    device_id,
+                    if is_safe { "SAFE" } else { "UNSAFE" }
+                );
+                Ok(is_safe)
             }
+            Err(e) => Err(format!("Safety check failed for {}: {}", device_id, e)),
         }
-
-        // Unknown device type, assume safe
-        tracing::debug!(
-            "Unknown safety monitor type for {}, assuming safe",
-            device_id
-        );
-        Ok(true)
     }
 
     // =========================================================================

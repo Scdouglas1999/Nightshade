@@ -1,15 +1,16 @@
 //! Behavior tree node definitions and execution
 
 use crate::{
-    NodeId, NodeStatus, NodeType, NodeDefinition, LoopCondition, ConditionalCheck,
-    instructions::*, TargetHeaderConfig, LoopConfig, ParallelConfig, ConditionalConfig,
-    RecoveryConfig, RecoveryAction, SafetyFailMode,
-    device_ops::{SharedDeviceOps, NullDeviceOps},
-    ExposureConfig, TriggerCondition, TriggerAction, AutofocusConfig, AutofocusMethod,
+    device_ops::{NullDeviceOps, SharedDeviceOps},
+    instructions::*,
+    AutofocusConfig, AutofocusMethod, ConditionalCheck, ConditionalConfig, ExposureConfig,
+    LoopCondition, LoopConfig, NodeDefinition, NodeId, NodeStatus, NodeType, ParallelConfig,
+    RecoveryAction, RecoveryConfig, SafetyFailMode, TargetHeaderConfig, TriggerAction,
+    TriggerCondition,
 };
 use async_trait::async_trait;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// Context passed to nodes during execution
@@ -27,12 +28,15 @@ pub struct ExecutionContext {
     pub is_cancelled: Arc<AtomicBool>,
     /// Pause flag - set by recovery nodes, cleared by executor on resume
     pub is_paused: Arc<AtomicBool>,
+    /// Skip current target request - set by trigger monitor and consumed by target header.
+    pub skip_to_next_target: Arc<AtomicBool>,
     /// Resume notifier - signaled when execution should resume after pause
     pub resume_notify: Arc<tokio::sync::Notify>,
     /// Progress callback
     pub progress_callback: Option<Box<dyn Fn(ProgressUpdate) + Send + Sync>>,
     /// Polar alignment image callback (for sending live images to UI)
-    pub polar_align_image_callback: Option<Box<dyn Fn(crate::polar_align::PolarAlignmentImageData) + Send + Sync>>,
+    pub polar_align_image_callback:
+        Option<Box<dyn Fn(crate::polar_align::PolarAlignmentImageData) + Send + Sync>>,
     /// Connected device IDs
     pub camera_id: Option<String>,
     pub mount_id: Option<String>,
@@ -81,6 +85,7 @@ impl ExecutionContext {
             current_filter: None,
             is_cancelled: Arc::new(AtomicBool::new(false)),
             is_paused: Arc::new(AtomicBool::new(false)),
+            skip_to_next_target: Arc::new(AtomicBool::new(false)),
             resume_notify: Arc::new(tokio::sync::Notify::new()),
             progress_callback: None,
             polar_align_image_callback: None,
@@ -166,12 +171,27 @@ impl ExecutionContext {
         self.resume_notify.notify_waiters();
     }
 
+    /// Request that execution skips the current target and advances to the next one.
+    pub fn request_skip_to_next_target(&self) {
+        self.skip_to_next_target.store(true, Ordering::Relaxed);
+    }
+
+    /// Check whether a skip-to-next-target request is pending.
+    pub fn is_skip_to_next_target_requested(&self) -> bool {
+        self.skip_to_next_target.load(Ordering::Relaxed)
+    }
+
+    /// Clear a pending skip-to-next-target request.
+    pub fn clear_skip_to_next_target_request(&self) {
+        self.skip_to_next_target.store(false, Ordering::Relaxed);
+    }
+
     pub fn send_progress(&self, update: ProgressUpdate) {
         let exposure_secs = update.completed_exposure_secs;
         if let Some(callback) = &self.progress_callback {
             callback(update);
         }
-        
+
         // Also track integration time
         if let Some(exposure_secs) = exposure_secs {
             if let Ok(mut counter) = self.completed_integration_secs.try_write() {
@@ -179,131 +199,141 @@ impl ExecutionContext {
             }
         }
     }
-    
+
     /// Get the current completed integration time in seconds
     pub async fn get_completed_integration_secs(&self) -> f64 {
         *self.completed_integration_secs.read().await
     }
-    
+
     /// Calculate current altitude of target based on RA/Dec and observer location
     pub fn calculate_altitude(&self) -> Option<f64> {
         let ra_hours = self.target_ra?;
         let dec_degrees = self.target_dec?;
         let lat = self.latitude.unwrap_or(0.0);
         let lon = self.longitude.unwrap_or(0.0);
-        
+
         // Get current time
         let now = chrono::Utc::now();
-        
+
         // Calculate Julian Day
         let jd = julian_day(&now);
-        
+
         // Calculate Local Sidereal Time
         let lst = local_sidereal_time(jd, lon);
-        
+
         // Calculate Hour Angle
         let ha = lst - ra_hours;
         let ha_rad = ha.to_radians() * 15.0; // Convert hours to radians
         let dec_rad = dec_degrees.to_radians();
         let lat_rad = lat.to_radians();
-        
+
         // Calculate altitude
-        let sin_alt = lat_rad.sin() * dec_rad.sin() + 
-                      lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
+        let sin_alt = lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
         Some(sin_alt.asin().to_degrees())
     }
-    
+
     /// Calculate separation between target and moon in degrees
     pub fn calculate_moon_separation(&self) -> Option<f64> {
         let target_ra = self.target_ra?;
         let target_dec = self.target_dec?;
-        
+
         // Calculate approximate moon position
         let now = chrono::Utc::now();
         let jd = julian_day(&now);
         let days = jd - 2451545.0;
-        
+
         // Simplified lunar position calculation
         let moon_longitude = (218.32 + 13.176396 * days) % 360.0;
         let moon_anomaly = (134.9 + 13.064993 * days) % 360.0;
         let moon_node = (93.3 + 13.229350 * days) % 360.0;
-        
+
         // Approximate ecliptic latitude and longitude
-        let ecl_lon = moon_longitude + 
-            6.29 * moon_anomaly.to_radians().sin() -
-            1.27 * (2.0 * moon_node.to_radians() - moon_anomaly.to_radians()).sin();
+        let ecl_lon = moon_longitude + 6.29 * moon_anomaly.to_radians().sin()
+            - 1.27 * (2.0 * moon_node.to_radians() - moon_anomaly.to_radians()).sin();
         let ecl_lat = 5.13 * moon_node.to_radians().sin();
-        
+
         // Convert to equatorial coordinates
         let obliquity = 23.439f64;
         let ecl_lon_rad = ecl_lon.to_radians();
         let ecl_lat_rad = ecl_lat.to_radians();
         let obl_rad = obliquity.to_radians();
-        
-        let moon_ra = ((ecl_lon_rad.sin() * obl_rad.cos() - 
-                        ecl_lat_rad.tan() * obl_rad.sin()).atan2(ecl_lon_rad.cos()))
-                       .to_degrees() / 15.0; // Convert to hours
-        let moon_dec = (ecl_lat_rad.sin() * obl_rad.cos() + 
-                        ecl_lat_rad.cos() * obl_rad.sin() * ecl_lon_rad.sin())
-                       .asin().to_degrees();
-        
+
+        let moon_ra = ((ecl_lon_rad.sin() * obl_rad.cos() - ecl_lat_rad.tan() * obl_rad.sin())
+            .atan2(ecl_lon_rad.cos()))
+        .to_degrees()
+            / 15.0; // Convert to hours
+        let moon_dec = (ecl_lat_rad.sin() * obl_rad.cos()
+            + ecl_lat_rad.cos() * obl_rad.sin() * ecl_lon_rad.sin())
+        .asin()
+        .to_degrees();
+
         // Calculate angular separation using spherical law of cosines
         let target_ra_rad = target_ra.to_radians() * 15.0; // Hours to degrees to radians
         let target_dec_rad = target_dec.to_radians();
         let moon_ra_rad = moon_ra.to_radians() * 15.0;
         let moon_dec_rad = moon_dec.to_radians();
-        
-        let cos_sep = target_dec_rad.sin() * moon_dec_rad.sin() + 
-                      target_dec_rad.cos() * moon_dec_rad.cos() * 
-                      (target_ra_rad - moon_ra_rad).cos();
-        
+
+        let cos_sep = target_dec_rad.sin() * moon_dec_rad.sin()
+            + target_dec_rad.cos() * moon_dec_rad.cos() * (target_ra_rad - moon_ra_rad).cos();
+
         Some(cos_sep.acos().to_degrees())
     }
-    
+
     /// Check if it's currently dark (astronomical twilight has ended)
     pub fn is_dark(&self) -> bool {
         // Calculate sun altitude
         let lat = self.latitude.unwrap_or(0.0);
         let lon = self.longitude.unwrap_or(0.0);
-        
+
         let now = chrono::Utc::now();
         let jd = julian_day(&now);
-        
+
         // Approximate sun position calculation
         let days_since_j2000 = jd - 2451545.0;
         let mean_longitude = (280.46 + 0.9856474 * days_since_j2000) % 360.0;
         let mean_anomaly = (357.528 + 0.9856003 * days_since_j2000) % 360.0;
-        
-        let ecliptic_longitude = mean_longitude + 
-            1.915 * mean_anomaly.to_radians().sin() + 
-            0.020 * (2.0 * mean_anomaly.to_radians()).sin();
-        
+
+        let ecliptic_longitude = mean_longitude
+            + 1.915 * mean_anomaly.to_radians().sin()
+            + 0.020 * (2.0 * mean_anomaly.to_radians()).sin();
+
         // Sun's declination
         let obliquity = 23.439 - 0.0000004 * days_since_j2000;
-        let sun_dec = (obliquity.to_radians().sin() * ecliptic_longitude.to_radians().sin()).asin().to_degrees();
-        let sun_ra = (ecliptic_longitude.to_radians().cos() / sun_dec.to_radians().cos()).acos().to_degrees() / 15.0;
-        
+        let sun_dec = (obliquity.to_radians().sin() * ecliptic_longitude.to_radians().sin())
+            .asin()
+            .to_degrees();
+        let sun_ra = (ecliptic_longitude.to_radians().cos() / sun_dec.to_radians().cos())
+            .acos()
+            .to_degrees()
+            / 15.0;
+
         // Calculate sun altitude
         let lst = local_sidereal_time(jd, lon);
         let ha = lst - sun_ra;
         let ha_rad = ha.to_radians() * 15.0;
         let dec_rad = sun_dec.to_radians();
         let lat_rad = lat.to_radians();
-        
-        let sun_alt = (lat_rad.sin() * dec_rad.sin() + 
-                       lat_rad.cos() * dec_rad.cos() * ha_rad.cos()).asin().to_degrees();
-        
+
+        let sun_alt = (lat_rad.sin() * dec_rad.sin()
+            + lat_rad.cos() * dec_rad.cos() * ha_rad.cos())
+        .asin()
+        .to_degrees();
+
         // Astronomical twilight is when sun is below -18 degrees
         sun_alt < -18.0
     }
-    
+
     /// Set the next meridian flip time in the trigger state (if available)
-    /// This is a no-op if trigger state is not accessible
-    pub fn set_next_meridian_flip_time(&self, timestamp: Option<i64>) {
-        // This is a placeholder - the actual trigger state update will be done
-        // through the executor's trigger manager. For now, just log it.
-        if let Some(ts) = timestamp {
-            tracing::debug!("Meridian flip time set to timestamp: {}", ts);
+    /// This is a no-op if trigger state is not accessible.
+    pub async fn set_next_meridian_flip_time(&self, timestamp: Option<i64>) {
+        if let Some(trigger_state_lock) = &self.trigger_state {
+            let mut trigger_state = trigger_state_lock.write().await;
+            trigger_state.next_meridian_flip_time = timestamp;
+        } else if let Some(ts) = timestamp {
+            tracing::debug!(
+                "Meridian flip timestamp {} calculated but trigger state is unavailable",
+                ts
+            );
         }
     }
 
@@ -413,7 +443,8 @@ impl RuntimeNode {
         };
 
         let trigger_state = trigger_state_lock.read().await;
-        let latest_guiding_rms = trigger_state.guiding_rms_history
+        let latest_guiding_rms = trigger_state
+            .guiding_rms_history
             .as_ref()
             .and_then(|history| history.last())
             .map(|(_, rms)| *rms);
@@ -478,7 +509,10 @@ impl RuntimeNode {
                         context.send_progress(ProgressUpdate {
                             node_id: self.id().clone(),
                             status: NodeStatus::Running,
-                            message: Some(format!("Trigger fired: {:?} - Paused for recalibration", trigger.condition)),
+                            message: Some(format!(
+                                "Trigger fired: {:?} - Paused for recalibration",
+                                trigger.condition
+                            )),
                             current_frame: None,
                             total_frames: None,
                             current_child: None,
@@ -499,7 +533,10 @@ impl RuntimeNode {
                         context.send_progress(ProgressUpdate {
                             node_id: self.id().clone(),
                             status: NodeStatus::Running,
-                            message: Some(format!("Trigger fired: {:?} - Running autofocus", trigger.condition)),
+                            message: Some(format!(
+                                "Trigger fired: {:?} - Running autofocus",
+                                trigger.condition
+                            )),
                             current_frame: None,
                             total_frames: None,
                             current_child: None,
@@ -528,10 +565,16 @@ impl RuntimeNode {
                                 trigger_state.update_hfr(*best_hfr);
                                 trigger_state.reset_baseline_hfr();
                                 trigger_state.mark_autofocus_performed();
-                                tracing::info!("Autofocus complete, reset HFR baseline to {:.2}", best_hfr);
+                                tracing::info!(
+                                    "Autofocus complete, reset HFR baseline to {:.2}",
+                                    best_hfr
+                                );
                             }
                         } else {
-                            tracing::warn!("Autofocus triggered by exposure failed: {:?}", af_result.status);
+                            tracing::warn!(
+                                "Autofocus triggered by exposure failed: {:?}",
+                                af_result.status
+                            );
                         }
                     }
                     TriggerAction::Abort => {
@@ -539,7 +582,10 @@ impl RuntimeNode {
                         context.send_progress(ProgressUpdate {
                             node_id: self.id().clone(),
                             status: NodeStatus::Failure,
-                            message: Some(format!("Trigger fired: {:?} - Aborting sequence", trigger.condition)),
+                            message: Some(format!(
+                                "Trigger fired: {:?} - Aborting sequence",
+                                trigger.condition
+                            )),
                             current_frame: None,
                             total_frames: None,
                             current_child: None,
@@ -598,18 +644,12 @@ impl Node for RuntimeNode {
             NodeType::TargetHeader(config) | NodeType::TargetGroup(config) => {
                 self.execute_target_header(config.clone(), context).await
             }
-            NodeType::Loop(config) => {
-                self.execute_loop(config.clone(), context).await
-            }
-            NodeType::Parallel(config) => {
-                self.execute_parallel(config.clone(), context).await
-            }
+            NodeType::Loop(config) => self.execute_loop(config.clone(), context).await,
+            NodeType::Parallel(config) => self.execute_parallel(config.clone(), context).await,
             NodeType::Conditional(config) => {
                 self.execute_conditional(config.clone(), context).await
             }
-            NodeType::Recovery(config) => {
-                self.execute_recovery(config.clone(), context).await
-            }
+            NodeType::Recovery(config) => self.execute_recovery(config.clone(), context).await,
 
             // Instruction nodes
             NodeType::SlewToTarget(config) => {
@@ -632,7 +672,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_slew(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Slew")
+                execute_slew(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Slew")
             }
             NodeType::CenterTarget(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -654,7 +696,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_center(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Center Target")
+                execute_center(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Center Target")
             }
             NodeType::TakeExposure(config) => {
                 let mut ctx = context.to_instruction_context().await;
@@ -677,7 +721,8 @@ impl Node for RuntimeNode {
                             completed_exposure_secs: None, // Will track total after completion
                         });
                     }
-                }).await;
+                })
+                .await;
 
                 // Track total integration time after exposure sequence completes
                 if result.status == NodeStatus::Success {
@@ -690,9 +735,11 @@ impl Node for RuntimeNode {
                     if let Some(trigger_state_lock) = &context.trigger_state {
                         if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
                             // Update HFR tracking
-                            if let Some(median_hfr) = result.hfr_values.iter().copied().fold(None, |acc, val| {
-                                Some(acc.map_or(val, |a| (a + val) / 2.0))
-                            }) {
+                            if let Some(median_hfr) =
+                                result.hfr_values.iter().copied().fold(None, |acc, val| {
+                                    Some(acc.map_or(val, |a| (a + val) / 2.0))
+                                })
+                            {
                                 trigger_state.update_hfr(median_hfr);
                                 tracing::debug!("Updated trigger state HFR: {:.2}", median_hfr);
                             }
@@ -701,7 +748,10 @@ impl Node for RuntimeNode {
                             for _ in 0..total_count {
                                 trigger_state.increment_exposure_count();
                             }
-                            tracing::debug!("Updated trigger state exposure count: {}", trigger_state.completed_exposures);
+                            tracing::debug!(
+                                "Updated trigger state exposure count: {}",
+                                trigger_state.completed_exposures
+                            );
                         }
                     }
 
@@ -712,7 +762,10 @@ impl Node for RuntimeNode {
                     context.send_progress(ProgressUpdate {
                         node_id: self.id().clone(),
                         status: NodeStatus::Success,
-                        message: Some(format!("Completed {} exposures ({:.0}s)", total_count, total_exposure_time)),
+                        message: Some(format!(
+                            "Completed {} exposures ({:.0}s)",
+                            total_count, total_exposure_time
+                        )),
                         current_frame: Some(total_count),
                         total_frames: Some(total_count),
                         current_child: None,
@@ -758,12 +811,18 @@ impl Node for RuntimeNode {
                             if let Some(best_hfr) = result.hfr_values.first() {
                                 trigger_state.update_hfr(*best_hfr);
                                 trigger_state.reset_baseline_hfr();
-                                tracing::debug!("Reset HFR baseline to {:.2} after autofocus", best_hfr);
+                                tracing::debug!(
+                                    "Reset HFR baseline to {:.2} after autofocus",
+                                    best_hfr
+                                );
                             }
 
                             // Mark that autofocus was performed
                             trigger_state.mark_autofocus_performed();
-                            tracing::debug!("Marked autofocus performed at exposure {}", trigger_state.completed_exposures);
+                            tracing::debug!(
+                                "Marked autofocus performed at exposure {}",
+                                trigger_state.completed_exposures
+                            );
                         }
                     }
                 } else if result.status == NodeStatus::Failure {
@@ -794,7 +853,13 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                crate::temperature_compensation::execute_temperature_compensation(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Temperature Compensation")
+                crate::temperature_compensation::execute_temperature_compensation(
+                    config,
+                    &ctx,
+                    Some(&progress_fn),
+                )
+                .await
+                .log_and_get_status("Temperature Compensation")
             }
             NodeType::Dither(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -824,7 +889,10 @@ impl Node for RuntimeNode {
                         if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
                             // Mark that dither was performed
                             trigger_state.mark_dither_performed();
-                            tracing::debug!("Marked dither performed at exposure {}", trigger_state.completed_exposures);
+                            tracing::debug!(
+                                "Marked dither performed at exposure {}",
+                                trigger_state.completed_exposures
+                            );
                         }
                     }
                 } else if result.status == NodeStatus::Failure {
@@ -855,7 +923,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_start_guiding(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Start Guiding")
+                execute_start_guiding(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Start Guiding")
             }
             NodeType::StopGuiding => {
                 let ctx = context.to_instruction_context().await;
@@ -877,7 +947,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_stop_guiding(&ctx, Some(&progress_fn)).await.log_and_get_status("Stop Guiding")
+                execute_stop_guiding(&ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Stop Guiding")
             }
             NodeType::ChangeFilter(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -929,7 +1001,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_cool_camera(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Cool Camera")
+                execute_cool_camera(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Cool Camera")
             }
             NodeType::WarmCamera(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -951,11 +1025,15 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_warm_camera(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Warm Camera")
+                execute_warm_camera(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Warm Camera")
             }
             NodeType::MoveRotator(config) => {
                 let ctx = context.to_instruction_context().await;
-                execute_rotator_move(config, &ctx).await.log_and_get_status("Move Rotator")
+                execute_rotator_move(config, &ctx)
+                    .await
+                    .log_and_get_status("Move Rotator")
             }
             NodeType::Park => {
                 let ctx = context.to_instruction_context().await;
@@ -985,7 +1063,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_wait_time(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Wait For Time")
+                execute_wait_time(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Wait For Time")
             }
             NodeType::Delay(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1007,15 +1087,21 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_delay(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Delay")
+                execute_delay(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Delay")
             }
             NodeType::Notification(config) => {
                 let ctx = context.to_instruction_context().await;
-                execute_notification(config, &ctx).await.log_and_get_status("Notification")
+                execute_notification(config, &ctx)
+                    .await
+                    .log_and_get_status("Notification")
             }
             NodeType::RunScript(config) => {
                 let ctx = context.to_instruction_context().await;
-                execute_script(config, &ctx).await.log_and_get_status("Run Script")
+                execute_script(config, &ctx)
+                    .await
+                    .log_and_get_status("Run Script")
             }
             NodeType::PolarAlignment(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1023,24 +1109,31 @@ impl Node for RuntimeNode {
                 let progress_cb = context.progress_callback.as_ref();
                 let image_cb = context.polar_align_image_callback.as_ref();
 
-                execute_polar_alignment(config, &ctx, |msg, _progress| {
-                    if let Some(cb) = progress_cb {
-                        cb(ProgressUpdate {
-                            node_id: node_id.clone(),
-                            status: NodeStatus::Running,
-                            message: Some(msg),
-                            current_frame: None,
-                            total_frames: None,
-                            current_child: None,
-                            total_children: None,
-                            completed_exposure_secs: None,
-                        });
-                    }
-                }, |image_data| {
-                    if let Some(cb) = image_cb {
-                        cb(image_data);
-                    }
-                }).await.log_and_get_status("Polar Alignment")
+                execute_polar_alignment(
+                    config,
+                    &ctx,
+                    |msg, _progress| {
+                        if let Some(cb) = progress_cb {
+                            cb(ProgressUpdate {
+                                node_id: node_id.clone(),
+                                status: NodeStatus::Running,
+                                message: Some(msg),
+                                current_frame: None,
+                                total_frames: None,
+                                current_child: None,
+                                total_children: None,
+                                completed_exposure_secs: None,
+                            });
+                        }
+                    },
+                    |image_data| {
+                        if let Some(cb) = image_cb {
+                            cb(image_data);
+                        }
+                    },
+                )
+                .await
+                .log_and_get_status("Polar Alignment")
             }
             NodeType::MeridianFlip(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1062,7 +1155,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_meridian_flip(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Meridian Flip")
+                execute_meridian_flip(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Meridian Flip")
             }
             NodeType::OpenDome(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1084,7 +1179,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_open_dome(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Open Dome")
+                execute_open_dome(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Open Dome")
             }
             NodeType::CloseDome(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1106,7 +1203,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_close_dome(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Close Dome")
+                execute_close_dome(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Close Dome")
             }
             NodeType::ParkDome(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1128,7 +1227,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_park_dome(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Park Dome")
+                execute_park_dome(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Park Dome")
             }
             NodeType::Mosaic(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1150,7 +1251,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_mosaic(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Mosaic")
+                execute_mosaic(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Mosaic")
             }
             NodeType::FlatWizard(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1172,7 +1275,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                crate::flat_wizard::execute_flat_wizard(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Flat Wizard")
+                crate::flat_wizard::execute_flat_wizard(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Flat Wizard")
             }
             NodeType::OpenCover(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1194,7 +1299,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_open_cover(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Open Cover")
+                execute_open_cover(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Open Cover")
             }
             NodeType::CloseCover(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1216,7 +1323,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_close_cover(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Close Cover")
+                execute_close_cover(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Close Cover")
             }
             NodeType::CalibratorOn(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1238,7 +1347,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_calibrator_on(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Calibrator On")
+                execute_calibrator_on(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Calibrator On")
             }
             NodeType::CalibratorOff(config) => {
                 let ctx = context.to_instruction_context().await;
@@ -1260,7 +1371,9 @@ impl Node for RuntimeNode {
                     }
                 };
 
-                execute_calibrator_off(config, &ctx, Some(&progress_fn)).await.log_and_get_status("Calibrator Off")
+                execute_calibrator_off(config, &ctx, Some(&progress_fn))
+                    .await
+                    .log_and_get_status("Calibrator Off")
             }
         };
 
@@ -1316,7 +1429,20 @@ impl Node for RuntimeNode {
 
 impl RuntimeNode {
     /// Execute a target header node (root node for each target)
-    async fn execute_target_header(&mut self, config: TargetHeaderConfig, context: &mut ExecutionContext) -> NodeStatus {
+    async fn execute_target_header(
+        &mut self,
+        config: TargetHeaderConfig,
+        context: &mut ExecutionContext,
+    ) -> NodeStatus {
+        if context.is_skip_to_next_target_requested() {
+            context.clear_skip_to_next_target_request();
+            tracing::info!(
+                "Skipping target '{}' due to pending next-target request",
+                config.display_name()
+            );
+            return NodeStatus::Skipped;
+        }
+
         // Set target context for child nodes
         context.target_name = Some(config.target_name.clone());
         context.target_ra = Some(config.ra_hours);
@@ -1324,8 +1450,12 @@ impl RuntimeNode {
         context.target_rotation = config.rotation;
 
         let display_name = config.display_name();
-        tracing::info!("Starting target: {} (RA: {:.4}h, Dec: {:.4}°)",
-            display_name, config.ra_hours, config.dec_degrees);
+        tracing::info!(
+            "Starting target: {} (RA: {:.4}h, Dec: {:.4}°)",
+            display_name,
+            config.ra_hours,
+            config.dec_degrees
+        );
 
         // Check time constraints
         let now = chrono::Utc::now().timestamp();
@@ -1334,8 +1464,11 @@ impl RuntimeNode {
         if let Some(start_after) = config.start_after {
             if now < start_after {
                 let wait_secs = start_after - now;
-                tracing::info!("Target {} has start_after constraint, waiting {} seconds",
-                    display_name, wait_secs);
+                tracing::info!(
+                    "Target {} has start_after constraint, waiting {} seconds",
+                    display_name,
+                    wait_secs
+                );
                 // Wait until start time
                 tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs as u64)).await;
             }
@@ -1344,8 +1477,10 @@ impl RuntimeNode {
         // Check end_before constraint
         if let Some(end_before) = config.end_before {
             if now >= end_before {
-                tracing::warn!("Target {} has passed its end_before time, skipping",
-                    display_name);
+                tracing::warn!(
+                    "Target {} has passed its end_before time, skipping",
+                    display_name
+                );
                 return NodeStatus::Skipped;
             }
         }
@@ -1355,33 +1490,42 @@ impl RuntimeNode {
             if let Ok(mut trigger_state) = trigger_state_lock.try_write() {
                 let target_ra_degrees = config.ra_hours * 15.0; // Convert hours to degrees
                 trigger_state.set_target(target_ra_degrees, config.dec_degrees);
-                tracing::debug!("Updated trigger state with target: RA={:.4}°, Dec={:.4}°",
-                    target_ra_degrees, config.dec_degrees);
+                tracing::debug!(
+                    "Updated trigger state with target: RA={:.4}°, Dec={:.4}°",
+                    target_ra_degrees,
+                    config.dec_degrees
+                );
             }
         }
 
         // Calculate and update meridian flip time for trigger system
         if let (Some(_lat), Some(lon)) = (context.latitude, context.longitude) {
             let now = chrono::Utc::now();
-            let meridian_crossing = crate::meridian::calculate_meridian_crossing(
-                config.ra_hours,
-                lon,
-                now
+            let meridian_crossing =
+                crate::meridian::calculate_meridian_crossing(config.ra_hours, lon, now);
+
+            tracing::debug!(
+                "Target {} meridian crossing at {}",
+                display_name,
+                meridian_crossing
             );
 
-            tracing::debug!("Target {} meridian crossing at {}",
-                display_name, meridian_crossing);
-
             // Store as Unix timestamp for trigger comparison
-            context.set_next_meridian_flip_time(Some(meridian_crossing.timestamp()));
+            context
+                .set_next_meridian_flip_time(Some(meridian_crossing.timestamp()))
+                .await;
         }
 
         // Check altitude if configured
         if let Some(min_alt) = config.min_altitude {
             let current_alt = context.calculate_altitude().unwrap_or(90.0);
             if current_alt < min_alt {
-                tracing::warn!("Target {} is below minimum altitude ({:.1}° < {:.1}°)",
-                    display_name, current_alt, min_alt);
+                tracing::warn!(
+                    "Target {} is below minimum altitude ({:.1}° < {:.1}°)",
+                    display_name,
+                    current_alt,
+                    min_alt
+                );
                 return NodeStatus::Skipped;
             }
         }
@@ -1389,18 +1533,36 @@ impl RuntimeNode {
         if let Some(max_alt) = config.max_altitude {
             let current_alt = context.calculate_altitude().unwrap_or(0.0);
             if current_alt > max_alt {
-                tracing::warn!("Target {} is above maximum altitude ({:.1}° > {:.1}°)",
-                    display_name, current_alt, max_alt);
+                tracing::warn!(
+                    "Target {} is above maximum altitude ({:.1}° > {:.1}°)",
+                    display_name,
+                    current_alt,
+                    max_alt
+                );
                 return NodeStatus::Skipped;
             }
         }
 
         // Execute children in sequence
-        self.execute_children_sequential(context).await
+        let result = self.execute_children_sequential(context).await;
+        if result == NodeStatus::Skipped && context.is_skip_to_next_target_requested() {
+            context.clear_skip_to_next_target_request();
+            tracing::info!(
+                "Target '{}' interrupted by next-target request",
+                display_name
+            );
+            return NodeStatus::Skipped;
+        }
+
+        result
     }
 
     /// Execute a loop node
-    async fn execute_loop(&mut self, config: LoopConfig, context: &mut ExecutionContext) -> NodeStatus {
+    async fn execute_loop(
+        &mut self,
+        config: LoopConfig,
+        context: &mut ExecutionContext,
+    ) -> NodeStatus {
         self.current_iteration = 0;
 
         // Determine max iterations based on condition
@@ -1412,6 +1574,9 @@ impl RuntimeNode {
         loop {
             if context.is_cancelled().await {
                 return NodeStatus::Cancelled;
+            }
+            if context.is_skip_to_next_target_requested() {
+                return NodeStatus::Skipped;
             }
 
             // Check loop condition
@@ -1450,9 +1615,7 @@ impl RuntimeNode {
                     }
                 }
                 LoopCondition::Forever => true,
-                LoopCondition::WhileDark => {
-                    context.is_dark()
-                }
+                LoopCondition::WhileDark => context.is_dark(),
             };
 
             if !should_continue {
@@ -1483,16 +1646,29 @@ impl RuntimeNode {
             });
 
             // Reset children for this iteration
-            tracing::info!("Resetting {} children for iteration {}", self.children.len(), self.current_iteration);
+            tracing::info!(
+                "Resetting {} children for iteration {}",
+                self.children.len(),
+                self.current_iteration
+            );
             for child in &mut self.children {
                 child.reset();
             }
             tracing::info!("Children reset complete");
 
             // Execute children
-            tracing::info!("Starting execute_children_sequential for iteration {}", self.current_iteration);
+            tracing::info!(
+                "Starting execute_children_sequential for iteration {}",
+                self.current_iteration
+            );
             let result = self.execute_children_sequential(context).await;
-            tracing::info!("execute_children_sequential completed with result: {:?}", result);
+            tracing::info!(
+                "execute_children_sequential completed with result: {:?}",
+                result
+            );
+            if result == NodeStatus::Skipped && context.is_skip_to_next_target_requested() {
+                return NodeStatus::Skipped;
+            }
             if result == NodeStatus::Failure || result == NodeStatus::Cancelled {
                 return result;
             }
@@ -1502,7 +1678,11 @@ impl RuntimeNode {
     }
 
     /// Execute a parallel node with true concurrent execution
-    async fn execute_parallel(&mut self, config: ParallelConfig, context: &mut ExecutionContext) -> NodeStatus {
+    async fn execute_parallel(
+        &mut self,
+        config: ParallelConfig,
+        context: &mut ExecutionContext,
+    ) -> NodeStatus {
         use std::sync::atomic::AtomicUsize;
         use tokio::sync::Mutex as TokioMutex;
 
@@ -1559,82 +1739,89 @@ impl RuntimeNode {
         let latitude = context.latitude;
         let longitude = context.longitude;
         let safety_fail_mode = context.safety_fail_mode;
+        let skip_to_next_target = context.skip_to_next_target.clone();
 
         // Spawn tasks for each child
-        let handles: Vec<_> = children.iter().enumerate().map(|(i, child)| {
-            let child = child.clone();
-            let success_count = success_count.clone();
-            let cancelled = cancelled.clone();
-            let is_cancelled = is_cancelled.clone();
-            let is_paused = is_paused.clone();
-            let resume_notify = resume_notify.clone();
-            let device_ops = device_ops.clone();
-            let completed_integration = completed_integration.clone();
-            let node_id = node_id.clone();
-            let target_name = target_name.clone();
-            let current_filter = current_filter.clone();
-            let camera_id = camera_id.clone();
-            let mount_id = mount_id.clone();
-            let focuser_id = focuser_id.clone();
-            let filterwheel_id = filterwheel_id.clone();
-            let rotator_id = rotator_id.clone();
-            let dome_id = dome_id.clone();
-            let cover_calibrator_id = cover_calibrator_id.clone();
-            let save_path = save_path.clone();
-            let safety_fail_mode = safety_fail_mode;
+        let handles: Vec<_> = children
+            .iter()
+            .enumerate()
+            .map(|(i, child)| {
+                let child = child.clone();
+                let success_count = success_count.clone();
+                let cancelled = cancelled.clone();
+                let is_cancelled = is_cancelled.clone();
+                let is_paused = is_paused.clone();
+                let resume_notify = resume_notify.clone();
+                let device_ops = device_ops.clone();
+                let completed_integration = completed_integration.clone();
+                let node_id = node_id.clone();
+                let target_name = target_name.clone();
+                let current_filter = current_filter.clone();
+                let camera_id = camera_id.clone();
+                let mount_id = mount_id.clone();
+                let focuser_id = focuser_id.clone();
+                let filterwheel_id = filterwheel_id.clone();
+                let rotator_id = rotator_id.clone();
+                let dome_id = dome_id.clone();
+                let cover_calibrator_id = cover_calibrator_id.clone();
+                let save_path = save_path.clone();
+                let safety_fail_mode = safety_fail_mode;
+                let skip_to_next_target = skip_to_next_target.clone();
 
-            tokio::spawn(async move {
-                // Check for cancellation before starting
-                if is_cancelled.load(Ordering::Relaxed) || cancelled.load(Ordering::Relaxed) {
-                    return (i, NodeStatus::Cancelled);
-                }
-
-                // Create branch-specific context
-                let mut branch_context = ExecutionContext {
-                    node_id: format!("{}_branch_{}", node_id, i),
-                    target_ra,
-                    target_dec,
-                    target_name,
-                    target_rotation,
-                    current_filter,
-                    is_cancelled: is_cancelled.clone(),
-                    is_paused,
-                    resume_notify,
-                    progress_callback: None,
-                    polar_align_image_callback: None,
-                    camera_id,
-                    mount_id,
-                    focuser_id,
-                    filterwheel_id,
-                    rotator_id,
-                    dome_id,
-                    cover_calibrator_id,
-                    save_path,
-                    latitude,
-                    longitude,
-                    device_ops,
-                    completed_integration_secs: completed_integration,
-                    trigger_state: None,
-                    safety_fail_mode,
-                };
-
-                // Execute the child with mutex guard
-                let mut child_guard = child.lock().await;
-                let result = child_guard.execute(&mut branch_context).await;
-
-                match result {
-                    NodeStatus::Success => {
-                        success_count.fetch_add(1, Ordering::Relaxed);
+                tokio::spawn(async move {
+                    // Check for cancellation before starting
+                    if is_cancelled.load(Ordering::Relaxed) || cancelled.load(Ordering::Relaxed) {
+                        return (i, NodeStatus::Cancelled);
                     }
-                    NodeStatus::Cancelled => {
-                        cancelled.store(true, Ordering::Relaxed);
-                    }
-                    _ => {}
-                }
 
-                (i, result)
+                    // Create branch-specific context
+                    let mut branch_context = ExecutionContext {
+                        node_id: format!("{}_branch_{}", node_id, i),
+                        target_ra,
+                        target_dec,
+                        target_name,
+                        target_rotation,
+                        current_filter,
+                        is_cancelled: is_cancelled.clone(),
+                        is_paused,
+                        skip_to_next_target,
+                        resume_notify,
+                        progress_callback: None,
+                        polar_align_image_callback: None,
+                        camera_id,
+                        mount_id,
+                        focuser_id,
+                        filterwheel_id,
+                        rotator_id,
+                        dome_id,
+                        cover_calibrator_id,
+                        save_path,
+                        latitude,
+                        longitude,
+                        device_ops,
+                        completed_integration_secs: completed_integration,
+                        trigger_state: None,
+                        safety_fail_mode,
+                    };
+
+                    // Execute the child with mutex guard
+                    let mut child_guard = child.lock().await;
+                    let result = child_guard.execute(&mut branch_context).await;
+
+                    match result {
+                        NodeStatus::Success => {
+                            success_count.fetch_add(1, Ordering::Relaxed);
+                        }
+                        NodeStatus::Cancelled => {
+                            cancelled.store(true, Ordering::Relaxed);
+                        }
+                        _ => {}
+                    }
+
+                    (i, result)
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for all tasks to complete
         let _results: Vec<_> = futures::future::join_all(handles)
@@ -1653,7 +1840,9 @@ impl RuntimeNode {
                 }
                 Err(_) => {
                     // This should never happen since all tasks completed
-                    tracing::error!("Failed to restore child from parallel execution - this is a bug");
+                    tracing::error!(
+                        "Failed to restore child from parallel execution - this is a bug"
+                    );
                     // Can't recover the child, leave it out
                 }
             }
@@ -1670,8 +1859,15 @@ impl RuntimeNode {
 
         context.send_progress(ProgressUpdate {
             node_id: node_id.clone(),
-            status: if successes >= required { NodeStatus::Success } else { NodeStatus::Failure },
-            message: Some(format!("{}/{} branches succeeded", successes, total_children)),
+            status: if successes >= required {
+                NodeStatus::Success
+            } else {
+                NodeStatus::Failure
+            },
+            message: Some(format!(
+                "{}/{} branches succeeded",
+                successes, total_children
+            )),
             current_frame: None,
             total_frames: None,
             current_child: Some(total_children),
@@ -1682,35 +1878,60 @@ impl RuntimeNode {
         if successes >= required {
             NodeStatus::Success
         } else {
-            tracing::warn!("Parallel node: only {}/{} branches succeeded, required {}",
-                successes, total_children, required);
+            tracing::warn!(
+                "Parallel node: only {}/{} branches succeeded, required {}",
+                successes,
+                total_children,
+                required
+            );
             NodeStatus::Failure
         }
     }
 
     /// Execute a conditional node
-    async fn execute_conditional(&mut self, config: ConditionalConfig, context: &mut ExecutionContext) -> NodeStatus {
+    async fn execute_conditional(
+        &mut self,
+        config: ConditionalConfig,
+        context: &mut ExecutionContext,
+    ) -> NodeStatus {
         let condition_met = match &config.condition {
             ConditionalCheck::Always => true,
             ConditionalCheck::AltitudeAbove(min_alt) => {
                 let current_alt = context.calculate_altitude().unwrap_or(0.0);
                 current_alt > *min_alt
             }
-            ConditionalCheck::TimeAfter(after) => {
-                chrono::Utc::now().timestamp() > *after
-            }
+            ConditionalCheck::TimeAfter(after) => chrono::Utc::now().timestamp() > *after,
             ConditionalCheck::GuidingRmsBelow(threshold) => {
                 // Get guiding RMS from PHD2
                 match context.device_ops.guider_get_status().await {
                     Ok(status) => status.rms_total < *threshold,
-                    Err(_) => true, // If guider not available, pass condition
+                    Err(e) => {
+                        tracing::warn!(
+                            "Guiding RMS condition check failed (threshold {:.2}): {}",
+                            threshold,
+                            e
+                        );
+                        false
+                    }
                 }
             }
             ConditionalCheck::HfrBelow(threshold) => {
-                // HFR requires recent image analysis - use reasonable default
-                // In production, this would check last captured image stats
-                let current_hfr = 2.5; // Reasonable default for typical seeing
-                current_hfr < *threshold
+                let current_hfr = if let Some(trigger_state_lock) = &context.trigger_state {
+                    let trigger_state = trigger_state_lock.read().await;
+                    trigger_state.current_hfr
+                } else {
+                    None
+                };
+
+                match current_hfr {
+                    Some(hfr) => hfr < *threshold,
+                    None => {
+                        tracing::warn!(
+                            "HFR condition check requested but no current HFR sample is available"
+                        );
+                        false
+                    }
+                }
             }
             ConditionalCheck::WeatherSafe => {
                 // Check weather/safety monitor for safe conditions
@@ -1726,7 +1947,10 @@ impl RuntimeNode {
                         // Handle error based on configured safety fail mode
                         match context.safety_fail_mode {
                             SafetyFailMode::FailOpen => {
-                                tracing::warn!("Weather safety check error: {} - assuming safe (fail-open)", e);
+                                tracing::warn!(
+                                    "Weather safety check error: {} - assuming safe (fail-open)",
+                                    e
+                                );
                                 true
                             }
                             SafetyFailMode::FailClosed => {
@@ -1743,7 +1967,9 @@ impl RuntimeNode {
             }
             ConditionalCheck::MoonSeparationAbove(degrees) => {
                 // Calculate moon separation from target
-                context.calculate_moon_separation().map_or(true, |sep| sep > *degrees)
+                context
+                    .calculate_moon_separation()
+                    .map_or(true, |sep| sep > *degrees)
             }
             ConditionalCheck::SafetyMonitorSafe => {
                 // Check dedicated safety monitor device
@@ -1759,7 +1985,10 @@ impl RuntimeNode {
                         // Handle error based on configured safety fail mode
                         match context.safety_fail_mode {
                             SafetyFailMode::FailOpen => {
-                                tracing::warn!("Safety monitor check error: {} - assuming safe (fail-open)", e);
+                                tracing::warn!(
+                                    "Safety monitor check error: {} - assuming safe (fail-open)",
+                                    e
+                                );
                                 true
                             }
                             SafetyFailMode::FailClosed => {
@@ -1785,7 +2014,11 @@ impl RuntimeNode {
     }
 
     /// Execute a recovery node
-    async fn execute_recovery(&mut self, config: RecoveryConfig, context: &mut ExecutionContext) -> NodeStatus {
+    async fn execute_recovery(
+        &mut self,
+        config: RecoveryConfig,
+        context: &mut ExecutionContext,
+    ) -> NodeStatus {
         let mut attempts = 0;
         let max_attempts = config.max_retries.max(1);
 
@@ -1849,7 +2082,11 @@ impl RuntimeNode {
         let total = self.children.len();
         let node_id = self.id().clone();
 
-        tracing::debug!("execute_children_sequential: node {} has {} children", node_id, total);
+        tracing::debug!(
+            "execute_children_sequential: node {} has {} children",
+            node_id,
+            total
+        );
 
         if total == 0 {
             tracing::warn!("Node {} has no children to execute", node_id);
@@ -1865,9 +2102,21 @@ impl RuntimeNode {
                 tracing::debug!("Execution cancelled before child {}", i);
                 return NodeStatus::Cancelled;
             }
+            if context.is_skip_to_next_target_requested() {
+                tracing::info!(
+                    "Skipping remaining children in node {} due to next-target request",
+                    node_id
+                );
+                return NodeStatus::Skipped;
+            }
 
-            tracing::info!("Executing child {}/{}: '{}' (id={})",
-                i + 1, total, child.name(), child.id());
+            tracing::info!(
+                "Executing child {}/{}: '{}' (id={})",
+                i + 1,
+                total,
+                child.name(),
+                child.id()
+            );
 
             context.send_progress(ProgressUpdate {
                 node_id: node_id.clone(),
@@ -1882,8 +2131,15 @@ impl RuntimeNode {
 
             let result = child.execute(context).await;
 
-            tracing::info!("Child '{}' completed with status: {:?}", child.name(), result);
+            tracing::info!(
+                "Child '{}' completed with status: {:?}",
+                child.name(),
+                result
+            );
 
+            if result == NodeStatus::Skipped && context.is_skip_to_next_target_requested() {
+                return NodeStatus::Skipped;
+            }
             if result == NodeStatus::Failure || result == NodeStatus::Cancelled {
                 return result;
             }
@@ -1916,12 +2172,14 @@ pub fn julian_day(dt: &chrono::DateTime<chrono::Utc>) -> f64 {
     let a = y / 100;
     let b = 2 - a + a / 4;
 
-    let jd = (365.25 * (y as f64 + 4716.0)).floor() +
-             (30.6001 * (m as f64 + 1.0)).floor() +
-             day as f64 + b as f64 - 1524.5;
-    
+    let jd = (365.25 * (y as f64 + 4716.0)).floor()
+        + (30.6001 * (m as f64 + 1.0)).floor()
+        + day as f64
+        + b as f64
+        - 1524.5;
+
     let time_fraction = (hour as f64 + minute as f64 / 60.0 + second as f64 / 3600.0) / 24.0;
-    
+
     jd + time_fraction
 }
 
@@ -1929,11 +2187,15 @@ pub fn local_sidereal_time(jd: f64, longitude: f64) -> f64 {
     let t = (jd - 2451545.0) / 36525.0;
 
     // Greenwich Mean Sidereal Time in degrees
-    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) +
-               0.000387933 * t * t - t * t * t / 38710000.0;
+    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * t * t
+        - t * t * t / 38710000.0;
 
     let lst = (gmst + longitude) % 360.0;
-    if lst < 0.0 { (lst + 360.0) / 15.0 } else { lst / 15.0 }
+    if lst < 0.0 {
+        (lst + 360.0) / 15.0
+    } else {
+        lst / 15.0
+    }
 }
 
 #[cfg(test)]
@@ -1951,8 +2213,12 @@ mod tests {
 
     #[test]
     fn test_execution_context_with_target() {
-        let ctx = ExecutionContext::new("test_node".to_string())
-            .with_target("M31".to_string(), 10.68, 41.27, Some(45.0));
+        let ctx = ExecutionContext::new("test_node".to_string()).with_target(
+            "M31".to_string(),
+            10.68,
+            41.27,
+            Some(45.0),
+        );
 
         assert_eq!(ctx.target_name, Some("M31".to_string()));
         assert_eq!(ctx.target_ra, Some(10.68));
@@ -2001,7 +2267,7 @@ mod tests {
     #[test]
     fn test_julian_day_calculation() {
         // Test J2000 epoch: January 1, 2000 at 12:00 UT
-        use chrono::{DateTime, Utc, TimeZone};
+        use chrono::{TimeZone, Utc};
 
         let dt = Utc.with_ymd_and_hms(2000, 1, 1, 12, 0, 0).unwrap();
 
@@ -2013,7 +2279,7 @@ mod tests {
     #[test]
     fn test_julian_day_another_epoch() {
         // Test another known date
-        use chrono::{DateTime, Utc, TimeZone};
+        use chrono::{TimeZone, Utc};
 
         let dt = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
 
