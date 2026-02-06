@@ -55,6 +55,22 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
 
+  // Set the window icon from the bundled icon file.
+  // Resolve the executable's directory via /proc/self/exe so the icon is
+  // found regardless of the working directory at launch time.
+  g_autoptr(GError) icon_error = nullptr;
+  g_autofree gchar* exe_path = g_file_read_link("/proc/self/exe", nullptr);
+  if (exe_path != nullptr) {
+    g_autofree gchar* exe_dir = g_path_get_dirname(exe_path);
+    g_autofree gchar* icon_path = g_build_filename(
+        exe_dir, "icons", "nightshade_256.png", nullptr);
+    GdkPixbuf* icon_pixbuf = gdk_pixbuf_new_from_file(icon_path, &icon_error);
+    if (icon_pixbuf != nullptr) {
+      gtk_window_set_icon(window, icon_pixbuf);
+      g_object_unref(icon_pixbuf);
+    }
+  }
+
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(project, self->dart_entrypoint_arguments);
 

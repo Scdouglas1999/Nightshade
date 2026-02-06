@@ -127,6 +127,11 @@ else()
   message(WARNING "Rust library not found at ${RUST_LIB_DIR}/${RUST_LIB_NAME}. Build it first with: cd native/nightshade_native && cargo build --release")
 endif()
 
+# Install application icons
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/icons"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  COMPONENT Runtime)
+
 # Fully re-copy the assets directory on each build to avoid having stale files
 # from a previous install.
 set(FLUTTER_ASSET_DIR_NAME "flutter_assets")
