@@ -15,8 +15,10 @@ import '../../utils/preview_transform.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import '../../widgets/annotation_overlay.dart';
 import '../settings/catalog_settings_screen.dart';
+import 'imaging_science_state.dart';
 import 'tabs/mount_tab.dart';
 import 'widgets/stretch_controls.dart';
+import 'widgets/science_hud.dart';
 import '../../widgets/focuser_controls.dart';
 import '../../widgets/filter_wheel_selector.dart';
 import '../../widgets/tutorial_keys/imaging_keys.dart';
@@ -333,7 +335,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       children: [
                         _CapturePanel(colors: colors),
                         _CameraPanel(colors: colors),
-                        _FocusPanel(key: ImagingTutorialKeys.focusTab, colors: colors),
+                        _FocusPanel(
+                            key: ImagingTutorialKeys.focusTab, colors: colors),
                         _GuidingPanel(colors: colors),
                         MountTab(key: ImagingTutorialKeys.mountTab),
                       ],
@@ -432,7 +435,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       children: [
                         _CapturePanel(colors: colors),
                         _CameraPanel(colors: colors),
-                        _FocusPanel(key: ImagingTutorialKeys.focusTab, colors: colors),
+                        _FocusPanel(
+                            key: ImagingTutorialKeys.focusTab, colors: colors),
                         _GuidingPanel(colors: colors),
                         MountTab(key: ImagingTutorialKeys.mountTab),
                       ],
@@ -629,9 +633,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       const SizedBox(width: 12),
                       _BigActionButton(
                         key: ImagingTutorialKeys.loopBtn,
-                        icon: _isLooping
-                            ? LucideIcons.square
-                            : LucideIcons.video,
+                        icon:
+                            _isLooping ? LucideIcons.square : LucideIcons.video,
                         label: _isLooping ? 'Stop' : 'Loop',
                         color: _isLooping ? colors.error : colors.accent,
                         isEnabled: isConnected && !_isSingleCapture,
@@ -653,19 +656,15 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                       _EditableCompactInput(
                         key: ImagingTutorialKeys.exposureSlider,
                         label: 'Duration',
-                        value: exposureSettings.exposureTime
-                            .toStringAsFixed(0),
+                        value: exposureSettings.exposureTime.toStringAsFixed(0),
                         suffix: 's',
                         colors: colors,
                         isMobile: isMobile,
                         onChanged: (value) {
                           final parsed = double.tryParse(value);
                           if (parsed != null && parsed > 0) {
-                            ref
-                                    .read(exposureSettingsProvider.notifier)
-                                    .state =
-                                exposureSettings.copyWith(
-                                    exposureTime: parsed);
+                            ref.read(exposureSettingsProvider.notifier).state =
+                                exposureSettings.copyWith(exposureTime: parsed);
                           }
                         },
                       ),
@@ -679,9 +678,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                         onChanged: (value) {
                           final parsed = int.tryParse(value);
                           if (parsed != null && parsed >= 0) {
-                            ref
-                                    .read(exposureSettingsProvider.notifier)
-                                    .state =
+                            ref.read(exposureSettingsProvider.notifier).state =
                                 exposureSettings.copyWith(gain: parsed);
                           }
                         },
@@ -695,9 +692,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                         onChanged: (value) {
                           final parsed = int.tryParse(value);
                           if (parsed != null && parsed >= 0) {
-                            ref
-                                    .read(exposureSettingsProvider.notifier)
-                                    .state =
+                            ref.read(exposureSettingsProvider.notifier).state =
                                 exposureSettings.copyWith(offset: parsed);
                           }
                         },
@@ -786,6 +781,36 @@ class _LivePreviewArea extends ConsumerWidget {
     final cameraState = ref.watch(cameraStateProvider);
     final exposureSettings = ref.watch(exposureSettingsProvider);
     final starDetectionResult = ref.watch(starDetectionResultProvider);
+    final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull ??
+        const ScienceSettings();
+    final scienceMode = ref.watch(scienceModeStateProvider);
+    final scienceOverlay = ref.watch(scienceOverlayStateProvider);
+    final scienceSnapshot = ref.watch(currentScienceSnapshotProvider);
+    final latestCalibration = scienceSnapshot.$1;
+    final latestTransparency = scienceSnapshot.$2;
+    final sessionId = ref.watch(sessionStateProvider).dbSessionId;
+    final sessionImages = ref.watch(sessionImagesProvider);
+    final currentFrameImageId = _resolveCurrentFrameImageId(
+      sessionImages: sessionImages,
+      currentImage: currentImage,
+    );
+
+    final sessionPsfTiles = sessionId == null
+        ? const <PsfFieldTileRow>[]
+        : ref.watch(sessionPsfTilesProvider(sessionId)).valueOrNull ??
+            const <PsfFieldTileRow>[];
+    final psfTiles = _selectCurrentFramePsfTiles(
+      sessionTiles: sessionPsfTiles,
+      capturedImageId: currentFrameImageId,
+    );
+    final sessionResidualVectors = sessionId == null
+        ? const <AstrometryResidualVectorRow>[]
+        : ref.watch(sessionResidualVectorsProvider(sessionId)).valueOrNull ??
+            const <AstrometryResidualVectorRow>[];
+    final residualVectors = _selectCurrentFrameResidualVectors(
+      sessionVectors: sessionResidualVectors,
+      capturedImageId: currentFrameImageId,
+    );
 
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
@@ -798,7 +823,8 @@ class _LivePreviewArea extends ConsumerWidget {
         final imageOffset = currentImage != null
             ? computeImageOffset(
                 viewportSize: viewportSize,
-                imageSize: Size(currentImage.width.toDouble(), currentImage.height.toDouble()),
+                imageSize: Size(currentImage.width.toDouble(),
+                    currentImage.height.toDouble()),
                 zoomLevel: zoomLevel,
                 panOffset: panOffset,
               )
@@ -820,382 +846,531 @@ class _LivePreviewArea extends ConsumerWidget {
               color: const Color(0xFF08080C),
               child: Stack(
                 children: [
-          // Image display or placeholder
-          if (currentImage != null)
-            Positioned.fill(
-              child: _ImageDisplayWidget(
-                imageData: currentImage,
-                zoomLevel: zoomLevel,
-                panOffset: panOffset,
-              ),
-            )
-          else
-            // Star field background with placeholder message
-            Positioned.fill(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _StarFieldPainter(colors: colors),
-                    ),
-                  ),
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: colors.surface.withValues(alpha: 0.8),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: colors.border),
-                          ),
-                          child: Icon(
-                            LucideIcons.camera,
-                            size: 48,
-                            color: colors.textMuted,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          isConnected ? 'No Image' : 'No Camera Connected',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          isConnected
-                              ? 'Take a snapshot or start a capture loop'
-                              : 'Connect a camera in Equipment settings',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: colors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Crosshair overlay
-          if (showCrosshair && currentImage != null)
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _CrosshairOverlayPainter(
-                  color: colors.primary.withValues(alpha: 0.4),
-                ),
-              ),
-            ),
-
-          // Grid overlay
-          if (showGrid && currentImage != null)
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _GridOverlayPainter(
-                  color: colors.primary.withValues(alpha: 0.2),
-                ),
-              ),
-            ),
-
-          // Star overlay
-          if (showStarOverlay && currentImage != null && starDetectionResult != null && starDetectionResult.stars.isNotEmpty)
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _StarOverlayPainter(
-                  stars: starDetectionResult.stars,
-                  color: colors.accent.withValues(alpha: 0.8),
-                  zoomLevel: zoomLevel,
-                  imageOffset: imageOffset,
-                ),
-              ),
-            ),
-
-          // Annotation overlay with fade effects
-          if (currentImage != null)
-            Positioned.fill(
-              child: _AnnotationOverlayWrapper(
-                zoomLevel: zoomLevel,
-                imageOffset: imageOffset,
-                imageSize: Size(currentImage.width.toDouble(),
-                    currentImage.height.toDouble()),
-                colors: colors,
-              ),
-            ),
-
-          // Exposure progress overlay
-          if (isExposing)
-            Positioned.fill(
-              child: _ExposureProgressOverlay(
-                progress: exposureProgress,
-                colors: colors,
-              ),
-            ),
-
-          // Top overlay bar - responsive layout
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // Use compact layout on narrow screens
-                final isNarrow = constraints.maxWidth < 500;
-                final horizontalPadding = isNarrow ? 8.0 : 16.0;
-
-                return Container(
-                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.6),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  child: isNarrow
-                      // Compact mobile layout - stack chips on top, controls below
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Info chips - wrap to prevent overflow
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: [
-                                _OverlayChip(
-                                  icon: LucideIcons.maximize2,
-                                  label: currentImage != null
-                                      ? '${currentImage.width}×${currentImage.height}'
-                                      : '--×--',
-                                  colors: colors,
-                                ),
-                                _OverlayChip(
-                                  icon: LucideIcons.search,
-                                  label: '${(zoomLevel * 100).round()}%',
-                                  colors: colors,
-                                ),
-                              ],
+                  // Image display or placeholder
+                  if (currentImage != null)
+                    Positioned.fill(
+                      child: _ImageDisplayWidget(
+                        imageData: currentImage,
+                        zoomLevel: zoomLevel,
+                        panOffset: panOffset,
+                      ),
+                    )
+                  else
+                    // Star field background with placeholder message
+                    Positioned.fill(
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: CustomPaint(
+                              painter: _StarFieldPainter(colors: colors),
                             ),
-                            const SizedBox(height: 4),
-                            // Control buttons - wrap to prevent overflow
-                            Row(
+                          ),
+                          Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Expanded(
-                                  child: Wrap(
-                                    spacing: 2,
-                                    runSpacing: 2,
-                                    children: [
-                                      _OverlayIconButton(
-                                        icon: LucideIcons.crosshair,
-                                        tooltip: 'Crosshair',
-                                        colors: colors,
-                                        isActive: showCrosshair,
-                                        onTap: onToggleCrosshair,
-                                      ),
-                                      _OverlayIconButton(
-                                        icon: LucideIcons.grid,
-                                        tooltip: 'Grid',
-                                        colors: colors,
-                                        isActive: showGrid,
-                                        onTap: onToggleGrid,
-                                      ),
-                                      _OverlayIconButton(
-                                        icon: LucideIcons.sparkles,
-                                        tooltip: 'Stars',
-                                        colors: colors,
-                                        isActive: showStarOverlay,
-                                        onTap: onToggleStarOverlay,
-                                      ),
-                                      Consumer(
-                                        builder: (context, ref, _) {
-                                          final isPanelVisible = ref.watch(annotationPanelVisibleProvider);
-                                          return _OverlayIconButton(
-                                            icon: LucideIcons.list,
-                                            tooltip: 'Objects',
-                                            colors: colors,
-                                            isActive: isPanelVisible,
-                                            onTap: () => ref.read(annotationPanelVisibleProvider.notifier).state = !isPanelVisible,
-                                          );
-                                        },
-                                      ),
-                                      Row(
-                                        key: ImagingTutorialKeys.zoomControls,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          _OverlayIconButton(
-                                            icon: LucideIcons.zoomIn,
-                                            tooltip: 'Zoom in',
-                                            colors: colors,
-                                            onTap: onZoomIn,
-                                          ),
-                                          _OverlayIconButton(
-                                            icon: LucideIcons.zoomOut,
-                                            tooltip: 'Zoom out',
-                                            colors: colors,
-                                            onTap: onZoomOut,
-                                          ),
-                                          _OverlayIconButton(
-                                            icon: LucideIcons.maximize,
-                                            tooltip: 'Fit',
-                                            colors: colors,
-                                            onTap: onFitToWindow,
-                                          ),
-                                        ],
-                                      ),
-                                      if (exposureProgress.percent > 0 && exposureProgress.percent < 1.0)
-                                        _OverlayIconButton(
-                                          key: ImagingTutorialKeys.abortBtn,
-                                          icon: LucideIcons.x,
-                                          tooltip: 'Abort',
-                                          colors: colors,
-                                          onTap: onAbortCapture,
-                                        ),
-                                    ],
+                                Container(
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        colors.surface.withValues(alpha: 0.8),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: colors.border),
+                                  ),
+                                  child: Icon(
+                                    LucideIcons.camera,
+                                    size: 48,
+                                    color: colors.textMuted,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  isConnected
+                                      ? 'No Image'
+                                      : 'No Camera Connected',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  isConnected
+                                      ? 'Take a snapshot or start a capture loop'
+                                      : 'Connect a camera in Equipment settings',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: colors.textMuted,
                                   ),
                                 ),
                               ],
                             ),
-                          ],
-                        )
-                      // Standard desktop layout
-                      : Row(
-                          children: [
-                            _OverlayChip(
-                              icon: LucideIcons.maximize2,
-                              label: currentImage != null
-                                  ? '${currentImage.width} × ${currentImage.height}'
-                                  : '--- × ---',
-                              colors: colors,
-                            ),
-                            const SizedBox(width: 8),
-                            _OverlayChip(
-                              icon: LucideIcons.grid,
-                              label: 'Binning ${exposureSettings.binning}',
-                              colors: colors,
-                            ),
-                            const SizedBox(width: 8),
-                            _OverlayChip(
-                              icon: LucideIcons.search,
-                              label: '${(zoomLevel * 100).round()}%',
-                              colors: colors,
-                            ),
-                            const Spacer(),
-                            _OverlayIconButton(
-                              icon: LucideIcons.crosshair,
-                              tooltip: 'Toggle crosshair',
-                              colors: colors,
-                              isActive: showCrosshair,
-                              onTap: onToggleCrosshair,
-                            ),
-                            _OverlayIconButton(
-                              icon: LucideIcons.grid,
-                              tooltip: 'Toggle grid',
-                              colors: colors,
-                              isActive: showGrid,
-                              onTap: onToggleGrid,
-                            ),
-                            _OverlayIconButton(
-                              icon: LucideIcons.sparkles,
-                              tooltip: 'Toggle star overlay',
-                              colors: colors,
-                              isActive: showStarOverlay,
-                              onTap: onToggleStarOverlay,
-                            ),
-                            Consumer(
-                              builder: (context, ref, _) {
-                                final isPanelVisible = ref.watch(annotationPanelVisibleProvider);
-                                final annotation = ref.watch(currentAnnotationProvider);
-                                final objectCount = annotation?.objects.length ?? 0;
-                                return _OverlayIconButton(
-                                  icon: LucideIcons.list,
-                                  tooltip: 'Objects panel${objectCount > 0 ? ' ($objectCount)' : ''}',
-                                  colors: colors,
-                                  isActive: isPanelVisible,
-                                  onTap: () => ref.read(annotationPanelVisibleProvider.notifier).state = !isPanelVisible,
-                                );
-                              },
-                            ),
-                            Row(
-                              key: ImagingTutorialKeys.zoomControls,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _OverlayIconButton(
-                                  icon: LucideIcons.zoomIn,
-                                  tooltip: 'Zoom in',
-                                  colors: colors,
-                                  onTap: onZoomIn,
-                                ),
-                                _OverlayIconButton(
-                                  icon: LucideIcons.zoomOut,
-                                  tooltip: 'Zoom out',
-                                  colors: colors,
-                                  onTap: onZoomOut,
-                                ),
-                                _OverlayIconButton(
-                                  icon: LucideIcons.minimize2,
-                                  tooltip: '1:1 zoom',
-                                  colors: colors,
-                                  onTap: onZoom1to1,
-                                ),
-                                _OverlayIconButton(
-                                  icon: LucideIcons.maximize,
-                                  tooltip: 'Fit to window',
-                                  colors: colors,
-                                  onTap: onFitToWindow,
-                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Crosshair overlay
+                  if (showCrosshair && currentImage != null)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _CrosshairOverlayPainter(
+                          color: colors.primary.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ),
+
+                  // Grid overlay
+                  if (showGrid && currentImage != null)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _GridOverlayPainter(
+                          color: colors.primary.withValues(alpha: 0.2),
+                        ),
+                      ),
+                    ),
+
+                  // Star overlay
+                  if (showStarOverlay &&
+                      currentImage != null &&
+                      starDetectionResult != null &&
+                      starDetectionResult.stars.isNotEmpty)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _StarOverlayPainter(
+                          stars: starDetectionResult.stars,
+                          color: colors.accent.withValues(alpha: 0.8),
+                          zoomLevel: zoomLevel,
+                          imageOffset: imageOffset,
+                        ),
+                      ),
+                    ),
+
+                  // Annotation overlay with fade effects
+                  if (currentImage != null)
+                    Positioned.fill(
+                      child: _AnnotationOverlayWrapper(
+                        zoomLevel: zoomLevel,
+                        imageOffset: imageOffset,
+                        imageSize: Size(currentImage.width.toDouble(),
+                            currentImage.height.toDouble()),
+                        colors: colors,
+                      ),
+                    ),
+
+                  if (currentImage != null &&
+                      scienceSettings.advancedModeEnabled &&
+                      scienceSettings.overlayEnabled &&
+                      scienceOverlay.showPsfHeatmap &&
+                      psfTiles.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _SciencePsfOverlayPainter(
+                            tiles: psfTiles,
+                            imageOffset: imageOffset,
+                            zoomLevel: zoomLevel,
+                            imageWidth: currentImage.width.toDouble(),
+                            imageHeight: currentImage.height.toDouble(),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (currentImage != null &&
+                      scienceSettings.advancedModeEnabled &&
+                      scienceSettings.overlayEnabled &&
+                      scienceOverlay.showResidualVectors &&
+                      residualVectors.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _ScienceResidualOverlayPainter(
+                            vectors: residualVectors,
+                            imageOffset: imageOffset,
+                            zoomLevel: zoomLevel,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Exposure progress overlay
+                  if (isExposing)
+                    Positioned.fill(
+                      child: _ExposureProgressOverlay(
+                        progress: exposureProgress,
+                        colors: colors,
+                      ),
+                    ),
+
+                  // Top overlay bar - responsive layout
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Use compact layout on narrow screens
+                        final isNarrow = constraints.maxWidth < 500;
+                        final horizontalPadding = isNarrow ? 8.0 : 16.0;
+
+                        return Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: horizontalPadding, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.6),
+                                Colors.transparent,
                               ],
                             ),
-                            if (exposureProgress.percent > 0 && exposureProgress.percent < 1.0)
-                              _OverlayIconButton(
-                                key: ImagingTutorialKeys.abortBtn,
-                                icon: LucideIcons.x,
-                                tooltip: 'Abort capture',
-                                colors: colors,
-                                onTap: onAbortCapture,
-                              ),
-                          ],
-                        ),
-                );
-              },
-            ),
-          ),
+                          ),
+                          child: isNarrow
+                              // Compact mobile layout - stack chips on top, controls below
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Info chips - wrap to prevent overflow
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 4,
+                                      children: [
+                                        _OverlayChip(
+                                          icon: LucideIcons.maximize2,
+                                          label: currentImage != null
+                                              ? '${currentImage.width}×${currentImage.height}'
+                                              : '--×--',
+                                          colors: colors,
+                                        ),
+                                        _OverlayChip(
+                                          icon: LucideIcons.search,
+                                          label:
+                                              '${(zoomLevel * 100).round()}%',
+                                          colors: colors,
+                                        ),
+                                        if (scienceSettings.advancedModeEnabled)
+                                          _OverlayChip(
+                                            icon: LucideIcons.gauge,
+                                            label: latestCalibration
+                                                        ?.zeroPoint ==
+                                                    null
+                                                ? 'ZP --'
+                                                : 'ZP ${latestCalibration!.zeroPoint!.toStringAsFixed(2)}',
+                                            colors: colors,
+                                          ),
+                                        if (scienceSettings.advancedModeEnabled)
+                                          _OverlayChip(
+                                            icon: LucideIcons.cloud,
+                                            label: latestTransparency == null
+                                                ? 'Sky --'
+                                                : 'Sky ${latestTransparency.qualityBucket}',
+                                            colors: colors,
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    // Control buttons - wrap to prevent overflow
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Wrap(
+                                            spacing: 2,
+                                            runSpacing: 2,
+                                            children: [
+                                              _OverlayIconButton(
+                                                icon: LucideIcons.crosshair,
+                                                tooltip: 'Crosshair',
+                                                colors: colors,
+                                                isActive: showCrosshair,
+                                                onTap: onToggleCrosshair,
+                                              ),
+                                              _OverlayIconButton(
+                                                icon: LucideIcons.grid,
+                                                tooltip: 'Grid',
+                                                colors: colors,
+                                                isActive: showGrid,
+                                                onTap: onToggleGrid,
+                                              ),
+                                              _OverlayIconButton(
+                                                icon: LucideIcons.sparkles,
+                                                tooltip: 'Stars',
+                                                colors: colors,
+                                                isActive: showStarOverlay,
+                                                onTap: onToggleStarOverlay,
+                                              ),
+                                              Consumer(
+                                                builder: (context, ref, _) {
+                                                  final isPanelVisible = ref.watch(
+                                                      annotationPanelVisibleProvider);
+                                                  return _OverlayIconButton(
+                                                    icon: LucideIcons.list,
+                                                    tooltip: 'Objects',
+                                                    colors: colors,
+                                                    isActive: isPanelVisible,
+                                                    onTap: () => ref
+                                                        .read(
+                                                            annotationPanelVisibleProvider
+                                                                .notifier)
+                                                        .state = !isPanelVisible,
+                                                  );
+                                                },
+                                              ),
+                                              if (scienceSettings
+                                                  .advancedModeEnabled)
+                                                _OverlayIconButton(
+                                                  icon:
+                                                      LucideIcons.flaskConical,
+                                                  tooltip: scienceMode
+                                                          .scienceHudVisible
+                                                      ? 'Hide science HUD'
+                                                      : 'Show science HUD',
+                                                  colors: colors,
+                                                  isActive: scienceMode
+                                                      .scienceHudVisible,
+                                                  onTap: () => ref
+                                                      .read(
+                                                          scienceModeStateProvider
+                                                              .notifier)
+                                                      .state = scienceMode.copyWith(
+                                                    scienceHudVisible:
+                                                        !scienceMode
+                                                            .scienceHudVisible,
+                                                  ),
+                                                ),
+                                              Row(
+                                                key: ImagingTutorialKeys
+                                                    .zoomControls,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  _OverlayIconButton(
+                                                    icon: LucideIcons.zoomIn,
+                                                    tooltip: 'Zoom in',
+                                                    colors: colors,
+                                                    onTap: onZoomIn,
+                                                  ),
+                                                  _OverlayIconButton(
+                                                    icon: LucideIcons.zoomOut,
+                                                    tooltip: 'Zoom out',
+                                                    colors: colors,
+                                                    onTap: onZoomOut,
+                                                  ),
+                                                  _OverlayIconButton(
+                                                    icon: LucideIcons.maximize,
+                                                    tooltip: 'Fit',
+                                                    colors: colors,
+                                                    onTap: onFitToWindow,
+                                                  ),
+                                                ],
+                                              ),
+                                              if (exposureProgress.percent >
+                                                      0 &&
+                                                  exposureProgress.percent <
+                                                      1.0)
+                                                _OverlayIconButton(
+                                                  key: ImagingTutorialKeys
+                                                      .abortBtn,
+                                                  icon: LucideIcons.x,
+                                                  tooltip: 'Abort',
+                                                  colors: colors,
+                                                  onTap: onAbortCapture,
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                )
+                              // Standard desktop layout
+                              : Row(
+                                  children: [
+                                    _OverlayChip(
+                                      icon: LucideIcons.maximize2,
+                                      label: currentImage != null
+                                          ? '${currentImage.width} × ${currentImage.height}'
+                                          : '--- × ---',
+                                      colors: colors,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _OverlayChip(
+                                      icon: LucideIcons.grid,
+                                      label:
+                                          'Binning ${exposureSettings.binning}',
+                                      colors: colors,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    _OverlayChip(
+                                      icon: LucideIcons.search,
+                                      label: '${(zoomLevel * 100).round()}%',
+                                      colors: colors,
+                                    ),
+                                    if (scienceSettings
+                                        .advancedModeEnabled) ...[
+                                      const SizedBox(width: 8),
+                                      _OverlayChip(
+                                        icon: LucideIcons.gauge,
+                                        label: latestCalibration?.zeroPoint ==
+                                                null
+                                            ? 'ZP --'
+                                            : 'ZP ${latestCalibration!.zeroPoint!.toStringAsFixed(2)}',
+                                        colors: colors,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _OverlayChip(
+                                        icon: LucideIcons.cloud,
+                                        label: latestTransparency == null
+                                            ? 'Sky --'
+                                            : 'Sky ${latestTransparency.qualityBucket}',
+                                        colors: colors,
+                                      ),
+                                    ],
+                                    const Spacer(),
+                                    _OverlayIconButton(
+                                      icon: LucideIcons.crosshair,
+                                      tooltip: 'Toggle crosshair',
+                                      colors: colors,
+                                      isActive: showCrosshair,
+                                      onTap: onToggleCrosshair,
+                                    ),
+                                    _OverlayIconButton(
+                                      icon: LucideIcons.grid,
+                                      tooltip: 'Toggle grid',
+                                      colors: colors,
+                                      isActive: showGrid,
+                                      onTap: onToggleGrid,
+                                    ),
+                                    _OverlayIconButton(
+                                      icon: LucideIcons.sparkles,
+                                      tooltip: 'Toggle star overlay',
+                                      colors: colors,
+                                      isActive: showStarOverlay,
+                                      onTap: onToggleStarOverlay,
+                                    ),
+                                    Consumer(
+                                      builder: (context, ref, _) {
+                                        final isPanelVisible = ref.watch(
+                                            annotationPanelVisibleProvider);
+                                        final annotation = ref
+                                            .watch(currentAnnotationProvider);
+                                        final objectCount =
+                                            annotation?.objects.length ?? 0;
+                                        return _OverlayIconButton(
+                                          icon: LucideIcons.list,
+                                          tooltip:
+                                              'Objects panel${objectCount > 0 ? ' ($objectCount)' : ''}',
+                                          colors: colors,
+                                          isActive: isPanelVisible,
+                                          onTap: () => ref
+                                              .read(
+                                                  annotationPanelVisibleProvider
+                                                      .notifier)
+                                              .state = !isPanelVisible,
+                                        );
+                                      },
+                                    ),
+                                    if (scienceSettings.advancedModeEnabled)
+                                      _OverlayIconButton(
+                                        icon: LucideIcons.flaskConical,
+                                        tooltip: scienceMode.scienceHudVisible
+                                            ? 'Hide science HUD'
+                                            : 'Show science HUD',
+                                        colors: colors,
+                                        isActive: scienceMode.scienceHudVisible,
+                                        onTap: () => ref
+                                            .read(scienceModeStateProvider
+                                                .notifier)
+                                            .state = scienceMode.copyWith(
+                                          scienceHudVisible:
+                                              !scienceMode.scienceHudVisible,
+                                        ),
+                                      ),
+                                    Row(
+                                      key: ImagingTutorialKeys.zoomControls,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _OverlayIconButton(
+                                          icon: LucideIcons.zoomIn,
+                                          tooltip: 'Zoom in',
+                                          colors: colors,
+                                          onTap: onZoomIn,
+                                        ),
+                                        _OverlayIconButton(
+                                          icon: LucideIcons.zoomOut,
+                                          tooltip: 'Zoom out',
+                                          colors: colors,
+                                          onTap: onZoomOut,
+                                        ),
+                                        _OverlayIconButton(
+                                          icon: LucideIcons.minimize2,
+                                          tooltip: '1:1 zoom',
+                                          colors: colors,
+                                          onTap: onZoom1to1,
+                                        ),
+                                        _OverlayIconButton(
+                                          icon: LucideIcons.maximize,
+                                          tooltip: 'Fit to window',
+                                          colors: colors,
+                                          onTap: onFitToWindow,
+                                        ),
+                                      ],
+                                    ),
+                                    if (exposureProgress.percent > 0 &&
+                                        exposureProgress.percent < 1.0)
+                                      _OverlayIconButton(
+                                        key: ImagingTutorialKeys.abortBtn,
+                                        icon: LucideIcons.x,
+                                        tooltip: 'Abort capture',
+                                        colors: colors,
+                                        onTap: onAbortCapture,
+                                      ),
+                                  ],
+                                ),
+                        );
+                      },
+                    ),
+                  ),
 
-          // Bottom histogram overlay
-          Positioned(
-            bottom: 16,
-            left: 16,
-            child: _HistogramWidget(
-              key: ImagingTutorialKeys.histogram,
-              colors: colors,
-              histogram: currentImage?.histogram,
-            ),
-          ),
+                  // Bottom histogram overlay
+                  if (scienceSettings.advancedModeEnabled &&
+                      scienceMode.scienceHudVisible)
+                    Positioned(
+                      top: 56,
+                      right: 16,
+                      child: ScienceHudPanel(colors: colors),
+                    ),
 
-          // Right side stats
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: _ImageStatsOverlay(
-              key: ImagingTutorialKeys.statsPanel,
-              colors: colors,
-              stats: lastStats,
-            ),
-          ),
+                  // Bottom histogram overlay
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    child: _HistogramWidget(
+                      key: ImagingTutorialKeys.histogram,
+                      colors: colors,
+                      histogram: currentImage?.histogram,
+                    ),
+                  ),
 
-          // Annotation status indicator (top left, below the overlay bar)
-          if (currentImage != null)
-            Positioned(
-              top: 48,
-              left: 16,
-              child: _AnnotationStatusIndicator(colors: colors),
-            ),
+                  // Right side stats
+                  Positioned(
+                    bottom: 16,
+                    right: 16,
+                    child: _ImageStatsOverlay(
+                      key: ImagingTutorialKeys.statsPanel,
+                      colors: colors,
+                      stats: lastStats,
+                    ),
+                  ),
+
+                  // Annotation status indicator (top left, below the overlay bar)
+                  if (currentImage != null)
+                    Positioned(
+                      top: 48,
+                      left: 16,
+                      child: _AnnotationStatusIndicator(colors: colors),
+                    ),
                 ],
               ),
             ),
@@ -1203,6 +1378,109 @@ class _LivePreviewArea extends ConsumerWidget {
         );
       },
     );
+  }
+
+  List<PsfFieldTileRow> _selectCurrentFramePsfTiles({
+    required List<PsfFieldTileRow> sessionTiles,
+    required int? capturedImageId,
+  }) {
+    if (sessionTiles.isEmpty) {
+      return const <PsfFieldTileRow>[];
+    }
+    if (capturedImageId != null) {
+      final matched = sessionTiles
+          .where((tile) => tile.capturedImageId == capturedImageId)
+          .toList(growable: false);
+      if (matched.isNotEmpty) {
+        return matched;
+      }
+    }
+    final latestImageId = sessionTiles
+        .where((tile) => tile.capturedImageId != null)
+        .map((tile) => tile.capturedImageId!)
+        .fold<int?>(null, (latest, id) {
+      if (latest == null) {
+        return id;
+      }
+      final latestTimestamp = sessionTiles
+          .where((tile) => tile.capturedImageId == latest)
+          .map((tile) => tile.timestamp)
+          .fold<DateTime>(DateTime.fromMillisecondsSinceEpoch(0),
+              (a, b) => a.isAfter(b) ? a : b);
+      final idTimestamp = sessionTiles
+          .where((tile) => tile.capturedImageId == id)
+          .map((tile) => tile.timestamp)
+          .fold<DateTime>(DateTime.fromMillisecondsSinceEpoch(0),
+              (a, b) => a.isAfter(b) ? a : b);
+      return idTimestamp.isAfter(latestTimestamp) ? id : latest;
+    });
+    if (latestImageId == null) {
+      return sessionTiles;
+    }
+    return sessionTiles
+        .where((tile) => tile.capturedImageId == latestImageId)
+        .toList(growable: false);
+  }
+
+  int? _resolveCurrentFrameImageId({
+    required List<CapturedImage> sessionImages,
+    required CapturedImageData? currentImage,
+  }) {
+    final filePath = currentImage?.filePath;
+    if (filePath == null || filePath.isEmpty) {
+      return null;
+    }
+    for (final image in sessionImages) {
+      if (image.filePath == filePath) {
+        final parsed = int.tryParse(image.id);
+        if (parsed != null) {
+          return parsed;
+        }
+      }
+    }
+    return null;
+  }
+
+  List<AstrometryResidualVectorRow> _selectCurrentFrameResidualVectors({
+    required List<AstrometryResidualVectorRow> sessionVectors,
+    required int? capturedImageId,
+  }) {
+    if (sessionVectors.isEmpty) {
+      return const <AstrometryResidualVectorRow>[];
+    }
+    if (capturedImageId != null) {
+      final matched = sessionVectors
+          .where((vector) => vector.capturedImageId == capturedImageId)
+          .toList(growable: false);
+      if (matched.isNotEmpty) {
+        return matched;
+      }
+    }
+    final latestImageId = sessionVectors
+        .where((vector) => vector.capturedImageId != null)
+        .map((vector) => vector.capturedImageId!)
+        .fold<int?>(null, (latest, id) {
+      if (latest == null) {
+        return id;
+      }
+      final latestTimestamp = sessionVectors
+          .where((vector) => vector.capturedImageId == latest)
+          .map((vector) => vector.timestamp)
+          .fold<DateTime>(DateTime.fromMillisecondsSinceEpoch(0),
+              (a, b) => a.isAfter(b) ? a : b);
+      final idTimestamp = sessionVectors
+          .where((vector) => vector.capturedImageId == id)
+          .map((vector) => vector.timestamp)
+          .fold<DateTime>(DateTime.fromMillisecondsSinceEpoch(0),
+              (a, b) => a.isAfter(b) ? a : b);
+      return idTimestamp.isAfter(latestTimestamp) ? id : latest;
+    });
+    if (latestImageId == null) {
+      return sessionVectors;
+    }
+    return sessionVectors
+        .where((vector) => vector.capturedImageId == latestImageId)
+        .toList(growable: false);
   }
 }
 
@@ -1724,12 +2002,6 @@ class _BigActionButtonState extends State<_BigActionButton>
   bool _isPressed = false;
   late AnimationController _loadingController;
 
-  /// Creates a slightly darker shade of the given color
-  Color _darkenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
-  }
-
   @override
   void initState() {
     super.initState();
@@ -2042,7 +2314,8 @@ class _ImageDisplayWidget extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_ImageDisplayWidget> createState() => _ImageDisplayWidgetState();
+  ConsumerState<_ImageDisplayWidget> createState() =>
+      _ImageDisplayWidgetState();
 }
 
 class _ImageDisplayWidgetState extends ConsumerState<_ImageDisplayWidget> {
@@ -2424,6 +2697,182 @@ class _StarOverlayPainter extends CustomPainter {
         color != oldDelegate.color ||
         zoomLevel != oldDelegate.zoomLevel ||
         imageOffset != oldDelegate.imageOffset;
+  }
+}
+
+class _SciencePsfOverlayPainter extends CustomPainter {
+  final List<PsfFieldTileRow> tiles;
+  final Offset imageOffset;
+  final double zoomLevel;
+  final double imageWidth;
+  final double imageHeight;
+
+  _SciencePsfOverlayPainter({
+    required this.tiles,
+    required this.imageOffset,
+    required this.zoomLevel,
+    required this.imageWidth,
+    required this.imageHeight,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (tiles.isEmpty) {
+      return;
+    }
+
+    var maxRow = 0;
+    var maxCol = 0;
+    var maxFwhm = 0.0;
+    for (final tile in tiles) {
+      if (tile.tileRow > maxRow) {
+        maxRow = tile.tileRow;
+      }
+      if (tile.tileCol > maxCol) {
+        maxCol = tile.tileCol;
+      }
+      if (tile.starCount > 0 && tile.medianFwhm > maxFwhm) {
+        maxFwhm = tile.medianFwhm;
+      }
+    }
+
+    final validFwhm = tiles
+        .where((tile) => tile.starCount > 0 && tile.medianFwhm > 0)
+        .map((tile) => tile.medianFwhm)
+        .toList(growable: false)
+      ..sort();
+    final low = validFwhm.isEmpty ? 0.0 : _percentile(validFwhm, 0.05);
+    final high = validFwhm.isEmpty
+        ? maxFwhm
+        : _percentile(validFwhm, 0.95).clamp(low + 1e-6, double.infinity);
+
+    final rows = maxRow + 1;
+    final cols = maxCol + 1;
+    final tileW = imageWidth / cols;
+    final tileH = imageHeight / rows;
+    final borderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.6;
+
+    for (final tile in tiles) {
+      final norm = tile.starCount <= 0 || high <= low
+          ? 0.0
+          : ((tile.medianFwhm - low) / (high - low)).clamp(0.0, 1.0);
+      final fill = Paint()
+        ..color = (tile.starCount <= 0
+                ? const Color(0xFF4A5568)
+                : Color.lerp(
+                    const Color(0xFF0B6E4F),
+                    const Color(0xFFC0392B),
+                    norm,
+                  )!)
+            .withValues(alpha: tile.starCount > 0 ? 0.28 : 0.12)
+        ..style = PaintingStyle.fill;
+
+      final left = (tile.tileCol * tileW) * zoomLevel + imageOffset.dx;
+      final top = (tile.tileRow * tileH) * zoomLevel + imageOffset.dy;
+      final rect = Rect.fromLTWH(
+        left,
+        top,
+        tileW * zoomLevel,
+        tileH * zoomLevel,
+      );
+
+      canvas.drawRect(rect, fill);
+      canvas.drawRect(rect, borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SciencePsfOverlayPainter oldDelegate) {
+    return tiles != oldDelegate.tiles ||
+        imageOffset != oldDelegate.imageOffset ||
+        zoomLevel != oldDelegate.zoomLevel ||
+        imageWidth != oldDelegate.imageWidth ||
+        imageHeight != oldDelegate.imageHeight;
+  }
+
+  double _percentile(List<double> sortedValues, double p) {
+    if (sortedValues.isEmpty) {
+      return 0.0;
+    }
+    final q = p.clamp(0.0, 1.0);
+    final pos = (sortedValues.length - 1) * q;
+    final lo = pos.floor();
+    final hi = pos.ceil();
+    if (lo == hi) {
+      return sortedValues[lo];
+    }
+    final t = pos - lo;
+    return sortedValues[lo] * (1.0 - t) + sortedValues[hi] * t;
+  }
+}
+
+class _ScienceResidualOverlayPainter extends CustomPainter {
+  final List<AstrometryResidualVectorRow> vectors;
+  final Offset imageOffset;
+  final double zoomLevel;
+
+  _ScienceResidualOverlayPainter({
+    required this.vectors,
+    required this.imageOffset,
+    required this.zoomLevel,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (vectors.isEmpty) {
+      return;
+    }
+
+    final linePaint = Paint()
+      ..color = const Color(0xFFF1C40F).withValues(alpha: 0.75)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+    final headPaint = Paint()
+      ..color = const Color(0xFFF39C12).withValues(alpha: 0.85)
+      ..style = PaintingStyle.fill;
+
+    final magnitudes = vectors
+        .map((vector) => vector.magnitudeArcsec)
+        .where((value) => value.isFinite && value > 0)
+        .toList(growable: false)
+      ..sort();
+    final p95Magnitude = magnitudes.isEmpty
+        ? 1.0
+        : magnitudes[((magnitudes.length - 1) * 0.95).floor()];
+    final scaleArcsecToPixels = p95Magnitude <= 0
+        ? 6.0
+        : (22.0 / p95Magnitude).clamp(2.0, 40.0).toDouble();
+
+    final maxVectors = math.min(350, vectors.length);
+    for (var i = 0; i < maxVectors; i++) {
+      final vector = vectors[i];
+      final x1 = vector.x * zoomLevel + imageOffset.dx;
+      final y1 = vector.y * zoomLevel + imageOffset.dy;
+      final dx = vector.dxArcsec * zoomLevel * scaleArcsecToPixels;
+      final dy = vector.dyArcsec * zoomLevel * scaleArcsecToPixels;
+      final x2 = x1 + dx;
+      final y2 = y1 + dy;
+
+      if (x1 < -100 ||
+          x1 > size.width + 100 ||
+          y1 < -100 ||
+          y1 > size.height + 100) {
+        continue;
+      }
+
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), linePaint);
+      canvas.drawCircle(Offset(x2, y2), 1.6, headPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScienceResidualOverlayPainter oldDelegate) {
+    return vectors != oldDelegate.vectors ||
+        imageOffset != oldDelegate.imageOffset ||
+        zoomLevel != oldDelegate.zoomLevel;
   }
 }
 
@@ -2992,8 +3441,11 @@ class _CapturePanel extends ConsumerWidget {
       // Park mount if requested (service handles connection check)
       if (parkOnEnd) {
         debugPrint('[Imaging] Parking mount after session end...');
-        final success = await ref.read(mountCommandServiceProvider).park(context);
-        debugPrint(success ? '[Imaging] Mount parked successfully' : '[Imaging] Mount park failed or not connected');
+        final success =
+            await ref.read(mountCommandServiceProvider).park(context);
+        debugPrint(success
+            ? '[Imaging] Mount parked successfully'
+            : '[Imaging] Mount park failed or not connected');
       }
     } catch (e) {
       debugPrint('[Imaging] Error ending session: $e');
@@ -3029,15 +3481,17 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
         cameraState.connectionState == DeviceConnectionState.connected;
 
     // Watch camera capabilities to gate UI features
-    final capabilitiesAsync = ref.watch(
-        cameraCapabilitiesProvider(cameraState.deviceId ?? ''));
+    final capabilitiesAsync =
+        ref.watch(cameraCapabilitiesProvider(cameraState.deviceId ?? ''));
     final capabilities = capabilitiesAsync.valueOrNull;
     final capabilitiesLoading = capabilitiesAsync.isLoading;
     final capabilitiesError = capabilitiesAsync.hasError;
     // Show cooling section if: loading, error (assume capable and let user try),
     // or capabilities confirm camera supports cooling
     final showCoolingSection = isConnected &&
-        (capabilitiesLoading || capabilitiesError || (capabilities?.canSetCcdTemperature ?? false));
+        (capabilitiesLoading ||
+            capabilitiesError ||
+            (capabilities?.canSetCcdTemperature ?? false));
 
     // Get binning options based on camera capabilities
     final binningOptions = ref.watch(
@@ -3087,167 +3541,181 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
               title: 'Cooling',
               colors: widget.colors,
               child: Column(
-              children: [
-                // Current temperature display
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Current',
-                        style: TextStyle(
-                            fontSize: 12, color: widget.colors.textSecondary)),
-                    Row(
-                      children: [
-                        Text(
-                          isConnected && cameraState.temperature != null
-                              ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
-                              : '---',
+                children: [
+                  // Current temperature display
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Current',
                           style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: widget.colors.textPrimary,
-                          ),
-                        ),
-                        if (isConnected && coolingStatus.isCooling)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: Icon(
-                              coolingStatus.isAtTarget
-                                  ? LucideIcons.checkCircle2
-                                  : LucideIcons.arrowDown,
-                              size: 14,
-                              color: coolingStatus.isAtTarget
-                                  ? widget.colors.success
-                                  : widget.colors.primary,
+                              fontSize: 12,
+                              color: widget.colors.textSecondary)),
+                      Row(
+                        children: [
+                          Text(
+                            isConnected && cameraState.temperature != null
+                                ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
+                                : '---',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: widget.colors.textPrimary,
                             ),
                           ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Power',
-                        style: TextStyle(
-                            fontSize: 12, color: widget.colors.textSecondary)),
-                    Text(
-                      isConnected && cameraState.coolerPower != null
-                          ? '${cameraState.coolerPower!.toStringAsFixed(0)}%'
-                          : '---',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: widget.colors.textPrimary,
+                          if (isConnected && coolingStatus.isCooling)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Icon(
+                                coolingStatus.isAtTarget
+                                    ? LucideIcons.checkCircle2
+                                    : LucideIcons.arrowDown,
+                                size: 14,
+                                color: coolingStatus.isAtTarget
+                                    ? widget.colors.success
+                                    : widget.colors.primary,
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-                if (isConnected && coolingStatus.isCooling)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Target',
-                            style: TextStyle(
-                                fontSize: 12,
-                                color: widget.colors.textSecondary)),
-                        Text(
-                          '${coolingStatus.targetTemp.toStringAsFixed(1)}°C',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: widget.colors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
-                const SizedBox(height: 16),
-
-                // Target temperature slider
-                _SliderRowInteractive(
-                  label: 'Target Temperature',
-                  value: targetTemp,
-                  min: -30,
-                  max: 20,
-                  suffix: '°C',
-                  colors: widget.colors,
-                  onChanged: isConnected
-                      ? (value) {
-                          // Update provider so value persists across navigation
-                          ref.read(cameraStateProvider.notifier).setTargetTemp(value);
-                          // Also update settings provider for consistency
-                          ref.read(coolingSettingsProvider.notifier).state =
-                              coolingSettings.copyWith(targetTemp: value);
-                        }
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _SmallButton(
-                        label: _isCooling ? 'Setting...' : 'Cool Down',
-                        icon: LucideIcons.snowflake,
-                        colors: widget.colors,
-                        isEnabled: isConnected && !_isCooling,
-                        onTap: () async {
-                          setState(() => _isCooling = true);
-                          try {
-                            await ref
-                                .read(deviceServiceProvider)
-                                .setCameraCooling(
-                                  enabled: true,
-                                  targetTemp: targetTemp,
-                                );
-
-                            // Update settings state
-                            ref.read(coolingSettingsProvider.notifier).state =
-                                coolingSettings.copyWith(
-                                    enabled: true, targetTemp: targetTemp);
-                            // Update camera state
-                            ref.read(cameraStateProvider.notifier).setCooling(true);
-                          } catch (e) {
-                            context.showErrorSnackBar('Failed to set cooling: $e');
-                          } finally {
-                            if (mounted) setState(() => _isCooling = false);
-                          }
-                        },
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Power',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: widget.colors.textSecondary)),
+                      Text(
+                        isConnected && cameraState.coolerPower != null
+                            ? '${cameraState.coolerPower!.toStringAsFixed(0)}%'
+                            : '---',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: widget.colors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (isConnected && coolingStatus.isCooling)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Target',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: widget.colors.textSecondary)),
+                          Text(
+                            '${coolingStatus.targetTemp.toStringAsFixed(1)}°C',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: widget.colors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _SmallButton(
-                        label: 'Warm Up',
-                        icon: LucideIcons.flame,
-                        isOutline: true,
-                        colors: widget.colors,
-                        isEnabled: isConnected,
-                        onTap: () async {
-                          try {
-                            await ref
-                                .read(deviceServiceProvider)
-                                .setCameraCooling(
-                                  enabled: false,
-                                );
+                  const SizedBox(height: 16),
 
+                  // Target temperature slider
+                  _SliderRowInteractive(
+                    label: 'Target Temperature',
+                    value: targetTemp,
+                    min: -30,
+                    max: 20,
+                    suffix: '°C',
+                    colors: widget.colors,
+                    onChanged: isConnected
+                        ? (value) {
+                            // Update provider so value persists across navigation
+                            ref
+                                .read(cameraStateProvider.notifier)
+                                .setTargetTemp(value);
+                            // Also update settings provider for consistency
                             ref.read(coolingSettingsProvider.notifier).state =
-                                coolingSettings.copyWith(enabled: false);
-                            ref.read(cameraStateProvider.notifier).setCooling(false);
-                          } catch (e) {
-                            context.showErrorSnackBar('Failed to turn off cooler: $e');
+                                coolingSettings.copyWith(targetTemp: value);
                           }
-                        },
+                        : null,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SmallButton(
+                          label: _isCooling ? 'Setting...' : 'Cool Down',
+                          icon: LucideIcons.snowflake,
+                          colors: widget.colors,
+                          isEnabled: isConnected && !_isCooling,
+                          onTap: () async {
+                            setState(() => _isCooling = true);
+                            try {
+                              await ref
+                                  .read(deviceServiceProvider)
+                                  .setCameraCooling(
+                                    enabled: true,
+                                    targetTemp: targetTemp,
+                                  );
+
+                              // Update settings state
+                              ref.read(coolingSettingsProvider.notifier).state =
+                                  coolingSettings.copyWith(
+                                      enabled: true, targetTemp: targetTemp);
+                              // Update camera state
+                              ref
+                                  .read(cameraStateProvider.notifier)
+                                  .setCooling(true);
+                            } catch (e) {
+                              context.showErrorSnackBar(
+                                  'Failed to set cooling: $e');
+                            } finally {
+                              if (mounted) setState(() => _isCooling = false);
+                            }
+                          },
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SmallButton(
+                          label: 'Warm Up',
+                          icon: LucideIcons.flame,
+                          isOutline: true,
+                          colors: widget.colors,
+                          isEnabled: isConnected,
+                          onTap: () async {
+                            try {
+                              await ref
+                                  .read(deviceServiceProvider)
+                                  .setCameraCooling(
+                                    enabled: false,
+                                  );
+
+                              ref.read(coolingSettingsProvider.notifier).state =
+                                  coolingSettings.copyWith(enabled: false);
+                              ref
+                                  .read(cameraStateProvider.notifier)
+                                  .setCooling(false);
+                            } catch (e) {
+                              context.showErrorSnackBar(
+                                  'Failed to turn off cooler: $e');
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
           // Show "not supported" message when camera is connected and capabilities confirm no cooling support
-          if (isConnected && !capabilitiesLoading && !capabilitiesError && capabilities != null && !capabilities.canSetCcdTemperature)
+          if (isConnected &&
+              !capabilitiesLoading &&
+              !capabilitiesError &&
+              capabilities != null &&
+              !capabilities.canSetCcdTemperature)
             _PanelSection(
               title: 'Cooling',
               colors: widget.colors,
@@ -3306,7 +3774,8 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
           const SizedBox(height: 20),
 
           // Gain/Offset - only show if camera supports these features
-          if ((capabilities?.canSetGain ?? true) || (capabilities?.canSetOffset ?? true))
+          if ((capabilities?.canSetGain ?? true) ||
+              (capabilities?.canSetOffset ?? true))
             _PanelSection(
               title: 'Gain / Offset',
               colors: widget.colors,
@@ -3315,7 +3784,8 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
                   // Only show gain control if camera supports it
                   if (capabilities?.canSetGain ?? true)
                     _InputRowEditable(
-                      label: 'Gain${capabilities?.gainMin != null ? ' (${capabilities!.gainMin}-${capabilities.gainMax})' : ''}',
+                      label:
+                          'Gain${capabilities?.gainMin != null ? ' (${capabilities!.gainMin}-${capabilities.gainMax})' : ''}',
                       value: exposureSettings.gain.toString(),
                       colors: widget.colors,
                       onChanged: (value) {
@@ -3323,19 +3793,22 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
                         if (parsed != null && parsed >= 0) {
                           // Clamp to valid range if capabilities available
                           final clamped = capabilities?.gainMin != null
-                              ? parsed.clamp(capabilities!.gainMin!, capabilities.gainMax!)
+                              ? parsed.clamp(
+                                  capabilities!.gainMin!, capabilities.gainMax!)
                               : parsed;
                           ref.read(exposureSettingsProvider.notifier).state =
                               exposureSettings.copyWith(gain: clamped);
                         }
                       },
                     ),
-                  if ((capabilities?.canSetGain ?? true) && (capabilities?.canSetOffset ?? true))
+                  if ((capabilities?.canSetGain ?? true) &&
+                      (capabilities?.canSetOffset ?? true))
                     const SizedBox(height: 12),
                   // Only show offset control if camera supports it
                   if (capabilities?.canSetOffset ?? true)
                     _InputRowEditable(
-                      label: 'Offset${capabilities?.offsetMin != null ? ' (${capabilities!.offsetMin}-${capabilities.offsetMax})' : ''}',
+                      label:
+                          'Offset${capabilities?.offsetMin != null ? ' (${capabilities!.offsetMin}-${capabilities.offsetMax})' : ''}',
                       value: exposureSettings.offset.toString(),
                       colors: widget.colors,
                       onChanged: (value) {
@@ -3343,7 +3816,8 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
                         if (parsed != null && parsed >= 0) {
                           // Clamp to valid range if capabilities available
                           final clamped = capabilities?.offsetMin != null
-                              ? parsed.clamp(capabilities!.offsetMin!, capabilities.offsetMax!)
+                              ? parsed.clamp(capabilities!.offsetMin!,
+                                  capabilities.offsetMax!)
                               : parsed;
                           ref.read(exposureSettingsProvider.notifier).state =
                               exposureSettings.copyWith(offset: clamped);
@@ -3391,7 +3865,8 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
     showDialog(
       context: context,
       builder: (context) {
-        final controller = TextEditingController(text: currentPosition.toString());
+        final controller =
+            TextEditingController(text: currentPosition.toString());
         return AlertDialog(
           title: const Text('Go To Position'),
           content: Column(
@@ -3421,11 +3896,14 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
             _GradientDialogButton(
               onPressed: () {
                 final position = int.tryParse(controller.text);
-                if (position != null && position >= 0 && position <= maxPosition) {
+                if (position != null &&
+                    position >= 0 &&
+                    position <= maxPosition) {
                   Navigator.of(context).pop();
                   _goToPosition(position);
                 } else {
-                  context.showWarningSnackBar('Invalid position. Must be between 0 and $maxPosition');
+                  context.showWarningSnackBar(
+                      'Invalid position. Must be between 0 and $maxPosition');
                 }
               },
               color: Theme.of(context).extension<NightshadeColors>()!.primary,
@@ -3444,19 +3922,18 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
     try {
       final settings = ref.read(focusSettingsProvider);
       final result = await ref.read(deviceServiceProvider).runAutofocus(
-        exposureTime: settings.exposureTime,
-        stepSize: settings.afStepSize,
-        stepsOut: settings.stepsOut,
-        method: settings.method,
-        binning: 1,
-      );
+            exposureTime: settings.exposureTime,
+            stepSize: settings.afStepSize,
+            stepsOut: settings.stepsOut,
+            method: settings.method,
+            binning: 1,
+          );
 
       ref.read(autofocusResultProvider.notifier).state = result;
 
       if (mounted) {
         context.showSuccessSnackBar(
-          'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}'
-        );
+            'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}');
       }
     } catch (e) {
       if (mounted) {
@@ -3597,8 +4074,9 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
                       return Padding(
                         padding: const EdgeInsets.only(right: 6),
                         child: GestureDetector(
-                          onTap: () => ref.read(focusSettingsProvider.notifier).state =
-                              focusSettings.copyWith(stepSize: step),
+                          onTap: () => ref
+                              .read(focusSettingsProvider.notifier)
+                              .state = focusSettings.copyWith(stepSize: step),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
@@ -3988,8 +4466,9 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
                   max: 20,
                   suffix: 'px',
                   colors: widget.colors,
-                  onChanged: (value) => ref.read(ditherSettingsProvider.notifier).state =
-                      ditherSettings.copyWith(ditherAmount: value),
+                  onChanged: (value) => ref
+                      .read(ditherSettingsProvider.notifier)
+                      .state = ditherSettings.copyWith(ditherAmount: value),
                 ),
                 const SizedBox(height: 12),
                 _SliderRowInteractive(
@@ -3999,8 +4478,9 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
                   max: 3.0,
                   suffix: '"',
                   colors: widget.colors,
-                  onChanged: (value) => ref.read(ditherSettingsProvider.notifier).state =
-                      ditherSettings.copyWith(settlePixels: value),
+                  onChanged: (value) => ref
+                      .read(ditherSettingsProvider.notifier)
+                      .state = ditherSettings.copyWith(settlePixels: value),
                 ),
                 const SizedBox(height: 12),
                 _SliderRowInteractive(
@@ -4010,8 +4490,9 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
                   max: 30,
                   suffix: 's',
                   colors: widget.colors,
-                  onChanged: (value) => ref.read(ditherSettingsProvider.notifier).state =
-                      ditherSettings.copyWith(settleTime: value),
+                  onChanged: (value) => ref
+                      .read(ditherSettingsProvider.notifier)
+                      .state = ditherSettings.copyWith(settleTime: value),
                 ),
               ],
             ),
@@ -4503,12 +4984,6 @@ class _SmallButton extends StatefulWidget {
 class _SmallButtonState extends State<_SmallButton> {
   bool _isHovered = false;
 
-  /// Creates a slightly darker shade of the given color
-  Color _darkenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
-  }
-
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.isEnabled;
@@ -4534,9 +5009,8 @@ class _SmallButtonState extends State<_SmallButton> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
           decoration: BoxDecoration(
-            color: useGradient
-                ? primaryColor.withValues(alpha: 0.65)
-                : fillColor,
+            color:
+                useGradient ? primaryColor.withValues(alpha: 0.65) : fillColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: primaryColor,
@@ -4607,7 +5081,9 @@ class _GradientDialogButtonState extends State<_GradientDialogButton> {
   /// Creates a slightly darker shade of the given color
   Color _darkenColor(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   @override
@@ -4627,11 +5103,13 @@ class _GradientDialogButtonState extends State<_GradientDialogButton> {
           _isPressed = false;
         });
       },
-      cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
+      cursor:
+          isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
       child: GestureDetector(
         onTapDown: isDisabled ? null : (_) => setState(() => _isPressed = true),
         onTapUp: isDisabled ? null : (_) => setState(() => _isPressed = false),
-        onTapCancel: isDisabled ? null : () => setState(() => _isPressed = false),
+        onTapCancel:
+            isDisabled ? null : () => setState(() => _isPressed = false),
         onTap: widget.onPressed,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
@@ -4760,7 +5238,9 @@ class _DebayeringCard extends ConsumerWidget {
                     value: autoDetect,
                     onChanged: debayerEnabled
                         ? (v) {
-                            ref.read(autoDetectBayerPatternProvider.notifier).state = v ?? false;
+                            ref
+                                .read(autoDetectBayerPatternProvider.notifier)
+                                .state = v ?? false;
                           }
                         : null,
                     fillColor: WidgetStateProperty.all(colors.primary),
@@ -4812,8 +5292,44 @@ class _AnnotationOverlayWrapperState
   CelestialObjectAnnotation? _selectedObject;
   Offset? _tooltipPosition;
   bool _isHoverTooltip = false; // Tracks if tooltip is from hover
+  static const double _tooltipWidth = 300;
+  static const double _tooltipHeight = 220;
+  static const double _tooltipMargin = 12;
+  static const double _objectsPanelWidth = 280;
+
+  Offset _computeTooltipPosition(Offset anchor, {bool preferRight = true}) {
+    final screenSize = MediaQuery.of(context).size;
+    final isPanelVisible = ref.read(annotationPanelVisibleProvider);
+    final reservedRight = isPanelVisible ? _objectsPanelWidth : 0.0;
+    final availableRight =
+        (screenSize.width - reservedRight).clamp(0.0, screenSize.width);
+
+    final preferX =
+        preferRight ? anchor.dx + 20 : anchor.dx - _tooltipWidth - 20;
+    final fallbackX =
+        preferRight ? anchor.dx - _tooltipWidth - 20 : anchor.dx + 20;
+    final x = (preferX + _tooltipWidth + _tooltipMargin <= availableRight)
+        ? preferX
+        : fallbackX;
+
+    final preferredY = anchor.dy - (_tooltipHeight / 2);
+    final y = preferredY.clamp(
+      _tooltipMargin,
+      screenSize.height - _tooltipHeight - _tooltipMargin,
+    );
+    final maxX = math.max(
+      _tooltipMargin,
+      availableRight - _tooltipWidth - _tooltipMargin,
+    );
+
+    return Offset(
+      x.clamp(_tooltipMargin, maxX),
+      y,
+    );
+  }
 
   void _onObjectTapped(CelestialObjectAnnotation object) {
+    ref.read(selectedAnnotationObjectProvider.notifier).state = object;
     final screenPosition = imageToViewport(
       imagePoint: Offset(object.x, object.y),
       imageOffset: widget.imageOffset,
@@ -4823,26 +5339,22 @@ class _AnnotationOverlayWrapperState
     setState(() {
       _selectedObject = object;
       _isHoverTooltip = false; // This is a click, not hover
-      // Position tooltip near the object
-      _tooltipPosition = Offset(
-        screenPosition.dx + 20,
-        screenPosition.dy,
-      );
+      _tooltipPosition =
+          _computeTooltipPosition(screenPosition, preferRight: true);
     });
   }
 
-  void _onObjectHovered(CelestialObjectAnnotation object, Offset screenPosition) {
+  void _onObjectHovered(
+      CelestialObjectAnnotation object, Offset screenPosition) {
+    ref.read(selectedAnnotationObjectProvider.notifier).state = object;
     // Don't override a click-selected tooltip with hover
     if (_selectedObject != null && !_isHoverTooltip) return;
 
     setState(() {
       _selectedObject = object;
       _isHoverTooltip = true;
-      // Position tooltip near the object with offset so it doesn't cover it
-      _tooltipPosition = Offset(
-        screenPosition.dx + 20,
-        screenPosition.dy - 10,
-      );
+      _tooltipPosition =
+          _computeTooltipPosition(screenPosition, preferRight: true);
     });
   }
 
@@ -4850,6 +5362,7 @@ class _AnnotationOverlayWrapperState
     // Only clear if this was a hover tooltip, not a click
     if (!_isHoverTooltip) return;
 
+    ref.read(selectedAnnotationObjectProvider.notifier).state = null;
     setState(() {
       _selectedObject = null;
       _tooltipPosition = null;
@@ -4861,6 +5374,8 @@ class _AnnotationOverlayWrapperState
     // Use annotation service to identify object at position
     final annotationService = ref.read(annotationServiceProvider);
     final annotation = ref.read(currentAnnotationProvider);
+    final settings = ref.read(annotationSettingsProvider).valueOrNull ??
+        const AnnotationSettings();
 
     if (annotation?.plateSolve == null) return;
 
@@ -4868,6 +5383,7 @@ class _AnnotationOverlayWrapperState
       plateSolve: annotation!.plateSolve,
       x: x,
       y: y,
+      searchRadiusArcsec: settings.clickSearchRadiusArcsec,
     );
 
     if (result != null && mounted) {
@@ -4879,15 +5395,15 @@ class _AnnotationOverlayWrapperState
 
       setState(() {
         _selectedObject = result;
-        _tooltipPosition = Offset(
-          screenPosition.dx + 20,
-          screenPosition.dy,
-        );
+        _isHoverTooltip = false;
+        _tooltipPosition =
+            _computeTooltipPosition(screenPosition, preferRight: true);
       });
     }
   }
 
   void _closeTooltip() {
+    ref.read(selectedAnnotationObjectProvider.notifier).state = null;
     setState(() {
       _selectedObject = null;
       _tooltipPosition = null;
@@ -4902,28 +5418,34 @@ class _AnnotationOverlayWrapperState
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(obj.name),
+        title: Text(obj.commonName ?? obj.name),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               if (obj.commonName != null) ...[
-                Text('Common Name: ${obj.commonName}', style: const TextStyle(fontSize: 14)),
+                Text('Common Name: ${obj.commonName}',
+                    style: const TextStyle(fontSize: 14)),
                 const SizedBox(height: 8),
               ],
-              Text('Type: ${obj.type.toString().split('.').last}', style: const TextStyle(fontSize: 14)),
+              Text('Type: ${obj.type.toString().split('.').last}',
+                  style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 8),
-              Text('RA: ${obj.ra.toStringAsFixed(6)}°', style: const TextStyle(fontSize: 14)),
+              Text('RA: ${obj.ra.toStringAsFixed(6)}°',
+                  style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 8),
-              Text('Dec: ${obj.dec.toStringAsFixed(6)}°', style: const TextStyle(fontSize: 14)),
+              Text('Dec: ${obj.dec.toStringAsFixed(6)}°',
+                  style: const TextStyle(fontSize: 14)),
               if (obj.magnitude != null) ...[
                 const SizedBox(height: 8),
-                Text('Magnitude: ${obj.magnitude!.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14)),
+                Text('Magnitude: ${obj.magnitude!.toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 14)),
               ],
               if (obj.size != null) ...[
                 const SizedBox(height: 8),
-                Text('Size: ${obj.size!.toStringAsFixed(2)}\'', style: const TextStyle(fontSize: 14)),
+                Text('Size: ${obj.size!.toStringAsFixed(2)}\'',
+                    style: const TextStyle(fontSize: 14)),
               ],
             ],
           ),
@@ -4943,6 +5465,7 @@ class _AnnotationOverlayWrapperState
   }
 
   void _onObjectSelectedFromPanel(CelestialObjectAnnotation object) {
+    ref.read(selectedAnnotationObjectProvider.notifier).state = object;
     // When an object is selected from the sidebar panel, show its tooltip
     final screenPosition = imageToViewport(
       imagePoint: Offset(object.x, object.y),
@@ -4953,11 +5476,8 @@ class _AnnotationOverlayWrapperState
     setState(() {
       _selectedObject = object;
       _isHoverTooltip = false; // Panel selection is like a click
-      // Position tooltip near the center of the viewport
-      _tooltipPosition = Offset(
-        screenPosition.dx.clamp(50, MediaQuery.of(context).size.width - 350),
-        screenPosition.dy.clamp(50, MediaQuery.of(context).size.height - 250),
-      );
+      _tooltipPosition =
+          _computeTooltipPosition(screenPosition, preferRight: false);
     });
   }
 
@@ -4981,10 +5501,8 @@ class _AnnotationOverlayWrapperState
         // Object info tooltip
         if (_selectedObject != null && _tooltipPosition != null)
           Positioned(
-            left: _tooltipPosition!.dx
-                .clamp(0, MediaQuery.of(context).size.width - 300),
-            top: _tooltipPosition!.dy
-                .clamp(0, MediaQuery.of(context).size.height - 200),
+            left: _tooltipPosition!.dx,
+            top: _tooltipPosition!.dy,
             child: ObjectInfoTooltip(
               object: _selectedObject!,
               onClose: _closeTooltip,
@@ -5000,6 +5518,7 @@ class _AnnotationOverlayWrapperState
             child: _AnnotationObjectsPanel(
               colors: widget.colors,
               onObjectSelected: _onObjectSelectedFromPanel,
+              selectedObjectId: _selectedObject?.id,
             ),
           ),
       ],
@@ -5072,7 +5591,10 @@ class _AnnotationStatusIndicator extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final annotationState = ref.watch(annotationStateProvider);
-    final annotationSettings = ref.watch(annotationSettingsProvider).valueOrNull;
+    final annotationSettings =
+        ref.watch(annotationSettingsProvider).valueOrNull;
+    final secondaryMessage =
+        annotationState.errorDetails ?? _getActionHint(annotationState.status);
 
     // Don't show anything if annotations are disabled
     if (annotationSettings != null && !annotationSettings.enabled) {
@@ -5106,21 +5628,23 @@ class _AnnotationStatusIndicator extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  annotationState.message ?? _getStatusText(annotationState.status),
+                  annotationState.message ??
+                      _getStatusText(annotationState.status),
                   style: TextStyle(
                     color: _getTextColor(annotationState.status),
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (annotationState.errorDetails != null)
+                if (secondaryMessage != null)
                   Text(
-                    annotationState.errorDetails!,
+                    secondaryMessage,
                     style: TextStyle(
-                      color: _getTextColor(annotationState.status).withValues(alpha: 0.7),
+                      color: _getTextColor(annotationState.status)
+                          .withValues(alpha: 0.7),
                       fontSize: 10,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
               ],
@@ -5136,14 +5660,17 @@ class _AnnotationStatusIndicator extends ConsumerWidget {
       case AnnotationStatus.checkingCatalogs:
       case AnnotationStatus.plateSolving:
       case AnnotationStatus.searchingCatalogs:
-        return const Color(0xFF1E3A5F).withValues(alpha: 0.9); // Blue for processing
+        return const Color(0xFF1E3A5F)
+            .withValues(alpha: 0.9); // Blue for processing
       case AnnotationStatus.complete:
-        return const Color(0xFF1E4620).withValues(alpha: 0.9); // Green for success
+        return const Color(0xFF1E4620)
+            .withValues(alpha: 0.9); // Green for success
       case AnnotationStatus.error:
       case AnnotationStatus.plateSolveFailed:
         return const Color(0xFF5F1E1E).withValues(alpha: 0.9); // Red for error
       case AnnotationStatus.catalogsNotInstalled:
-        return const Color(0xFF5F4D1E).withValues(alpha: 0.9); // Orange for warning
+        return const Color(0xFF5F4D1E)
+            .withValues(alpha: 0.9); // Orange for warning
       case AnnotationStatus.idle:
         return Colors.transparent;
     }
@@ -5199,12 +5726,15 @@ class _AnnotationStatusIndicator extends ConsumerWidget {
           ),
         );
       case AnnotationStatus.complete:
-        return Icon(LucideIcons.checkCircle, size: 14, color: _getTextColor(status));
+        return Icon(LucideIcons.checkCircle,
+            size: 14, color: _getTextColor(status));
       case AnnotationStatus.error:
       case AnnotationStatus.plateSolveFailed:
-        return Icon(LucideIcons.alertCircle, size: 14, color: _getTextColor(status));
+        return Icon(LucideIcons.alertCircle,
+            size: 14, color: _getTextColor(status));
       case AnnotationStatus.catalogsNotInstalled:
-        return Icon(LucideIcons.alertTriangle, size: 14, color: _getTextColor(status));
+        return Icon(LucideIcons.alertTriangle,
+            size: 14, color: _getTextColor(status));
       case AnnotationStatus.idle:
         return const SizedBox.shrink();
     }
@@ -5230,79 +5760,150 @@ class _AnnotationStatusIndicator extends ConsumerWidget {
         return '';
     }
   }
+
+  String? _getActionHint(AnnotationStatus status) {
+    switch (status) {
+      case AnnotationStatus.catalogsNotInstalled:
+        return 'Install catalogs in Settings > Catalogs';
+      case AnnotationStatus.plateSolveFailed:
+        return 'Check solver config, focus, and star signal';
+      case AnnotationStatus.error:
+        return 'Capture a fresh frame to retry';
+      case AnnotationStatus.checkingCatalogs:
+      case AnnotationStatus.plateSolving:
+      case AnnotationStatus.searchingCatalogs:
+      case AnnotationStatus.complete:
+      case AnnotationStatus.idle:
+        return null;
+    }
+  }
 }
 
 /// Provider for the annotation sidebar panel visibility state
 final annotationPanelVisibleProvider = StateProvider<bool>((ref) => false);
 
-/// Provider for the annotation panel filter state (which object types to show)
-final annotationPanelFiltersProvider = StateProvider<Set<ObjectType>>((ref) {
-  // By default, show everything except stars
-  return {
-    ObjectType.galaxy,
-    ObjectType.nebula,
-    ObjectType.starCluster,
-    ObjectType.planetaryNebula,
-    ObjectType.doubleStar,
-    ObjectType.asterism,
-    ObjectType.unknown,
-  };
+enum _AnnotationPanelSortMode { brightness, name, type }
+
+final annotationPanelSortModeProvider =
+    StateProvider<_AnnotationPanelSortMode>((ref) {
+  return _AnnotationPanelSortMode.brightness;
 });
+
+Set<AnnotationObjectFilter> _filtersForObjectType(ObjectType type) {
+  switch (type) {
+    case ObjectType.galaxy:
+      return {AnnotationObjectFilter.galaxies};
+    case ObjectType.nebula:
+      return {AnnotationObjectFilter.nebulae};
+    case ObjectType.planetaryNebula:
+      return {AnnotationObjectFilter.planetaryNebulae};
+    case ObjectType.starCluster:
+      return {AnnotationObjectFilter.starClusters};
+    case ObjectType.star:
+    case ObjectType.doubleStar:
+      return {AnnotationObjectFilter.stars};
+    case ObjectType.asterism:
+    case ObjectType.unknown:
+      return {AnnotationObjectFilter.other};
+  }
+}
+
+bool _isTypeVisibleFromSettings(
+  ObjectType type,
+  Set<AnnotationObjectFilter> filters,
+) {
+  return _filtersForObjectType(type).any(filters.contains);
+}
 
 /// Sidebar panel showing list of detected celestial objects
 class _AnnotationObjectsPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final void Function(CelestialObjectAnnotation object) onObjectSelected;
+  final String? selectedObjectId;
 
   const _AnnotationObjectsPanel({
     required this.colors,
     required this.onObjectSelected,
+    this.selectedObjectId,
   });
 
   @override
-  ConsumerState<_AnnotationObjectsPanel> createState() => _AnnotationObjectsPanelState();
+  ConsumerState<_AnnotationObjectsPanel> createState() =>
+      _AnnotationObjectsPanelState();
 }
 
-class _AnnotationObjectsPanelState extends ConsumerState<_AnnotationObjectsPanel> {
+class _AnnotationObjectsPanelState
+    extends ConsumerState<_AnnotationObjectsPanel> {
+  static const List<ObjectType> _filterTypes = [
+    ObjectType.galaxy,
+    ObjectType.nebula,
+    ObjectType.planetaryNebula,
+    ObjectType.starCluster,
+    ObjectType.star,
+    ObjectType.unknown,
+  ];
+
   bool _filtersExpanded = false;
   String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
     final annotation = ref.watch(currentAnnotationProvider);
-    final filters = ref.watch(annotationPanelFiltersProvider);
+    final settings = ref.watch(annotationSettingsProvider).valueOrNull ??
+        const AnnotationSettings();
+    final sortMode = ref.watch(annotationPanelSortModeProvider);
     final objects = annotation?.objects ?? [];
 
-    // Filter objects based on type filters and search query
-    final filteredObjects = objects.where((obj) {
-      // Apply type filter
-      if (!filters.contains(obj.type)) return false;
-
-      // Apply search filter
-      if (_searchQuery.isNotEmpty) {
-        final query = _searchQuery.toLowerCase();
-        final nameMatch = obj.name.toLowerCase().contains(query);
-        final commonNameMatch = obj.commonName?.toLowerCase().contains(query) ?? false;
-        final catalogMatch = obj.catalogId?.toLowerCase().contains(query) ?? false;
-        if (!nameMatch && !commonNameMatch && !catalogMatch) return false;
-      }
-
-      return true;
-    }).toList();
-
-    // Sort by magnitude (brightest first), then by name
-    filteredObjects.sort((a, b) {
-      final aMag = a.magnitude ?? 99.0;
-      final bMag = b.magnitude ?? 99.0;
-      final magCompare = aMag.compareTo(bMag);
-      if (magCompare != 0) return magCompare;
-      return a.name.compareTo(b.name);
-    });
-
-    // Group objects by type for the count display
     final typeCounts = <ObjectType, int>{};
     for (final obj in objects) {
       typeCounts[obj.type] = (typeCounts[obj.type] ?? 0) + 1;
+    }
+
+    // Apply visibility rules consistent with overlay rendering.
+    final displayableObjects = objects.where((obj) {
+      if (!obj.visible) return false;
+      if (!_isTypeVisibleFromSettings(obj.type, settings.visibleTypes)) {
+        return false;
+      }
+      if (obj.magnitude != null) {
+        if (obj.magnitude! > settings.magnitudeCutoff) return false;
+        if (obj.magnitude! < settings.minMagnitude) return false;
+      }
+      return true;
+    }).toList();
+
+    // Apply search filter on top of display filters.
+    final filteredObjects = displayableObjects.where((obj) {
+      if (_searchQuery.isNotEmpty) {
+        final query = _searchQuery.toLowerCase();
+        final nameMatch = obj.name.toLowerCase().contains(query);
+        final commonNameMatch =
+            obj.commonName?.toLowerCase().contains(query) ?? false;
+        final catalogMatch =
+            obj.catalogId?.toLowerCase().contains(query) ?? false;
+        if (!nameMatch && !commonNameMatch && !catalogMatch) return false;
+      }
+      return true;
+    }).toList();
+
+    switch (sortMode) {
+      case _AnnotationPanelSortMode.brightness:
+        filteredObjects.sort((a, b) {
+          final aMag = a.magnitude ?? 99.0;
+          final bMag = b.magnitude ?? 99.0;
+          final magCompare = aMag.compareTo(bMag);
+          if (magCompare != 0) return magCompare;
+          return a.name.compareTo(b.name);
+        });
+      case _AnnotationPanelSortMode.name:
+        filteredObjects.sort((a, b) => a.name.compareTo(b.name));
+      case _AnnotationPanelSortMode.type:
+        filteredObjects.sort((a, b) {
+          final typeCompare = _getObjectTypeLabel(a.type)
+              .compareTo(_getObjectTypeLabel(b.type));
+          if (typeCompare != 0) return typeCompare;
+          return (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0);
+        });
     }
 
     return Container(
@@ -5350,13 +5951,14 @@ class _AnnotationObjectsPanelState extends ConsumerState<_AnnotationObjectsPanel
                 const Spacer(),
                 // Object count badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: widget.colors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    '${filteredObjects.length}',
+                    '${filteredObjects.length}/${displayableObjects.length}',
                     style: TextStyle(
                       color: widget.colors.primary,
                       fontSize: 11,
@@ -5365,9 +5967,53 @@ class _AnnotationObjectsPanelState extends ConsumerState<_AnnotationObjectsPanel
                   ),
                 ),
                 const SizedBox(width: 8),
+                PopupMenuButton<_AnnotationPanelSortMode>(
+                  tooltip: 'Sort objects',
+                  color: widget.colors.surfaceAlt,
+                  onSelected: (value) => ref
+                      .read(annotationPanelSortModeProvider.notifier)
+                      .state = value,
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: _AnnotationPanelSortMode.brightness,
+                      child: Text(
+                        'Sort: Brightness',
+                        style: TextStyle(
+                            color: widget.colors.textPrimary, fontSize: 12),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _AnnotationPanelSortMode.name,
+                      child: Text(
+                        'Sort: Name',
+                        style: TextStyle(
+                            color: widget.colors.textPrimary, fontSize: 12),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _AnnotationPanelSortMode.type,
+                      child: Text(
+                        'Sort: Type',
+                        style: TextStyle(
+                            color: widget.colors.textPrimary, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(
+                      LucideIcons.arrowUpDown,
+                      size: 14,
+                      color: widget.colors.textMuted,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
                 // Close button
                 InkWell(
-                  onTap: () => ref.read(annotationPanelVisibleProvider.notifier).state = false,
+                  onTap: () => ref
+                      .read(annotationPanelVisibleProvider.notifier)
+                      .state = false,
                   borderRadius: BorderRadius.circular(4),
                   child: Padding(
                     padding: const EdgeInsets.all(4),
@@ -5389,14 +6035,16 @@ class _AnnotationObjectsPanelState extends ConsumerState<_AnnotationObjectsPanel
               style: TextStyle(color: widget.colors.textPrimary, fontSize: 13),
               decoration: InputDecoration(
                 hintText: 'Search objects...',
-                hintStyle: TextStyle(color: widget.colors.textMuted, fontSize: 13),
+                hintStyle:
+                    TextStyle(color: widget.colors.textMuted, fontSize: 13),
                 prefixIcon: Icon(
                   LucideIcons.search,
                   size: 16,
                   color: widget.colors.textMuted,
                 ),
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 filled: true,
                 fillColor: widget.colors.surfaceAlt,
                 border: OutlineInputBorder(
@@ -5419,9 +6067,11 @@ class _AnnotationObjectsPanelState extends ConsumerState<_AnnotationObjectsPanel
           // Filters section
           ExpansionTile(
             initiallyExpanded: _filtersExpanded,
-            onExpansionChanged: (expanded) => setState(() => _filtersExpanded = expanded),
+            onExpansionChanged: (expanded) =>
+                setState(() => _filtersExpanded = expanded),
             tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-            childrenPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            childrenPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             dense: true,
             title: Text(
               'Filters',
@@ -5432,33 +6082,119 @@ class _AnnotationObjectsPanelState extends ConsumerState<_AnnotationObjectsPanel
               ),
             ),
             trailing: Icon(
-              _filtersExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+              _filtersExpanded
+                  ? LucideIcons.chevronUp
+                  : LucideIcons.chevronDown,
               size: 16,
               color: widget.colors.textMuted,
             ),
             children: [
               Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _QuickSettingChip(
+                    label: settings.visibleTypes
+                            .contains(AnnotationObjectFilter.stars)
+                        ? 'Stars On'
+                        : 'Stars Off',
+                    isSelected: settings.visibleTypes
+                        .contains(AnnotationObjectFilter.stars),
+                    colors: widget.colors,
+                    onTap: () {
+                      unawaited(
+                        ref
+                            .read(annotationSettingsProvider.notifier)
+                            .toggleObjectType(AnnotationObjectFilter.stars),
+                      );
+                    },
+                  ),
+                  _QuickSettingChip(
+                    label: settings.showLabels ? 'Labels On' : 'Labels Off',
+                    isSelected: settings.showLabels,
+                    colors: widget.colors,
+                    onTap: () {
+                      unawaited(
+                        ref
+                            .read(annotationSettingsProvider.notifier)
+                            .setShowLabels(!settings.showLabels),
+                      );
+                    },
+                  ),
+                  _QuickSettingChip(
+                    label: settings.showMagnitudes ? 'Mag On' : 'Mag Off',
+                    isSelected: settings.showMagnitudes,
+                    colors: widget.colors,
+                    onTap: () {
+                      unawaited(
+                        ref
+                            .read(annotationSettingsProvider.notifier)
+                            .setShowMagnitudes(!settings.showMagnitudes),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
                 spacing: 4,
                 runSpacing: 4,
-                children: ObjectType.values.map((type) {
-                  final isSelected = filters.contains(type);
-                  final count = typeCounts[type] ?? 0;
+                children: _filterTypes.map((type) {
+                  final isSelected =
+                      _isTypeVisibleFromSettings(type, settings.visibleTypes);
+                  final count = _countForFilterType(type, typeCounts);
                   return _FilterChip(
                     label: _getObjectTypeLabel(type),
                     count: count,
                     isSelected: isSelected,
                     colors: widget.colors,
                     onTap: () {
-                      final newFilters = Set<ObjectType>.from(filters);
+                      final notifier =
+                          ref.read(annotationSettingsProvider.notifier);
+                      final updated = Set<AnnotationObjectFilter>.from(
+                          settings.visibleTypes);
+                      final typeFilters = _filtersForObjectType(type);
                       if (isSelected) {
-                        newFilters.remove(type);
+                        updated.removeAll(typeFilters);
                       } else {
-                        newFilters.add(type);
+                        updated.addAll(typeFilters);
                       }
-                      ref.read(annotationPanelFiltersProvider.notifier).state = newFilters;
+                      unawaited(notifier.setObjectTypes(updated));
                     },
                   );
                 }).toList(),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () {
+                    unawaited(
+                      ref
+                          .read(annotationSettingsProvider.notifier)
+                          .setObjectTypes(
+                        {
+                          AnnotationObjectFilter.galaxies,
+                          AnnotationObjectFilter.nebulae,
+                          AnnotationObjectFilter.starClusters,
+                          AnnotationObjectFilter.planetaryNebulae,
+                        },
+                      ),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 24),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Reset to defaults',
+                    style: TextStyle(
+                      color: widget.colors.primary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
             ],
@@ -5504,6 +6240,7 @@ class _AnnotationObjectsPanelState extends ConsumerState<_AnnotationObjectsPanel
                         object: object,
                         colors: widget.colors,
                         onTap: () => widget.onObjectSelected(object),
+                        isSelected: widget.selectedObjectId == object.id,
                       );
                     },
                   ),
@@ -5526,12 +6263,24 @@ class _AnnotationObjectsPanelState extends ConsumerState<_AnnotationObjectsPanel
       case ObjectType.star:
         return 'Stars';
       case ObjectType.doubleStar:
-        return 'Doubles';
+        return 'Stars';
       case ObjectType.asterism:
         return 'Asterisms';
       case ObjectType.unknown:
         return 'Other';
     }
+  }
+
+  int _countForFilterType(ObjectType type, Map<ObjectType, int> typeCounts) {
+    if (type == ObjectType.star) {
+      return (typeCounts[ObjectType.star] ?? 0) +
+          (typeCounts[ObjectType.doubleStar] ?? 0);
+    }
+    if (type == ObjectType.unknown) {
+      return (typeCounts[ObjectType.unknown] ?? 0) +
+          (typeCounts[ObjectType.asterism] ?? 0);
+    }
+    return typeCounts[type] ?? 0;
   }
 }
 
@@ -5599,16 +6348,62 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
+class _QuickSettingChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final NightshadeColors colors;
+  final VoidCallback onTap;
+
+  const _QuickSettingChip({
+    required this.label,
+    required this.isSelected,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colors.primary.withValues(alpha: 0.18)
+              : colors.surfaceAlt.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: isSelected
+                ? colors.primary.withValues(alpha: 0.55)
+                : colors.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? colors.primary : colors.textSecondary,
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// List item for a celestial object
 class _ObjectListItem extends StatelessWidget {
   final CelestialObjectAnnotation object;
   final NightshadeColors colors;
   final VoidCallback onTap;
+  final bool isSelected;
 
   const _ObjectListItem({
     required this.object,
     required this.colors,
     required this.onTap,
+    this.isSelected = false,
   });
 
   @override
@@ -5618,6 +6413,9 @@ class _ObjectListItem extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
+          color: isSelected
+              ? colors.primary.withValues(alpha: 0.08)
+              : Colors.transparent,
           border: Border(
             bottom: BorderSide(
               color: colors.border.withValues(alpha: 0.5),
@@ -5654,7 +6452,8 @@ class _ObjectListItem extends StatelessWidget {
                     style: TextStyle(
                       color: colors.textPrimary,
                       fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -5675,7 +6474,8 @@ class _ObjectListItem extends StatelessWidget {
                       Text(
                         _getTypeShortLabel(object.type),
                         style: TextStyle(
-                          color: _getTypeColor(object.type).withValues(alpha: 0.8),
+                          color:
+                              _getTypeColor(object.type).withValues(alpha: 0.8),
                           fontSize: 10,
                         ),
                       ),

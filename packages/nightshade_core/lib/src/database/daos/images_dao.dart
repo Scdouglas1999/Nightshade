@@ -7,7 +7,8 @@ import '../tables/targets.dart';
 
 part 'images_dao.g.dart';
 
-@DriftAccessor(tables: [CapturedImages, ImageMetadata, ImagingSessions, Targets])
+@DriftAccessor(
+    tables: [CapturedImages, ImageMetadata, ImagingSessions, Targets])
 class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     with _$ImagesDaoMixin {
   ImagesDao(NightshadeDatabase db) : super(db);
@@ -104,6 +105,22 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
         .getSingleOrNull();
   }
 
+  Future<CapturedImage?> getImageByFilePath(String filePath) {
+    return (select(capturedImages)..where((i) => i.filePath.equals(filePath)))
+        .getSingleOrNull();
+  }
+
+  Future<List<CapturedImage>> getRecentImagesForSession(
+    int sessionId, {
+    int limit = 5,
+  }) {
+    return (select(capturedImages)
+          ..where((i) => i.sessionId.equals(sessionId))
+          ..orderBy([(i) => OrderingTerm.desc(i.capturedAt)])
+          ..limit(limit))
+        .get();
+  }
+
   /// Create a new image record
   Future<int> createImage(CapturedImagesCompanion image) {
     return into(capturedImages).insert(image);
@@ -178,13 +195,13 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
   Future<Map<String, int>> getFilterCountsForTarget(int targetId) async {
     final images = await getImagesForTarget(targetId);
     final counts = <String, int>{};
-    
+
     for (final image in images) {
       if (image.filter != null && image.isAccepted) {
         counts[image.filter!] = (counts[image.filter!] ?? 0) + 1;
       }
     }
-    
+
     return counts;
   }
 
@@ -226,8 +243,3 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     });
   }
 }
-
-
-
-
-

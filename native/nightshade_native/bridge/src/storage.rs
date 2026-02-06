@@ -26,73 +26,73 @@ impl ProfileStorage {
             fs::create_dir_all(&storage_dir)
                 .map_err(|e| format!("Failed to create storage directory: {}", e))?;
         }
-        
+
         let storage_path = storage_dir.join("profiles.json");
-        
+
         Ok(Self { storage_path })
     }
-    
+
     /// Load all profiles from disk
     pub fn load_profiles(&self) -> Result<Vec<EquipmentProfile>, String> {
         if !self.storage_path.exists() {
             return Ok(Vec::new());
         }
-        
+
         let data = fs::read_to_string(&self.storage_path)
             .map_err(|e| format!("Failed to read profiles file: {}", e))?;
-        
+
         let profiles_data: ProfilesData = serde_json::from_str(&data)
             .map_err(|e| format!("Failed to parse profiles JSON: {}", e))?;
-        
+
         Ok(profiles_data.profiles)
     }
-    
+
     /// Save all profiles to disk
     fn save_profiles(&self, profiles: &[EquipmentProfile]) -> Result<(), String> {
         let profiles_data = ProfilesData {
             profiles: profiles.to_vec(),
         };
-        
+
         let json = serde_json::to_string_pretty(&profiles_data)
             .map_err(|e| format!("Failed to serialize profiles: {}", e))?;
-        
+
         fs::write(&self.storage_path, json)
             .map_err(|e| format!("Failed to write profiles file: {}", e))?;
-        
+
         Ok(())
     }
-    
+
     /// Save a single profile (creates or updates)
     pub fn save_profile(&self, profile: &EquipmentProfile) -> Result<(), String> {
         let mut profiles = self.load_profiles()?;
-        
+
         // Remove existing profile with same ID if exists
         profiles.retain(|p| p.id != profile.id);
-        
+
         // Add the new/updated profile
         profiles.push(profile.clone());
-        
+
         self.save_profiles(&profiles)
     }
-    
+
     /// Delete a profile by ID
     pub fn delete_profile(&self, profile_id: &str) -> Result<(), String> {
         let mut profiles = self.load_profiles()?;
-        
+
         let initial_len = profiles.len();
         profiles.retain(|p| p.id != profile_id);
-        
+
         if profiles.len() == initial_len {
             return Err(format!("Profile not found: {}", profile_id));
         }
-        
+
         self.save_profiles(&profiles)
     }
-    
+
     /// Get a specific profile by ID
     pub fn get_profile(&self, profile_id: &str) -> Result<EquipmentProfile, String> {
         let profiles = self.load_profiles()?;
-        
+
         profiles
             .into_iter()
             .find(|p| p.id == profile_id)
@@ -142,35 +142,35 @@ impl SettingsStorage {
             fs::create_dir_all(&storage_dir)
                 .map_err(|e| format!("Failed to create storage directory: {}", e))?;
         }
-        
+
         let storage_path = storage_dir.join("settings.json");
-        
+
         Ok(Self { storage_path })
     }
-    
+
     /// Load settings from disk
     pub fn load_settings(&self) -> Result<AppSettings, String> {
         if !self.storage_path.exists() {
             return Ok(AppSettings::default());
         }
-        
+
         let data = fs::read_to_string(&self.storage_path)
             .map_err(|e| format!("Failed to read settings file: {}", e))?;
-        
+
         let settings: AppSettings = serde_json::from_str(&data)
             .map_err(|e| format!("Failed to parse settings JSON: {}", e))?;
-        
+
         Ok(settings)
     }
-    
+
     /// Save settings to disk
     pub fn save_settings(&self, settings: &AppSettings) -> Result<(), String> {
         let json = serde_json::to_string_pretty(settings)
             .map_err(|e| format!("Failed to serialize settings: {}", e))?;
-        
+
         fs::write(&self.storage_path, json)
             .map_err(|e| format!("Failed to write settings file: {}", e))?;
-        
+
         Ok(())
     }
 }
@@ -179,12 +179,12 @@ impl SettingsStorage {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    
+
     #[test]
     fn test_save_and_load_profile() {
         let temp_dir = TempDir::new().unwrap();
         let storage = ProfileStorage::new(temp_dir.path().to_path_buf()).unwrap();
-        
+
         let profile = EquipmentProfile {
             id: "test-profile".to_string(),
             name: "Test Profile".to_string(),
@@ -203,22 +203,22 @@ mod tests {
 
         // Save profile
         storage.save_profile(&profile).unwrap();
-        
+
         // Load profiles
         let loaded = storage.load_profiles().unwrap();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].id, "test-profile");
-        
+
         // Get specific profile
         let retrieved = storage.get_profile("test-profile").unwrap();
         assert_eq!(retrieved.name, "Test Profile");
     }
-    
+
     #[test]
     fn test_delete_profile() {
         let temp_dir = TempDir::new().unwrap();
         let storage = ProfileStorage::new(temp_dir.path().to_path_buf()).unwrap();
-        
+
         let profile = EquipmentProfile {
             id: "test-profile".to_string(),
             name: "Test Profile".to_string(),
@@ -238,7 +238,7 @@ mod tests {
         // Save and delete
         storage.save_profile(&profile).unwrap();
         storage.delete_profile("test-profile").unwrap();
-        
+
         // Should be empty
         let loaded = storage.load_profiles().unwrap();
         assert_eq!(loaded.len(), 0);

@@ -38,6 +38,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ('Equipment Profiles', LucideIcons.boxes),
     ('Catalogs', LucideIcons.database),
     ('Imaging', LucideIcons.camera),
+    ('Science', LucideIcons.flaskConical),
     ('Annotations', LucideIcons.tag),
     ('Sequencer', LucideIcons.listOrdered),
     ('Plate Solving', LucideIcons.crosshair),
@@ -54,7 +55,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final isMobile = Responsive.isMobile(context);
 
-    final child = isMobile ? _buildMobileLayout(colors) : _buildDesktopLayout(colors);
+    final child =
+        isMobile ? _buildMobileLayout(colors) : _buildDesktopLayout(colors);
 
     return ContextualTourPrompt(
       screenId: 'settings',
@@ -98,7 +100,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: Icon(LucideIcons.arrowLeft, color: colors.textPrimary),
+                    icon:
+                        Icon(LucideIcons.arrowLeft, color: colors.textPrimary),
                     onPressed: () {
                       setState(() => _mobileSelectedCategory = null);
                     },
@@ -119,7 +122,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         // Content
         Expanded(
-          child: _buildContent(colors, categoryIndex: categoryIndex, isMobile: true),
+          child: _buildContent(colors,
+              categoryIndex: categoryIndex, isMobile: true),
         ),
       ],
     );
@@ -177,13 +181,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
         // Settings content
         Expanded(
-          child: _buildContent(colors, categoryIndex: _selectedCategory, isMobile: false),
+          child: _buildContent(colors,
+              categoryIndex: _selectedCategory, isMobile: false),
         ),
       ],
     );
   }
 
-  Widget _buildContent(NightshadeColors colors, {required int categoryIndex, required bool isMobile}) {
+  Widget _buildContent(NightshadeColors colors,
+      {required int categoryIndex, required bool isMobile}) {
     switch (categoryIndex) {
       case 0:
         return _ConnectionSettings(colors: colors, isMobile: isMobile);
@@ -200,22 +206,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       case 6:
         return _ImagingSettings(colors: colors, isMobile: isMobile);
       case 7:
-        return _AnnotationSettings(colors: colors, isMobile: isMobile);
+        return _ScienceSettings(colors: colors, isMobile: isMobile);
       case 8:
-        return _SequencerSettings(colors: colors, isMobile: isMobile);
+        return _AnnotationSettings(colors: colors, isMobile: isMobile);
       case 9:
-        return _PlateSolvingSettings(colors: colors, isMobile: isMobile);
+        return _SequencerSettings(colors: colors, isMobile: isMobile);
       case 10:
-        return _Phd2GuidingSettings(colors: colors, isMobile: isMobile);
+        return _PlateSolvingSettings(colors: colors, isMobile: isMobile);
       case 11:
-        return _NotificationSettings(colors: colors, isMobile: isMobile);
+        return _Phd2GuidingSettings(colors: colors, isMobile: isMobile);
       case 12:
-        return _FilePathSettings(colors: colors, isMobile: isMobile);
+        return _NotificationSettings(colors: colors, isMobile: isMobile);
       case 13:
-        return PluginsScreen(isMobile: isMobile);
+        return _FilePathSettings(colors: colors, isMobile: isMobile);
       case 14:
-        return _HelpTutorialsSettings(colors: colors, isMobile: isMobile);
+        return PluginsScreen(isMobile: isMobile);
       case 15:
+        return _HelpTutorialsSettings(colors: colors, isMobile: isMobile);
+      case 16:
         return _AboutSettings(colors: colors, isMobile: isMobile);
       default:
         return const SizedBox();
@@ -382,7 +390,8 @@ class _CategoryItemState extends State<_CategoryItem> {
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: widget.isSelected
-                ? Border.all(color: widget.colors.primary.withValues(alpha: 0.3))
+                ? Border.all(
+                    color: widget.colors.primary.withValues(alpha: 0.3))
                 : null,
           ),
           child: Row(
@@ -420,6 +429,7 @@ class _SettingsPage extends StatelessWidget {
   final List<Widget> children;
   final NightshadeColors colors;
   final bool isMobile;
+
   /// If true, don't show title/description (used when mobile header already shows title)
   final bool hideHeader;
 
@@ -435,9 +445,8 @@ class _SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final padding = isMobile
-        ? const EdgeInsets.all(16)
-        : const EdgeInsets.all(32);
+    final padding =
+        isMobile ? const EdgeInsets.all(16) : const EdgeInsets.all(32);
 
     return SingleChildScrollView(
       padding: padding,
@@ -522,6 +531,7 @@ class _SettingRow extends StatelessWidget {
   final bool isLast;
   final NightshadeColors colors;
   final bool isMobile;
+
   /// If true, stack the trailing widget below the title on mobile
   final bool stackOnMobile;
 
@@ -546,7 +556,8 @@ class _SettingRow extends StatelessWidget {
     final iconInnerSize = isMobile ? 14.0 : 16.0;
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
+      padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding, vertical: verticalPadding),
       decoration: BoxDecoration(
         border: isLast
             ? null
@@ -570,7 +581,8 @@ class _SettingRow extends StatelessWidget {
             color: colors.surfaceAlt,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icon, size: iconInnerSize, color: iconColor ?? colors.textSecondary),
+          child: Icon(icon,
+              size: iconInnerSize, color: iconColor ?? colors.textSecondary),
         ),
         SizedBox(width: isMobile ? 10 : 14),
         Expanded(
@@ -616,7 +628,9 @@ class _SettingRow extends StatelessWidget {
                 color: colors.surfaceAlt,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, size: iconInnerSize, color: iconColor ?? colors.textSecondary),
+              child: Icon(icon,
+                  size: iconInnerSize,
+                  color: iconColor ?? colors.textSecondary),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -706,7 +720,8 @@ class _ConnectionSettings extends ConsumerWidget {
               title: 'Connection Status',
               subtitle: serverAddress,
               trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
@@ -748,9 +763,12 @@ class _ConnectionSettings extends ConsumerWidget {
                   : 'Open connection screen to connect to a server',
               trailing: NightshadeButton(
                 label: isConnected ? 'Disconnect' : 'Connect',
-                variant: isConnected ? ButtonVariant.destructive : ButtonVariant.primary,
+                variant: isConnected
+                    ? ButtonVariant.destructive
+                    : ButtonVariant.primary,
                 size: isMobile ? ButtonSize.small : ButtonSize.small,
-                onPressed: () => _handleConnectionAction(context, ref, isConnected),
+                onPressed: () =>
+                    _handleConnectionAction(context, ref, isConnected),
               ),
               isLast: true,
               colors: colors,
@@ -769,18 +787,22 @@ class _ConnectionSettings extends ConsumerWidget {
                 title: 'Sync Location',
                 subtitle: 'Download location from remote server',
                 trailing: IconButton(
-                  icon: Icon(LucideIcons.downloadCloud, color: colors.primary, size: isMobile ? 20 : 18),
+                  icon: Icon(LucideIcons.downloadCloud,
+                      color: colors.primary, size: isMobile ? 20 : 18),
                   onPressed: () async {
                     try {
                       final location = await backend.getLocation();
                       if (location != null) {
-                        await ref.read(appSettingsProvider.notifier).updateLocation(
-                          latitude: location.latitude,
-                          longitude: location.longitude,
-                          elevation: location.elevation,
-                        );
+                        await ref
+                            .read(appSettingsProvider.notifier)
+                            .updateLocation(
+                              latitude: location.latitude,
+                              longitude: location.longitude,
+                              elevation: location.elevation,
+                            );
                         if (context.mounted) {
-                          context.showSuccessSnackBar('Location synced from server');
+                          context.showSuccessSnackBar(
+                              'Location synced from server');
                         }
                       }
                     } catch (e) {
@@ -800,7 +822,8 @@ class _ConnectionSettings extends ConsumerWidget {
     );
   }
 
-  void _handleConnectionAction(BuildContext context, WidgetRef ref, bool isConnected) {
+  void _handleConnectionAction(
+      BuildContext context, WidgetRef ref, bool isConnected) {
     if (isConnected) {
       // Show confirmation dialog before disconnecting
       showDialog(
@@ -929,7 +952,9 @@ class _GeneralSettings extends ConsumerWidget {
                 trailing: _SettingsSwitch(
                   value: settings.startMinimized,
                   onChanged: (value) {
-                    ref.read(appSettingsProvider.notifier).setStartMinimized(value);
+                    ref
+                        .read(appSettingsProvider.notifier)
+                        .setStartMinimized(value);
                   },
                   colors: colors,
                 ),
@@ -943,7 +968,9 @@ class _GeneralSettings extends ConsumerWidget {
                 trailing: _SettingsSwitch(
                   value: settings.autoConnectEquipment,
                   onChanged: (value) {
-                    ref.read(appSettingsProvider.notifier).setAutoConnectEquipment(value);
+                    ref
+                        .read(appSettingsProvider.notifier)
+                        .setAutoConnectEquipment(value);
                   },
                   colors: colors,
                 ),
@@ -965,7 +992,9 @@ class _GeneralSettings extends ConsumerWidget {
                 trailing: _SettingsSwitch(
                   value: settings.autoSaveSequences,
                   onChanged: (value) {
-                    ref.read(appSettingsProvider.notifier).setAutoSaveSequences(value);
+                    ref
+                        .read(appSettingsProvider.notifier)
+                        .setAutoSaveSequences(value);
                   },
                   colors: colors,
                 ),
@@ -979,7 +1008,9 @@ class _GeneralSettings extends ConsumerWidget {
                 trailing: _SettingsSwitch(
                   value: settings.confirmBeforeClosing,
                   onChanged: (value) {
-                    ref.read(appSettingsProvider.notifier).setConfirmBeforeClosing(value);
+                    ref
+                        .read(appSettingsProvider.notifier)
+                        .setConfirmBeforeClosing(value);
                   },
                   colors: colors,
                 ),
@@ -1032,7 +1063,9 @@ class _AppearanceSettings extends ConsumerWidget {
                 trailing: _SettingsSwitch(
                   value: settings.theme == 'dark',
                   onChanged: (value) {
-                    ref.read(appSettingsProvider.notifier).setTheme(value ? 'dark' : 'light');
+                    ref
+                        .read(appSettingsProvider.notifier)
+                        .setTheme(value ? 'dark' : 'light');
                   },
                   colors: colors,
                 ),
@@ -1046,7 +1079,9 @@ class _AppearanceSettings extends ConsumerWidget {
                 trailing: _ColorPicker(
                   selectedColor: settings.accentColor,
                   onColorSelected: (color) {
-                    ref.read(appSettingsProvider.notifier).setAccentColor(color);
+                    ref
+                        .read(appSettingsProvider.notifier)
+                        .setAccentColor(color);
                   },
                   colors: colors,
                   isMobile: isMobile,
@@ -1087,7 +1122,9 @@ class _AppearanceSettings extends ConsumerWidget {
                 trailing: _SettingsSwitch(
                   value: settings.sidebarCollapsed,
                   onChanged: (value) {
-                    ref.read(appSettingsProvider.notifier).setSidebarCollapsed(value);
+                    ref
+                        .read(appSettingsProvider.notifier)
+                        .setSidebarCollapsed(value);
                   },
                   colors: colors,
                 ),
@@ -1174,7 +1211,9 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                     max: 90,
                     decimals: 6,
                     onChanged: (value) async {
-                      await ref.read(appSettingsProvider.notifier).setLatitude(value);
+                      await ref
+                          .read(appSettingsProvider.notifier)
+                          .setLatitude(value);
                     },
                     colors: widget.colors,
                     isMobile: widget.isMobile,
@@ -1193,7 +1232,9 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                     max: 180,
                     decimals: 6,
                     onChanged: (value) async {
-                      await ref.read(appSettingsProvider.notifier).setLongitude(value);
+                      await ref
+                          .read(appSettingsProvider.notifier)
+                          .setLongitude(value);
                     },
                     colors: widget.colors,
                     isMobile: widget.isMobile,
@@ -1212,7 +1253,9 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                     max: 10000,
                     decimals: 0,
                     onChanged: (value) async {
-                      await ref.read(appSettingsProvider.notifier).setElevation(value);
+                      await ref
+                          .read(appSettingsProvider.notifier)
+                          .setElevation(value);
                     },
                     colors: widget.colors,
                     isMobile: widget.isMobile,
@@ -1226,22 +1269,26 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                   title: 'Sync from Server',
                   subtitle: 'Fetch location from Headless Server',
                   trailing: IconButton(
-                    icon: Icon(LucideIcons.downloadCloud, color: widget.colors.primary),
+                    icon: Icon(LucideIcons.downloadCloud,
+                        color: widget.colors.primary),
                     onPressed: () async {
                       try {
                         final backend = ref.read(backendProvider);
                         final location = await backend.getLocation();
 
                         if (location != null) {
-                          await ref.read(appSettingsProvider.notifier).updateLocation(
-                            latitude: location.latitude,
-                            longitude: location.longitude,
-                            elevation: location.elevation,
-                          );
+                          await ref
+                              .read(appSettingsProvider.notifier)
+                              .updateLocation(
+                                latitude: location.latitude,
+                                longitude: location.longitude,
+                                elevation: location.elevation,
+                              );
                         }
 
                         if (context.mounted) {
-                          context.showSuccessSnackBar('Location synced from server');
+                          context.showSuccessSnackBar(
+                              'Location synced from server');
                         }
                       } catch (e) {
                         if (context.mounted) {
@@ -1259,23 +1306,29 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                   title: 'Use Device Location',
                   subtitle: 'Get location from GPS',
                   trailing: IconButton(
-                    icon: Icon(LucideIcons.crosshair, color: widget.colors.primary),
+                    icon: Icon(LucideIcons.crosshair,
+                        color: widget.colors.primary),
                     onPressed: () async {
                       try {
-                        final location = await GeolocationService.fetchLocationFromGPS();
+                        final location =
+                            await GeolocationService.fetchLocationFromGPS();
                         if (location != null) {
                           final (lat, lon, name) = location;
-                          await ref.read(appSettingsProvider.notifier).updateLocation(
-                            latitude: lat,
-                            longitude: lon,
-                            elevation: 0,
-                          );
+                          await ref
+                              .read(appSettingsProvider.notifier)
+                              .updateLocation(
+                                latitude: lat,
+                                longitude: lon,
+                                elevation: 0,
+                              );
                           if (context.mounted) {
-                            context.showSuccessSnackBar('Location updated: $name');
+                            context
+                                .showSuccessSnackBar('Location updated: $name');
                           }
                         } else {
                           if (context.mounted) {
-                            context.showWarningSnackBar('Could not get GPS location. Check permissions.');
+                            context.showWarningSnackBar(
+                                'Could not get GPS location. Check permissions.');
                           }
                         }
                       } catch (e) {
@@ -1304,7 +1357,9 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                     items: _getTimezones(),
                     onChanged: (value) {
                       if (value != null) {
-                        ref.read(appSettingsProvider.notifier).setTimezone(value);
+                        ref
+                            .read(appSettingsProvider.notifier)
+                            .setTimezone(value);
                       }
                     },
                     colors: widget.colors,
@@ -1321,7 +1376,9 @@ class _LocationSettingsState extends ConsumerState<_LocationSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.useSystemTime,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setUseSystemTime(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setUseSystemTime(value);
                     },
                     colors: widget.colors,
                   ),
@@ -1423,7 +1480,9 @@ class _ImagingSettingsState extends ConsumerState<_ImagingSettings> {
                     items: const ['FITS', 'XISF', 'TIFF'],
                     onChanged: (value) {
                       if (value != null) {
-                        ref.read(appSettingsProvider.notifier).setImageFormat(value);
+                        ref
+                            .read(appSettingsProvider.notifier)
+                            .setImageFormat(value);
                       }
                     },
                     colors: widget.colors,
@@ -1441,7 +1500,9 @@ class _ImagingSettingsState extends ConsumerState<_ImagingSettings> {
                     items: const ['16-bit', '32-bit'],
                     onChanged: (value) {
                       if (value != null) {
-                        ref.read(appSettingsProvider.notifier).setBitDepth(value);
+                        ref
+                            .read(appSettingsProvider.notifier)
+                            .setBitDepth(value);
                       }
                     },
                     colors: widget.colors,
@@ -1453,12 +1514,15 @@ class _ImagingSettingsState extends ConsumerState<_ImagingSettings> {
                 _SettingRow(
                   icon: LucideIcons.fileText,
                   title: 'File naming pattern',
-                  subtitle: r'Variables: $TARGET, $FILTER, $DATE, $SEQ, $EXPOSURE',
+                  subtitle:
+                      r'Variables: $TARGET, $FILTER, $DATE, $SEQ, $EXPOSURE',
                   trailing: _TextInput(
                     controller: _patternController,
                     width: widget.isMobile ? 160 : 220,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setFileNamingPattern(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setFileNamingPattern(value);
                     },
                     colors: widget.colors,
                     isMobile: widget.isMobile,
@@ -1467,6 +1531,188 @@ class _ImagingSettingsState extends ConsumerState<_ImagingSettings> {
                   colors: widget.colors,
                   isMobile: widget.isMobile,
                   stackOnMobile: widget.isMobile,
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ============================================================================
+// Science Settings
+// ============================================================================
+
+class _ScienceSettings extends ConsumerWidget {
+  final NightshadeColors colors;
+  final bool isMobile;
+
+  const _ScienceSettings({required this.colors, this.isMobile = false});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scienceAsync = ref.watch(scienceSettingsProvider);
+    final scienceNotifier = ref.read(scienceSettingsProvider.notifier);
+
+    return scienceAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(child: Text('Error: $error')),
+      data: (science) {
+        return _SettingsPage(
+          title: 'Science',
+          description:
+              'Advanced, informational-only scientific analysis. No frames are auto-deleted.',
+          colors: colors,
+          isMobile: isMobile,
+          hideHeader: isMobile,
+          children: [
+            _SettingsSection(
+              title: 'Mode',
+              colors: colors,
+              isMobile: isMobile,
+              children: [
+                _SettingRow(
+                  icon: LucideIcons.flaskConical,
+                  title: 'Advanced Science Mode',
+                  subtitle: 'Reveal science controls in Imaging and Analytics',
+                  trailing: _SettingsSwitch(
+                    value: science.advancedModeEnabled,
+                    onChanged: (value) =>
+                        scienceNotifier.setAdvancedModeEnabled(value),
+                    colors: colors,
+                  ),
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.layers,
+                  title: 'Science overlays',
+                  subtitle:
+                      'Enable overlays such as PSF map, residual vectors, and tracks',
+                  trailing: _SettingsSwitch(
+                    value: science.overlayEnabled,
+                    onChanged: (value) =>
+                        scienceNotifier.setOverlayEnabled(value),
+                    colors: colors,
+                  ),
+                  isLast: true,
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+              ],
+            ),
+            _SettingsSection(
+              title: 'Features',
+              colors: colors,
+              isMobile: isMobile,
+              children: [
+                _SettingRow(
+                  icon: LucideIcons.activity,
+                  title: 'Live differential photometry',
+                  subtitle: 'Target/comparison tracking and live light curves',
+                  trailing: _SettingsSwitch(
+                    value: science.photometryEnabled,
+                    onChanged: (value) => scienceNotifier.setFeatureEnabled(
+                      ScienceFeature.photometry,
+                      value,
+                    ),
+                    colors: colors,
+                  ),
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.gauge,
+                  title: 'Per-frame photometric calibration',
+                  subtitle: 'Compute zeropoint and limiting magnitude',
+                  trailing: _SettingsSwitch(
+                    value: science.photometricCalibrationEnabled,
+                    onChanged: (value) => scienceNotifier.setFeatureEnabled(
+                      ScienceFeature.photometricCalibration,
+                      value,
+                    ),
+                    colors: colors,
+                  ),
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.cloud,
+                  title: 'Transparency and extinction',
+                  subtitle: 'Track atmospheric transparency over time',
+                  trailing: _SettingsSwitch(
+                    value: science.transparencyEnabled,
+                    onChanged: (value) => scienceNotifier.setFeatureEnabled(
+                      ScienceFeature.transparency,
+                      value,
+                    ),
+                    colors: colors,
+                  ),
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.layoutGrid,
+                  title: 'PSF field map',
+                  subtitle: 'Analyze field-wide seeing and tilt patterns',
+                  trailing: _SettingsSwitch(
+                    value: science.psfMapEnabled,
+                    onChanged: (value) => scienceNotifier.setFeatureEnabled(
+                      ScienceFeature.psfMap,
+                      value,
+                    ),
+                    colors: colors,
+                  ),
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.map,
+                  title: 'Astrometric residuals',
+                  subtitle: 'Build residual heatmaps and mount feedback',
+                  trailing: _SettingsSwitch(
+                    value: science.astrometricResidualsEnabled,
+                    onChanged: (value) => scienceNotifier.setFeatureEnabled(
+                      ScienceFeature.astrometricResiduals,
+                      value,
+                    ),
+                    colors: colors,
+                  ),
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.rocket,
+                  title: 'Moving object mode',
+                  subtitle: 'Detect and track moving candidates',
+                  trailing: _SettingsSwitch(
+                    value: science.movingObjectsEnabled,
+                    onChanged: (value) => scienceNotifier.setFeatureEnabled(
+                      ScienceFeature.movingObjects,
+                      value,
+                    ),
+                    colors: colors,
+                  ),
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.slidersHorizontal,
+                  title: 'Narrowband line ratios',
+                  subtitle: 'Generate SII/Ha, OIII/Ha, and SII/OIII products',
+                  trailing: _SettingsSwitch(
+                    value: science.narrowbandRatiosEnabled,
+                    onChanged: (value) => scienceNotifier.setFeatureEnabled(
+                      ScienceFeature.narrowbandRatios,
+                      value,
+                    ),
+                    colors: colors,
+                  ),
+                  isLast: true,
+                  colors: colors,
+                  isMobile: isMobile,
                 ),
               ],
             ),
@@ -1495,7 +1741,8 @@ class _AnnotationSettings extends ConsumerWidget {
     final markerNotifier = ref.read(annotationMarkerStyleProvider.notifier);
 
     final settings = settingsAsync.valueOrNull ?? const AnnotationSettings();
-    final markerStyle = markerStyleAsync.valueOrNull ?? const AnnotationMarkerStyle();
+    final markerStyle =
+        markerStyleAsync.valueOrNull ?? const AnnotationMarkerStyle();
 
     return _SettingsPage(
       title: 'Annotations',
@@ -1556,7 +1803,8 @@ class _AnnotationSettings extends ConsumerWidget {
                 max: 2000,
                 divisions: 39,
                 label: settings.maxObjectsToDisplay.toString(),
-                onChanged: (value) => settingsNotifier.setMaxObjectsToDisplay(value.toInt()),
+                onChanged: (value) =>
+                    settingsNotifier.setMaxObjectsToDisplay(value.toInt()),
                 colors: colors,
                 isMobile: isMobile,
               ),
@@ -1603,7 +1851,8 @@ class _AnnotationSettings extends ConsumerWidget {
                 max: 22,
                 divisions: 28,
                 label: settings.magnitudeCutoff.toStringAsFixed(1),
-                onChanged: (value) => settingsNotifier.setMagnitudeCutoff(value),
+                onChanged: (value) =>
+                    settingsNotifier.setMagnitudeCutoff(value),
                 colors: colors,
                 isMobile: isMobile,
               ),
@@ -1626,8 +1875,10 @@ class _AnnotationSettings extends ConsumerWidget {
               title: 'Galaxies',
               icon: LucideIcons.circle,
               color: Color(markerStyle.galaxyColor),
-              isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.galaxies),
-              onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.galaxies),
+              isEnabled: settings.visibleTypes
+                  .contains(AnnotationObjectFilter.galaxies),
+              onChanged: (value) => settingsNotifier
+                  .toggleObjectType(AnnotationObjectFilter.galaxies),
               colors: colors,
               isMobile: isMobile,
             ),
@@ -1635,8 +1886,10 @@ class _AnnotationSettings extends ConsumerWidget {
               title: 'Nebulae',
               icon: LucideIcons.cloud,
               color: Color(markerStyle.nebulaColor),
-              isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.nebulae),
-              onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.nebulae),
+              isEnabled: settings.visibleTypes
+                  .contains(AnnotationObjectFilter.nebulae),
+              onChanged: (value) => settingsNotifier
+                  .toggleObjectType(AnnotationObjectFilter.nebulae),
               colors: colors,
               isMobile: isMobile,
             ),
@@ -1644,8 +1897,10 @@ class _AnnotationSettings extends ConsumerWidget {
               title: 'Star Clusters',
               icon: LucideIcons.sparkles,
               color: Color(markerStyle.clusterColor),
-              isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.starClusters),
-              onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.starClusters),
+              isEnabled: settings.visibleTypes
+                  .contains(AnnotationObjectFilter.starClusters),
+              onChanged: (value) => settingsNotifier
+                  .toggleObjectType(AnnotationObjectFilter.starClusters),
               colors: colors,
               isMobile: isMobile,
             ),
@@ -1653,8 +1908,10 @@ class _AnnotationSettings extends ConsumerWidget {
               title: 'Planetary Nebulae',
               icon: LucideIcons.target,
               color: Color(markerStyle.planetaryNebulaColor),
-              isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.planetaryNebulae),
-              onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.planetaryNebulae),
+              isEnabled: settings.visibleTypes
+                  .contains(AnnotationObjectFilter.planetaryNebulae),
+              onChanged: (value) => settingsNotifier
+                  .toggleObjectType(AnnotationObjectFilter.planetaryNebulae),
               colors: colors,
               isMobile: isMobile,
             ),
@@ -1662,8 +1919,10 @@ class _AnnotationSettings extends ConsumerWidget {
               title: 'Stars',
               icon: LucideIcons.star,
               color: Color(markerStyle.starColor),
-              isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.stars),
-              onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.stars),
+              isEnabled:
+                  settings.visibleTypes.contains(AnnotationObjectFilter.stars),
+              onChanged: (value) => settingsNotifier
+                  .toggleObjectType(AnnotationObjectFilter.stars),
               colors: colors,
               isMobile: isMobile,
             ),
@@ -1671,8 +1930,10 @@ class _AnnotationSettings extends ConsumerWidget {
               title: 'Other Objects',
               icon: LucideIcons.helpCircle,
               color: Color(markerStyle.otherColor),
-              isEnabled: settings.visibleTypes.contains(AnnotationObjectFilter.other),
-              onChanged: (value) => settingsNotifier.toggleObjectType(AnnotationObjectFilter.other),
+              isEnabled:
+                  settings.visibleTypes.contains(AnnotationObjectFilter.other),
+              onChanged: (value) => settingsNotifier
+                  .toggleObjectType(AnnotationObjectFilter.other),
               isLast: true,
               colors: colors,
               isMobile: isMobile,
@@ -1693,7 +1954,8 @@ class _AnnotationSettings extends ConsumerWidget {
               subtitle: 'Dim annotations when mouse leaves image',
               trailing: _SettingsSwitch(
                 value: settings.fadeWhenNotHovering,
-                onChanged: (value) => settingsNotifier.setFadeWhenNotHovering(value),
+                onChanged: (value) =>
+                    settingsNotifier.setFadeWhenNotHovering(value),
                 colors: colors,
               ),
               colors: colors,
@@ -1745,7 +2007,8 @@ class _AnnotationSettings extends ConsumerWidget {
                 max: 1000,
                 divisions: 9,
                 label: '${settings.fadeAnimationMs}ms',
-                onChanged: (value) => settingsNotifier.setFadeAnimationMs(value.toInt()),
+                onChanged: (value) =>
+                    settingsNotifier.setFadeAnimationMs(value.toInt()),
                 colors: colors,
                 isMobile: isMobile,
               ),
@@ -1770,7 +2033,8 @@ class _AnnotationSettings extends ConsumerWidget {
               subtitle: 'Click on image to identify objects',
               trailing: _SettingsSwitch(
                 value: settings.clickToIdentify,
-                onChanged: (value) => settingsNotifier.setClickToIdentify(value),
+                onChanged: (value) =>
+                    settingsNotifier.setClickToIdentify(value),
                 colors: colors,
               ),
               colors: colors,
@@ -1786,7 +2050,8 @@ class _AnnotationSettings extends ConsumerWidget {
                 max: 120,
                 divisions: 23,
                 label: '${settings.clickSearchRadiusArcsec.toInt()}"',
-                onChanged: (value) => settingsNotifier.setClickSearchRadius(value),
+                onChanged: (value) =>
+                    settingsNotifier.setClickSearchRadius(value),
                 colors: colors,
                 isMobile: isMobile,
               ),
@@ -2059,9 +2324,12 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
 
   void _initMeridianControllers(MeridianFlipSettings settings) {
     if (!_meridianInitialized) {
-      _minutesPastMeridianController.text = settings.minutesPastMeridian.toString();
-      _minutesBeforeLimitController.text = settings.minutesBeforeLimit.toString();
-      _hourAngleThresholdController.text = settings.hourAngleThreshold.toString();
+      _minutesPastMeridianController.text =
+          settings.minutesPastMeridian.toString();
+      _minutesBeforeLimitController.text =
+          settings.minutesBeforeLimit.toString();
+      _hourAngleThresholdController.text =
+          settings.hourAngleThreshold.toString();
       _settleTimeController.text = settings.settleTimeSeconds.toString();
       _maxRetriesController.text = settings.maxRetries.toString();
       _meridianInitialized = true;
@@ -2070,7 +2338,8 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
 
   String _getFailModeDescription(SafetyFailMode mode) {
     return switch (mode) {
-      SafetyFailMode.failOpen => 'Continue imaging when safety data unavailable',
+      SafetyFailMode.failOpen =>
+        'Continue imaging when safety data unavailable',
       SafetyFailMode.failClosed => 'Park mount when safety data unavailable',
       SafetyFailMode.warnOnly => 'Show warning but continue imaging',
     };
@@ -2121,7 +2390,8 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
           subtitle: flipSettings.triggerMethod.description,
           trailing: _SettingsDropdown(
             value: flipSettings.triggerMethod.displayName,
-            items: MeridianTriggerMethod.values.map((e) => e.displayName).toList(),
+            items:
+                MeridianTriggerMethod.values.map((e) => e.displayName).toList(),
             onChanged: (value) {
               if (value != null) {
                 final method = MeridianTriggerMethod.values
@@ -2135,7 +2405,8 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
           colors: widget.colors,
         ),
         // Trigger value - minutes past meridian
-        if (flipSettings.triggerMethod == MeridianTriggerMethod.minutesPastMeridian)
+        if (flipSettings.triggerMethod ==
+            MeridianTriggerMethod.minutesPastMeridian)
           _SettingRow(
             icon: LucideIcons.timer,
             title: 'Minutes past meridian',
@@ -2154,7 +2425,8 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
             colors: widget.colors,
           ),
         // Trigger value - minutes before limit
-        if (flipSettings.triggerMethod == MeridianTriggerMethod.minutesBeforeLimit)
+        if (flipSettings.triggerMethod ==
+            MeridianTriggerMethod.minutesBeforeLimit)
           _SettingRow(
             icon: LucideIcons.timer,
             title: 'Minutes before limit',
@@ -2173,7 +2445,8 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
             colors: widget.colors,
           ),
         // Trigger value - hour angle threshold
-        if (flipSettings.triggerMethod == MeridianTriggerMethod.hourAngleThreshold)
+        if (flipSettings.triggerMethod ==
+            MeridianTriggerMethod.hourAngleThreshold)
           _SettingRow(
             icon: LucideIcons.timer,
             title: 'Hour angle threshold',
@@ -2360,11 +2633,14 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                 _SettingRow(
                   icon: LucideIcons.shieldAlert,
                   title: 'Park on unsafe weather',
-                  subtitle: 'Automatically park mount when weather becomes unsafe',
+                  subtitle:
+                      'Automatically park mount when weather becomes unsafe',
                   trailing: _SettingsSwitch(
                     value: settings.parkOnUnsafeWeather,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setParkOnUnsafeWeather(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setParkOnUnsafeWeather(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2377,7 +2653,9 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.parkBeforeDawn,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setParkBeforeDawn(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setParkBeforeDawn(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2389,10 +2667,16 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                   subtitle: _getFailModeDescription(settings.safetyFailMode),
                   trailing: _SettingsDropdown(
                     value: _failModeToString(settings.safetyFailMode),
-                    items: const ['Fail Open (Continue)', 'Fail Closed (Park)', 'Warn Only'],
+                    items: const [
+                      'Fail Open (Continue)',
+                      'Fail Closed (Park)',
+                      'Warn Only'
+                    ],
                     onChanged: (value) {
                       if (value != null) {
-                        ref.read(appSettingsProvider.notifier).setSafetyFailMode(_stringToFailMode(value));
+                        ref
+                            .read(appSettingsProvider.notifier)
+                            .setSafetyFailMode(_stringToFailMode(value));
                       }
                     },
                     colors: widget.colors,
@@ -2415,7 +2699,9 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.autoFocusOnFilterChange,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setAutoFocusOnFilterChange(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setAutoFocusOnFilterChange(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2432,7 +2718,9 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                     max: 240,
                     decimals: 0,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setAutoFocusEveryMinutes(value.toInt());
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setAutoFocusEveryMinutes(value.toInt());
                     },
                     colors: widget.colors,
                   ),
@@ -2452,7 +2740,9 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.ditherEnabled,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setDitherEnabled(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setDitherEnabled(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2469,7 +2759,9 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                     max: 20,
                     decimals: 0,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setDitherEveryFrames(value.toInt());
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setDitherEveryFrames(value.toInt());
                     },
                     colors: widget.colors,
                   ),
@@ -2489,7 +2781,9 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.useNativeExecution,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setUseNativeExecution(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setUseNativeExecution(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2502,7 +2796,9 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.useSimulationMode,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setUseSimulationMode(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setUseSimulationMode(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2529,7 +2825,8 @@ class _PlateSolvingSettings extends ConsumerStatefulWidget {
   const _PlateSolvingSettings({required this.colors, this.isMobile = false});
 
   @override
-  ConsumerState<_PlateSolvingSettings> createState() => _PlateSolvingSettingsState();
+  ConsumerState<_PlateSolvingSettings> createState() =>
+      _PlateSolvingSettingsState();
 }
 
 class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
@@ -2547,7 +2844,8 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
   void _initControllers(AppSettings settings) {
     if (!_initialized) {
       _timeoutController.text = settings.plateSolveTimeout.toString();
-      _radiusController.text = settings.plateSolveSearchRadius.toStringAsFixed(1);
+      _radiusController.text =
+          settings.plateSolveSearchRadius.toStringAsFixed(1);
       _initialized = true;
     }
   }
@@ -2583,13 +2881,13 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+
     return settingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
       data: (settings) {
         _initControllers(settings);
-        
+
         return _SettingsPage(
           key: SettingsTutorialKeys.plateSolving,
           title: 'Plate Solving',
@@ -2609,7 +2907,9 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
                     items: const ['ASTAP', 'Astrometry.net', 'PlateSolve2'],
                     onChanged: (value) {
                       if (value != null) {
-                        ref.read(appSettingsProvider.notifier).setPlateSolver(value);
+                        ref
+                            .read(appSettingsProvider.notifier)
+                            .setPlateSolver(value);
                       }
                     },
                     colors: widget.colors,
@@ -2619,7 +2919,9 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
                 _SettingRow(
                   icon: LucideIcons.folder,
                   title: 'ASTAP path',
-                  subtitle: settings.astapPath.isEmpty ? 'Not configured' : settings.astapPath,
+                  subtitle: settings.astapPath.isEmpty
+                      ? 'Not configured'
+                      : settings.astapPath,
                   trailing: _PathInput(
                     path: settings.astapPath,
                     onBrowse: _selectAstapPath,
@@ -2630,7 +2932,9 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
                 _SettingRow(
                   icon: LucideIcons.folder,
                   title: 'Astrometry.net path',
-                  subtitle: settings.astrometryPath.isEmpty ? 'Not configured' : settings.astrometryPath,
+                  subtitle: settings.astrometryPath.isEmpty
+                      ? 'Not configured'
+                      : settings.astrometryPath,
                   trailing: _PathInput(
                     path: settings.astrometryPath,
                     onBrowse: _selectAstrometryPath,
@@ -2656,7 +2960,9 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
                     max: 300,
                     decimals: 0,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setPlateSolveTimeout(value.toInt());
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setPlateSolveTimeout(value.toInt());
                     },
                     colors: widget.colors,
                   ),
@@ -2673,7 +2979,9 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
                     max: 180,
                     decimals: 1,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setPlateSolveSearchRadius(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setPlateSolveSearchRadius(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2686,7 +2994,9 @@ class _PlateSolvingSettingsState extends ConsumerState<_PlateSolvingSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.blindSolve,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setBlindSolve(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setBlindSolve(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2713,7 +3023,8 @@ class _Phd2GuidingSettings extends ConsumerStatefulWidget {
   const _Phd2GuidingSettings({required this.colors, this.isMobile = false});
 
   @override
-  ConsumerState<_Phd2GuidingSettings> createState() => _Phd2GuidingSettingsState();
+  ConsumerState<_Phd2GuidingSettings> createState() =>
+      _Phd2GuidingSettingsState();
 }
 
 class _Phd2GuidingSettingsState extends ConsumerState<_Phd2GuidingSettings> {
@@ -2798,7 +3109,9 @@ class _Phd2GuidingSettingsState extends ConsumerState<_Phd2GuidingSettings> {
                     max: 65535,
                     decimals: 0,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setPhd2Port(value.toInt());
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setPhd2Port(value.toInt());
                     },
                     colors: widget.colors,
                   ),
@@ -2807,7 +3120,9 @@ class _Phd2GuidingSettingsState extends ConsumerState<_Phd2GuidingSettings> {
                 _SettingRow(
                   icon: LucideIcons.folder,
                   title: 'PHD2 executable path',
-                  subtitle: settings.phd2Path.isEmpty ? 'Auto-detect (optional)' : settings.phd2Path,
+                  subtitle: settings.phd2Path.isEmpty
+                      ? 'Auto-detect (optional)'
+                      : settings.phd2Path,
                   trailing: _PathInput(
                     path: settings.phd2Path,
                     onBrowse: _selectPhd2Path,
@@ -2853,7 +3168,8 @@ class _NotificationSettings extends ConsumerStatefulWidget {
   const _NotificationSettings({required this.colors, this.isMobile = false});
 
   @override
-  ConsumerState<_NotificationSettings> createState() => _NotificationSettingsState();
+  ConsumerState<_NotificationSettings> createState() =>
+      _NotificationSettingsState();
 }
 
 class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
@@ -2881,12 +3197,15 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
     setState(() => _testingDiscord = true);
     try {
       final notificationService = ref.read(notificationServiceProvider);
-      final success = await notificationService.testDiscordWebhook(_discordController.text);
+      final success =
+          await notificationService.testDiscordWebhook(_discordController.text);
       if (mounted) {
         if (success) {
-          context.showSuccessSnackBar('Discord test notification sent successfully!');
+          context.showSuccessSnackBar(
+              'Discord test notification sent successfully!');
         } else {
-          context.showErrorSnackBar('Failed to send Discord notification. Check your webhook URL.');
+          context.showErrorSnackBar(
+              'Failed to send Discord notification. Check your webhook URL.');
         }
       }
     } finally {
@@ -2895,7 +3214,8 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   }
 
   Future<void> _testPushover() async {
-    if (_pushoverKeyController.text.isEmpty || _pushoverUserController.text.isEmpty) {
+    if (_pushoverKeyController.text.isEmpty ||
+        _pushoverUserController.text.isEmpty) {
       context.showWarningSnackBar('Please enter both API key and User key');
       return;
     }
@@ -2909,9 +3229,11 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
       );
       if (mounted) {
         if (success) {
-          context.showSuccessSnackBar('Pushover test notification sent successfully!');
+          context.showSuccessSnackBar(
+              'Pushover test notification sent successfully!');
         } else {
-          context.showErrorSnackBar('Failed to send Pushover notification. Check your API and User keys.');
+          context.showErrorSnackBar(
+              'Failed to send Pushover notification. Check your API and User keys.');
         }
       }
     } finally {
@@ -2931,13 +3253,13 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+
     return settingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
       data: (settings) {
         _initControllers(settings);
-        
+
         return _SettingsPage(
           key: SettingsTutorialKeys.notifications,
           title: 'Notifications',
@@ -2955,7 +3277,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.notificationsEnabled,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setNotificationsEnabled(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setNotificationsEnabled(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2968,7 +3292,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.soundEnabled,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setSoundEnabled(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setSoundEnabled(value);
                     },
                     colors: widget.colors,
                   ),
@@ -2988,7 +3314,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.notifyOnSequenceComplete,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setNotifyOnSequenceComplete(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setNotifyOnSequenceComplete(value);
                     },
                     colors: widget.colors,
                   ),
@@ -3001,7 +3329,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.notifyOnError,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setNotifyOnError(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setNotifyOnError(value);
                     },
                     colors: widget.colors,
                   ),
@@ -3014,7 +3344,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                   trailing: _SettingsSwitch(
                     value: settings.notifyOnMeridianFlip,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setNotifyOnMeridianFlip(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setNotifyOnMeridianFlip(value);
                     },
                     colors: widget.colors,
                   ),
@@ -3037,7 +3369,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                     width: 260,
                     obscure: true,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setDiscordWebhook(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setDiscordWebhook(value);
                     },
                     colors: widget.colors,
                   ),
@@ -3073,7 +3407,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                     width: 200,
                     obscure: true,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setPushoverKey(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setPushoverKey(value);
                     },
                     colors: widget.colors,
                   ),
@@ -3089,7 +3425,9 @@ class _NotificationSettingsState extends ConsumerState<_NotificationSettings> {
                     width: 200,
                     obscure: true,
                     onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setPushoverUser(value);
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setPushoverUser(value);
                     },
                     colors: widget.colors,
                   ),
@@ -3155,7 +3493,7 @@ class _FilePathSettings extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+
     return settingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('Error: $error')),
@@ -3172,7 +3510,9 @@ class _FilePathSettings extends ConsumerWidget {
               _SettingRow(
                 icon: LucideIcons.image,
                 title: 'Image output',
-                subtitle: settings.imageOutputPath.isEmpty ? 'Not configured' : settings.imageOutputPath,
+                subtitle: settings.imageOutputPath.isEmpty
+                    ? 'Not configured'
+                    : settings.imageOutputPath,
                 trailing: _PathInput(
                   path: settings.imageOutputPath,
                   onBrowse: () => _selectPath(ref, 'image'),
@@ -3183,7 +3523,9 @@ class _FilePathSettings extends ConsumerWidget {
               _SettingRow(
                 icon: LucideIcons.listOrdered,
                 title: 'Sequences',
-                subtitle: settings.sequencesPath.isEmpty ? 'Not configured' : settings.sequencesPath,
+                subtitle: settings.sequencesPath.isEmpty
+                    ? 'Not configured'
+                    : settings.sequencesPath,
                 trailing: _PathInput(
                   path: settings.sequencesPath,
                   onBrowse: () => _selectPath(ref, 'sequences'),
@@ -3194,7 +3536,9 @@ class _FilePathSettings extends ConsumerWidget {
               _SettingRow(
                 icon: LucideIcons.database,
                 title: 'Database',
-                subtitle: settings.databasePath.isEmpty ? 'Default location' : settings.databasePath,
+                subtitle: settings.databasePath.isEmpty
+                    ? 'Default location'
+                    : settings.databasePath,
                 trailing: _PathInput(
                   path: settings.databasePath,
                   onBrowse: () => _selectPath(ref, 'database'),
@@ -3205,7 +3549,9 @@ class _FilePathSettings extends ConsumerWidget {
               _SettingRow(
                 icon: LucideIcons.fileText,
                 title: 'Logs',
-                subtitle: settings.logsPath.isEmpty ? 'Default location' : settings.logsPath,
+                subtitle: settings.logsPath.isEmpty
+                    ? 'Default location'
+                    : settings.logsPath,
                 trailing: _PathInput(
                   path: settings.logsPath,
                   onBrowse: () => _selectPath(ref, 'logs'),
@@ -3251,78 +3597,120 @@ class _HelpTutorialsSettings extends ConsumerWidget {
               icon: LucideIcons.sparkles,
               title: 'Quick Start Tour',
               category: TutorialCategory.firstLight,
-              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.firstLight),
-              totalSteps: notifier.getTotalStepsCount(TutorialCategory.firstLight),
-              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.firstLight),
-              hasProgress: notifier.hasCategoryProgress(TutorialCategory.firstLight),
-              onStart: () => notifier.startTutorial(TutorialCategory.firstLight),
-              onResume: () => notifier.resumeTutorial(TutorialCategory.firstLight),
-              onRestart: () => notifier.restartTutorial(TutorialCategory.firstLight),
+              completedSteps:
+                  notifier.getCompletedStepsCount(TutorialCategory.firstLight),
+              totalSteps:
+                  notifier.getTotalStepsCount(TutorialCategory.firstLight),
+              isCompleted:
+                  notifier.isCategoryCompletedSync(TutorialCategory.firstLight),
+              hasProgress:
+                  notifier.hasCategoryProgress(TutorialCategory.firstLight),
+              onStart: () =>
+                  notifier.startTutorial(TutorialCategory.firstLight),
+              onResume: () =>
+                  notifier.resumeTutorial(TutorialCategory.firstLight),
+              onRestart: () =>
+                  notifier.restartTutorial(TutorialCategory.firstLight),
               colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.boxes,
               title: 'Equipment Setup',
               category: TutorialCategory.equipmentSetup,
-              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.equipmentSetup),
-              totalSteps: notifier.getTotalStepsCount(TutorialCategory.equipmentSetup),
-              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.equipmentSetup),
-              hasProgress: notifier.hasCategoryProgress(TutorialCategory.equipmentSetup),
-              onStart: () => notifier.startTutorial(TutorialCategory.equipmentSetup),
-              onResume: () => notifier.resumeTutorial(TutorialCategory.equipmentSetup),
-              onRestart: () => notifier.restartTutorial(TutorialCategory.equipmentSetup),
+              completedSteps: notifier
+                  .getCompletedStepsCount(TutorialCategory.equipmentSetup),
+              totalSteps:
+                  notifier.getTotalStepsCount(TutorialCategory.equipmentSetup),
+              isCompleted: notifier
+                  .isCategoryCompletedSync(TutorialCategory.equipmentSetup),
+              hasProgress:
+                  notifier.hasCategoryProgress(TutorialCategory.equipmentSetup),
+              onStart: () =>
+                  notifier.startTutorial(TutorialCategory.equipmentSetup),
+              onResume: () =>
+                  notifier.resumeTutorial(TutorialCategory.equipmentSetup),
+              onRestart: () =>
+                  notifier.restartTutorial(TutorialCategory.equipmentSetup),
               colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.compass,
               title: 'Target Planning',
               category: TutorialCategory.targetPlanning,
-              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.targetPlanning),
-              totalSteps: notifier.getTotalStepsCount(TutorialCategory.targetPlanning),
-              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.targetPlanning),
-              hasProgress: notifier.hasCategoryProgress(TutorialCategory.targetPlanning),
-              onStart: () => notifier.startTutorial(TutorialCategory.targetPlanning),
-              onResume: () => notifier.resumeTutorial(TutorialCategory.targetPlanning),
-              onRestart: () => notifier.restartTutorial(TutorialCategory.targetPlanning),
+              completedSteps: notifier
+                  .getCompletedStepsCount(TutorialCategory.targetPlanning),
+              totalSteps:
+                  notifier.getTotalStepsCount(TutorialCategory.targetPlanning),
+              isCompleted: notifier
+                  .isCategoryCompletedSync(TutorialCategory.targetPlanning),
+              hasProgress:
+                  notifier.hasCategoryProgress(TutorialCategory.targetPlanning),
+              onStart: () =>
+                  notifier.startTutorial(TutorialCategory.targetPlanning),
+              onResume: () =>
+                  notifier.resumeTutorial(TutorialCategory.targetPlanning),
+              onRestart: () =>
+                  notifier.restartTutorial(TutorialCategory.targetPlanning),
               colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.listOrdered,
               title: 'Automated Imaging',
               category: TutorialCategory.automatedImaging,
-              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.automatedImaging),
-              totalSteps: notifier.getTotalStepsCount(TutorialCategory.automatedImaging),
-              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.automatedImaging),
-              hasProgress: notifier.hasCategoryProgress(TutorialCategory.automatedImaging),
-              onStart: () => notifier.startTutorial(TutorialCategory.automatedImaging),
-              onResume: () => notifier.resumeTutorial(TutorialCategory.automatedImaging),
-              onRestart: () => notifier.restartTutorial(TutorialCategory.automatedImaging),
+              completedSteps: notifier
+                  .getCompletedStepsCount(TutorialCategory.automatedImaging),
+              totalSteps: notifier
+                  .getTotalStepsCount(TutorialCategory.automatedImaging),
+              isCompleted: notifier
+                  .isCategoryCompletedSync(TutorialCategory.automatedImaging),
+              hasProgress: notifier
+                  .hasCategoryProgress(TutorialCategory.automatedImaging),
+              onStart: () =>
+                  notifier.startTutorial(TutorialCategory.automatedImaging),
+              onResume: () =>
+                  notifier.resumeTutorial(TutorialCategory.automatedImaging),
+              onRestart: () =>
+                  notifier.restartTutorial(TutorialCategory.automatedImaging),
               colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.sun,
               title: 'Calibration Frames',
               category: TutorialCategory.calibrationFrames,
-              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.calibrationFrames),
-              totalSteps: notifier.getTotalStepsCount(TutorialCategory.calibrationFrames),
-              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.calibrationFrames),
-              hasProgress: notifier.hasCategoryProgress(TutorialCategory.calibrationFrames),
-              onStart: () => notifier.startTutorial(TutorialCategory.calibrationFrames),
-              onResume: () => notifier.resumeTutorial(TutorialCategory.calibrationFrames),
-              onRestart: () => notifier.restartTutorial(TutorialCategory.calibrationFrames),
+              completedSteps: notifier
+                  .getCompletedStepsCount(TutorialCategory.calibrationFrames),
+              totalSteps: notifier
+                  .getTotalStepsCount(TutorialCategory.calibrationFrames),
+              isCompleted: notifier
+                  .isCategoryCompletedSync(TutorialCategory.calibrationFrames),
+              hasProgress: notifier
+                  .hasCategoryProgress(TutorialCategory.calibrationFrames),
+              onStart: () =>
+                  notifier.startTutorial(TutorialCategory.calibrationFrames),
+              onResume: () =>
+                  notifier.resumeTutorial(TutorialCategory.calibrationFrames),
+              onRestart: () =>
+                  notifier.restartTutorial(TutorialCategory.calibrationFrames),
               colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.barChart3,
               title: 'Advanced Features',
               category: TutorialCategory.advancedFeatures,
-              completedSteps: notifier.getCompletedStepsCount(TutorialCategory.advancedFeatures),
-              totalSteps: notifier.getTotalStepsCount(TutorialCategory.advancedFeatures),
-              isCompleted: notifier.isCategoryCompletedSync(TutorialCategory.advancedFeatures),
-              hasProgress: notifier.hasCategoryProgress(TutorialCategory.advancedFeatures),
-              onStart: () => notifier.startTutorial(TutorialCategory.advancedFeatures),
-              onResume: () => notifier.resumeTutorial(TutorialCategory.advancedFeatures),
-              onRestart: () => notifier.restartTutorial(TutorialCategory.advancedFeatures),
+              completedSteps: notifier
+                  .getCompletedStepsCount(TutorialCategory.advancedFeatures),
+              totalSteps: notifier
+                  .getTotalStepsCount(TutorialCategory.advancedFeatures),
+              isCompleted: notifier
+                  .isCategoryCompletedSync(TutorialCategory.advancedFeatures),
+              hasProgress: notifier
+                  .hasCategoryProgress(TutorialCategory.advancedFeatures),
+              onStart: () =>
+                  notifier.startTutorial(TutorialCategory.advancedFeatures),
+              onResume: () =>
+                  notifier.resumeTutorial(TutorialCategory.advancedFeatures),
+              onRestart: () =>
+                  notifier.restartTutorial(TutorialCategory.advancedFeatures),
               isLast: true,
               colors: colors,
             ),
@@ -3389,7 +3777,8 @@ class _HelpTutorialsSettings extends ConsumerWidget {
                 color: colors.error.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(LucideIcons.alertTriangle, color: colors.error, size: 20),
+              child: Icon(LucideIcons.alertTriangle,
+                  color: colors.error, size: 20),
             ),
             const SizedBox(width: 12),
             Text(
@@ -3501,7 +3890,8 @@ class _TutorialRow extends StatelessWidget {
           border: isLast
               ? null
               : Border(
-                  bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
+                  bottom:
+                      BorderSide(color: colors.border.withValues(alpha: 0.5)),
                 ),
         ),
         child: Row(
@@ -3579,7 +3969,8 @@ class _TutorialRow extends StatelessWidget {
             // Action button
             NightshadeButton(
               label: _buttonText,
-              variant: isCompleted ? ButtonVariant.outline : ButtonVariant.primary,
+              variant:
+                  isCompleted ? ButtonVariant.outline : ButtonVariant.primary,
               size: ButtonSize.small,
               onPressed: _buttonAction,
             ),
@@ -3674,21 +4065,24 @@ class _AboutSettings extends StatelessWidget {
                         _LinkButton(
                           icon: LucideIcons.github,
                           label: 'GitHub',
-                          onTap: () => _launchUrl('https://github.com/nightshade-astro'),
+                          onTap: () =>
+                              _launchUrl('https://github.com/nightshade-astro'),
                           colors: colors,
                           compact: true,
                         ),
                         _LinkButton(
                           icon: LucideIcons.bookOpen,
                           label: 'Docs',
-                          onTap: () => _launchUrl('https://nightshade.astro/docs'),
+                          onTap: () =>
+                              _launchUrl('https://nightshade.astro/docs'),
                           colors: colors,
                           compact: true,
                         ),
                         _LinkButton(
                           icon: LucideIcons.messageCircle,
                           label: 'Discord',
-                          onTap: () => _launchUrl('https://discord.gg/nightshade'),
+                          onTap: () =>
+                              _launchUrl('https://discord.gg/nightshade'),
                           colors: colors,
                           compact: true,
                         ),
@@ -3700,21 +4094,24 @@ class _AboutSettings extends StatelessWidget {
                         _LinkButton(
                           icon: LucideIcons.github,
                           label: 'GitHub',
-                          onTap: () => _launchUrl('https://github.com/nightshade-astro'),
+                          onTap: () =>
+                              _launchUrl('https://github.com/nightshade-astro'),
                           colors: colors,
                         ),
                         const SizedBox(width: 12),
                         _LinkButton(
                           icon: LucideIcons.bookOpen,
                           label: 'Documentation',
-                          onTap: () => _launchUrl('https://nightshade.astro/docs'),
+                          onTap: () =>
+                              _launchUrl('https://nightshade.astro/docs'),
                           colors: colors,
                         ),
                         const SizedBox(width: 12),
                         _LinkButton(
                           icon: LucideIcons.messageCircle,
                           label: 'Discord',
-                          onTap: () => _launchUrl('https://discord.gg/nightshade'),
+                          onTap: () =>
+                              _launchUrl('https://discord.gg/nightshade'),
                           colors: colors,
                         ),
                       ],
@@ -3738,9 +4135,18 @@ class _AboutSettings extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _InfoRow(label: 'Platform', value: Platform.operatingSystem, colors: colors),
-                    _InfoRow(label: 'OS Version', value: Platform.operatingSystemVersion, colors: colors),
-                    _InfoRow(label: 'Dart Version', value: Platform.version.split(' ').first, colors: colors),
+                    _InfoRow(
+                        label: 'Platform',
+                        value: Platform.operatingSystem,
+                        colors: colors),
+                    _InfoRow(
+                        label: 'OS Version',
+                        value: Platform.operatingSystemVersion,
+                        colors: colors),
+                    _InfoRow(
+                        label: 'Dart Version',
+                        value: Platform.version.split(' ').first,
+                        colors: colors),
                   ],
                 ),
               ),
@@ -3849,6 +4255,7 @@ class _SettingsDropdown extends StatelessWidget {
   final NightshadeColors colors;
   final double? width;
   final bool isMobile;
+
   /// If true, use flexible width (useful for stacked mobile layouts)
   final bool flexible;
 
@@ -3921,6 +4328,7 @@ class _TextInput extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final NightshadeColors colors;
   final bool isMobile;
+
   /// If true, use flexible width (useful for stacked mobile layouts)
   final bool flexible;
 
@@ -4046,7 +4454,8 @@ class _NumberInput extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: controller,
-              keyboardType: TextInputType.numberWithOptions(decimal: decimals > 0),
+              keyboardType:
+                  TextInputType.numberWithOptions(decimal: decimals > 0),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
               ],
@@ -4147,9 +4556,7 @@ class _ColorPicker extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
-          border: isSelected
-              ? Border.all(color: Colors.white, width: 2)
-              : null,
+          border: isSelected ? Border.all(color: Colors.white, width: 2) : null,
           boxShadow: isSelected
               ? [
                   BoxShadow(
@@ -4169,6 +4576,7 @@ class _PathInput extends StatelessWidget {
   final VoidCallback onBrowse;
   final NightshadeColors colors;
   final bool isMobile;
+
   /// If true, use flexible width (useful for stacked mobile layouts)
   final bool flexible;
 
@@ -4271,7 +4679,8 @@ class _LinkButtonState extends State<_LinkButton> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: EdgeInsets.symmetric(horizontal: horizontalPad, vertical: verticalPad),
+          padding: EdgeInsets.symmetric(
+              horizontal: horizontalPad, vertical: verticalPad),
           decoration: BoxDecoration(
             color: _isHovered
                 ? widget.colors.surfaceAlt

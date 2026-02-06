@@ -212,6 +212,12 @@ extension PlateSolveDataExtensions on PlateSolveData {
     final centerDecRad = dec * (3.141592653589793 / 180.0);
     
     final rho = math.sqrt(xiRad * xiRad + etaRad * etaRad);
+    if (rho < 1e-12) {
+      var raCenter = ra;
+      while (raCenter < 0) raCenter += 360;
+      while (raCenter >= 360) raCenter -= 360;
+      return (ra: raCenter, dec: dec);
+    }
     final c = math.atan(rho);
     
     final sinC = math.sin(c);
@@ -220,7 +226,11 @@ extension PlateSolveDataExtensions on PlateSolveData {
     final cosCenterDec = math.cos(centerDecRad);
     
     final decRad = math.asin(cosC * sinCenterDec + etaRad * sinC * cosCenterDec / rho);
-    final raRad = centerRaRad + math.atan(xiRad * sinC / (rho * cosCenterDec * cosC - etaRad * sinCenterDec * sinC));
+    final raRad = centerRaRad +
+        math.atan2(
+          xiRad * sinC,
+          rho * cosCenterDec * cosC - etaRad * sinCenterDec * sinC,
+        );
     
     var raResult = raRad * (180.0 / 3.141592653589793);
     final decResult = decRad * (180.0 / 3.141592653589793);

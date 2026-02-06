@@ -284,6 +284,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FilterWheelStatus dco_decode_filter_wheel_status(dynamic raw);
 
   @protected
+  FitsLinearReadResult dco_decode_fits_linear_read_result(dynamic raw);
+
+  @protected
   FitsReadResult dco_decode_fits_read_result(dynamic raw);
 
   @protected
@@ -360,6 +363,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
+
+  @protected
+  Float64List dco_decode_list_prim_f_64_strict(dynamic raw);
 
   @protected
   Int32List dco_decode_list_prim_i_32_strict(dynamic raw);
@@ -902,6 +908,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  FitsLinearReadResult sse_decode_fits_linear_read_result(
+      SseDeserializer deserializer);
+
+  @protected
   FitsReadResult sse_decode_fits_read_result(SseDeserializer deserializer);
 
   @protected
@@ -989,6 +999,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
+
+  @protected
+  Float64List sse_decode_list_prim_f_64_strict(SseDeserializer deserializer);
 
   @protected
   Int32List sse_decode_list_prim_i_32_strict(SseDeserializer deserializer);
@@ -1755,6 +1768,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       Float32List raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ans = wire.cst_new_list_prim_f_32_strict(raw.length);
+    ans.ref.ptr.asTypedList(raw.length).setAll(0, raw);
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_prim_f_64_strict> cst_encode_list_prim_f_64_strict(
+      Float64List raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_prim_f_64_strict(raw.length);
     ans.ref.ptr.asTypedList(raw.length).setAll(0, raw);
     return ans;
   }
@@ -2835,6 +2857,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.moving = cst_encode_bool(apiObj.moving);
     wireObj.filter_count = cst_encode_i_32(apiObj.filterCount);
     wireObj.filter_names = cst_encode_list_String(apiObj.filterNames);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_fits_linear_read_result(
+      FitsLinearReadResult apiObj, wire_cst_fits_linear_read_result wireObj) {
+    wireObj.width = cst_encode_u_32(apiObj.width);
+    wireObj.height = cst_encode_u_32(apiObj.height);
+    wireObj.bitpix = cst_encode_i_32(apiObj.bitpix);
+    wireObj.linear_data = cst_encode_list_prim_f_64_strict(apiObj.linearData);
+    wireObj.object_name = cst_encode_opt_String(apiObj.objectName);
+    wireObj.exposure_time =
+        cst_encode_opt_box_autoadd_f_64(apiObj.exposureTime);
+    wireObj.filter = cst_encode_opt_String(apiObj.filter);
+    wireObj.ra = cst_encode_opt_box_autoadd_f_64(apiObj.ra);
+    wireObj.dec = cst_encode_opt_box_autoadd_f_64(apiObj.dec);
+    wireObj.date_obs = cst_encode_opt_String(apiObj.dateObs);
+    wireObj.bayer_pattern = cst_encode_opt_String(apiObj.bayerPattern);
   }
 
   @protected
@@ -4469,6 +4508,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       FilterWheelStatus self, SseSerializer serializer);
 
   @protected
+  void sse_encode_fits_linear_read_result(
+      FitsLinearReadResult self, SseSerializer serializer);
+
+  @protected
   void sse_encode_fits_read_result(
       FitsReadResult self, SseSerializer serializer);
 
@@ -4563,6 +4606,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_prim_f_32_strict(
       Float32List self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_prim_f_64_strict(
+      Float64List self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_i_32_strict(
@@ -8411,6 +8458,24 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__api_read_fits_filePtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
+  void wire__crate__api__api_read_fits_linear_data(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
+  ) {
+    return _wire__crate__api__api_read_fits_linear_data(port_, file_path);
+  }
+
+  late final _wire__crate__api__api_read_fits_linear_dataPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+      'frbgen_nightshade_bridge_wire__crate__api__api_read_fits_linear_data');
+  late final _wire__crate__api__api_read_fits_linear_data =
+      _wire__crate__api__api_read_fits_linear_dataPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   void wire__crate__api__api_read_log_file(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> path,
@@ -11371,6 +11436,19 @@ class RustLibWire implements BaseWire {
   late final _cst_new_list_prim_f_32_strict = _cst_new_list_prim_f_32_strictPtr
       .asFunction<ffi.Pointer<wire_cst_list_prim_f_32_strict> Function(int)>();
 
+  ffi.Pointer<wire_cst_list_prim_f_64_strict> cst_new_list_prim_f_64_strict(
+    int len,
+  ) {
+    return _cst_new_list_prim_f_64_strict(len);
+  }
+
+  late final _cst_new_list_prim_f_64_strictPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_list_prim_f_64_strict> Function(ffi.Int32)>>(
+      'frbgen_nightshade_bridge_cst_new_list_prim_f_64_strict');
+  late final _cst_new_list_prim_f_64_strict = _cst_new_list_prim_f_64_strictPtr
+      .asFunction<ffi.Pointer<wire_cst_list_prim_f_64_strict> Function(int)>();
+
   ffi.Pointer<wire_cst_list_prim_i_32_strict> cst_new_list_prim_i_32_strict(
     int len,
   ) {
@@ -12954,6 +13032,13 @@ final class wire_cst_list_prim_f_32_strict extends ffi.Struct {
   external int len;
 }
 
+final class wire_cst_list_prim_f_64_strict extends ffi.Struct {
+  external ffi.Pointer<ffi.Double> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
 final class wire_cst_list_prim_u_16_strict extends ffi.Struct {
   external ffi.Pointer<ffi.Uint16> ptr;
 
@@ -13370,6 +13455,33 @@ final class wire_cst_filter_wheel_status extends ffi.Struct {
   external int filter_count;
 
   external ffi.Pointer<wire_cst_list_String> filter_names;
+}
+
+final class wire_cst_fits_linear_read_result extends ffi.Struct {
+  @ffi.Uint32()
+  external int width;
+
+  @ffi.Uint32()
+  external int height;
+
+  @ffi.Int32()
+  external int bitpix;
+
+  external ffi.Pointer<wire_cst_list_prim_f_64_strict> linear_data;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> object_name;
+
+  external ffi.Pointer<ffi.Double> exposure_time;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter;
+
+  external ffi.Pointer<ffi.Double> ra;
+
+  external ffi.Pointer<ffi.Double> dec;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> date_obs;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> bayer_pattern;
 }
 
 final class wire_cst_fits_read_result extends ffi.Struct {

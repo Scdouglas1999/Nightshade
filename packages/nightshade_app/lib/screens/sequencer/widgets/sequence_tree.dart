@@ -49,7 +49,11 @@ class SequenceTree extends ConsumerWidget {
           ref.read(currentSequenceProvider.notifier).addNode(node);
           ref.read(selectedNodeIdProvider.notifier).state = node.id;
         } else if (data is TemplateSnippet) {
-          ref.read(currentSequenceProvider.notifier).insertSnippet(data);
+          final profile = ref.read(activeEquipmentProfileProvider);
+          ref.read(currentSequenceProvider.notifier).insertSnippet(
+            data,
+            profileFilterNames: profile?.filterNames,
+          );
         }
       },
       builder: (context, candidateData, rejectedData) {
@@ -372,9 +376,11 @@ class _NodeTreeView extends ConsumerWidget {
                   );
                   ref.read(selectedNodeIdProvider.notifier).state = newNode.id;
                 } else if (data is TemplateSnippet) {
+                  final profile = ref.read(activeEquipmentProfileProvider);
                   ref.read(currentSequenceProvider.notifier).insertSnippet(
                     data,
                     parentId: nodeId,
+                    profileFilterNames: profile?.filterNames,
                   );
                 }
               },
@@ -1122,10 +1128,12 @@ class _DropZone extends ConsumerWidget {
           );
           ref.read(selectedNodeIdProvider.notifier).state = node.id;
         } else if (data is TemplateSnippet) {
+          final profile = ref.read(activeEquipmentProfileProvider);
           ref.read(currentSequenceProvider.notifier).insertSnippet(
             data,
             parentId: parentId,
             index: index,
+            profileFilterNames: profile?.filterNames,
           );
         }
         // Reset drag state after drop

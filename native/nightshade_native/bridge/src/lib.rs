@@ -6,6 +6,20 @@ mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be
 
 pub mod adaptive_polling;
 mod api;
+#[cfg(windows)]
+mod ascom_wrapper;
+#[cfg(windows)]
+mod ascom_wrapper_covercalibrator;
+#[cfg(windows)]
+mod ascom_wrapper_dome;
+#[cfg(windows)]
+mod ascom_wrapper_filterwheel;
+#[cfg(windows)]
+mod ascom_wrapper_focuser;
+#[cfg(windows)]
+mod ascom_wrapper_mount;
+#[cfg(windows)]
+mod ascom_wrapper_switch;
 mod device;
 mod device_capabilities;
 mod device_guard;
@@ -13,31 +27,16 @@ mod device_id;
 mod devices;
 mod error;
 mod event;
+mod imaging_ops;
+mod real_device_ops;
+mod sequencer_api;
+mod sequencer_ops;
 mod state;
 mod storage;
-mod sequencer_ops;
-mod real_device_ops;
-mod imaging_ops;
 mod timeout_ops;
 mod unified_device_ops;
-#[cfg(windows)]
-mod ascom_wrapper;
-#[cfg(windows)]
-mod ascom_wrapper_mount;
-#[cfg(windows)]
-mod ascom_wrapper_focuser;
-#[cfg(windows)]
-mod ascom_wrapper_filterwheel;
-#[cfg(windows)]
-mod ascom_wrapper_dome;
-#[cfg(windows)]
-mod ascom_wrapper_switch;
-#[cfg(windows)]
-mod ascom_wrapper_covercalibrator;
-mod sequencer_api;
 
 pub use api::*;
-pub use sequencer_api::*;
 pub use device::*;
 pub use device_capabilities::*;
 pub use device_guard::*;
@@ -45,19 +44,20 @@ pub use device_id::*;
 pub use devices::*;
 pub use error::*;
 pub use event::*;
+pub use imaging_ops::*;
+pub use real_device_ops::*;
+pub use sequencer_api::*;
+pub use sequencer_ops::*;
 pub use state::*;
 pub use storage::*;
-pub use sequencer_ops::*;
-pub use real_device_ops::*;
-pub use imaging_ops::*;
 pub use timeout_ops::*;
 pub use unified_device_ops::*;
 
-use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::path::PathBuf;
-use std::panic::{self, AssertUnwindSafe};
 use futures::FutureExt;
+use std::panic::{self, AssertUnwindSafe};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 use tokio::runtime::Runtime;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -97,7 +97,8 @@ pub(crate) fn ensure_runtime() -> Result<&'static Runtime, NightshadeError> {
 
     // Fast path: check if we've already failed permanently
     if RUNTIME_INIT_FAILED.load(Ordering::Acquire) {
-        let msg = RUNTIME_ERROR_MSG.get()
+        let msg = RUNTIME_ERROR_MSG
+            .get()
             .map(|s| s.as_str())
             .unwrap_or("Unknown runtime initialization failure");
         return Err(NightshadeError::RuntimeInitFailed(msg.to_string()));
@@ -115,7 +116,10 @@ pub(crate) fn ensure_runtime() -> Result<&'static Runtime, NightshadeError> {
         }
         Err(error_msg) => {
             // All attempts failed - record the permanent failure
-            eprintln!("FATAL: Runtime initialization failed permanently: {}", error_msg);
+            eprintln!(
+                "FATAL: Runtime initialization failed permanently: {}",
+                error_msg
+            );
             tracing::error!("Runtime initialization failed permanently: {}", error_msg);
 
             // Set the error state (only the first thread to fail sets the message)
@@ -152,7 +156,10 @@ fn try_create_runtime_with_fallbacks() -> Result<Runtime, String> {
             return Ok(rt);
         }
         Err(e2) => {
-            eprintln!("WARNING: Single-threaded runtime with all features failed: {}", e2);
+            eprintln!(
+                "WARNING: Single-threaded runtime with all features failed: {}",
+                e2
+            );
             tracing::warn!("Single-threaded runtime with all features failed: {}", e2);
         }
     }
@@ -183,17 +190,16 @@ static PANIC_HANDLER_INSTALLED: AtomicBool = AtomicBool::new(false);
 /// This function is idempotent - multiple calls are safe and will be no-ops after the first.
 fn init_panic_handler() {
     // Use compare_exchange to ensure we only install the handler once
-    if PANIC_HANDLER_INSTALLED.compare_exchange(
-        false,
-        true,
-        Ordering::SeqCst,
-        Ordering::SeqCst,
-    ).is_ok() {
+    if PANIC_HANDLER_INSTALLED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+    {
         panic::set_hook(Box::new(|panic_info| {
             let msg = panic_info.to_string();
-            let location = panic_info.location().map(|l| {
-                format!("{}:{}:{}", l.file(), l.line(), l.column())
-            }).unwrap_or_else(|| "unknown".to_string());
+            let location = panic_info
+                .location()
+                .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+                .unwrap_or_else(|| "unknown".to_string());
 
             eprintln!("PANIC at {}: {}", location, msg);
             tracing::error!("PANIC at {}: {}", location, msg);
@@ -227,8 +233,7 @@ fn init_native_internal(log_directory: Option<String>) -> Result<(), NightshadeE
     use tracing_subscriber::EnvFilter;
 
     // Create env filter for log level
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("debug"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
 
     if let Some(log_dir) = log_directory {
         // Store log directory for later access
@@ -251,9 +256,7 @@ fn init_native_internal(log_directory: Option<String>) -> Result<(), NightshadeE
         LOG_GUARD.set(guard).ok();
 
         // Create a layered subscriber with both console and file output
-        let console_layer = fmt::layer()
-            .with_target(false)
-            .with_ansi(true);
+        let console_layer = fmt::layer().with_target(false).with_ansi(true);
 
         let file_layer = fmt::layer()
             .with_target(true)
@@ -552,9 +555,7 @@ where
 
     // Wrap in catch_unwind for panic safety
     match panic::catch_unwind(AssertUnwindSafe(|| {
-        runtime.block_on(async {
-            catch_panic_async(future).await
-        })
+        runtime.block_on(async { catch_panic_async(future).await })
     })) {
         Ok(result) => result,
         Err(panic_payload) => {

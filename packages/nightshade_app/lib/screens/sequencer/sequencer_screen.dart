@@ -1081,9 +1081,11 @@ class _SnippetPaletteContent extends ConsumerWidget {
       onSnippetTap: (snippet) {
         // Insert the snippet when tapped/double-clicked
         final selectedId = ref.read(selectedNodeIdProvider);
+        final profile = ref.read(activeEquipmentProfileProvider);
         ref.read(currentSequenceProvider.notifier).insertSnippet(
           snippet,
           parentId: selectedId,
+          profileFilterNames: profile?.filterNames,
         );
       },
     );
@@ -1231,7 +1233,10 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
             maxWidth: widget.maxExpandedWidth,
             side: widget.side,
             onWidthChanged: (newWidth) {
-              _currentExpandedWidth = newWidth;
+              setState(() {
+                _currentExpandedWidth = newWidth;
+                _updateAnimation();
+              });
             },
             child: widget.child,
           ),

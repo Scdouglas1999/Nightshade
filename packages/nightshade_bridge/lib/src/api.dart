@@ -12,9 +12,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'state.dart';
 import 'storage.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `run_polar_alignment`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
+// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `run_polar_alignment`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `DiscoveryCache`, `RawImageInfo`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`, `get_device_manager`, `get_last_raw_image_info`, `get_phd2_storage`, `get_sim_focuser`, `get_sim_rotator`, `get_state`
 
 /// Invalidate the discovery cache, forcing fresh discovery on next call.
@@ -757,6 +757,11 @@ Future<void> apiEndSession() => RustLib.instance.api.crateApiApiEndSession();
 /// Read a FITS file from disk
 Future<FitsReadResult> apiReadFitsFile({required String filePath}) =>
     RustLib.instance.api.crateApiApiReadFitsFile(filePath: filePath);
+
+/// Read a FITS file and return unstretched linear pixel values for science analysis.
+Future<FitsLinearReadResult> apiReadFitsLinearData(
+        {required String filePath}) =>
+    RustLib.instance.api.crateApiApiReadFitsLinearData(filePath: filePath);
 
 /// Detect stars in a FITS file
 Future<StarDetectionResultApi> apiDetectStarsInFile(
@@ -2160,6 +2165,67 @@ class DeviceHeartbeatInfo {
           failureThreshold == other.failureThreshold &&
           autoReconnect == other.autoReconnect &&
           maxReconnectAttempts == other.maxReconnectAttempts;
+}
+
+/// Result from reading FITS file linear pixel data.
+/// This is intended for scientific workflows that require unstretched values.
+class FitsLinearReadResult {
+  final int width;
+  final int height;
+  final int bitpix;
+  final Float64List linearData;
+  final String? objectName;
+  final double? exposureTime;
+  final String? filter;
+  final double? ra;
+  final double? dec;
+  final String? dateObs;
+  final String? bayerPattern;
+
+  const FitsLinearReadResult({
+    required this.width,
+    required this.height,
+    required this.bitpix,
+    required this.linearData,
+    this.objectName,
+    this.exposureTime,
+    this.filter,
+    this.ra,
+    this.dec,
+    this.dateObs,
+    this.bayerPattern,
+  });
+
+  @override
+  int get hashCode =>
+      width.hashCode ^
+      height.hashCode ^
+      bitpix.hashCode ^
+      linearData.hashCode ^
+      objectName.hashCode ^
+      exposureTime.hashCode ^
+      filter.hashCode ^
+      ra.hashCode ^
+      dec.hashCode ^
+      dateObs.hashCode ^
+      bayerPattern.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FitsLinearReadResult &&
+          runtimeType == other.runtimeType &&
+          width == other.width &&
+          height == other.height &&
+          bitpix == other.bitpix &&
+          linearData == other.linearData &&
+          objectName == other.objectName &&
+          exposureTime == other.exposureTime &&
+          filter == other.filter &&
+          ra == other.ra &&
+          dec == other.dec &&
+          dateObs == other.dateObs &&
+          bayerPattern == other.bayerPattern;
 }
 
 /// Result from reading a FITS file

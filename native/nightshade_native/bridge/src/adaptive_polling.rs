@@ -33,9 +33,9 @@
 //! }
 //! ```
 
-use std::time::Duration;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::time::Duration;
 
 // =========================================================================
 // Poller Configuration
@@ -59,11 +59,7 @@ pub struct PollerConfig {
 
 impl PollerConfig {
     /// Create a new poller configuration
-    pub fn new(
-        base_interval: Duration,
-        max_interval: Duration,
-        backoff_multiplier: f64,
-    ) -> Self {
+    pub fn new(base_interval: Duration, max_interval: Duration, backoff_multiplier: f64) -> Self {
         Self {
             base_interval,
             max_interval,
@@ -334,7 +330,8 @@ impl<T: PartialEq + Clone> AdaptivePoller<T> {
 
     /// Calculate the backed-off interval
     fn calculate_backoff(&self) -> Duration {
-        let new_ms = (self.current_interval.as_millis() as f64 * self.config.backoff_multiplier) as u64;
+        let new_ms =
+            (self.current_interval.as_millis() as f64 * self.config.backoff_multiplier) as u64;
         let max_ms = self.config.max_interval.as_millis() as u64;
         Duration::from_millis(new_ms.min(max_ms))
     }
@@ -570,9 +567,9 @@ impl AtomicPoller {
             total_ticks: total,
             backoff_count: backoffs,
             reset_count: resets,
-            total_interval_ms: 0, // Not tracked in atomic version
+            total_interval_ms: 0,              // Not tracked in atomic version
             max_interval_used: Duration::ZERO, // Not tracked in atomic version
-            value_changes: resets, // Each reset indicates a value change
+            value_changes: resets,             // Each reset indicates a value change
         }
     }
 }
@@ -723,11 +720,7 @@ mod tests {
 
     #[test]
     fn test_max_backoff_cap() {
-        let config = PollerConfig::new(
-            Duration::from_millis(100),
-            Duration::from_millis(500),
-            2.0,
-        );
+        let config = PollerConfig::new(Duration::from_millis(100), Duration::from_millis(500), 2.0);
         let mut poller: AdaptivePoller<i32> = AdaptivePoller::new(config);
 
         // Keep ticking with same value to hit max
@@ -742,11 +735,9 @@ mod tests {
 
     #[test]
     fn test_auto_reset() {
-        let config = PollerConfig::new(
-            Duration::from_millis(100),
-            Duration::from_millis(1000),
-            2.0,
-        ).with_auto_reset(3);
+        let config =
+            PollerConfig::new(Duration::from_millis(100), Duration::from_millis(1000), 2.0)
+                .with_auto_reset(3);
 
         let mut poller: AdaptivePoller<i32> = AdaptivePoller::new(config);
 
@@ -762,7 +753,8 @@ mod tests {
 
     #[test]
     fn test_metrics() {
-        let mut poller: AdaptivePoller<String> = AdaptivePoller::from_preset(PollerPreset::Exposure);
+        let mut poller: AdaptivePoller<String> =
+            AdaptivePoller::from_preset(PollerPreset::Exposure);
 
         poller.tick(&"state1".to_string());
         poller.tick(&"state1".to_string());

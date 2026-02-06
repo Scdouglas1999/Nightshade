@@ -278,6 +278,10 @@ class CatalogManager {
   
   String? _catalogDirectory;
   final _downloadController = StreamController<DownloadProgress>.broadcast();
+  HygCatalogLoader? _starLoader;
+  String? _starLoaderPath;
+  OpenNgcCatalogLoader? _dsoLoader;
+  String? _dsoLoaderPath;
   
   /// Stream of download progress updates
   Stream<DownloadProgress> get downloadProgress => _downloadController.stream;
@@ -288,6 +292,7 @@ class CatalogManager {
   /// Set the catalog storage directory
   Future<void> initialize(String catalogDirectory) async {
     _catalogDirectory = catalogDirectory;
+    _invalidateLocalCatalogLoaders();
     
     // Ensure directory exists
     final dir = Directory(catalogDirectory);
@@ -497,6 +502,10 @@ class CatalogManager {
         // Count objects and save metadata
         final objectCount = await _countObjects(filePath);
         await _saveMetadata(type, source, package, objectCount);
+        _invalidateLocalCatalogLoaders(
+          stars: type == 'stars',
+          dsos: type == 'dso',
+        );
         
         debugPrint('[Catalog] Catalog saved with $objectCount objects');
         
@@ -571,6 +580,10 @@ class CatalogManager {
       final objectCount = await _countObjects(destPath);
       final source = type == 'stars' ? hygStarCatalog : openNgcCatalog;
       await _saveMetadata(type, source, CatalogPackage.complete, objectCount);
+      _invalidateLocalCatalogLoaders(
+        stars: type == 'stars',
+        dsos: type == 'dso',
+      );
       
       return true;
     } catch (e) {
@@ -594,6 +607,7 @@ class CatalogManager {
         await file.delete();
       }
     }
+    _invalidateLocalCatalogLoaders(stars: true, dsos: true);
   }
   
   /// Get the file path for the star catalog
@@ -828,7 +842,7 @@ class CatalogManager {
     final dsoStatus = await getDsoCatalogStatus();
     if (dsoStatus.isInstalled) {
       try {
-        final loader = OpenNgcCatalogLoader(dsoStatus.installedPath!);
+        final loader = _getDsoLoader(dsoStatus.installedPath!);
         final dsos = await loader.search(query);
         
         // Prioritize exact matches
@@ -871,7 +885,7 @@ class CatalogManager {
     final starStatus = await getStarCatalogStatus();
     if (starStatus.isInstalled) {
       try {
-        final loader = HygCatalogLoader(starStatus.installedPath!);
+        final loader = _getStarLoader(starStatus.installedPath!);
         final stars = await loader.search(query);
         
         results.addAll(stars.take(20).map((s) => CatalogSearchResult(
@@ -905,7 +919,7 @@ class CatalogManager {
     if (!dsoStatus.isInstalled) return [];
 
     try {
-      final loader = OpenNgcCatalogLoader(dsoStatus.installedPath!);
+      final loader = _getDsoLoader(dsoStatus.installedPath!);
       return await loader.searchNearby(
         ra: ra,
         dec: dec,
@@ -932,7 +946,7 @@ class CatalogManager {
     if (!starStatus.isInstalled) return [];
 
     try {
-      final loader = HygCatalogLoader(starStatus.installedPath!);
+      final loader = _getStarLoader(starStatus.installedPath!);
       return await loader.searchNearby(
         ra: ra,
         dec: dec,
@@ -948,6 +962,35 @@ class CatalogManager {
   /// Dispose resources
   void dispose() {
     _downloadController.close();
+  }
+
+  HygCatalogLoader _getStarLoader(String path) {
+    if (_starLoader == null || _starLoaderPath != path) {
+      _starLoader = HygCatalogLoader(path);
+      _starLoaderPath = path;
+    }
+    return _starLoader!;
+  }
+
+  OpenNgcCatalogLoader _getDsoLoader(String path) {
+    if (_dsoLoader == null || _dsoLoaderPath != path) {
+      _dsoLoader = OpenNgcCatalogLoader(path);
+      _dsoLoaderPath = path;
+    }
+    return _dsoLoader!;
+  }
+
+  void _invalidateLocalCatalogLoaders({bool stars = true, bool dsos = true}) {
+    if (stars) {
+      _starLoader?.clearCache();
+      _starLoader = null;
+      _starLoaderPath = null;
+    }
+    if (dsos) {
+      _dsoLoader?.clearCache();
+      _dsoLoader = null;
+      _dsoLoaderPath = null;
+    }
   }
 }
 

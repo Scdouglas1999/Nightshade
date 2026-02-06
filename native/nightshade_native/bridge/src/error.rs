@@ -13,8 +13,8 @@
 //! - Operation errors: Invalid parameters, unsupported operations
 //! - System errors: I/O, internal failures
 
-use thiserror::Error;
 use std::time::Duration;
+use thiserror::Error;
 
 /// Main error type for the Nightshade native library
 ///
@@ -26,15 +26,11 @@ pub enum NightshadeError {
     // =========================================================================
     // Device Discovery & Connection Errors
     // =========================================================================
-
     #[error("Device not found: {0}")]
     DeviceNotFound(String),
 
     #[error("Device connection failed: {device_id} - {reason}")]
-    ConnectionFailed {
-        device_id: String,
-        reason: String,
-    },
+    ConnectionFailed { device_id: String, reason: String },
 
     #[error("Device already connected: {0}")]
     AlreadyConnected(String),
@@ -43,15 +39,11 @@ pub enum NightshadeError {
     NotConnected(String),
 
     #[error("Device disconnected unexpectedly: {device_id} - {reason}")]
-    DeviceDisconnected {
-        device_id: String,
-        reason: String,
-    },
+    DeviceDisconnected { device_id: String, reason: String },
 
     // =========================================================================
     // Hardware Errors
     // =========================================================================
-
     /// General hardware error from device
     #[error("Hardware error: {device_id} - {message}")]
     HardwareError {
@@ -63,15 +55,11 @@ pub enum NightshadeError {
 
     /// Hardware communication error
     #[error("Communication error: {device_id} - {message}")]
-    CommunicationError {
-        device_id: String,
-        message: String,
-    },
+    CommunicationError { device_id: String, message: String },
 
     // =========================================================================
     // Timeout Errors
     // =========================================================================
-
     /// Generic timeout error (for backwards compatibility)
     #[error("Operation timed out: {0}")]
     Timeout(String),
@@ -94,7 +82,6 @@ pub enum NightshadeError {
     // =========================================================================
     // Parameter Validation Errors
     // =========================================================================
-
     #[error("Invalid parameter: {0}")]
     InvalidParameter(String),
 
@@ -102,10 +89,7 @@ pub enum NightshadeError {
     InvalidInput(String),
 
     #[error("Invalid device ID: {device_id} - {reason}")]
-    InvalidDeviceId {
-        device_id: String,
-        reason: String,
-    },
+    InvalidDeviceId { device_id: String, reason: String },
 
     #[error("Parameter out of range: {param_name} = {value} (valid: {min} to {max})")]
     ParameterOutOfRange {
@@ -118,7 +102,6 @@ pub enum NightshadeError {
     // =========================================================================
     // Operation Errors
     // =========================================================================
-
     #[error("Operation failed: {0}")]
     OperationFailed(String),
 
@@ -137,7 +120,6 @@ pub enum NightshadeError {
     // =========================================================================
     // Imaging Errors
     // =========================================================================
-
     #[error("Image processing error: {0}")]
     ImageError(String),
 
@@ -151,21 +133,14 @@ pub enum NightshadeError {
     ExposureCancelled,
 
     #[error("Exposure failed: {camera_id} - {reason}")]
-    ExposureFailed {
-        camera_id: String,
-        reason: String,
-    },
+    ExposureFailed { camera_id: String, reason: String },
 
     #[error("Image download failed: {camera_id} - {reason}")]
-    DownloadFailed {
-        camera_id: String,
-        reason: String,
-    },
+    DownloadFailed { camera_id: String, reason: String },
 
     // =========================================================================
     // I/O Errors
     // =========================================================================
-
     #[error("File I/O error: {0}")]
     IoError(String),
 
@@ -175,14 +150,12 @@ pub enum NightshadeError {
     // =========================================================================
     // Sequence Errors
     // =========================================================================
-
     #[error("Sequence error: {0}")]
     SequenceError(String),
 
     // =========================================================================
     // Driver-Specific Errors
     // =========================================================================
-
     /// ASCOM driver error (Windows only)
     #[error("ASCOM error: {prog_id} - {message} (code: {error_code})")]
     AscomError {
@@ -219,15 +192,11 @@ pub enum NightshadeError {
 
     /// COM/OLE error (Windows ASCOM)
     #[error("COM error: {message} (HRESULT: 0x{hresult:08X})")]
-    ComError {
-        message: String,
-        hresult: u32,
-    },
+    ComError { message: String, hresult: u32 },
 
     // =========================================================================
     // System Errors
     // =========================================================================
-
     #[error("Internal error: {0}")]
     Internal(String),
 
@@ -238,10 +207,7 @@ pub enum NightshadeError {
     RuntimeInitFailed(String),
 
     #[error("Resource exhausted: {resource} - {message}")]
-    ResourceExhausted {
-        resource: String,
-        message: String,
-    },
+    ResourceExhausted { resource: String, message: String },
 }
 
 impl NightshadeError {
@@ -250,7 +216,11 @@ impl NightshadeError {
     // =========================================================================
 
     /// Create a device timeout error
-    pub fn device_timeout(device_id: impl Into<String>, operation: impl Into<String>, timeout: Duration) -> Self {
+    pub fn device_timeout(
+        device_id: impl Into<String>,
+        operation: impl Into<String>,
+        timeout: Duration,
+    ) -> Self {
         NightshadeError::DeviceTimeout {
             device_id: device_id.into(),
             operation: operation.into(),
@@ -284,7 +254,11 @@ impl NightshadeError {
 
     /// Create an ASCOM error
     #[cfg(windows)]
-    pub fn ascom_error(prog_id: impl Into<String>, message: impl Into<String>, error_code: i32) -> Self {
+    pub fn ascom_error(
+        prog_id: impl Into<String>,
+        message: impl Into<String>,
+        error_code: i32,
+    ) -> Self {
         NightshadeError::AscomError {
             prog_id: prog_id.into(),
             message: message.into(),
@@ -293,7 +267,12 @@ impl NightshadeError {
     }
 
     /// Create an Alpaca error
-    pub fn alpaca_error(base_url: impl Into<String>, device_number: u32, message: impl Into<String>, error_code: i32) -> Self {
+    pub fn alpaca_error(
+        base_url: impl Into<String>,
+        device_number: u32,
+        message: impl Into<String>,
+        error_code: i32,
+    ) -> Self {
         NightshadeError::AlpacaError {
             base_url: base_url.into(),
             device_number,
@@ -303,7 +282,12 @@ impl NightshadeError {
     }
 
     /// Create an INDI error
-    pub fn indi_error(server: impl Into<String>, port: u16, device_name: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn indi_error(
+        server: impl Into<String>,
+        port: u16,
+        device_name: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
         NightshadeError::IndiError {
             server: server.into(),
             port,
@@ -313,7 +297,11 @@ impl NightshadeError {
     }
 
     /// Create a native SDK error
-    pub fn native_error(vendor: impl Into<String>, message: impl Into<String>, error_code: i32) -> Self {
+    pub fn native_error(
+        vendor: impl Into<String>,
+        message: impl Into<String>,
+        error_code: i32,
+    ) -> Self {
         NightshadeError::NativeError {
             vendor: vendor.into(),
             message: message.into(),
@@ -331,7 +319,11 @@ impl NightshadeError {
     }
 
     /// Create a hardware error with vendor-specific error code
-    pub fn hardware_error_with_code(device_id: impl Into<String>, message: impl Into<String>, error_code: i32) -> Self {
+    pub fn hardware_error_with_code(
+        device_id: impl Into<String>,
+        message: impl Into<String>,
+        error_code: i32,
+    ) -> Self {
         NightshadeError::HardwareError {
             device_id: device_id.into(),
             message: message.into(),
@@ -356,7 +348,10 @@ impl NightshadeError {
     }
 
     /// Create an operation not supported error
-    pub fn operation_not_supported(device_id: impl Into<String>, operation: impl Into<String>) -> Self {
+    pub fn operation_not_supported(
+        device_id: impl Into<String>,
+        operation: impl Into<String>,
+    ) -> Self {
         NightshadeError::NotSupported {
             device_id: device_id.into(),
             operation: operation.into(),
@@ -394,7 +389,8 @@ impl NightshadeError {
     /// - Unsupported operations (device doesn't support this)
     /// - Permanent hardware failures
     pub fn is_recoverable(&self) -> bool {
-        matches!(self,
+        matches!(
+            self,
             // Timeout errors - operation may succeed on retry
             NightshadeError::Timeout(_) |
             NightshadeError::DeviceTimeout { .. } |
@@ -425,10 +421,11 @@ impl NightshadeError {
     /// - Prompt user to wait longer
     /// - Check if device is responsive
     pub fn is_timeout(&self) -> bool {
-        matches!(self,
-            NightshadeError::Timeout(_) |
-            NightshadeError::DeviceTimeout { .. } |
-            NightshadeError::ConnectionTimeout { .. }
+        matches!(
+            self,
+            NightshadeError::Timeout(_)
+                | NightshadeError::DeviceTimeout { .. }
+                | NightshadeError::ConnectionTimeout { .. }
         )
     }
 
@@ -436,11 +433,12 @@ impl NightshadeError {
     ///
     /// Use this to automatically attempt reconnection before retrying the operation.
     pub fn needs_reconnect(&self) -> bool {
-        matches!(self,
-            NightshadeError::NotConnected(_) |
-            NightshadeError::DeviceDisconnected { .. } |
-            NightshadeError::CommunicationError { .. } |
-            NightshadeError::ComError { .. }
+        matches!(
+            self,
+            NightshadeError::NotConnected(_)
+                | NightshadeError::DeviceDisconnected { .. }
+                | NightshadeError::CommunicationError { .. }
+                | NightshadeError::ComError { .. }
         )
     }
 
@@ -457,11 +455,12 @@ impl NightshadeError {
     /// - Restart device
     /// - Check device health/status
     pub fn is_hardware_error(&self) -> bool {
-        matches!(self,
-            NightshadeError::HardwareError { .. } |
-            NightshadeError::CommunicationError { .. } |
-            NightshadeError::ExposureFailed { .. } |
-            NightshadeError::DownloadFailed { .. }
+        matches!(
+            self,
+            NightshadeError::HardwareError { .. }
+                | NightshadeError::CommunicationError { .. }
+                | NightshadeError::ExposureFailed { .. }
+                | NightshadeError::DownloadFailed { .. }
         )
     }
 
@@ -477,19 +476,20 @@ impl NightshadeError {
     ///
     /// Use this to prompt user to correct their input.
     pub fn is_invalid_input(&self) -> bool {
-        matches!(self,
-            NightshadeError::InvalidParameter(_) |
-            NightshadeError::InvalidInput(_) |
-            NightshadeError::InvalidDeviceId { .. } |
-            NightshadeError::ParameterOutOfRange { .. }
+        matches!(
+            self,
+            NightshadeError::InvalidParameter(_)
+                | NightshadeError::InvalidInput(_)
+                | NightshadeError::InvalidDeviceId { .. }
+                | NightshadeError::ParameterOutOfRange { .. }
         )
     }
 
     /// Returns true if this is a user-initiated cancellation (not an error)
     pub fn is_cancellation(&self) -> bool {
-        matches!(self,
-            NightshadeError::Cancelled |
-            NightshadeError::ExposureCancelled
+        matches!(
+            self,
+            NightshadeError::Cancelled | NightshadeError::ExposureCancelled
         )
     }
 
@@ -541,28 +541,51 @@ impl NightshadeError {
             NightshadeError::DeviceDisconnected { device_id, .. } => {
                 format!("'{}' disconnected unexpectedly", device_id)
             }
-            NightshadeError::HardwareError { device_id, message, .. } => {
+            NightshadeError::HardwareError {
+                device_id, message, ..
+            } => {
                 format!("Hardware error on '{}': {}", device_id, message)
             }
-            NightshadeError::Timeout(msg) | NightshadeError::DeviceTimeout { operation: msg, .. } => {
+            NightshadeError::Timeout(msg)
+            | NightshadeError::DeviceTimeout { operation: msg, .. } => {
                 format!("Operation timed out: {}", msg)
             }
-            NightshadeError::ConnectionTimeout { device_id, timeout_secs } => {
-                format!("Connection to '{}' timed out after {:.0}s", device_id, timeout_secs)
+            NightshadeError::ConnectionTimeout {
+                device_id,
+                timeout_secs,
+            } => {
+                format!(
+                    "Connection to '{}' timed out after {:.0}s",
+                    device_id, timeout_secs
+                )
             }
-            NightshadeError::NotSupported { device_id, operation } => {
+            NightshadeError::NotSupported {
+                device_id,
+                operation,
+            } => {
                 format!("'{}' does not support: {}", device_id, operation)
             }
             NightshadeError::InvalidParameter(msg) | NightshadeError::InvalidInput(msg) => {
                 format!("Invalid input: {}", msg)
             }
-            NightshadeError::ParameterOutOfRange { param_name, value, min, max } => {
-                format!("{} value {} is out of range ({} to {})", param_name, value, min, max)
+            NightshadeError::ParameterOutOfRange {
+                param_name,
+                value,
+                min,
+                max,
+            } => {
+                format!(
+                    "{} value {} is out of range ({} to {})",
+                    param_name, value, min, max
+                )
             }
             NightshadeError::ExposureCancelled | NightshadeError::Cancelled => {
                 "Operation cancelled".to_string()
             }
-            NightshadeError::DeviceBusy { device_id, current_operation } => {
+            NightshadeError::DeviceBusy {
+                device_id,
+                current_operation,
+            } => {
                 format!("'{}' is busy: {}", device_id, current_operation)
             }
             // For other errors, use the Display implementation
@@ -573,51 +596,51 @@ impl NightshadeError {
     /// Get a classification of the error for telemetry/logging
     pub fn error_category(&self) -> &'static str {
         match self {
-            NightshadeError::DeviceNotFound(_) |
-            NightshadeError::ConnectionFailed { .. } |
-            NightshadeError::AlreadyConnected(_) |
-            NightshadeError::NotConnected(_) |
-            NightshadeError::DeviceDisconnected { .. } => "connection",
+            NightshadeError::DeviceNotFound(_)
+            | NightshadeError::ConnectionFailed { .. }
+            | NightshadeError::AlreadyConnected(_)
+            | NightshadeError::NotConnected(_)
+            | NightshadeError::DeviceDisconnected { .. } => "connection",
 
-            NightshadeError::HardwareError { .. } |
-            NightshadeError::CommunicationError { .. } => "hardware",
+            NightshadeError::HardwareError { .. } | NightshadeError::CommunicationError { .. } => {
+                "hardware"
+            }
 
-            NightshadeError::Timeout(_) |
-            NightshadeError::DeviceTimeout { .. } |
-            NightshadeError::ConnectionTimeout { .. } => "timeout",
+            NightshadeError::Timeout(_)
+            | NightshadeError::DeviceTimeout { .. }
+            | NightshadeError::ConnectionTimeout { .. } => "timeout",
 
-            NightshadeError::InvalidParameter(_) |
-            NightshadeError::InvalidInput(_) |
-            NightshadeError::InvalidDeviceId { .. } |
-            NightshadeError::ParameterOutOfRange { .. } => "validation",
+            NightshadeError::InvalidParameter(_)
+            | NightshadeError::InvalidInput(_)
+            | NightshadeError::InvalidDeviceId { .. }
+            | NightshadeError::ParameterOutOfRange { .. } => "validation",
 
             NightshadeError::NotSupported { .. } => "unsupported",
 
             NightshadeError::DeviceBusy { .. } => "busy",
 
-            NightshadeError::ImageError(_) |
-            NightshadeError::CameraError(_) |
-            NightshadeError::NoImageAvailable |
-            NightshadeError::ExposureCancelled |
-            NightshadeError::ExposureFailed { .. } |
-            NightshadeError::DownloadFailed { .. } => "imaging",
+            NightshadeError::ImageError(_)
+            | NightshadeError::CameraError(_)
+            | NightshadeError::NoImageAvailable
+            | NightshadeError::ExposureCancelled
+            | NightshadeError::ExposureFailed { .. }
+            | NightshadeError::DownloadFailed { .. } => "imaging",
 
-            NightshadeError::IoError(_) |
-            NightshadeError::PlateSolveError(_) => "io",
+            NightshadeError::IoError(_) | NightshadeError::PlateSolveError(_) => "io",
 
             NightshadeError::SequenceError(_) => "sequence",
 
-            NightshadeError::AscomError { .. } |
-            NightshadeError::AlpacaError { .. } |
-            NightshadeError::IndiError { .. } |
-            NightshadeError::NativeError { .. } |
-            NightshadeError::ComError { .. } => "driver",
+            NightshadeError::AscomError { .. }
+            | NightshadeError::AlpacaError { .. }
+            | NightshadeError::IndiError { .. }
+            | NightshadeError::NativeError { .. }
+            | NightshadeError::ComError { .. } => "driver",
 
-            NightshadeError::Internal(_) |
-            NightshadeError::Cancelled |
-            NightshadeError::RuntimeInitFailed(_) |
-            NightshadeError::ResourceExhausted { .. } |
-            NightshadeError::OperationFailed(_) => "system",
+            NightshadeError::Internal(_)
+            | NightshadeError::Cancelled
+            | NightshadeError::RuntimeInitFailed(_)
+            | NightshadeError::ResourceExhausted { .. }
+            | NightshadeError::OperationFailed(_) => "system",
         }
     }
 }
@@ -793,9 +816,9 @@ impl<T, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
     }
 
     fn with_device_context(self, device_id: &str, operation: &str) -> NightshadeResult<T> {
-        self.map_err(|e| NightshadeError::OperationFailed(
-            format!("{} on {}: {}", operation, device_id, e)
-        ))
+        self.map_err(|e| {
+            NightshadeError::OperationFailed(format!("{} on {}: {}", operation, device_id, e))
+        })
     }
 }
 
@@ -817,4 +840,3 @@ impl<T> OptionExt<T> for Option<T> {
         self.ok_or_else(|| NightshadeError::Internal(message.to_string()))
     }
 }
-

@@ -1,7 +1,7 @@
 //! Sequencer API exposed to Dart
 
 use crate::error::NightshadeError;
-use nightshade_sequencer::{get_executor, SequenceDefinition, ExecutorState, SafetyFailMode};
+use nightshade_sequencer::{get_executor, ExecutorState, SafetyFailMode, SequenceDefinition};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,13 +18,13 @@ pub struct SequencerStatus {
 pub async fn sequencer_load_plan(plan_json: String) -> Result<(), NightshadeError> {
     let sequence: SequenceDefinition = serde_json::from_str(&plan_json)
         .map_err(|e| NightshadeError::OperationFailed(format!("Invalid plan JSON: {}", e)))?;
-        
+
     let executor = get_executor();
     let mut exec = executor.write().await;
-    
+
     // Set up device ops
     exec.set_device_ops(crate::sequencer_ops::create_device_ops());
-    
+
     // Load sequence
     exec.load_sequence(sequence)
         .map_err(|e| NightshadeError::OperationFailed(e))
@@ -35,8 +35,9 @@ pub async fn sequencer_load_plan(plan_json: String) -> Result<(), NightshadeErro
 pub async fn sequencer_start() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let mut exec = executor.write().await;
-    
-    exec.start().await
+
+    exec.start()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -45,8 +46,9 @@ pub async fn sequencer_start() -> Result<(), NightshadeError> {
 pub async fn sequencer_stop() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let mut exec = executor.write().await;
-    
-    exec.stop().await
+
+    exec.stop()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -55,8 +57,9 @@ pub async fn sequencer_stop() -> Result<(), NightshadeError> {
 pub async fn sequencer_pause() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
-    
-    exec.pause().await
+
+    exec.pause()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -65,8 +68,9 @@ pub async fn sequencer_pause() -> Result<(), NightshadeError> {
 pub async fn sequencer_resume() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
-    
-    exec.resume().await
+
+    exec.resume()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -76,7 +80,7 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
     let executor = get_executor();
     let exec = executor.read().await;
     let progress = exec.get_progress();
-    
+
     let state_str = match progress.state {
         ExecutorState::Idle => "Idle",
         ExecutorState::Running => "Running",
@@ -84,14 +88,15 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
         ExecutorState::Stopping => "Stopping",
         ExecutorState::Completed => "Completed",
         ExecutorState::Failed => "Failed",
-    }.to_string();
-    
+    }
+    .to_string();
+
     let progress_val = if progress.total_exposures > 0 {
         progress.completed_exposures as f64 / progress.total_exposures as f64
     } else {
         0.0
     };
-    
+
     Ok(SequencerStatus {
         state: state_str,
         current_node_id: progress.current_node_id,
@@ -239,7 +244,8 @@ pub async fn sequencer_resume_from_checkpoint() -> Result<(), NightshadeError> {
     // Set up device ops before resume
     exec.set_device_ops(crate::sequencer_ops::create_device_ops());
 
-    exec.resume_from_checkpoint().await
+    exec.resume_from_checkpoint()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -249,7 +255,8 @@ pub async fn sequencer_save_checkpoint() -> Result<(), NightshadeError> {
     let executor = get_executor();
     let exec = executor.read().await;
 
-    exec.save_checkpoint().await
+    exec.save_checkpoint()
+        .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }
 
@@ -280,7 +287,11 @@ pub async fn sequencer_set_trigger_enabled(
     let trigger_manager = exec.trigger_manager();
     let mut manager = trigger_manager.write().await;
     manager.set_trigger_enabled(&trigger_id, enabled);
-    tracing::info!("Trigger '{}' {}", trigger_id, if enabled { "enabled" } else { "disabled" });
+    tracing::info!(
+        "Trigger '{}' {}",
+        trigger_id,
+        if enabled { "enabled" } else { "disabled" }
+    );
     Ok(())
 }
 
@@ -290,7 +301,10 @@ pub async fn sequencer_set_all_triggers_enabled(enabled: bool) -> Result<(), Nig
     let executor = get_executor();
     let mut exec = executor.write().await;
     exec.set_triggers_enabled(enabled);
-    tracing::info!("All triggers {}", if enabled { "enabled" } else { "disabled" });
+    tracing::info!(
+        "All triggers {}",
+        if enabled { "enabled" } else { "disabled" }
+    );
     Ok(())
 }
 
@@ -302,7 +316,8 @@ pub async fn sequencer_get_triggers() -> Result<Vec<TriggerInfo>, NightshadeErro
     let trigger_manager = exec.trigger_manager();
     let manager = trigger_manager.read().await;
 
-    let triggers = manager.triggers()
+    let triggers = manager
+        .triggers()
         .iter()
         .map(|t| TriggerInfo {
             id: t.id.clone(),
@@ -336,7 +351,8 @@ pub async fn sequencer_update_guiding_rms(rms: f64) -> Result<(), NightshadeErro
 
     exec.update_trigger_state(|state| {
         state.update_guiding_rms(rms);
-    }).await;
+    })
+    .await;
 
     Ok(())
 }
@@ -349,7 +365,8 @@ pub async fn sequencer_update_hfr(hfr: f64) -> Result<(), NightshadeError> {
 
     exec.update_trigger_state(|state| {
         state.update_hfr(hfr);
-    }).await;
+    })
+    .await;
 
     Ok(())
 }
@@ -362,7 +379,8 @@ pub async fn sequencer_reset_hfr_baseline() -> Result<(), NightshadeError> {
 
     exec.update_trigger_state(|state| {
         state.reset_baseline_hfr();
-    }).await;
+    })
+    .await;
 
     Ok(())
 }

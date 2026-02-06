@@ -76,7 +76,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1838608827;
+  int get rustContentHash => -1514280401;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -624,6 +624,9 @@ abstract class RustLibApi extends BaseApi {
       required double searchRadius});
 
   Future<FitsReadResult> crateApiApiReadFitsFile({required String filePath});
+
+  Future<FitsLinearReadResult> crateApiApiReadFitsLinearData(
+      {required String filePath});
 
   Future<String> crateApiApiReadLogFile({required String path});
 
@@ -5234,6 +5237,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<FitsLinearReadResult> crateApiApiReadFitsLinearData(
+      {required String filePath}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(filePath);
+        return wire.wire__crate__api__api_read_fits_linear_data(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_fits_linear_read_result,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiReadFitsLinearDataConstMeta,
+      argValues: [filePath],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiReadFitsLinearDataConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_read_fits_linear_data",
+        argNames: ["filePath"],
+      );
+
+  @override
   Future<String> crateApiApiReadLogFile({required String path}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -8837,6 +8864,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  FitsLinearReadResult dco_decode_fits_linear_read_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    return FitsLinearReadResult(
+      width: dco_decode_u_32(arr[0]),
+      height: dco_decode_u_32(arr[1]),
+      bitpix: dco_decode_i_32(arr[2]),
+      linearData: dco_decode_list_prim_f_64_strict(arr[3]),
+      objectName: dco_decode_opt_String(arr[4]),
+      exposureTime: dco_decode_opt_box_autoadd_f_64(arr[5]),
+      filter: dco_decode_opt_String(arr[6]),
+      ra: dco_decode_opt_box_autoadd_f_64(arr[7]),
+      dec: dco_decode_opt_box_autoadd_f_64(arr[8]),
+      dateObs: dco_decode_opt_String(arr[9]),
+      bayerPattern: dco_decode_opt_String(arr[10]),
+    );
+  }
+
+  @protected
   FitsReadResult dco_decode_fits_read_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -9238,6 +9286,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Float32List;
+  }
+
+  @protected
+  Float64List dco_decode_list_prim_f_64_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as Float64List;
   }
 
   @protected
@@ -11546,6 +11600,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  FitsLinearReadResult sse_decode_fits_linear_read_result(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_width = sse_decode_u_32(deserializer);
+    var var_height = sse_decode_u_32(deserializer);
+    var var_bitpix = sse_decode_i_32(deserializer);
+    var var_linearData = sse_decode_list_prim_f_64_strict(deserializer);
+    var var_objectName = sse_decode_opt_String(deserializer);
+    var var_exposureTime = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_filter = sse_decode_opt_String(deserializer);
+    var var_ra = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_dec = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_dateObs = sse_decode_opt_String(deserializer);
+    var var_bayerPattern = sse_decode_opt_String(deserializer);
+    return FitsLinearReadResult(
+        width: var_width,
+        height: var_height,
+        bitpix: var_bitpix,
+        linearData: var_linearData,
+        objectName: var_objectName,
+        exposureTime: var_exposureTime,
+        filter: var_filter,
+        ra: var_ra,
+        dec: var_dec,
+        dateObs: var_dateObs,
+        bayerPattern: var_bayerPattern);
+  }
+
+  @protected
   FitsReadResult sse_decode_fits_read_result(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_width = sse_decode_u_32(deserializer);
@@ -12073,6 +12156,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getFloat32List(len_);
+  }
+
+  @protected
+  Float64List sse_decode_list_prim_f_64_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getFloat64List(len_);
   }
 
   @protected
@@ -14535,6 +14625,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_fits_linear_read_result(
+      FitsLinearReadResult self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.width, serializer);
+    sse_encode_u_32(self.height, serializer);
+    sse_encode_i_32(self.bitpix, serializer);
+    sse_encode_list_prim_f_64_strict(self.linearData, serializer);
+    sse_encode_opt_String(self.objectName, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.exposureTime, serializer);
+    sse_encode_opt_String(self.filter, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.ra, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.dec, serializer);
+    sse_encode_opt_String(self.dateObs, serializer);
+    sse_encode_opt_String(self.bayerPattern, serializer);
+  }
+
+  @protected
   void sse_encode_fits_read_result(
       FitsReadResult self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -14944,6 +15051,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putFloat32List(self);
+  }
+
+  @protected
+  void sse_encode_list_prim_f_64_strict(
+      Float64List self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putFloat64List(self);
   }
 
   @protected

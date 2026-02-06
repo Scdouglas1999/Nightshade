@@ -1,12 +1,14 @@
+use crate::timeout_ops::Timeouts;
+use nightshade_ascom::{init_com, uninit_com, AscomMount};
+use nightshade_native::traits::{
+    GuideDirection, NativeDevice, NativeError, NativeMount, TrackingRate,
+};
+use nightshade_native::NativeVendor;
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
-use nightshade_native::traits::{NativeDevice, NativeMount, NativeError, GuideDirection, TrackingRate};
-use nightshade_native::NativeVendor;
-use nightshade_ascom::{AscomMount, init_com, uninit_com};
-use std::fmt::Debug;
-use crate::timeout_ops::Timeouts;
 
 /// ASCOM mount capabilities returned from the device
 #[derive(Debug, Clone, Default)]
@@ -71,22 +73,22 @@ impl AscomMountWrapper {
     pub fn new(prog_id: String) -> Result<Self, String> {
         let (tx, mut rx) = mpsc::channel(32);
         let prog_id_clone = prog_id.clone();
-        
+
         let handle = thread::spawn(move || {
             // Initialize COM as STA on this thread
             if let Err(e) = init_com() {
                 tracing::error!("Failed to init COM on ASCOM thread: {}", e);
                 return;
             }
-            
+
             let mut mount: Option<AscomMount> = None;
-            
+
             // Try to create the mount object immediately
             match AscomMount::new(&prog_id_clone) {
                 Ok(m) => mount = Some(m),
                 Err(e) => tracing::error!("Failed to create ASCOM mount {}: {}", prog_id_clone, e),
             }
-            
+
             while let Some(cmd) = rx.blocking_recv() {
                 match cmd {
                     AscomMountCommand::Connect(reply) => {
@@ -105,7 +107,10 @@ impl AscomMountWrapper {
                     }
                     AscomMountCommand::SlewToCoordinates(ra, dec, reply) => {
                         if let Some(m) = &mut mount {
-                            let _ = reply.send(m.slew_to_coordinates_async(ra, dec).map_err(|e| e.to_string()));
+                            let _ = reply.send(
+                                m.slew_to_coordinates_async(ra, dec)
+                                    .map_err(|e| e.to_string()),
+                            );
                         } else {
                             let _ = reply.send(Err("Mount not created".to_string()));
                         }
@@ -114,13 +119,17 @@ impl AscomMountWrapper {
                         if let Some(m) = &mut mount {
                             match m.can_sync() {
                                 Ok(true) => {
-                                    let _ = reply.send(m.sync_to_coordinates(ra, dec).map_err(|e| e.to_string()));
+                                    let _ = reply.send(
+                                        m.sync_to_coordinates(ra, dec).map_err(|e| e.to_string()),
+                                    );
                                 }
                                 Ok(false) => {
-                                    let _ = reply.send(Err("Mount does not support Sync".to_string()));
+                                    let _ =
+                                        reply.send(Err("Mount does not support Sync".to_string()));
                                 }
                                 Err(e) => {
-                                    let _ = reply.send(Err(format!("Failed to check CanSync: {}", e)));
+                                    let _ =
+                                        reply.send(Err(format!("Failed to check CanSync: {}", e)));
                                 }
                             }
                         } else {
@@ -134,10 +143,12 @@ impl AscomMountWrapper {
                                     let _ = reply.send(m.park().map_err(|e| e.to_string()));
                                 }
                                 Ok(false) => {
-                                    let _ = reply.send(Err("Mount does not support Park".to_string()));
+                                    let _ =
+                                        reply.send(Err("Mount does not support Park".to_string()));
                                 }
                                 Err(e) => {
-                                    let _ = reply.send(Err(format!("Failed to check CanPark: {}", e)));
+                                    let _ =
+                                        reply.send(Err(format!("Failed to check CanPark: {}", e)));
                                 }
                             }
                         } else {
@@ -185,7 +196,7 @@ impl AscomMountWrapper {
                         }
                     }
                     AscomMountCommand::CanPark(reply) => {
-                         if let Some(m) = &mut mount {
+                        if let Some(m) = &mut mount {
                             let _ = reply.send(m.can_park().map_err(|e| e.to_string()));
                         } else {
                             let _ = reply.send(Err("Mount not created".to_string()));
@@ -205,8 +216,12 @@ impl AscomMountWrapper {
                                 can_pulse_guide: ascom_caps.can_pulse_guide.unwrap_or(false),
                                 can_set_tracking: true, // Most ASCOM mounts support this
                                 can_find_home: m.can_find_home().unwrap_or(false),
-                                can_move_axis_primary: ascom_caps.can_move_axis_primary.unwrap_or(false),
-                                can_move_axis_secondary: ascom_caps.can_move_axis_secondary.unwrap_or(false),
+                                can_move_axis_primary: ascom_caps
+                                    .can_move_axis_primary
+                                    .unwrap_or(false),
+                                can_move_axis_secondary: ascom_caps
+                                    .can_move_axis_secondary
+                                    .unwrap_or(false),
                                 is_equatorial: m.alignment_mode().map(|m| m > 0).unwrap_or(true),
                             };
                             let _ = reply.send(Ok(caps));
@@ -244,7 +259,8 @@ impl AscomMountWrapper {
                                 GuideDirection::East => 2,
                                 GuideDirection::West => 3,
                             };
-                            let _ = reply.send(m.pulse_guide(d, duration).map_err(|e| e.to_string()));
+                            let _ =
+                                reply.send(m.pulse_guide(d, duration).map_err(|e| e.to_string()));
                         } else {
                             let _ = reply.send(Err("Mount not created".to_string()));
                         }
@@ -252,10 +268,21 @@ impl AscomMountWrapper {
                     AscomMountCommand::GetSideOfPier(reply) => {
                         if let Some(m) = &mut mount {
                             match m.side_of_pier() {
-                                Ok(0) => { let _ = reply.send(Ok(nightshade_native::traits::PierSide::East)); },
-                                Ok(1) => { let _ = reply.send(Ok(nightshade_native::traits::PierSide::West)); },
-                                Ok(_) => { let _ = reply.send(Ok(nightshade_native::traits::PierSide::Unknown)); },
-                                Err(e) => { let _ = reply.send(Err(e.to_string())); }
+                                Ok(0) => {
+                                    let _ =
+                                        reply.send(Ok(nightshade_native::traits::PierSide::East));
+                                }
+                                Ok(1) => {
+                                    let _ =
+                                        reply.send(Ok(nightshade_native::traits::PierSide::West));
+                                }
+                                Ok(_) => {
+                                    let _ = reply
+                                        .send(Ok(nightshade_native::traits::PierSide::Unknown));
+                                }
+                                Err(e) => {
+                                    let _ = reply.send(Err(e.to_string()));
+                                }
                             }
                         } else {
                             let _ = reply.send(Err("Mount not created".to_string()));
@@ -266,9 +293,15 @@ impl AscomMountWrapper {
                             let alt_res = m.altitude();
                             let az_res = m.azimuth();
                             match (alt_res, az_res) {
-                                (Ok(alt), Ok(az)) => { let _ = reply.send(Ok((alt, az))); },
-                                (Err(e), _) => { let _ = reply.send(Err(format!("Failed to get Alt: {}", e))); },
-                                (_, Err(e)) => { let _ = reply.send(Err(format!("Failed to get Az: {}", e))); }
+                                (Ok(alt), Ok(az)) => {
+                                    let _ = reply.send(Ok((alt, az)));
+                                }
+                                (Err(e), _) => {
+                                    let _ = reply.send(Err(format!("Failed to get Alt: {}", e)));
+                                }
+                                (_, Err(e)) => {
+                                    let _ = reply.send(Err(format!("Failed to get Az: {}", e)));
+                                }
                             }
                         } else {
                             let _ = reply.send(Err("Mount not created".to_string()));
@@ -283,7 +316,8 @@ impl AscomMountWrapper {
                     }
                     AscomMountCommand::SetTrackingRate(rate, reply) => {
                         if let Some(m) = &mut mount {
-                            let _ = reply.send(m.set_tracking_rate(rate).map_err(|e| e.to_string()));
+                            let _ =
+                                reply.send(m.set_tracking_rate(rate).map_err(|e| e.to_string()));
                         } else {
                             let _ = reply.send(Err("Mount not created".to_string()));
                         }
@@ -342,7 +376,7 @@ impl AscomMountWrapper {
 
             uninit_com();
         });
-        
+
         Ok(Self {
             id: prog_id.clone(),
             name: prog_id,
@@ -359,12 +393,14 @@ impl AscomMountWrapper {
     ) -> Result<T, NativeError> {
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result.map_err(|e| NativeError::SdkError(e)),
-            Ok(Err(_recv_err)) => Err(NativeError::Unknown(
-                format!("Worker thread dead during {}", operation)
-            )),
-            Err(_elapsed) => Err(NativeError::Timeout(
-                format!("Mount {} timed out after {:?}", operation, timeout)
-            )),
+            Ok(Err(_recv_err)) => Err(NativeError::Unknown(format!(
+                "Worker thread dead during {}",
+                operation
+            ))),
+            Err(_elapsed) => Err(NativeError::Timeout(format!(
+                "Mount {} timed out after {:?}",
+                operation, timeout
+            ))),
         }
     }
 
@@ -379,7 +415,8 @@ impl AscomMountWrapper {
             .send(AscomMountCommand::GetCapabilities(tx))
             .await
             .map_err(|_| NativeError::Unknown("Worker thread dead".to_string()))?;
-        let mut caps = Self::recv_with_timeout(rx, Timeouts::property_read(), "get_capabilities").await?;
+        let mut caps =
+            Self::recv_with_timeout(rx, Timeouts::property_read(), "get_capabilities").await?;
         match self.can_park().await {
             Ok(can_park) => {
                 caps.can_park = can_park;
@@ -430,7 +467,9 @@ impl NativeDevice for AscomMountWrapper {
 
     async fn connect(&mut self) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::Connect(tx)).await
+        self.sender
+            .send(AscomMountCommand::Connect(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await
     }
@@ -441,9 +480,12 @@ impl NativeDevice for AscomMountWrapper {
             tracing::warn!("Failed to stop mount before disconnect: {}", err);
         }
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::Disconnect(tx)).await
+        self.sender
+            .send(AscomMountCommand::Disconnect(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
-        let disconnect_result = Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await;
+        let disconnect_result =
+            Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await;
         match disconnect_result {
             Err(err) => Err(err),
             Ok(()) => stop_result,
@@ -455,7 +497,9 @@ impl NativeDevice for AscomMountWrapper {
 impl NativeMount for AscomMountWrapper {
     async fn slew_to_coordinates(&mut self, ra: f64, dec: f64) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::SlewToCoordinates(ra, dec, tx)).await
+        self.sender
+            .send(AscomMountCommand::SlewToCoordinates(ra, dec, tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         // Slews can take a long time
         Self::recv_with_timeout(rx, Timeouts::long_slew(), "slew_to_coordinates").await
@@ -463,49 +507,67 @@ impl NativeMount for AscomMountWrapper {
 
     async fn sync_to_coordinates(&mut self, ra: f64, dec: f64) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::SyncToCoordinates(ra, dec, tx)).await
+        self.sender
+            .send(AscomMountCommand::SyncToCoordinates(ra, dec, tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "sync_to_coordinates").await
     }
 
     async fn park(&mut self) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::Park(tx)).await
+        self.sender
+            .send(AscomMountCommand::Park(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::park(), "park").await
     }
 
     async fn unpark(&mut self) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::Unpark(tx)).await
+        self.sender
+            .send(AscomMountCommand::Unpark(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::park(), "unpark").await
     }
 
     async fn get_coordinates(&self) -> Result<(f64, f64), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::GetCoordinates(tx)).await
+        self.sender
+            .send(AscomMountCommand::GetCoordinates(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_coordinates").await
     }
 
     async fn is_slewing(&self) -> Result<bool, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::IsSlewing(tx)).await
+        self.sender
+            .send(AscomMountCommand::IsSlewing(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "is_slewing").await
     }
 
     async fn is_parked(&self) -> Result<bool, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::IsParked(tx)).await
+        self.sender
+            .send(AscomMountCommand::IsParked(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "is_parked").await
     }
 
-    async fn pulse_guide(&mut self, direction: GuideDirection, duration_ms: u32) -> Result<(), NativeError> {
+    async fn pulse_guide(
+        &mut self,
+        direction: GuideDirection,
+        duration_ms: u32,
+    ) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::PulseGuide(direction, duration_ms, tx)).await
+        self.sender
+            .send(AscomMountCommand::PulseGuide(direction, duration_ms, tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         // Pulse guide takes the duration plus a buffer
         let timeout = Duration::from_millis(duration_ms as u64) + Timeouts::short_slew();
@@ -514,42 +576,54 @@ impl NativeMount for AscomMountWrapper {
 
     async fn abort_slew(&mut self) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::AbortSlew(tx)).await
+        self.sender
+            .send(AscomMountCommand::AbortSlew(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "abort_slew").await
     }
 
     async fn set_tracking(&mut self, enabled: bool) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::SetTracking(enabled, tx)).await
+        self.sender
+            .send(AscomMountCommand::SetTracking(enabled, tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "set_tracking").await
     }
 
     async fn get_tracking(&self) -> Result<bool, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::GetTracking(tx)).await
+        self.sender
+            .send(AscomMountCommand::GetTracking(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_tracking").await
     }
 
     async fn get_side_of_pier(&self) -> Result<nightshade_native::traits::PierSide, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::GetSideOfPier(tx)).await
+        self.sender
+            .send(AscomMountCommand::GetSideOfPier(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_side_of_pier").await
     }
 
     async fn get_alt_az(&self) -> Result<(f64, f64), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::GetAltAz(tx)).await
+        self.sender
+            .send(AscomMountCommand::GetAltAz(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_alt_az").await
     }
 
     async fn get_sidereal_time(&self) -> Result<f64, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::GetSiderealTime(tx)).await
+        self.sender
+            .send(AscomMountCommand::GetSiderealTime(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_sidereal_time").await
     }
@@ -563,16 +637,21 @@ impl NativeMount for AscomMountWrapper {
             TrackingRate::Custom => return Err(NativeError::NotSupported),
         };
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::SetTrackingRate(rate_int, tx)).await
+        self.sender
+            .send(AscomMountCommand::SetTrackingRate(rate_int, tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "set_tracking_rate").await
     }
 
     async fn get_tracking_rate(&self) -> Result<TrackingRate, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::GetTrackingRate(tx)).await
+        self.sender
+            .send(AscomMountCommand::GetTrackingRate(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
-        let rate_int = Self::recv_with_timeout(rx, Timeouts::property_read(), "get_tracking_rate").await?;
+        let rate_int =
+            Self::recv_with_timeout(rx, Timeouts::property_read(), "get_tracking_rate").await?;
         match rate_int {
             0 => Ok(TrackingRate::Sidereal),
             1 => Ok(TrackingRate::Lunar),
@@ -592,7 +671,9 @@ impl AscomMountWrapper {
     /// Set the tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
     pub async fn set_tracking_rate_raw(&mut self, rate: i32) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::SetTrackingRate(rate, tx)).await
+        self.sender
+            .send(AscomMountCommand::SetTrackingRate(rate, tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "set_tracking_rate").await
     }
@@ -600,7 +681,9 @@ impl AscomMountWrapper {
     /// Get the current tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
     pub async fn get_tracking_rate_raw(&self) -> Result<i32, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::GetTrackingRate(tx)).await
+        self.sender
+            .send(AscomMountCommand::GetTrackingRate(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_tracking_rate").await
     }
@@ -610,7 +693,9 @@ impl AscomMountWrapper {
     /// rate: degrees per second (positive = N/E, negative = S/W), 0 to stop
     pub async fn move_axis(&mut self, axis: i32, rate: f64) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomMountCommand::MoveAxis(axis, rate, tx)).await
+        self.sender
+            .send(AscomMountCommand::MoveAxis(axis, rate, tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::short_slew(), "move_axis").await
     }
@@ -755,7 +840,6 @@ mod tests {
                 }
             }
         });
-
         AscomMountWrapper {
             id: "test-mount".to_string(),
             name: "Test Mount".to_string(),

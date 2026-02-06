@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1838608827;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1514280401;
 
 // Section: executor
 
@@ -4183,6 +4183,31 @@ fn wire__crate__api__api_read_fits_file_impl(
         },
     )
 }
+fn wire__crate__api__api_read_fits_linear_data_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    file_path: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_read_fits_linear_data",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_file_path = file_path.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::api_read_fits_linear_data(api_file_path).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__api_read_log_file_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     path: impl CstDecode<String>,
@@ -8285,6 +8310,36 @@ impl SseDecode for crate::device::FilterWheelStatus {
     }
 }
 
+impl SseDecode for crate::api::FitsLinearReadResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_width = <u32>::sse_decode(deserializer);
+        let mut var_height = <u32>::sse_decode(deserializer);
+        let mut var_bitpix = <i32>::sse_decode(deserializer);
+        let mut var_linearData = <Vec<f64>>::sse_decode(deserializer);
+        let mut var_objectName = <Option<String>>::sse_decode(deserializer);
+        let mut var_exposureTime = <Option<f64>>::sse_decode(deserializer);
+        let mut var_filter = <Option<String>>::sse_decode(deserializer);
+        let mut var_ra = <Option<f64>>::sse_decode(deserializer);
+        let mut var_dec = <Option<f64>>::sse_decode(deserializer);
+        let mut var_dateObs = <Option<String>>::sse_decode(deserializer);
+        let mut var_bayerPattern = <Option<String>>::sse_decode(deserializer);
+        return crate::api::FitsLinearReadResult {
+            width: var_width,
+            height: var_height,
+            bitpix: var_bitpix,
+            linear_data: var_linearData,
+            object_name: var_objectName,
+            exposure_time: var_exposureTime,
+            filter: var_filter,
+            ra: var_ra,
+            dec: var_dec,
+            date_obs: var_dateObs,
+            bayer_pattern: var_bayerPattern,
+        };
+    }
+}
+
 impl SseDecode for crate::api::FitsReadResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8906,6 +8961,18 @@ impl SseDecode for Vec<f32> {
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
             ans_.push(<f32>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<f64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<f64>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -11531,6 +11598,36 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::FilterWheelStatus>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::FitsLinearReadResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.width.into_into_dart().into_dart(),
+            self.height.into_into_dart().into_dart(),
+            self.bitpix.into_into_dart().into_dart(),
+            self.linear_data.into_into_dart().into_dart(),
+            self.object_name.into_into_dart().into_dart(),
+            self.exposure_time.into_into_dart().into_dart(),
+            self.filter.into_into_dart().into_dart(),
+            self.ra.into_into_dart().into_dart(),
+            self.dec.into_into_dart().into_dart(),
+            self.date_obs.into_into_dart().into_dart(),
+            self.bayer_pattern.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::FitsLinearReadResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::FitsLinearReadResult>
+    for crate::api::FitsLinearReadResult
+{
+    fn into_into_dart(self) -> crate::api::FitsLinearReadResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::FitsReadResult {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14073,6 +14170,23 @@ impl SseEncode for crate::device::FilterWheelStatus {
     }
 }
 
+impl SseEncode for crate::api::FitsLinearReadResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.width, serializer);
+        <u32>::sse_encode(self.height, serializer);
+        <i32>::sse_encode(self.bitpix, serializer);
+        <Vec<f64>>::sse_encode(self.linear_data, serializer);
+        <Option<String>>::sse_encode(self.object_name, serializer);
+        <Option<f64>>::sse_encode(self.exposure_time, serializer);
+        <Option<String>>::sse_encode(self.filter, serializer);
+        <Option<f64>>::sse_encode(self.ra, serializer);
+        <Option<f64>>::sse_encode(self.dec, serializer);
+        <Option<String>>::sse_encode(self.date_obs, serializer);
+        <Option<String>>::sse_encode(self.bayer_pattern, serializer);
+    }
+}
+
 impl SseEncode for crate::api::FitsReadResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -14566,6 +14680,16 @@ impl SseEncode for Vec<f32> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <f32>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<f64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <f64>::sse_encode(item, serializer);
         }
     }
 }
@@ -16764,6 +16888,24 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::FitsLinearReadResult> for wire_cst_fits_linear_read_result {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::FitsLinearReadResult {
+            crate::api::FitsLinearReadResult {
+                width: self.width.cst_decode(),
+                height: self.height.cst_decode(),
+                bitpix: self.bitpix.cst_decode(),
+                linear_data: self.linear_data.cst_decode(),
+                object_name: self.object_name.cst_decode(),
+                exposure_time: self.exposure_time.cst_decode(),
+                filter: self.filter.cst_decode(),
+                ra: self.ra.cst_decode(),
+                dec: self.dec.cst_decode(),
+                date_obs: self.date_obs.cst_decode(),
+                bayer_pattern: self.bayer_pattern.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::api::FitsReadResult> for wire_cst_fits_read_result {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::FitsReadResult {
@@ -17161,6 +17303,15 @@ mod io {
     impl CstDecode<Vec<f32>> for *mut wire_cst_list_prim_f_32_strict {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> Vec<f32> {
+            unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            }
+        }
+    }
+    impl CstDecode<Vec<f64>> for *mut wire_cst_list_prim_f_64_strict {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<f64> {
             unsafe {
                 let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
                 flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
@@ -18532,6 +18683,28 @@ mod io {
         }
     }
     impl Default for wire_cst_filter_wheel_status {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_fits_linear_read_result {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                width: Default::default(),
+                height: Default::default(),
+                bitpix: Default::default(),
+                linear_data: core::ptr::null_mut(),
+                object_name: core::ptr::null_mut(),
+                exposure_time: core::ptr::null_mut(),
+                filter: core::ptr::null_mut(),
+                ra: core::ptr::null_mut(),
+                dec: core::ptr::null_mut(),
+                date_obs: core::ptr::null_mut(),
+                bayer_pattern: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_fits_linear_read_result {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -20980,6 +21153,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_read_fits_linear_data(
+        port_: i64,
+        file_path: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_read_fits_linear_data_impl(port_, file_path)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_read_log_file(
         port_: i64,
         path: *mut wire_cst_list_prim_u_8_strict,
@@ -22389,6 +22570,17 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_prim_f_64_strict(
+        len: i32,
+    ) -> *mut wire_cst_list_prim_f_64_strict {
+        let ans = wire_cst_list_prim_f_64_strict {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(Default::default(), len),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(ans)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_prim_i_32_strict(
         len: i32,
     ) -> *mut wire_cst_list_prim_i_32_strict {
@@ -23061,6 +23253,21 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_fits_linear_read_result {
+        width: u32,
+        height: u32,
+        bitpix: i32,
+        linear_data: *mut wire_cst_list_prim_f_64_strict,
+        object_name: *mut wire_cst_list_prim_u_8_strict,
+        exposure_time: *mut f64,
+        filter: *mut wire_cst_list_prim_u_8_strict,
+        ra: *mut f64,
+        dec: *mut f64,
+        date_obs: *mut wire_cst_list_prim_u_8_strict,
+        bayer_pattern: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_fits_read_result {
         width: u32,
         height: u32,
@@ -23385,6 +23592,12 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_list_prim_f_32_strict {
         ptr: *mut f32,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_list_prim_f_64_strict {
+        ptr: *mut f64,
         len: i32,
     }
     #[repr(C)]

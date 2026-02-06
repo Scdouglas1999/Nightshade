@@ -2,23 +2,25 @@
 //!
 //! Connects the sequencer engine to actual ASCOM/Alpaca devices via the DeviceManager.
 
-use nightshade_sequencer::{DeviceOps, DeviceResult, ImageData as SeqImageData, PlateSolveResult, GuidingStatus};
-use crate::api::{get_sim_focuser, get_sim_rotator};
-use crate::state::SharedAppState;
-use crate::devices::DeviceManager;
 use crate::api::get_device_manager;
+use crate::api::{get_sim_focuser, get_sim_rotator};
 use crate::device::FilterWheelStatus;
-use crate::device_id::{ConnectionInfo, parse_device_id_cached};
+use crate::device_id::{parse_device_id_cached, ConnectionInfo};
+use crate::devices::DeviceManager;
+use crate::state::SharedAppState;
 use async_trait::async_trait;
-use std::sync::Arc;
-use std::collections::HashMap;
-use tokio::sync::RwLock;
 use chrono::{Datelike, Timelike};
 use nightshade_native::camera::ExposureParams;
+use nightshade_sequencer::{
+    DeviceOps, DeviceResult, GuidingStatus, ImageData as SeqImageData, PlateSolveResult,
+};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
+use nightshade_alpaca::*;
 #[cfg(windows)]
 use nightshade_ascom::*;
-use nightshade_alpaca::*;
 use nightshade_indi::*;
 
 // =============================================================================
@@ -49,13 +51,18 @@ fn parse_alpaca_device_id(device_id: &str) -> Result<AlpacaConnectionInfo, Strin
         .map_err(|e| format!("Invalid device ID '{}': {}", device_id, e))?;
 
     match parsed.connection_info {
-        ConnectionInfo::Alpaca { base_url, device_num, .. } => {
-            Ok(AlpacaConnectionInfo { base_url, device_num })
-        }
+        ConnectionInfo::Alpaca {
+            base_url,
+            device_num,
+            ..
+        } => Ok(AlpacaConnectionInfo {
+            base_url,
+            device_num,
+        }),
         _ => Err(format!(
             "Device ID '{}' is not an Alpaca device (got {:?})",
             device_id, parsed.driver_type
-        ))
+        )),
     }
 }
 
@@ -79,7 +86,7 @@ fn parse_ascom_device_id(device_id: &str) -> Result<String, String> {
         _ => Err(format!(
             "Device ID '{}' is not an ASCOM device (got {:?})",
             device_id, parsed.driver_type
-        ))
+        )),
     }
 }
 
@@ -99,11 +106,15 @@ fn parse_indi_device_id(device_id: &str) -> Result<(String, u16, String), String
         .map_err(|e| format!("Invalid device ID '{}': {}", device_id, e))?;
 
     match parsed.connection_info {
-        ConnectionInfo::Indi { host, port, device_name } => Ok((host, port, device_name)),
+        ConnectionInfo::Indi {
+            host,
+            port,
+            device_name,
+        } => Ok((host, port, device_name)),
         _ => Err(format!(
             "Device ID '{}' is not an INDI device (got {:?})",
             device_id, parsed.driver_type
-        ))
+        )),
     }
 }
 
@@ -180,7 +191,10 @@ impl RealDeviceOps {
     }
 
     /// Helper to get device ID from equipment profile (async version - preferred)
-    pub async fn get_device_id_async(&self, device_type: crate::device::DeviceType) -> Option<String> {
+    pub async fn get_device_id_async(
+        &self,
+        device_type: crate::device::DeviceType,
+    ) -> Option<String> {
         use crate::device::DeviceType;
 
         // First try cached profile
@@ -288,10 +302,12 @@ impl RealDeviceOps {
         }
 
         // No runtime and no cached profile - return None
-        tracing::debug!("get_device_id: No runtime and no cached profile for {:?}", device_type);
+        tracing::debug!(
+            "get_device_id: No runtime and no cached profile for {:?}",
+            device_type
+        );
         None
     }
-
 
     pub async fn filterwheel_is_moving(&self, fw_id: &str) -> DeviceResult<bool> {
         // Check if we have a pending movement for this filter wheel
@@ -303,7 +319,11 @@ impl RealDeviceOps {
                 drop(movements);
                 // Timeout - clear the movement and return false
                 self.fw_movements.write().await.remove(fw_id);
-                tracing::warn!("Filter wheel {} movement timed out after {:?}", fw_id, elapsed);
+                tracing::warn!(
+                    "Filter wheel {} movement timed out after {:?}",
+                    fw_id,
+                    elapsed
+                );
                 return Ok(false);
             }
 
@@ -334,8 +354,15 @@ impl RealDeviceOps {
             target_position,
             started_at: std::time::Instant::now(),
         };
-        self.fw_movements.write().await.insert(fw_id.to_string(), movement);
-        tracing::debug!("Started tracking filter wheel {} movement to position {}", fw_id, target_position);
+        self.fw_movements
+            .write()
+            .await
+            .insert(fw_id.to_string(), movement);
+        tracing::debug!(
+            "Started tracking filter wheel {} movement to position {}",
+            fw_id,
+            target_position
+        );
     }
 
     /// Waits for filter wheel to reach target position
@@ -346,7 +373,10 @@ impl RealDeviceOps {
 
         while self.filterwheel_is_moving(fw_id).await? {
             if start.elapsed() > timeout {
-                return Err(format!("Filter wheel {} move timed out after {:?}", fw_id, timeout));
+                return Err(format!(
+                    "Filter wheel {} move timed out after {:?}",
+                    fw_id, timeout
+                ));
             }
             tokio::time::sleep(poll_interval).await;
         }
@@ -360,11 +390,11 @@ impl RealDeviceOps {
         // However, to avoid ambiguity or issues, we might need to use fully qualified syntax or just ensure visibility.
         // Actually, since we are in the same struct, self.method() works if the trait is in scope.
         // DeviceOps is imported.
-        
+
         let position = self.filterwheel_get_position(fw_id).await?;
         let moving = self.filterwheel_is_moving(fw_id).await?;
         let names = self.filterwheel_get_names(fw_id).await?;
-        
+
         Ok(FilterWheelStatus {
             connected: true,
             position,
@@ -373,7 +403,7 @@ impl RealDeviceOps {
             filter_names: names,
         })
     }
-    
+
     pub async fn filterwheel_move(&self, fw_id: &str, position: i32) -> DeviceResult<()> {
         self.filterwheel_set_position(fw_id, position).await
     }
@@ -384,13 +414,27 @@ impl DeviceOps for RealDeviceOps {
     // =========================================================================
     // MOUNT OPERATIONS
     // =========================================================================
-    
-    async fn mount_slew_to_coordinates(&self, mount_id: &str, ra_hours: f64, dec_degrees: f64) -> DeviceResult<()> {
-        tracing::info!("Slewing mount {} to RA={:.4}h, Dec={:.4}°", mount_id, ra_hours, dec_degrees);
+
+    async fn mount_slew_to_coordinates(
+        &self,
+        mount_id: &str,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Slewing mount {} to RA={:.4}h, Dec={:.4}°",
+            mount_id,
+            ra_hours,
+            dec_degrees
+        );
 
         // Validate mount is connected before starting a slew
         // Slewing is a long-running operation that could damage equipment if state is wrong
-        self.validate_connection(mount_id, &format!("slew to RA={:.4}h Dec={:.4}°", ra_hours, dec_degrees)).await?;
+        self.validate_connection(
+            mount_id,
+            &format!("slew to RA={:.4}h Dec={:.4}°", ra_hours, dec_degrees),
+        )
+        .await?;
 
         #[cfg(windows)]
         {
@@ -412,7 +456,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -424,8 +470,14 @@ impl DeviceOps for RealDeviceOps {
 
             // Use guard to ensure disconnect on any error
             let result = with_alpaca_connection(&mount, "mount_slew_to_coordinates", async {
-                mount.set_target_right_ascension(ra_hours).await.map_err(|e| e.to_string())?;
-                mount.set_target_declination(dec_degrees).await.map_err(|e| e.to_string())?;
+                mount
+                    .set_target_right_ascension(ra_hours)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                mount
+                    .set_target_declination(dec_degrees)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 mount.slew_to_target().await.map_err(|e| e.to_string())?;
 
                 // Wait for slew to complete
@@ -433,14 +485,15 @@ impl DeviceOps for RealDeviceOps {
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
                 Ok::<(), String>(())
-            }).await;
+            })
+            .await;
 
             return result;
         }
 
         Err(format!("Mount {} not found or unsupported", mount_id))
     }
-    
+
     async fn mount_get_coordinates(&self, mount_id: &str) -> DeviceResult<(f64, f64)> {
         #[cfg(windows)]
         {
@@ -457,7 +510,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -471,7 +526,8 @@ impl DeviceOps for RealDeviceOps {
                 let ra = mount.right_ascension().await.map_err(|e| e.to_string())?;
                 let dec = mount.declination().await.map_err(|e| e.to_string())?;
                 Ok::<(f64, f64), String>((ra, dec))
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -479,10 +535,19 @@ impl DeviceOps for RealDeviceOps {
         Err(format!("Mount {} not found or unsupported", mount_id))
     }
 
-    async fn mount_sync(&self, mount_id: &str, ra_hours: f64, dec_degrees: f64) -> DeviceResult<()> {
+    async fn mount_sync(
+        &self,
+        mount_id: &str,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> DeviceResult<()> {
         // Validate mount is connected before syncing
         // Syncing with wrong state could corrupt mount's coordinate system
-        self.validate_connection(mount_id, &format!("sync to RA={:.4}h Dec={:.4}°", ra_hours, dec_degrees)).await?;
+        self.validate_connection(
+            mount_id,
+            &format!("sync to RA={:.4}h Dec={:.4}°", ra_hours, dec_degrees),
+        )
+        .await?;
 
         #[cfg(windows)]
         {
@@ -498,7 +563,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -509,11 +576,18 @@ impl DeviceOps for RealDeviceOps {
 
             // Use guard to ensure disconnect on any error
             let result = with_alpaca_connection(&mount, "mount_sync", async {
-                mount.set_target_right_ascension(ra_hours).await.map_err(|e| e.to_string())?;
-                mount.set_target_declination(dec_degrees).await.map_err(|e| e.to_string())?;
+                mount
+                    .set_target_right_ascension(ra_hours)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                mount
+                    .set_target_declination(dec_degrees)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 mount.sync_to_target().await.map_err(|e| e.to_string())?;
                 Ok::<(), String>(())
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -542,7 +616,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -560,7 +636,8 @@ impl DeviceOps for RealDeviceOps {
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
                 Ok::<(), String>(())
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -570,12 +647,12 @@ impl DeviceOps for RealDeviceOps {
 
     async fn mount_unpark(&self, mount_id: &str) -> DeviceResult<()> {
         tracing::info!("Unparking mount {}", mount_id);
-        
+
         #[cfg(windows)]
         {
             if mount_id.starts_with("ascom:") {
                 let prog_id = parse_ascom_device_id(mount_id)?;
-                
+
                 return tokio::task::spawn_blocking(move || {
                     nightshade_ascom::init_com().map_err(|e| format!("COM init failed: {}", e))?;
                     let result = (|| {
@@ -585,10 +662,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if mount_id.starts_with("alpaca:") {
             let alpaca_info = parse_alpaca_device_id(mount_id)?;
             let mount = AlpacaTelescope::from_server(&alpaca_info.base_url, alpaca_info.device_num);
@@ -598,7 +677,8 @@ impl DeviceOps for RealDeviceOps {
             let result = with_alpaca_connection(&mount, "mount_unpark", async {
                 mount.unpark().await.map_err(|e| e.to_string())?;
                 Ok::<(), String>(())
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -611,7 +691,7 @@ impl DeviceOps for RealDeviceOps {
         {
             if mount_id.starts_with("ascom:") {
                 let prog_id = parse_ascom_device_id(mount_id)?;
-                
+
                 return tokio::task::spawn_blocking(move || {
                     nightshade_ascom::init_com().map_err(|e| format!("COM init failed: {}", e))?;
                     let result = (|| {
@@ -620,10 +700,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if mount_id.starts_with("alpaca:") {
             let alpaca_info = parse_alpaca_device_id(mount_id)?;
             let mount = AlpacaTelescope::from_server(&alpaca_info.base_url, alpaca_info.device_num);
@@ -633,7 +715,8 @@ impl DeviceOps for RealDeviceOps {
             let result = with_alpaca_connection(&mount, "mount_is_slewing", async {
                 let slewing = mount.slewing().await.map_err(|e| e.to_string())?;
                 Ok::<bool, String>(slewing)
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -655,7 +738,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -668,7 +753,8 @@ impl DeviceOps for RealDeviceOps {
             let result = with_alpaca_connection(&mount, "mount_is_parked", async {
                 let parked = mount.at_park().await.map_err(|e| e.to_string())?;
                 Ok::<bool, String>(parked)
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -691,7 +777,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -704,7 +792,8 @@ impl DeviceOps for RealDeviceOps {
             let result = with_alpaca_connection(&mount, "mount_can_flip", async {
                 let can_flip = mount.can_slew().await.unwrap_or(true);
                 Ok::<bool, String>(can_flip)
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -712,7 +801,10 @@ impl DeviceOps for RealDeviceOps {
         Ok(false)
     }
 
-    async fn mount_side_of_pier(&self, mount_id: &str) -> DeviceResult<nightshade_sequencer::meridian::PierSide> {
+    async fn mount_side_of_pier(
+        &self,
+        mount_id: &str,
+    ) -> DeviceResult<nightshade_sequencer::meridian::PierSide> {
         #[cfg(windows)]
         {
             if mount_id.starts_with("ascom:") {
@@ -732,7 +824,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -743,13 +837,23 @@ impl DeviceOps for RealDeviceOps {
 
             // Use guard to ensure disconnect on any error
             let result = with_alpaca_connection(&mount, "mount_side_of_pier", async {
-                let side = mount.side_of_pier().await.unwrap_or(nightshade_alpaca::PierSide::Unknown);
+                let side = mount
+                    .side_of_pier()
+                    .await
+                    .unwrap_or(nightshade_alpaca::PierSide::Unknown);
                 Ok::<nightshade_sequencer::meridian::PierSide, String>(match side {
-                    nightshade_alpaca::PierSide::East => nightshade_sequencer::meridian::PierSide::East,
-                    nightshade_alpaca::PierSide::West => nightshade_sequencer::meridian::PierSide::West,
-                    nightshade_alpaca::PierSide::Unknown => nightshade_sequencer::meridian::PierSide::Unknown,
+                    nightshade_alpaca::PierSide::East => {
+                        nightshade_sequencer::meridian::PierSide::East
+                    }
+                    nightshade_alpaca::PierSide::West => {
+                        nightshade_sequencer::meridian::PierSide::West
+                    }
+                    nightshade_alpaca::PierSide::Unknown => {
+                        nightshade_sequencer::meridian::PierSide::Unknown
+                    }
                 })
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -771,7 +875,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -784,7 +890,8 @@ impl DeviceOps for RealDeviceOps {
             let result = with_alpaca_connection(&mount, "mount_is_tracking", async {
                 let tracking = mount.tracking().await.map_err(|e| e.to_string())?;
                 Ok::<bool, String>(tracking)
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -793,7 +900,11 @@ impl DeviceOps for RealDeviceOps {
     }
 
     async fn mount_set_tracking(&self, mount_id: &str, enabled: bool) -> DeviceResult<()> {
-        tracing::info!("Setting tracking {} for mount {}", if enabled { "on" } else { "off" }, mount_id);
+        tracing::info!(
+            "Setting tracking {} for mount {}",
+            if enabled { "on" } else { "off" },
+            mount_id
+        );
 
         #[cfg(windows)]
         {
@@ -809,7 +920,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -820,9 +933,13 @@ impl DeviceOps for RealDeviceOps {
 
             // Use guard to ensure disconnect on any error
             let result = with_alpaca_connection(&mount, "mount_set_tracking", async {
-                mount.set_tracking(enabled).await.map_err(|e| e.to_string())?;
+                mount
+                    .set_tracking(enabled)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 Ok::<(), String>(())
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -847,7 +964,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -860,7 +979,8 @@ impl DeviceOps for RealDeviceOps {
             let result = with_alpaca_connection(&mount, "mount_abort_slew", async {
                 mount.abort_slew().await.map_err(|e| e.to_string())?;
                 Ok::<(), String>(())
-            }).await;
+            })
+            .await;
 
             return result;
         }
@@ -871,7 +991,7 @@ impl DeviceOps for RealDeviceOps {
     // =========================================================================
     // CAMERA OPERATIONS
     // =========================================================================
-    
+
     async fn camera_start_exposure(
         &self,
         camera_id: &str,
@@ -881,35 +1001,33 @@ impl DeviceOps for RealDeviceOps {
         bin_x: i32,
         bin_y: i32,
     ) -> DeviceResult<SeqImageData> {
-        tracing::info!(
-            duration_secs, camera_id, gain, offset, bin_x, bin_y
-        );
+        tracing::info!(duration_secs, camera_id, gain, offset, bin_x, bin_y);
 
         // Validate camera is connected before starting a potentially long exposure
         // This prevents wasted time and confusing errors if the camera silently disconnected
-        self.validate_connection(camera_id, &format!("start {}s exposure", duration_secs)).await?;
+        self.validate_connection(camera_id, &format!("start {}s exposure", duration_secs))
+            .await?;
 
         // 1. Get current filter name if a filter wheel is connected
-        let filter_name = if let Some(fw_id) = self.get_device_id(crate::device::DeviceType::FilterWheel) {
-            match self.filterwheel_get_position(&fw_id).await {
-                Ok(pos) => {
-                    match self.filterwheel_get_names(&fw_id).await {
+        let filter_name =
+            if let Some(fw_id) = self.get_device_id(crate::device::DeviceType::FilterWheel) {
+                match self.filterwheel_get_position(&fw_id).await {
+                    Ok(pos) => match self.filterwheel_get_names(&fw_id).await {
                         Ok(names) => {
                             if pos >= 0 && (pos as usize) < names.len() {
                                 Some(names[pos as usize].clone())
                             } else {
                                 None
                             }
-                        },
+                        }
                         Err(_) => None,
-                    }
-                },
-                Err(_) => None,
-            }
-        } else {
-            None
-        };
-        
+                    },
+                    Err(_) => None,
+                }
+            } else {
+                None
+            };
+
         #[cfg(windows)]
         {
             if camera_id.starts_with("ascom:") {
@@ -938,51 +1056,63 @@ impl DeviceOps for RealDeviceOps {
                         if let Err(e) = camera.set_bin_y(bin_y) {
                             tracing::warn!("Failed to set bin_y: {}", e);
                         }
-                        
+
                         // Start exposure
-                        camera.start_exposure(duration_secs, true)?;  // true = light frame
-                        
+                        camera.start_exposure(duration_secs, true)?; // true = light frame
+
                         // Wait for completion
                         while !camera.image_ready()? {
                             std::thread::sleep(std::time::Duration::from_millis(100));
                         }
-                        
+
                         // Get actual image array from ASCOM with dimensions
                         let (image_data_i32, array_width, array_height) = camera.image_array()?;
-                        
+
                         // Get reported dimensions
                         let report_width = camera.camera_x_size()? as u32;
                         let report_height = camera.camera_y_size()? as u32;
-                        
-                        tracing::info!("ASCOM ImageArray: {}x{} (Reported: {}x{})", 
-                            array_width, array_height, report_width, report_height);
-                            
+
+                        tracing::info!(
+                            "ASCOM ImageArray: {}x{} (Reported: {}x{})",
+                            array_width,
+                            array_height,
+                            report_width,
+                            report_height
+                        );
+
                         // Use array dimensions to avoid stride issues
                         let width = array_width as u32;
                         let height = array_height as u32;
-                        
+
                         // Convert i32 to u16 (ASCOM uses i32 but most cameras are 16-bit)
                         // Clamp values to 16-bit range
                         if image_data_i32.len() != (width * height) as usize {
-                            tracing::warn!("Image array length mismatch! Expected {}*{}={}, got {}", 
-                                width, height, width*height, image_data_i32.len());
+                            tracing::warn!(
+                                "Image array length mismatch! Expected {}*{}={}, got {}",
+                                width,
+                                height,
+                                width * height,
+                                image_data_i32.len()
+                            );
                         }
 
-                        let data: Vec<u16> = image_data_i32.iter()
+                        let data: Vec<u16> = image_data_i32
+                            .iter()
                             .map(|&pixel| pixel.max(0).min(65535) as u16)
                             .collect();
-                        
+
                         // Get actual gain if not explicitly set
                         let actual_gain = gain.or(camera.gain().ok());
-                        
+
                         // Detect color sensor and Bayer pattern
                         let sensor_type = camera.sensor_type().ok();
-                        let bayer_offset = if sensor_type == Some(1) || sensor_type == Some(2) { // 1=Color, 2=RGGB
+                        let bayer_offset = if sensor_type == Some(1) || sensor_type == Some(2) {
+                            // 1=Color, 2=RGGB
                             let offset_x = camera.bayer_offset_x().ok();
                             let offset_y = camera.bayer_offset_y().ok();
                             match (offset_x, offset_y) {
                                 (Some(x), Some(y)) => Some((x, y)),
-                                _ => Some((0, 0)),  // Default to RGGB if color but no offset info
+                                _ => Some((0, 0)), // Default to RGGB if color but no offset info
                             }
                         } else {
                             None
@@ -1011,17 +1141,19 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if camera_id.starts_with("indi:") {
             if let Some(client) = self.device_manager.get_indi_client(camera_id).await {
                 // Parse device name from ID using safe parser
                 let (_, _, device_name) = parse_indi_device_id(camera_id)?;
 
                 let camera = IndiCamera::new(client, &device_name);
-                
+
                 // Set parameters
                 if let Some(g) = gain {
                     camera.set_gain(g).await.ok();
@@ -1030,11 +1162,13 @@ impl DeviceOps for RealDeviceOps {
                     camera.set_offset(o).await.ok();
                 }
                 camera.set_binning(bin_x, bin_y).await.ok();
-                
+
                 // Capture image
-                let data = camera.capture_image(duration_secs).await
+                let data = camera
+                    .capture_image(duration_secs)
+                    .await
                     .map_err(|e| format!("INDI capture failed: {}", e))?;
-                
+
                 // Detect image format from magic bytes
                 let format = nightshade_imaging::ImageFormat::from_magic_bytes(&data);
                 tracing::info!("INDI BLOB format detected: {:?}", format);
@@ -1047,28 +1181,35 @@ impl DeviceOps for RealDeviceOps {
                             .map_err(|e| format!("Failed to parse INDI FITS: {}", e))?;
 
                         // Extract bayer pattern from FITS header
-                        let bayer = header.keywords.get("BAYERPAT")
+                        let bayer = header
+                            .keywords
+                            .get("BAYERPAT")
                             .and_then(|v| v.as_string().map(|_s| true));
                         let color = bayer.unwrap_or(false);
                         (img, color)
-                    },
+                    }
                     Some(fmt) if fmt.is_raw() => {
                         // DSLR RAW format (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF, etc.)
                         tracing::info!("Processing DSLR RAW image ({:?}) via LibRaw", fmt);
 
-                        let ext = nightshade_imaging::raw_format_extension(&data)
-                            .unwrap_or("raw");
+                        let ext = nightshade_imaging::raw_format_extension(&data).unwrap_or("raw");
 
-                        let (img, raw_meta) = nightshade_imaging::read_raw_from_bytes(&data, ext, None)
-                            .map_err(|e| format!("Failed to process DSLR RAW: {}", e))?;
+                        let (img, raw_meta) =
+                            nightshade_imaging::read_raw_from_bytes(&data, ext, None)
+                                .map_err(|e| format!("Failed to process DSLR RAW: {}", e))?;
 
-                        tracing::info!("RAW processed: {} {} ({}x{}), X-Trans: {}",
-                            raw_meta.camera_make, raw_meta.camera_model,
-                            img.width, img.height, raw_meta.is_xtrans);
+                        tracing::info!(
+                            "RAW processed: {} {} ({}x{}), X-Trans: {}",
+                            raw_meta.camera_make,
+                            raw_meta.camera_model,
+                            img.width,
+                            img.height,
+                            raw_meta.is_xtrans
+                        );
 
                         // RAW files are always color after debayering
                         (img, true)
-                    },
+                    }
                     Some(nightshade_imaging::ImageFormat::Jpeg) => {
                         // JPEG preview (some cameras send JPEG for quick preview)
                         tracing::info!("Processing JPEG preview image");
@@ -1080,9 +1221,8 @@ impl DeviceOps for RealDeviceOps {
                         let raw_data = rgba.into_raw();
 
                         // Convert RGBA16 to u8 bytes for ImageData
-                        let bytes: Vec<u8> = raw_data.iter()
-                            .flat_map(|&v| v.to_le_bytes())
-                            .collect();
+                        let bytes: Vec<u8> =
+                            raw_data.iter().flat_map(|&v| v.to_le_bytes()).collect();
 
                         let image_data = nightshade_imaging::ImageData {
                             width: w,
@@ -1092,14 +1232,15 @@ impl DeviceOps for RealDeviceOps {
                             data: bytes,
                         };
                         (image_data, true)
-                    },
+                    }
                     Some(other) => {
                         return Err(format!("Unsupported image format from INDI: {:?}", other));
                     }
                 };
 
                 // Convert to u16 for sequencer
-                let u16_data = image.as_u16()
+                let u16_data = image
+                    .as_u16()
                     .ok_or_else(|| "Image is not 16-bit".to_string())?;
 
                 return Ok(SeqImageData {
@@ -1113,7 +1254,11 @@ impl DeviceOps for RealDeviceOps {
                     temperature: camera.get_temperature().await.ok(),
                     filter: filter_name,
                     timestamp: chrono::Utc::now().timestamp(),
-                    sensor_type: if is_color { Some("Color".to_string()) } else { Some("Mono".to_string()) },
+                    sensor_type: if is_color {
+                        Some("Color".to_string())
+                    } else {
+                        Some("Mono".to_string())
+                    },
                     bayer_offset: None, // RAW files are already debayered
                 });
             }
@@ -1124,7 +1269,11 @@ impl DeviceOps for RealDeviceOps {
             // Parse alpaca:http://192.168.1.100:11111:camera:0 using safe parser
             let alpaca_info = parse_alpaca_device_id(camera_id)?;
 
-            tracing::info!("Connecting to Alpaca camera at {}, device {}", alpaca_info.base_url, alpaca_info.device_num);
+            tracing::info!(
+                "Connecting to Alpaca camera at {}, device {}",
+                alpaca_info.base_url,
+                alpaca_info.device_num
+            );
 
             let camera = AlpacaCamera::from_server(&alpaca_info.base_url, alpaca_info.device_num);
 
@@ -1166,7 +1315,8 @@ impl DeviceOps for RealDeviceOps {
             let parsed: serde_json::Value = serde_json::from_str(&image_json)
                 .map_err(|e| format!("Failed to parse Alpaca ImageArray JSON: {}", e))?;
 
-            let base64_data = parsed.get("Value")
+            let base64_data = parsed
+                .get("Value")
                 .and_then(|v| v.as_str())
                 .ok_or("No Value field in ImageArray response")?;
 
@@ -1178,30 +1328,30 @@ impl DeviceOps for RealDeviceOps {
             let height = camera.camera_y_size().await? as u32 / bin_y as u32;
 
             // Alpaca ImageArray Type: 0=Int16Array, 1=Int32Array, 2=DoubleArray
-            let array_type = parsed.get("Type")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(1); // Default to Int32
+            let array_type = parsed.get("Type").and_then(|v| v.as_i64()).unwrap_or(1); // Default to Int32
 
             // Convert bytes to u16 based on array type
             let data: Vec<u16> = match array_type {
                 0 => {
                     // Int16Array - convert i16 to u16
-                    decoded_bytes.chunks_exact(2)
+                    decoded_bytes
+                        .chunks_exact(2)
                         .map(|chunk| {
                             let val = i16::from_le_bytes([chunk[0], chunk[1]]);
                             val.max(0) as u16
                         })
                         .collect()
-                },
+                }
                 1 => {
                     // Int32Array - convert i32 to u16
-                    decoded_bytes.chunks_exact(4)
+                    decoded_bytes
+                        .chunks_exact(4)
                         .map(|chunk| {
                             let val = i32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                             val.max(0).min(65535) as u16
                         })
                         .collect()
-                },
+                }
                 _ => {
                     return Err(format!("Unsupported Alpaca array type: {}", array_type));
                 }
@@ -1217,8 +1367,8 @@ impl DeviceOps for RealDeviceOps {
                 _ => None,
             };
 
-            let is_color = sensor_type.as_deref() == Some("Color")
-                || sensor_type.as_deref() == Some("RGGB");
+            let is_color =
+                sensor_type.as_deref() == Some("Color") || sensor_type.as_deref() == Some("RGGB");
 
             let bayer_offset = if is_color {
                 let offset_x = camera.bayer_offset_x().await.ok();
@@ -1255,14 +1405,23 @@ impl DeviceOps for RealDeviceOps {
             if let Some(camera) = native_cameras.get_mut(camera_id) {
                 // Set gain if provided
                 if let Some(g) = gain {
-                    camera.set_gain(g).await.map_err(|e| format!("Failed to set gain: {}", e))?;
+                    camera
+                        .set_gain(g)
+                        .await
+                        .map_err(|e| format!("Failed to set gain: {}", e))?;
                 }
                 // Set offset if provided
                 if let Some(o) = offset {
-                    camera.set_offset(o).await.map_err(|e| format!("Failed to set offset: {}", e))?;
+                    camera
+                        .set_offset(o)
+                        .await
+                        .map_err(|e| format!("Failed to set offset: {}", e))?;
                 }
                 // Set binning
-                camera.set_binning(bin_x, bin_y).await.map_err(|e| format!("Failed to set binning: {}", e))?;
+                camera
+                    .set_binning(bin_x, bin_y)
+                    .await
+                    .map_err(|e| format!("Failed to set binning: {}", e))?;
 
                 // Create exposure params
                 let params = ExposureParams {
@@ -1276,15 +1435,25 @@ impl DeviceOps for RealDeviceOps {
                 };
 
                 // Start exposure
-                camera.start_exposure(params).await.map_err(|e| format!("Failed to start exposure: {}", e))?;
+                camera
+                    .start_exposure(params)
+                    .await
+                    .map_err(|e| format!("Failed to start exposure: {}", e))?;
 
                 // Wait for exposure to complete
-                while !camera.is_exposure_complete().await.map_err(|e| format!("Error checking exposure: {}", e))? {
+                while !camera
+                    .is_exposure_complete()
+                    .await
+                    .map_err(|e| format!("Error checking exposure: {}", e))?
+                {
                     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 }
 
                 // Download image
-                let image = camera.download_image().await.map_err(|e| format!("Failed to download image: {}", e))?;
+                let image = camera
+                    .download_image()
+                    .await
+                    .map_err(|e| format!("Failed to download image: {}", e))?;
 
                 // Get sensor info for color detection
                 let sensor_info = camera.get_sensor_info();
@@ -1295,13 +1464,11 @@ impl DeviceOps for RealDeviceOps {
                 };
 
                 // Convert bayer pattern to offset
-                let bayer_offset = image.bayer_pattern.map(|pattern| {
-                    match pattern {
-                        nightshade_native::camera::BayerPattern::Rggb => (0, 0),
-                        nightshade_native::camera::BayerPattern::Grbg => (1, 0),
-                        nightshade_native::camera::BayerPattern::Gbrg => (0, 1),
-                        nightshade_native::camera::BayerPattern::Bggr => (1, 1),
-                    }
+                let bayer_offset = image.bayer_pattern.map(|pattern| match pattern {
+                    nightshade_native::camera::BayerPattern::Rggb => (0, 0),
+                    nightshade_native::camera::BayerPattern::Grbg => (1, 0),
+                    nightshade_native::camera::BayerPattern::Gbrg => (0, 1),
+                    nightshade_native::camera::BayerPattern::Bggr => (1, 1),
                 });
 
                 return Ok(SeqImageData {
@@ -1339,10 +1506,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if camera_id.starts_with("indi:") {
             if let Some(client) = self.device_manager.get_indi_client(camera_id).await {
                 let (_, _, device_name) = parse_indi_device_id(camera_id)?;
@@ -1363,7 +1532,10 @@ impl DeviceOps for RealDeviceOps {
         if camera_id.starts_with("native:") {
             let mut native_cameras = self.device_manager.native_cameras.write().await;
             if let Some(camera) = native_cameras.get_mut(camera_id) {
-                camera.abort_exposure().await.map_err(|e| format!("Failed to abort exposure: {}", e))?;
+                camera
+                    .abort_exposure()
+                    .await
+                    .map_err(|e| format!("Failed to abort exposure: {}", e))?;
                 return Ok(());
             }
         }
@@ -1371,8 +1543,18 @@ impl DeviceOps for RealDeviceOps {
         Err(format!("Camera {} not found or unsupported", camera_id))
     }
 
-    async fn camera_set_cooler(&self, camera_id: &str, enabled: bool, target_temp: f64) -> DeviceResult<()> {
-        tracing::info!("Setting cooler on {} to {} (target: {}°C)", camera_id, enabled, target_temp);
+    async fn camera_set_cooler(
+        &self,
+        camera_id: &str,
+        enabled: bool,
+        target_temp: f64,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Setting cooler on {} to {} (target: {}°C)",
+            camera_id,
+            enabled,
+            target_temp
+        );
 
         #[cfg(windows)]
         {
@@ -1389,10 +1571,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if camera_id.starts_with("indi:") {
             if let Some(client) = self.device_manager.get_indi_client(camera_id).await {
                 let (_, _, device_name) = parse_indi_device_id(camera_id)?;
@@ -1415,7 +1599,10 @@ impl DeviceOps for RealDeviceOps {
         if camera_id.starts_with("native:") {
             let mut native_cameras = self.device_manager.native_cameras.write().await;
             if let Some(camera) = native_cameras.get_mut(camera_id) {
-                camera.set_cooler(enabled, target_temp).await.map_err(|e| format!("Failed to set cooler: {}", e))?;
+                camera
+                    .set_cooler(enabled, target_temp)
+                    .await
+                    .map_err(|e| format!("Failed to set cooler: {}", e))?;
                 return Ok(());
             }
         }
@@ -1437,10 +1624,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if camera_id.starts_with("indi:") {
             if let Some(client) = self.device_manager.get_indi_client(camera_id).await {
                 let (_, _, device_name) = parse_indi_device_id(camera_id)?;
@@ -1459,7 +1648,10 @@ impl DeviceOps for RealDeviceOps {
         if camera_id.starts_with("native:") {
             let native_cameras = self.device_manager.native_cameras.read().await;
             if let Some(camera) = native_cameras.get(camera_id) {
-                return camera.get_temperature().await.map_err(|e| format!("Failed to get temperature: {}", e));
+                return camera
+                    .get_temperature()
+                    .await
+                    .map_err(|e| format!("Failed to get temperature: {}", e));
             }
         }
 
@@ -1480,16 +1672,18 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if camera_id.starts_with("indi:") {
             // INDI doesn't always expose cooler power in a standard way
             // For now return 0.0
             return Ok(0.0);
         }
-        
+
         if camera_id.starts_with("alpaca:") {
             let info = parse_alpaca_device_id(camera_id)?;
             let camera = AlpacaCamera::from_server(&info.base_url, info.device_num);
@@ -1500,7 +1694,10 @@ impl DeviceOps for RealDeviceOps {
         if camera_id.starts_with("native:") {
             let native_cameras = self.device_manager.native_cameras.read().await;
             if let Some(camera) = native_cameras.get(camera_id) {
-                return camera.get_cooler_power().await.map_err(|e| format!("Failed to get cooler power: {}", e));
+                return camera
+                    .get_cooler_power()
+                    .await
+                    .map_err(|e| format!("Failed to get cooler power: {}", e));
             }
         }
 
@@ -1510,13 +1707,14 @@ impl DeviceOps for RealDeviceOps {
     // =========================================================================
     // FOCUSER OPERATIONS (Placeholder - to be implemented)
     // =========================================================================
-    
+
     async fn focuser_move_to(&self, focuser_id: &str, position: i32) -> DeviceResult<()> {
         tracing::info!("Moving focuser {} to position {}", focuser_id, position);
 
         // Validate focuser is connected before moving
         // Focuser moves are critical for autofocus and can affect image quality if state is wrong
-        self.validate_connection(focuser_id, &format!("move to position {}", position)).await?;
+        self.validate_connection(focuser_id, &format!("move to position {}", position))
+            .await?;
 
         #[cfg(windows)]
         {
@@ -1537,10 +1735,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         // Alpaca focuser
         if focuser_id.starts_with("alpaca:") {
             let alpaca_info = parse_alpaca_device_id(focuser_id)?;
@@ -1593,10 +1793,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if focuser_id.starts_with("alpaca:") {
             let alpaca_info = parse_alpaca_device_id(focuser_id)?;
             let focuser = AlpacaFocuser::from_server(&alpaca_info.base_url, alpaca_info.device_num);
@@ -1631,7 +1833,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -1669,7 +1873,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -1709,10 +1915,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if focuser_id.starts_with("alpaca:") {
             let alpaca_info = parse_alpaca_device_id(focuser_id)?;
             let focuser = AlpacaFocuser::from_server(&alpaca_info.base_url, alpaca_info.device_num);
@@ -1746,13 +1954,14 @@ impl DeviceOps for RealDeviceOps {
     // =========================================================================
     // FILTER WHEEL OPERATIONS (Placeholder - to be implemented)
     // =========================================================================
-    
+
     async fn filterwheel_set_position(&self, fw_id: &str, position: i32) -> DeviceResult<()> {
         tracing::info!("Setting filter wheel {} to position {}", fw_id, position);
 
         // Validate filter wheel is connected before changing position
         // Filter changes affect which filter is in the optical path - important for imaging
-        self.validate_connection(fw_id, &format!("change filter to position {}", position)).await?;
+        self.validate_connection(fw_id, &format!("change filter to position {}", position))
+            .await?;
 
         // Start tracking this movement for is_moving() detection
         self.start_fw_movement(fw_id, position).await;
@@ -1771,7 +1980,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
 
                 // Wait for the filter wheel to complete the move
                 if result.is_ok() {
@@ -1799,9 +2010,12 @@ impl DeviceOps for RealDeviceOps {
             let native_filter_wheels = self.device_manager.native_filter_wheels.read().await;
             if let Some(_fw) = native_filter_wheels.get(fw_id) {
                 drop(native_filter_wheels);
-                let mut native_filter_wheels = self.device_manager.native_filter_wheels.write().await;
+                let mut native_filter_wheels =
+                    self.device_manager.native_filter_wheels.write().await;
                 if let Some(fw) = native_filter_wheels.get_mut(fw_id) {
-                    fw.move_to_position(position).await.map_err(|e| e.to_string())?;
+                    fw.move_to_position(position)
+                        .await
+                        .map_err(|e| e.to_string())?;
 
                     // Wait for move to complete
                     while fw.is_moving().await.unwrap_or(false) {
@@ -1833,7 +2047,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -1871,10 +2087,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if fw_id.starts_with("alpaca:") {
             let alpaca_info = parse_alpaca_device_id(fw_id)?;
             let fw = AlpacaFilterWheel::from_server(&alpaca_info.base_url, alpaca_info.device_num);
@@ -1888,14 +2106,24 @@ impl DeviceOps for RealDeviceOps {
         if fw_id.starts_with("native:") {
             let native_filter_wheels = self.device_manager.native_filter_wheels.read().await;
             let available_keys: Vec<_> = native_filter_wheels.keys().collect();
-            tracing::debug!("filterwheel_get_names: Looking for '{}' in native filter wheels: {:?}", fw_id, available_keys);
+            tracing::debug!(
+                "filterwheel_get_names: Looking for '{}' in native filter wheels: {:?}",
+                fw_id,
+                available_keys
+            );
 
             if let Some(fw) = native_filter_wheels.get(fw_id) {
                 let names = fw.get_filter_names().await.map_err(|e| e.to_string())?;
-                tracing::debug!("filterwheel_get_names: Found filter wheel with names: {:?}", names);
+                tracing::debug!(
+                    "filterwheel_get_names: Found filter wheel with names: {:?}",
+                    names
+                );
                 return Ok(names);
             } else {
-                tracing::warn!("filterwheel_get_names: Native filter wheel '{}' not found in device manager", fw_id);
+                tracing::warn!(
+                    "filterwheel_get_names: Native filter wheel '{}' not found in device manager",
+                    fw_id
+                );
             }
         }
 
@@ -1903,33 +2131,50 @@ impl DeviceOps for RealDeviceOps {
     }
 
     async fn filterwheel_set_filter_by_name(&self, fw_id: &str, name: &str) -> DeviceResult<i32> {
-        tracing::debug!("filterwheel_set_filter_by_name: fw_id='{}', name='{}'", fw_id, name);
+        tracing::debug!(
+            "filterwheel_set_filter_by_name: fw_id='{}', name='{}'",
+            fw_id,
+            name
+        );
         let names = self.filterwheel_get_names(fw_id).await?;
-        tracing::debug!("filterwheel_set_filter_by_name: Available filters: {:?}", names);
+        tracing::debug!(
+            "filterwheel_set_filter_by_name: Available filters: {:?}",
+            names
+        );
 
         if let Some(index) = names.iter().position(|n| n.eq_ignore_ascii_case(name)) {
             let position = index as i32;
-            tracing::info!("filterwheel_set_filter_by_name: Moving to position {} for filter '{}'", position, name);
+            tracing::info!(
+                "filterwheel_set_filter_by_name: Moving to position {} for filter '{}'",
+                position,
+                name
+            );
             self.filterwheel_set_position(fw_id, position).await?;
             return Ok(position);
         }
 
-        tracing::error!("filterwheel_set_filter_by_name: Filter '{}' not found in available filters: {:?}", name, names);
-        Err(format!("Filter '{}' not found in filter wheel {}. Available: {:?}", name, fw_id, names))
+        tracing::error!(
+            "filterwheel_set_filter_by_name: Filter '{}' not found in available filters: {:?}",
+            name,
+            names
+        );
+        Err(format!(
+            "Filter '{}' not found in filter wheel {}. Available: {:?}",
+            name, fw_id, names
+        ))
     }
-    
 
-    
     // =========================================================================
     // ROTATOR OPERATIONS (Placeholder - to be implemented)
     // =========================================================================
-    
+
     async fn rotator_move_to(&self, rotator_id: &str, angle: f64) -> DeviceResult<()> {
         tracing::info!("Moving rotator {} to {}°", rotator_id, angle);
 
         // Validate rotator is connected before moving
         // Rotator moves affect camera orientation - important for framing
-        self.validate_connection(rotator_id, &format!("rotate to {:.1}°", angle)).await?;
+        self.validate_connection(rotator_id, &format!("rotate to {:.1}°", angle))
+            .await?;
 
         #[cfg(windows)]
         {
@@ -1950,10 +2195,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if rotator_id.starts_with("alpaca:") {
             let alpaca_info = parse_alpaca_device_id(rotator_id)?;
             let rotator = AlpacaRotator::from_server(&alpaca_info.base_url, alpaca_info.device_num);
@@ -1999,7 +2246,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -2036,7 +2285,9 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
 
@@ -2065,10 +2316,12 @@ impl DeviceOps for RealDeviceOps {
                     })();
                     nightshade_ascom::uninit_com();
                     result
-                }).await.map_err(|e| format!("Task join error: {}", e))?;
+                })
+                .await
+                .map_err(|e| format!("Task join error: {}", e))?;
             }
         }
-        
+
         if rotator_id.starts_with("alpaca:") {
             let alpaca_info = parse_alpaca_device_id(rotator_id)?;
             let rotator = AlpacaRotator::from_server(&alpaca_info.base_url, alpaca_info.device_num);
@@ -2083,14 +2336,14 @@ impl DeviceOps for RealDeviceOps {
             rotator.status.is_moving = false;
             return Ok(());
         }
-        
+
         Err(format!("Rotator {} not found or unsupported", rotator_id))
     }
-    
+
     // =========================================================================
     // GUIDING / PHD2 OPERATIONS
     // =========================================================================
-    
+
     async fn guider_dither(
         &self,
         pixels: f64,
@@ -2100,26 +2353,28 @@ impl DeviceOps for RealDeviceOps {
         ra_only: bool,
     ) -> DeviceResult<()> {
         tracing::info!("Dithering {} pixels (RA only: {})", pixels, ra_only);
-        
+
         // Access PHD2 client from global storage
         let mut storage = crate::api::get_phd2_storage().write().await;
-        let client = storage.as_mut()
+        let client = storage
+            .as_mut()
             .ok_or_else(|| "PHD2 not connected. Please connect to PHD2 first.".to_string())?;
-        
-        client.dither(pixels, ra_only, settle_pixels, settle_time, settle_timeout)
+
+        client
+            .dither(pixels, ra_only, settle_pixels, settle_time, settle_timeout)
             .map_err(|e| format!("Dither failed: {}", e))?;
-        
+
         // Wait for settling to complete by polling state
         let start = std::time::Instant::now();
         let timeout = std::time::Duration::from_secs(settle_timeout as u64 + 10);
-        
+
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            
+
             if start.elapsed() > timeout {
                 return Err("Dither settle timeout".to_string());
             }
-            
+
             // Check if still settling
             match client.get_app_state() {
                 Ok(nightshade_imaging::Phd2State::Guiding) => {
@@ -2140,17 +2395,19 @@ impl DeviceOps for RealDeviceOps {
                 }
             }
         }
-        
+
         tracing::info!("Dither complete");
         Ok(())
     }
-    
+
     async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
         let mut storage = crate::api::get_phd2_storage().write().await;
-        let client = storage.as_mut()
+        let client = storage
+            .as_mut()
             .ok_or_else(|| "PHD2 not connected".to_string())?;
 
-        let state = client.get_app_state()
+        let state = client
+            .get_app_state()
             .map_err(|e| format!("Failed to get PHD2 state: {}", e))?;
 
         let is_guiding = matches!(state, nightshade_imaging::Phd2State::Guiding);
@@ -2165,39 +2422,52 @@ impl DeviceOps for RealDeviceOps {
             rms_total: stats.rms_total,
         })
     }
-    
-    async fn guider_start(&self, settle_pixels: f64, settle_time: f64, settle_timeout: f64) -> DeviceResult<()> {
-        tracing::info!("Starting guiding (settle: {} px, {} sec, {} sec timeout)", 
-            settle_pixels, settle_time, settle_timeout);
-        
+
+    async fn guider_start(
+        &self,
+        settle_pixels: f64,
+        settle_time: f64,
+        settle_timeout: f64,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Starting guiding (settle: {} px, {} sec, {} sec timeout)",
+            settle_pixels,
+            settle_time,
+            settle_timeout
+        );
+
         let mut storage = crate::api::get_phd2_storage().write().await;
-        let client = storage.as_mut()
+        let client = storage
+            .as_mut()
             .ok_or_else(|| "PHD2 not connected. Please connect to PHD2 first.".to_string())?;
-        
+
         // Ensure PHD2 is connected to equipment
-        let connected = client.get_connected()
+        let connected = client
+            .get_connected()
             .map_err(|e| format!("Failed to check PHD2 connection: {}", e))?;
-        
+
         if !connected {
-            client.set_connected(true)
+            client
+                .set_connected(true)
                 .map_err(|e| format!("Failed to connect PHD2 to equipment: {}", e))?;
         }
-        
+
         // Start guiding
-        client.guide(settle_pixels, settle_time, settle_timeout)
+        client
+            .guide(settle_pixels, settle_time, settle_timeout)
             .map_err(|e| format!("Failed to start guiding: {}", e))?;
-        
+
         // Wait for guiding to start (or timeout)
         let start = std::time::Instant::now();
         let timeout = std::time::Duration::from_secs(settle_timeout as u64 + 30); // Extra time for calibration
-        
+
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            
+
             if start.elapsed() > timeout {
                 return Err("Guiding start timeout".to_string());
             }
-            
+
             match client.get_app_state() {
                 Ok(nightshade_imaging::Phd2State::Guiding) => {
                     tracing::info!("Guiding started successfully");
@@ -2222,25 +2492,27 @@ impl DeviceOps for RealDeviceOps {
             }
         }
     }
-    
+
     async fn guider_stop(&self) -> DeviceResult<()> {
         tracing::info!("Stopping guiding");
-        
+
         let mut storage = crate::api::get_phd2_storage().write().await;
-        let client = storage.as_mut()
+        let client = storage
+            .as_mut()
             .ok_or_else(|| "PHD2 not connected".to_string())?;
-        
-        client.stop_capture()
+
+        client
+            .stop_capture()
             .map_err(|e| format!("Failed to stop guiding: {}", e))?;
-        
+
         tracing::info!("Guiding stopped");
         Ok(())
     }
-    
+
     // =========================================================================
     // PLATE SOLVING
     // =========================================================================
-    
+
     async fn plate_solve(
         &self,
         image_data: &SeqImageData,
@@ -2248,18 +2520,23 @@ impl DeviceOps for RealDeviceOps {
         hint_dec: Option<f64>,
         hint_scale: Option<f64>,
     ) -> DeviceResult<PlateSolveResult> {
-        tracing::info!("Plate solving image ({}x{} pixels)", image_data.width, image_data.height);
-        
+        tracing::info!(
+            "Plate solving image ({}x{} pixels)",
+            image_data.width,
+            image_data.height
+        );
+
         // Save image data to temporary FITS file
         let temp_dir = std::env::temp_dir();
-        let temp_path = temp_dir.join(format!("nightshade_solve_{}.fits", 
+        let temp_path = temp_dir.join(format!(
+            "nightshade_solve_{}.fits",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_millis()
         ));
         let temp_path_str = temp_path.to_string_lossy().to_string();
-        
+
         // Create FITS header
         let header = crate::api::FitsWriteHeader {
             object_name: Some("Plate Solve".to_string()),
@@ -2286,7 +2563,7 @@ impl DeviceOps for RealDeviceOps {
             site_longitude: None,
             site_elevation: None,
         };
-        
+
         // Save to temp file
         crate::api::api_save_fits_file(
             temp_path_str.clone(),
@@ -2294,8 +2571,10 @@ impl DeviceOps for RealDeviceOps {
             image_data.height,
             image_data.data.clone(),
             header,
-        ).await.map_err(|e| format!("Failed to save temp FITS for plate solve: {}", e))?;
-        
+        )
+        .await
+        .map_err(|e| format!("Failed to save temp FITS for plate solve: {}", e))?;
+
         // Perform plate solve
         let result = if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
             // Near-field solve with hints
@@ -2304,15 +2583,16 @@ impl DeviceOps for RealDeviceOps {
                 ra,
                 dec,
                 hint_scale.unwrap_or(5.0), // 5 degree search radius default
-            ).await
+            )
+            .await
         } else {
             // Blind solve
             crate::api::api_plate_solve_blind(temp_path_str.clone()).await
         };
-        
+
         // Clean up temp file
         let _ = std::fs::remove_file(&temp_path);
-        
+
         // Convert result
         result
             .map(|r| PlateSolveResult {
@@ -2324,11 +2604,11 @@ impl DeviceOps for RealDeviceOps {
             })
             .map_err(|e| format!("Plate solve failed: {}", e))
     }
-    
+
     // =========================================================================
     // IMAGE SAVING (Placeholder - to be implemented)
     // =========================================================================
-    
+
     async fn save_fits(
         &self,
         image_data: &SeqImageData,
@@ -2339,13 +2619,13 @@ impl DeviceOps for RealDeviceOps {
         dec_degrees: Option<f64>,
     ) -> DeviceResult<()> {
         tracing::info!("Saving FITS image to: {}", file_path);
-        
+
         // Create directory if it doesn't exist
         if let Some(parent) = std::path::Path::new(file_path).parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("Failed to create directory: {}", e))?;
         }
-        
+
         // Build FITS header
         let header = crate::api::FitsWriteHeader {
             object_name: target_name.map(|s| s.to_string()),
@@ -2362,7 +2642,7 @@ impl DeviceOps for RealDeviceOps {
             telescope: None,
             instrument: None,
             observer: None,
-            bin_x: 1,  // TODO: Get from actual binning settings
+            bin_x: 1, // TODO: Get from actual binning settings
             bin_y: 1,
             focal_length: None,
             aperture: None,
@@ -2372,7 +2652,7 @@ impl DeviceOps for RealDeviceOps {
             site_longitude: None,
             site_elevation: None,
         };
-        
+
         // Call the API function to save
         crate::api::api_save_fits_file(
             file_path.to_string(),
@@ -2380,26 +2660,28 @@ impl DeviceOps for RealDeviceOps {
             image_data.height,
             image_data.data.clone(),
             header,
-        ).await.map_err(|e| format!("Save FITS failed: {}", e))?;
-        
+        )
+        .await
+        .map_err(|e| format!("Save FITS failed: {}", e))?;
+
         tracing::info!("FITS file saved successfully: {}", file_path);
         Ok(())
     }
-    
+
     // =========================================================================
     // NOTIFICATIONS
     // =========================================================================
-    
+
     async fn send_notification(&self, level: &str, title: &str, message: &str) -> DeviceResult<()> {
         tracing::info!("[NOTIFICATION][{}] {}: {}", level, title, message);
-        
+
         // Determine severity from level
         let severity = match level.to_lowercase().as_str() {
             "error" | "critical" => crate::event::EventSeverity::Error,
             "warning" | "warn" => crate::event::EventSeverity::Warning,
             _ => crate::event::EventSeverity::Info,
         };
-        
+
         // Create and publish notification event
         let event = crate::event::create_event_auto_id(
             severity,
@@ -2410,7 +2692,7 @@ impl DeviceOps for RealDeviceOps {
                 level: level.to_string(),
             }),
         );
-        
+
         self.app_state.event_bus.publish(event);
         Ok(())
     }
@@ -2435,7 +2717,8 @@ impl DeviceOps for RealDeviceOps {
 
         // Greenwich Mean Sidereal Time at 0h UT
         let gmst_at_0h = 280.46061837 + 360.98564736629 * days_since_j2000;
-        let ut_hours = now.hour() as f64 + now.minute() as f64 / 60.0 + now.second() as f64 / 3600.0;
+        let ut_hours =
+            now.hour() as f64 + now.minute() as f64 / 60.0 + now.second() as f64 / 3600.0;
         let gmst = gmst_at_0h + 360.0 * ut_hours / 24.0;
 
         // Local Sidereal Time
@@ -2455,8 +2738,11 @@ impl DeviceOps for RealDeviceOps {
         // Get observer location from app settings
         match self.app_state.get_observer_location() {
             Ok(Some(location)) => {
-                tracing::debug!("Observer location retrieved: lat={}, lon={}",
-                    location.latitude, location.longitude);
+                tracing::debug!(
+                    "Observer location retrieved: lat={}, lon={}",
+                    location.latitude,
+                    location.longitude
+                );
                 Some((location.latitude, location.longitude))
             }
             Ok(None) => {
@@ -2478,9 +2764,11 @@ impl DeviceOps for RealDeviceOps {
         tracing::info!("Opening dome shutter {}", dome_id);
 
         // Opening the shutter is a safety-critical operation
-        self.validate_connection(dome_id, "open dome shutter").await?;
+        self.validate_connection(dome_id, "open dome shutter")
+            .await?;
 
-        get_device_manager().dome_open_shutter(dome_id)
+        get_device_manager()
+            .dome_open_shutter(dome_id)
             .await
             .map_err(|e| format!("Open dome shutter failed: {}", e))
     }
@@ -2489,9 +2777,11 @@ impl DeviceOps for RealDeviceOps {
         tracing::info!("Closing dome shutter {}", dome_id);
 
         // Closing the shutter is a safety-critical operation
-        self.validate_connection(dome_id, "close dome shutter").await?;
+        self.validate_connection(dome_id, "close dome shutter")
+            .await?;
 
-        get_device_manager().dome_close_shutter(dome_id)
+        get_device_manager()
+            .dome_close_shutter(dome_id)
             .await
             .map_err(|e| format!("Close dome shutter failed: {}", e))
     }
@@ -2502,13 +2792,15 @@ impl DeviceOps for RealDeviceOps {
         // Parking moves the dome to a known position
         self.validate_connection(dome_id, "park dome").await?;
 
-        get_device_manager().dome_park(dome_id)
+        get_device_manager()
+            .dome_park(dome_id)
             .await
             .map_err(|e| format!("Park dome failed: {}", e))
     }
 
     async fn dome_get_shutter_status(&self, dome_id: &str) -> DeviceResult<String> {
-        let status = get_device_manager().dome_get_shutter_status(dome_id)
+        let status = get_device_manager()
+            .dome_get_shutter_status(dome_id)
             .await
             .map_err(|e| format!("Get dome shutter status failed: {}", e))?;
 
@@ -2523,7 +2815,10 @@ impl DeviceOps for RealDeviceOps {
         })
     }
 
-    async fn polar_align_update(&self, result: &nightshade_sequencer::PolarAlignResult) -> DeviceResult<()> {
+    async fn polar_align_update(
+        &self,
+        result: &nightshade_sequencer::PolarAlignResult,
+    ) -> DeviceResult<()> {
         let event = crate::event::create_event_auto_id(
             crate::event::EventSeverity::Info,
             crate::event::EventCategory::PolarAlignment,
@@ -2535,7 +2830,7 @@ impl DeviceOps for RealDeviceOps {
                 current_dec: result.current_dec,
                 target_ra: result.target_ra,
                 target_dec: result.target_dec,
-            })
+            }),
         );
 
         self.app_state.event_bus.publish(event);
@@ -2563,7 +2858,8 @@ impl DeviceOps for RealDeviceOps {
         // Alpaca Safety Monitor
         if device_id.starts_with("alpaca:") {
             let alpaca_info = parse_alpaca_device_id(&device_id)?;
-            let safety = AlpacaSafetyMonitor::from_server(&alpaca_info.base_url, alpaca_info.device_num);
+            let safety =
+                AlpacaSafetyMonitor::from_server(&alpaca_info.base_url, alpaca_info.device_num);
 
             match safety.connect().await {
                 Ok(()) => {
@@ -2572,7 +2868,11 @@ impl DeviceOps for RealDeviceOps {
                         true // Fail-open
                     });
                     safety.disconnect().await.ok();
-                    tracing::info!("Safety monitor {} reports: {}", device_id, if is_safe { "SAFE" } else { "UNSAFE" });
+                    tracing::info!(
+                        "Safety monitor {} reports: {}",
+                        device_id,
+                        if is_safe { "SAFE" } else { "UNSAFE" }
+                    );
                     return Ok(is_safe);
                 }
                 Err(e) => {
@@ -2584,7 +2884,10 @@ impl DeviceOps for RealDeviceOps {
 
         // INDI safety monitors are checked via the IndiSafetyMonitor wrapper
         // For now, if we don't recognize the device type, assume safe
-        tracing::debug!("Unknown safety monitor type for {}, assuming safe", device_id);
+        tracing::debug!(
+            "Unknown safety monitor type for {}, assuming safe",
+            device_id
+        );
         Ok(true)
     }
 
@@ -2592,7 +2895,10 @@ impl DeviceOps for RealDeviceOps {
     // IMAGE ANALYSIS
     // =========================================================================
 
-    async fn calculate_image_hfr(&self, image_data: &nightshade_sequencer::ImageData) -> DeviceResult<Option<f64>> {
+    async fn calculate_image_hfr(
+        &self,
+        image_data: &nightshade_sequencer::ImageData,
+    ) -> DeviceResult<Option<f64>> {
         use nightshade_imaging::{detect_stars, StarDetectionConfig};
 
         // Convert to nightshade_imaging::ImageData
@@ -2600,7 +2906,7 @@ impl DeviceOps for RealDeviceOps {
             image_data.width,
             image_data.height,
             1,
-            &image_data.data
+            &image_data.data,
         );
 
         let config = StarDetectionConfig::default();
@@ -2617,7 +2923,10 @@ impl DeviceOps for RealDeviceOps {
         Ok(Some(avg_hfr))
     }
 
-    async fn detect_stars_in_image(&self, image_data: &nightshade_sequencer::ImageData) -> DeviceResult<Vec<(f64, f64, f64)>> {
+    async fn detect_stars_in_image(
+        &self,
+        image_data: &nightshade_sequencer::ImageData,
+    ) -> DeviceResult<Vec<(f64, f64, f64)>> {
         use nightshade_imaging::{detect_stars, StarDetectionConfig};
 
         // Convert to nightshade_imaging::ImageData
@@ -2625,16 +2934,14 @@ impl DeviceOps for RealDeviceOps {
             image_data.width,
             image_data.height,
             1,
-            &image_data.data
+            &image_data.data,
         );
 
         let config = StarDetectionConfig::default();
         let stars = detect_stars(&img, &config);
 
         // Convert to (x, y, hfr) tuples
-        let result: Vec<(f64, f64, f64)> = stars.iter()
-            .map(|s| (s.x, s.y, s.hfr))
-            .collect();
+        let result: Vec<(f64, f64, f64)> = stars.iter().map(|s| (s.x, s.y, s.hfr)).collect();
 
         Ok(result)
     }
@@ -2661,7 +2968,11 @@ impl DeviceOps for RealDeviceOps {
             .await
     }
 
-    async fn cover_calibrator_calibrator_on(&self, device_id: &str, brightness: i32) -> DeviceResult<()> {
+    async fn cover_calibrator_calibrator_on(
+        &self,
+        device_id: &str,
+        brightness: i32,
+    ) -> DeviceResult<()> {
         self.device_manager
             .cover_calibrator_calibrator_on(device_id, brightness)
             .await
@@ -2713,7 +3024,9 @@ fn decode_base64(input: &str) -> Result<Vec<u8>, String> {
             break;
         }
 
-        let val = ALPHABET.iter().position(|&x| x == c)
+        let val = ALPHABET
+            .iter()
+            .position(|&x| x == c)
             .ok_or_else(|| format!("Invalid base64 character: {}", c as char))?;
 
         buf = (buf << 6) | (val as u32);

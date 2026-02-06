@@ -41,8 +41,8 @@
 
 use flutter_rust_bridge::frb;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
 /// Default event buffer size.
@@ -102,15 +102,39 @@ pub enum HeartbeatStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EquipmentEvent {
     // Generic device events
-    Connecting { device_type: String, device_id: String },
-    Connected { device_type: String, device_id: String },
-    Disconnected { device_type: String, device_id: String },
-    PropertyChanged { device_type: String, device_id: String, property: String, value: String },
-    Error { device_type: String, device_id: String, message: String },
+    Connecting {
+        device_type: String,
+        device_id: String,
+    },
+    Connected {
+        device_type: String,
+        device_id: String,
+    },
+    Disconnected {
+        device_type: String,
+        device_id: String,
+    },
+    PropertyChanged {
+        device_type: String,
+        device_id: String,
+        property: String,
+        value: String,
+    },
+    Error {
+        device_type: String,
+        device_id: String,
+        message: String,
+    },
 
     // Mount events
-    MountSlewStarted { ra: f64, dec: f64 },
-    MountSlewCompleted { ra: f64, dec: f64 },
+    MountSlewStarted {
+        ra: f64,
+        dec: f64,
+    },
+    MountSlewCompleted {
+        ra: f64,
+        dec: f64,
+    },
     MountTrackingStarted,
     MountTrackingStopped,
     MountParkStarted,
@@ -118,21 +142,42 @@ pub enum EquipmentEvent {
     MountUnparked,
 
     // Focuser events
-    FocuserMoveStarted { target_position: i32 },
-    FocuserMoveCompleted { position: i32 },
-    FocuserTemperatureChanged { temperature: f64 },
+    FocuserMoveStarted {
+        target_position: i32,
+    },
+    FocuserMoveCompleted {
+        position: i32,
+    },
+    FocuserTemperatureChanged {
+        temperature: f64,
+    },
 
     // Filter wheel events
-    FilterChanging { from_position: i32, to_position: i32, filter_name: Option<String> },
-    FilterChanged { position: i32, filter_name: Option<String> },
+    FilterChanging {
+        from_position: i32,
+        to_position: i32,
+        filter_name: Option<String>,
+    },
+    FilterChanged {
+        position: i32,
+        filter_name: Option<String>,
+    },
 
     // Rotator events
-    RotatorMoveStarted { target_angle: f64 },
-    RotatorMoveCompleted { angle: f64 },
+    RotatorMoveStarted {
+        target_angle: f64,
+    },
+    RotatorMoveCompleted {
+        angle: f64,
+    },
 
     // Camera events
-    CameraCoolingStarted { target_temp: f64 },
-    CameraCoolingReached { temperature: f64 },
+    CameraCoolingStarted {
+        target_temp: f64,
+    },
+    CameraCoolingReached {
+        temperature: f64,
+    },
     CameraWarmingStarted,
     CameraWarmingCompleted,
 
@@ -241,11 +286,11 @@ pub enum ImagingEvent {
         error: String,
     },
     ExposureCancelled,
-    
+
     // Download events
     DownloadStarted,
     DownloadCompleted,
-    
+
     // Image events
     ImageReady {
         width: u32,
@@ -254,13 +299,13 @@ pub enum ImagingEvent {
     ImageSaved {
         file_path: String,
     },
-    
+
     // Temperature events
     TemperatureChanged {
         temp_celsius: f64,
         cooler_power: f64,
     },
-    
+
     // Deprecated (for backwards compatibility)
     #[serde(rename = "ExposureComplete")]
     ExposureComplete {
@@ -282,11 +327,20 @@ pub enum GuidingEvent {
     GuidingStopped,
     Paused,
     Resumed,
-    Settled { rms: f64 },
+    Settled {
+        rms: f64,
+    },
     LostStar,
-    DitherStarted { pixels: f64 },
+    DitherStarted {
+        pixels: f64,
+    },
     DitherCompleted,
-    Correction { ra: f64, dec: f64, ra_raw: f64, dec_raw: f64 },
+    Correction {
+        ra: f64,
+        dec: f64,
+        ra_raw: f64,
+        dec_raw: f64,
+    },
     /// Looping exposures without guiding
     Looping,
     /// Settling after dither or guide start
@@ -296,30 +350,64 @@ pub enum GuidingEvent {
     /// Calibration completed successfully
     CalibrationComplete,
     /// Guide star selected at position
-    StarSelected { x: f64, y: f64 },
+    StarSelected {
+        x: f64,
+        y: f64,
+    },
     /// PHD2 app state change (for states not covered by other events)
-    AppState { state: String },
+    AppState {
+        state: String,
+    },
     /// SNR and star mass update from guide step
-    GuideStats { snr: f64, star_mass: f64 },
+    GuideStats {
+        snr: f64,
+        star_mass: f64,
+    },
 }
 
 /// Sequencer-specific events
 #[frb]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SequencerEvent {
-    Started { sequence_name: String },
+    Started {
+        sequence_name: String,
+    },
     Paused,
     Resumed,
     Stopped,
     Completed,
-    NodeStarted { node_id: String, node_type: String },
-    NodeCompleted { node_id: String, success: bool },
-    Progress { current: u32, total: u32 },
-    TargetChanged { target_name: String },
-    TargetCompleted { target_name: String },
-    ExposureStarted { frame: u32, total: u32, filter: Option<String>, duration_secs: f64 },
-    ExposureCompleted { frame: u32, total: u32, duration_secs: f64 },
-    Error { message: String },
+    NodeStarted {
+        node_id: String,
+        node_type: String,
+    },
+    NodeCompleted {
+        node_id: String,
+        success: bool,
+    },
+    Progress {
+        current: u32,
+        total: u32,
+    },
+    TargetChanged {
+        target_name: String,
+    },
+    TargetCompleted {
+        target_name: String,
+    },
+    ExposureStarted {
+        frame: u32,
+        total: u32,
+        filter: Option<String>,
+        duration_secs: f64,
+    },
+    ExposureCompleted {
+        frame: u32,
+        total: u32,
+        duration_secs: f64,
+    },
+    Error {
+        message: String,
+    },
     /// Progress update for long-running instructions (cooling, autofocus, slewing)
     InstructionProgress {
         /// Node ID for mapping progress to the correct tree node
@@ -350,9 +438,17 @@ pub enum SafetyEvent {
 pub enum SystemEvent {
     Initialized,
     ShuttingDown,
-    Error { message: String },
-    DiskSpaceLow { available_gb: f64 },
-    Notification { title: String, message: String, level: String },
+    Error {
+        message: String,
+    },
+    DiskSpaceLow {
+        available_gb: f64,
+    },
+    Notification {
+        title: String,
+        message: String,
+        level: String,
+    },
     /// Notification that events were dropped due to slow consumer
     /// This is sent after the stream recovers to inform the Dart side
     EventsDropped {
@@ -594,7 +690,12 @@ impl Default for EventBus {
 static GLOBAL_EVENT_SEQUENCE: AtomicU64 = AtomicU64::new(1_000_000);
 
 /// Create an event with the current timestamp and a specified event ID
-pub fn create_event(event_id: u64, severity: EventSeverity, category: EventCategory, payload: EventPayload) -> NightshadeEvent {
+pub fn create_event(
+    event_id: u64,
+    severity: EventSeverity,
+    category: EventCategory,
+    payload: EventPayload,
+) -> NightshadeEvent {
     NightshadeEvent {
         event_id,
         timestamp: chrono::Utc::now().timestamp_millis(),
@@ -610,7 +711,11 @@ pub fn create_event(event_id: u64, severity: EventSeverity, category: EventCateg
 /// Create an event with an auto-generated event ID.
 /// Useful for ad-hoc events created outside of the main EventBus.
 /// Note: IDs start at 1,000,000 to avoid collisions with EventBus IDs which start at 1.
-pub fn create_event_auto_id(severity: EventSeverity, category: EventCategory, payload: EventPayload) -> NightshadeEvent {
+pub fn create_event_auto_id(
+    severity: EventSeverity,
+    category: EventCategory,
+    payload: EventPayload,
+) -> NightshadeEvent {
     let event_id = GLOBAL_EVENT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     create_event(event_id, severity, category, payload)
 }
@@ -709,4 +814,3 @@ pub fn generate_correlation_id() -> String {
     let random = timestamp.wrapping_mul(6364136223846793005) % 100000;
     format!("corr-{}-{:05}", timestamp, random)
 }
-

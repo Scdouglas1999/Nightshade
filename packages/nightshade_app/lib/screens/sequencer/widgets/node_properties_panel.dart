@@ -1263,12 +1263,14 @@ class _ExposurePropertiesState extends ConsumerState<_ExposureProperties> {
     ];
 
     // Find current selection
+    debugPrint('_buildFilterDropdown: node.filter="${node.filter}" node.filterIndex=${node.filterIndex} filterNames=$filterNames');
     final currentFilter = filterOptions.firstWhere(
       (f) =>
           (node.filterIndex != null && f.index == node.filterIndex) ||
           (node.filterIndex == null && f.name == (node.filter ?? '')),
       orElse: () => filterOptions.first,
     );
+    debugPrint('_buildFilterDropdown: currentFilter=(index:${currentFilter.index}, name:"${currentFilter.name}")');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1345,7 +1347,10 @@ class _ExposurePropertiesState extends ConsumerState<_ExposureProperties> {
         ),
         const SizedBox(height: 4),
         InkWell(
-          onTap: () => ProfileEditorDialog.show(context),
+          onTap: () => ProfileEditorDialog.show(
+            context,
+            profile: ref.read(activeEquipmentProfileProvider),
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
@@ -2158,7 +2163,10 @@ class _FilterChangeProperties extends ConsumerWidget {
         ),
         const SizedBox(height: 4),
         InkWell(
-          onTap: () => ProfileEditorDialog.show(context),
+          onTap: () => ProfileEditorDialog.show(
+            context,
+            profile: ref.read(activeEquipmentProfileProvider),
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(

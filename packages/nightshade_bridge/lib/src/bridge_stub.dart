@@ -2425,12 +2425,32 @@ class NativeBridge {
 
   /// Get filter wheel status
   static Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
+    if (_nativeAvailable) {
+      try {
+        return await gen_api.apiGetFilterwheelStatus(deviceId: deviceId);
+      } catch (e) {
+        debugPrint(
+            '[Bridge] Error getting filter wheel status from native: $e');
+        rethrow;
+      }
+    }
     return _filterWheelStatus!;
   }
 
   /// Set filter wheel position
   static Future<void> filterWheelSetPosition(
       String deviceId, int position) async {
+    if (_nativeAvailable) {
+      try {
+        await gen_api.apiFilterwheelSetPosition(
+            deviceId: deviceId, position: position);
+        return;
+      } catch (e) {
+        debugPrint(
+            '[Bridge] Error setting filter wheel position via native: $e');
+      }
+    }
+    // Stub fallback
     final current = _filterWheelStatus!;
     _filterWheelStatus = FilterWheelStatus(
       connected: true,

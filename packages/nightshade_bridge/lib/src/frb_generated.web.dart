@@ -566,7 +566,7 @@ if (raw is NightshadeError_DeviceNotFound) {
             return [0 ,cst_encode_String(raw.field0)].jsify()!;
         }
 if (raw is NightshadeError_ConnectionFailed) {
-            return [1 ,cst_encode_String(raw.field0)].jsify()!;
+            return [1 ,cst_encode_String('${raw.deviceId}: ${raw.reason}')].jsify()!;
         }
 if (raw is NightshadeError_AlreadyConnected) {
             return [2 ,cst_encode_String(raw.field0)].jsify()!;
@@ -584,7 +584,7 @@ if (raw is NightshadeError_InvalidInput) {
             return [6 ,cst_encode_String(raw.field0)].jsify()!;
         }
 if (raw is NightshadeError_InvalidDeviceId) {
-            return [7 ,cst_encode_String(raw.field0)].jsify()!;
+            return [7 ,cst_encode_String('${raw.deviceId}: ${raw.reason}')].jsify()!;
         }
 if (raw is NightshadeError_OperationFailed) {
             return [8 ,cst_encode_String(raw.field0)].jsify()!;

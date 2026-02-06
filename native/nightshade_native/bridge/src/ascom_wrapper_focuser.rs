@@ -1,13 +1,13 @@
-use nightshade_ascom::{AscomFocuser, init_com, uninit_com};
-use nightshade_native::traits::{NativeDevice, NativeFocuser, NativeError};
+use crate::timeout_ops::Timeouts;
+use nightshade_ascom::{init_com, uninit_com, AscomFocuser};
+use nightshade_native::traits::{NativeDevice, NativeError, NativeFocuser};
 use nightshade_native::NativeVendor;
-use std::sync::Arc;
+use std::fmt::Debug;
 use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
-use std::fmt::Debug;
-use crate::timeout_ops::Timeouts;
 
 /// Connection result with device properties that can only be read after connection
 #[derive(Debug)]
@@ -90,16 +90,31 @@ impl AscomFocuserWrapper {
                         // Connect first, then fetch properties that require connection
                         let result = focuser.connect().map_err(|e| e.to_string()).and_then(|()| {
                             // Fetch static properties AFTER connection
-                            let max_step = focuser.max_step().map_err(|e| {
-                                tracing::warn!("Failed to get focuser max_step after connect: {}", e);
-                                e.to_string()
-                            }).unwrap_or(50000); // Reasonable default if query fails
-                            let step_size = focuser.step_size().map_err(|e| {
-                                tracing::warn!("Failed to get focuser step_size after connect: {}", e);
-                                e.to_string()
-                            }).unwrap_or(1.0);
+                            let max_step = focuser
+                                .max_step()
+                                .map_err(|e| {
+                                    tracing::warn!(
+                                        "Failed to get focuser max_step after connect: {}",
+                                        e
+                                    );
+                                    e.to_string()
+                                })
+                                .unwrap_or(50000); // Reasonable default if query fails
+                            let step_size = focuser
+                                .step_size()
+                                .map_err(|e| {
+                                    tracing::warn!(
+                                        "Failed to get focuser step_size after connect: {}",
+                                        e
+                                    );
+                                    e.to_string()
+                                })
+                                .unwrap_or(1.0);
 
-                            Ok(FocuserConnectInfo { max_position: max_step, step_size })
+                            Ok(FocuserConnectInfo {
+                                max_position: max_step,
+                                step_size,
+                            })
                         });
                         let _ = reply.send(result);
                     }
@@ -157,9 +172,10 @@ impl AscomFocuserWrapper {
 
             uninit_com();
         });
-        
+
         // Wait for initialization (just confirms thread started OK, not properties)
-        init_rx.recv()
+        init_rx
+            .recv()
             .map_err(|e| format!("Failed to receive init result: {}", e))??;
 
         Ok(Self {
@@ -181,12 +197,14 @@ impl AscomFocuserWrapper {
     ) -> Result<T, NativeError> {
         match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result.map_err(|e| NativeError::SdkError(e)),
-            Ok(Err(_recv_err)) => Err(NativeError::Unknown(
-                format!("Worker thread dead during {}", operation)
-            )),
-            Err(_elapsed) => Err(NativeError::Timeout(
-                format!("Focuser {} timed out after {:?}", operation, timeout)
-            )),
+            Ok(Err(_recv_err)) => Err(NativeError::Unknown(format!(
+                "Worker thread dead during {}",
+                operation
+            ))),
+            Err(_elapsed) => Err(NativeError::Timeout(format!(
+                "Focuser {} timed out after {:?}",
+                operation, timeout
+            ))),
         }
     }
 
@@ -229,17 +247,21 @@ impl NativeDevice for AscomFocuserWrapper {
 
     async fn connect(&mut self) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomFocuserCommand::Connect(tx)).await
+        self.sender
+            .send(AscomFocuserCommand::Connect(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         let info = Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await?;
 
         // Update cached values with real values from the connected device
         self.max_position.store(info.max_position, Ordering::SeqCst);
-        self.step_size.store(info.step_size.to_bits(), Ordering::SeqCst);
+        self.step_size
+            .store(info.step_size.to_bits(), Ordering::SeqCst);
 
         tracing::info!(
             "Focuser connected: max_position={}, step_size={}",
-            info.max_position, info.step_size
+            info.max_position,
+            info.step_size
         );
 
         match self.fetch_max_position().await {
@@ -247,7 +269,10 @@ impl NativeDevice for AscomFocuserWrapper {
                 self.max_position.store(max_position, Ordering::SeqCst);
             }
             Err(err) => {
-                tracing::warn!("Failed to refresh focuser max_position after connect: {}", err);
+                tracing::warn!(
+                    "Failed to refresh focuser max_position after connect: {}",
+                    err
+                );
             }
         }
 
@@ -265,7 +290,9 @@ impl NativeDevice for AscomFocuserWrapper {
 
     async fn disconnect(&mut self) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomFocuserCommand::Disconnect(tx)).await
+        self.sender
+            .send(AscomFocuserCommand::Disconnect(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::connection(), "disconnect").await
     }
@@ -275,7 +302,9 @@ impl NativeDevice for AscomFocuserWrapper {
 impl NativeFocuser for AscomFocuserWrapper {
     async fn move_to(&mut self, position: i32) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomFocuserCommand::MoveTo(position, tx)).await
+        self.sender
+            .send(AscomFocuserCommand::MoveTo(position, tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         // Focuser moves can take a long time
         Self::recv_with_timeout(rx, Timeouts::focuser_move(), "move_to").await
@@ -283,35 +312,45 @@ impl NativeFocuser for AscomFocuserWrapper {
 
     async fn move_relative(&mut self, steps: i32) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomFocuserCommand::MoveRelative(steps, tx)).await
+        self.sender
+            .send(AscomFocuserCommand::MoveRelative(steps, tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::focuser_move(), "move_relative").await
     }
 
     async fn get_position(&self) -> Result<i32, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomFocuserCommand::GetPosition(tx)).await
+        self.sender
+            .send(AscomFocuserCommand::GetPosition(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_position").await
     }
 
     async fn is_moving(&self) -> Result<bool, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomFocuserCommand::IsMoving(tx)).await
+        self.sender
+            .send(AscomFocuserCommand::IsMoving(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "is_moving").await
     }
 
     async fn halt(&mut self) -> Result<(), NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomFocuserCommand::Halt(tx)).await
+        self.sender
+            .send(AscomFocuserCommand::Halt(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_write(), "halt").await
     }
 
     async fn get_temperature(&self) -> Result<Option<f64>, NativeError> {
         let (tx, rx) = oneshot::channel();
-        self.sender.send(AscomFocuserCommand::GetTemperature(tx)).await
+        self.sender
+            .send(AscomFocuserCommand::GetTemperature(tx))
+            .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "get_temperature").await
     }

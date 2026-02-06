@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/imaging_provider.dart' show temperatureHistoryProvider;
+import '../providers/profiles_provider.dart' show activeEquipmentProfileProvider;
 import '../providers/database_provider.dart';
 import '../providers/backend_provider.dart';
 import '../providers/sequence_provider.dart';
@@ -953,6 +954,26 @@ class DeviceService {
 
       notifier.setConnected();
 
+      // Apply active profile's cooling target temperature if available
+      // and auto-start cooling if coolOnConnect is enabled
+      try {
+        final activeProfile = _ref.read(activeEquipmentProfileProvider);
+        if (activeProfile?.defaultCoolingTemp != null) {
+          notifier.setTargetTemp(activeProfile!.defaultCoolingTemp!);
+
+          if (activeProfile.coolOnConnect) {
+            await _backend.cameraSetCooling(
+              deviceId: deviceId,
+              enabled: true,
+              targetTemp: activeProfile.defaultCoolingTemp,
+            );
+            notifier.setCooling(true);
+          }
+        }
+      } catch (_) {
+        // Profile provider not available or cooling command failed - use defaults
+      }
+
       // Start temperature polling (this will immediately poll and update)
       _startTemperaturePolling(deviceId);
 
@@ -1075,8 +1096,29 @@ class DeviceService {
       await _backend.connectDevice(DeviceType.mount, deviceId);
 
       notifier.setConnected();
-      notifier.updatePosition(0.0, 90.0, 0.0, 0.0);
-      notifier.setParked(true);
+
+      // Fetch actual mount status from hardware instead of hardcoding defaults
+      try {
+        final status = await _backend.getMountStatus(deviceId);
+        notifier.updatePosition(
+          status.rightAscension,
+          status.declination,
+          status.altitude,
+          status.azimuth,
+        );
+        notifier.setParked(status.parked);
+        notifier.setTracking(status.tracking);
+        notifier.setSlewing(status.slewing);
+      } catch (e) {
+        // If status query fails, log but don't fail the connection
+        try {
+          final logger = _ref.read(loggingServiceProvider);
+          logger.warning(
+            'Failed to get initial mount status for ($deviceId): $e',
+            source: 'DeviceService',
+          );
+        } catch (_) {}
+      }
 
       // Start heartbeat monitoring (10 second interval) for critical device
       try {
@@ -1243,7 +1285,7 @@ class DeviceService {
   /// Connect to a filter wheel
   Future<void> connectFilterWheel(String deviceId) async {
     final notifier = _ref.read(filterWheelStateProvider.notifier);
-    
+
     final devices = await discoverDevices(DeviceType.filterWheel);
     final device = devices.firstWhere(
       (d) => d.id == deviceId,
@@ -1257,6 +1299,7 @@ class DeviceService {
 
       // Fetch current filter wheel status (position + names) from backend
       final status = await _backend.getFilterWheelStatus(deviceId);
+      debugPrint('[DeviceService] connectFilterWheel: backend returned ${status.filterNames.length} filter names: ${status.filterNames}');
 
       notifier.setConnected(
         filterNames: status.filterNames,
@@ -1291,7 +1334,7 @@ class DeviceService {
 
     // Special handling for PHD2 guider - uses different connection method
     if (deviceId == 'phd2_guider') {
-      notifier.setConnecting('PHD2 Guiding');
+      notifier.setConnecting('phd2_guider', 'PHD2 Guiding');
       try {
         final settings = await _ref.read(appSettingsProvider.future);
         await _backend.phd2Connect(

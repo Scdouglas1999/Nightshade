@@ -23,13 +23,13 @@
 //! }
 //! ```
 
-use crate::error::NightshadeError;
 use crate::device::DriverType;
-use serde::{Deserialize, Serialize};
+use crate::error::NightshadeError;
 use lru::LruCache;
+use serde::{Deserialize, Serialize};
 use std::num::NonZeroUsize;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 
 // =========================================================================
 // Device ID Cache
@@ -114,7 +114,8 @@ pub struct DeviceIdCache {
 impl DeviceIdCache {
     /// Create a new cache with the specified capacity.
     fn new(capacity: usize) -> Self {
-        let cap = NonZeroUsize::new(capacity).unwrap_or(NonZeroUsize::new(DEFAULT_CACHE_CAPACITY).unwrap());
+        let cap = NonZeroUsize::new(capacity)
+            .unwrap_or(NonZeroUsize::new(DEFAULT_CACHE_CAPACITY).unwrap());
         Self {
             cache: Mutex::new(LruCache::new(cap)),
             metrics: CacheMetrics::default(),
@@ -359,7 +360,10 @@ impl ParsedDeviceId {
     /// ```
     pub fn parse(id: &str) -> Result<Self, NightshadeError> {
         if id.is_empty() {
-            return Err(NightshadeError::invalid_device_id(id, "Device ID cannot be empty"));
+            return Err(NightshadeError::invalid_device_id(
+                id,
+                "Device ID cannot be empty",
+            ));
         }
 
         // Determine the driver type from prefix
@@ -381,11 +385,15 @@ impl ParsedDeviceId {
 
     /// Parse an ASCOM device ID
     fn parse_ascom(id: &str) -> Result<Self, NightshadeError> {
-        let prog_id = id.strip_prefix("ascom:")
+        let prog_id = id
+            .strip_prefix("ascom:")
             .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing 'ascom:' prefix"))?;
 
         if prog_id.is_empty() {
-            return Err(NightshadeError::invalid_device_id(id, "ASCOM ProgID cannot be empty"));
+            return Err(NightshadeError::invalid_device_id(
+                id,
+                "ASCOM ProgID cannot be empty",
+            ));
         }
 
         // Basic validation: ASCOM ProgIDs should contain at least one dot
@@ -407,7 +415,8 @@ impl ParsedDeviceId {
 
     /// Parse an Alpaca device ID
     fn parse_alpaca(id: &str) -> Result<Self, NightshadeError> {
-        let remainder = id.strip_prefix("alpaca:")
+        let remainder = id
+            .strip_prefix("alpaca:")
             .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing 'alpaca:' prefix"))?;
 
         // Format: protocol://host:port:device_type:device_num
@@ -420,10 +429,12 @@ impl ParsedDeviceId {
             // Format: protocol://host:port:device_type:device_num
             let protocol = parts[0];
             let host = parts[1].trim_start_matches("//");
-            let port: u16 = parts[2].parse()
+            let port: u16 = parts[2]
+                .parse()
                 .map_err(|_| NightshadeError::invalid_device_id(id, "Invalid port number"))?;
             let device_type = parts[3].to_lowercase();
-            let device_num: u32 = parts[4].parse()
+            let device_num: u32 = parts[4]
+                .parse()
                 .map_err(|_| NightshadeError::invalid_device_id(id, "Invalid device number"))?;
 
             let base_url = format!("{}://{}:{}", protocol, host, port);
@@ -445,14 +456,15 @@ impl ParsedDeviceId {
         // Try alternate format: base_url:device_type:device_num
         if parts.len() >= 3 {
             // Try parsing as base_url:type:num where base_url contains ://
-            let base_url = parts[0..parts.len()-2].join(":");
-            let device_type = parts[parts.len()-2].to_lowercase();
-            let device_num: u32 = parts[parts.len()-1].parse()
+            let base_url = parts[0..parts.len() - 2].join(":");
+            let device_type = parts[parts.len() - 2].to_lowercase();
+            let device_num: u32 = parts[parts.len() - 1]
+                .parse()
                 .map_err(|_| NightshadeError::invalid_device_id(id, "Invalid device number"))?;
 
             // Extract protocol, host, port from base_url
-            let (protocol, host, port) = parse_base_url(&base_url)
-                .map_err(|e| NightshadeError::invalid_device_id(id, e))?;
+            let (protocol, host, port) =
+                parse_base_url(&base_url).map_err(|e| NightshadeError::invalid_device_id(id, e))?;
 
             return Ok(ParsedDeviceId {
                 raw_id: id.to_string(),
@@ -476,7 +488,8 @@ impl ParsedDeviceId {
 
     /// Parse an INDI device ID
     fn parse_indi(id: &str) -> Result<Self, NightshadeError> {
-        let remainder = id.strip_prefix("indi:")
+        let remainder = id
+            .strip_prefix("indi:")
             .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing 'indi:' prefix"))?;
 
         // Format: host:port:device_name
@@ -491,15 +504,22 @@ impl ParsedDeviceId {
         }
 
         let host = parts[0];
-        let port: u16 = parts[1].parse()
+        let port: u16 = parts[1]
+            .parse()
             .map_err(|_| NightshadeError::invalid_device_id(id, "Invalid port number"))?;
         let device_name = parts[2];
 
         if host.is_empty() {
-            return Err(NightshadeError::invalid_device_id(id, "INDI host cannot be empty"));
+            return Err(NightshadeError::invalid_device_id(
+                id,
+                "INDI host cannot be empty",
+            ));
         }
         if device_name.is_empty() {
-            return Err(NightshadeError::invalid_device_id(id, "INDI device name cannot be empty"));
+            return Err(NightshadeError::invalid_device_id(
+                id,
+                "INDI device name cannot be empty",
+            ));
         }
 
         Ok(ParsedDeviceId {
@@ -515,7 +535,8 @@ impl ParsedDeviceId {
 
     /// Parse a native SDK device ID
     fn parse_native(id: &str) -> Result<Self, NightshadeError> {
-        let remainder = id.strip_prefix("native:")
+        let remainder = id
+            .strip_prefix("native:")
             .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing 'native:' prefix"))?;
 
         // Format: vendor:device_id
@@ -532,11 +553,26 @@ impl ParsedDeviceId {
         let device_id = parts[1];
 
         // Validate vendor
-        let valid_vendors = ["zwo", "qhy", "player_one", "svbony", "atik", "fli", "touptek", "moravian", "skywatcher", "ioptron", "lx200"];
+        let valid_vendors = [
+            "zwo",
+            "qhy",
+            "player_one",
+            "svbony",
+            "atik",
+            "fli",
+            "touptek",
+            "moravian",
+            "skywatcher",
+            "ioptron",
+            "lx200",
+        ];
         if !valid_vendors.contains(&vendor.as_str()) {
             return Err(NightshadeError::invalid_device_id(
                 id,
-                format!("Unknown vendor '{}'. Valid vendors: {:?}", vendor, valid_vendors),
+                format!(
+                    "Unknown vendor '{}'. Valid vendors: {:?}",
+                    vendor, valid_vendors
+                ),
             ));
         }
 
@@ -556,14 +592,16 @@ impl ParsedDeviceId {
 
     /// Parse a simulator device ID
     fn parse_simulator(id: &str) -> Result<Self, NightshadeError> {
-        let remainder = id.strip_prefix("simulator:")
+        let remainder = id
+            .strip_prefix("simulator:")
             .or_else(|| id.strip_prefix("sim:"))
             .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing simulator prefix"))?;
 
         // Format: device_type:instance (instance optional, defaults to 0)
         let parts: Vec<&str> = remainder.split(':').collect();
 
-        let device_type = parts.first()
+        let device_type = parts
+            .first()
             .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing device type"))?
             .to_lowercase();
 
@@ -622,9 +660,14 @@ impl ParsedDeviceId {
     /// Get Alpaca connection info if this is an Alpaca device
     pub fn alpaca_info(&self) -> Option<(&str, &str, u16, &str, u32)> {
         match &self.connection_info {
-            ConnectionInfo::Alpaca { protocol, host, port, device_type, device_num, .. } => {
-                Some((protocol, host, *port, device_type, *device_num))
-            }
+            ConnectionInfo::Alpaca {
+                protocol,
+                host,
+                port,
+                device_type,
+                device_num,
+                ..
+            } => Some((protocol, host, *port, device_type, *device_num)),
             _ => None,
         }
     }
@@ -640,9 +683,11 @@ impl ParsedDeviceId {
     /// Get INDI connection info if this is an INDI device
     pub fn indi_info(&self) -> Option<(&str, u16, &str)> {
         match &self.connection_info {
-            ConnectionInfo::Indi { host, port, device_name } => {
-                Some((host, *port, device_name))
-            }
+            ConnectionInfo::Indi {
+                host,
+                port,
+                device_name,
+            } => Some((host, *port, device_name)),
             _ => None,
         }
     }
@@ -650,16 +695,19 @@ impl ParsedDeviceId {
     /// Get native vendor and device ID if this is a native device
     pub fn native_info(&self) -> Option<(&str, &str, Option<i32>)> {
         match &self.connection_info {
-            ConnectionInfo::Native { vendor, device_id, device_index } => {
-                Some((vendor, device_id, *device_index))
-            }
+            ConnectionInfo::Native {
+                vendor,
+                device_id,
+                device_index,
+            } => Some((vendor, device_id, *device_index)),
             _ => None,
         }
     }
 
     /// Check if this device uses a network connection
     pub fn is_network_device(&self) -> bool {
-        matches!(&self.connection_info,
+        matches!(
+            &self.connection_info,
             ConnectionInfo::Alpaca { .. } | ConnectionInfo::Indi { .. }
         )
     }
@@ -682,9 +730,15 @@ impl ParsedDeviceId {
 fn parse_base_url(url: &str) -> Result<(String, String, u16), &'static str> {
     // Expected format: http://host:port or https://host:port
     let (protocol, remainder) = if url.starts_with("https://") {
-        ("https".to_string(), url.strip_prefix("https://").unwrap_or(""))
+        (
+            "https".to_string(),
+            url.strip_prefix("https://").unwrap_or(""),
+        )
     } else if url.starts_with("http://") {
-        ("http".to_string(), url.strip_prefix("http://").unwrap_or(""))
+        (
+            "http".to_string(),
+            url.strip_prefix("http://").unwrap_or(""),
+        )
     } else {
         return Err("Invalid URL protocol - expected http:// or https://");
     };
@@ -696,7 +750,9 @@ fn parse_base_url(url: &str) -> Result<(String, String, u16), &'static str> {
     }
 
     let host = parts[0].to_string();
-    let port: u16 = parts[1].split('/').next()
+    let port: u16 = parts[1]
+        .split('/')
+        .next()
         .and_then(|p| p.parse().ok())
         .ok_or("Invalid port number")?;
 
@@ -713,16 +769,31 @@ impl std::fmt::Display for ParsedDeviceId {
             ConnectionInfo::Ascom { prog_id } => {
                 write!(f, "ASCOM:{}", prog_id)
             }
-            ConnectionInfo::Alpaca { host, port, device_type, device_num, .. } => {
+            ConnectionInfo::Alpaca {
+                host,
+                port,
+                device_type,
+                device_num,
+                ..
+            } => {
                 write!(f, "Alpaca:{}:{}/{}:{}", host, port, device_type, device_num)
             }
-            ConnectionInfo::Indi { host, port, device_name } => {
+            ConnectionInfo::Indi {
+                host,
+                port,
+                device_name,
+            } => {
                 write!(f, "INDI:{}:{}/{}", host, port, device_name)
             }
-            ConnectionInfo::Native { vendor, device_id, .. } => {
+            ConnectionInfo::Native {
+                vendor, device_id, ..
+            } => {
                 write!(f, "Native:{}:{}", vendor, device_id)
             }
-            ConnectionInfo::Simulator { device_type, instance } => {
+            ConnectionInfo::Simulator {
+                device_type,
+                instance,
+            } => {
                 write!(f, "Simulator:{}:{}", device_type, instance)
             }
         }
@@ -820,13 +891,21 @@ mod tests {
 
         // Get stats - should have 1 miss
         let stats = get_device_id_cache_stats();
-        assert!(stats.misses >= 1, "Expected at least 1 miss, got {}", stats.misses);
+        assert!(
+            stats.misses >= 1,
+            "Expected at least 1 miss, got {}",
+            stats.misses
+        );
 
         // Second call should be a hit
         let _ = parse_device_id_cached("indi:testhost:7624:TestDevice").unwrap();
 
         let stats2 = get_device_id_cache_stats();
-        assert!(stats2.hits >= 1, "Expected at least 1 hit, got {}", stats2.hits);
+        assert!(
+            stats2.hits >= 1,
+            "Expected at least 1 hit, got {}",
+            stats2.hits
+        );
     }
 
     #[test]
@@ -847,7 +926,10 @@ mod tests {
 
         // Size should be similar (entry was removed then re-added)
         let stats_after = get_device_id_cache_stats();
-        assert!(stats_after.size >= 1, "Cache should have at least one entry");
+        assert!(
+            stats_after.size >= 1,
+            "Cache should have at least one entry"
+        );
     }
 
     #[test]

@@ -108,10 +108,10 @@ class _SnrAnnotationConstants {
   static const double baseSnr = 3.0;
 
   /// Base magnitude limit when SNR is at baseSnr
-  static const double baseMagnitude = 10.0;
+  static const double baseMagnitude = 15.0;
 
   /// Maximum magnitude limit regardless of SNR
-  static const double maxMagnitude = 16.0;
+  static const double maxMagnitude = 20.0;
 
   /// Minimum SNR improvement ratio before re-annotating (20% improvement)
   static const double snrImprovementThreshold = 1.2;
@@ -424,7 +424,8 @@ class AnnotationService {
       try {
         final mountState = _ref.read(mountStateProvider);
         if (mountState.ra != null && mountState.dec != null) {
-          hintRa = mountState.ra;
+          // Mount RA is typically tracked in hours; plate-solve hints expect degrees.
+          hintRa = _normalizeRaHintDegrees(mountState.ra!);
           hintDec = mountState.dec;
           print('[ANNOTATION] Using mount position hints: RA=$hintRa, Dec=$hintDec');
         }
@@ -541,6 +542,7 @@ class AnnotationService {
     required PlateSolveData plateSolve,
     required double x,
     required double y,
+    double? searchRadiusArcsec,
   }) async {
     // Convert pixels to RA/Dec
     final coords = plateSolve.pixelToSky(x, y);
@@ -548,10 +550,16 @@ class AnnotationService {
     print('[ANNOTATION] Identifying object at $x, $y -> RA: ${coords.ra}, Dec: ${coords.dec}');
     
     // Search for object at these coordinates
+    final settings = _ref.read(annotationSettingsProvider).valueOrNull;
+    final effectiveRadiusArcsec = (searchRadiusArcsec ??
+            settings?.clickSearchRadiusArcsec ??
+            const AnnotationSettings().clickSearchRadiusArcsec)
+        .clamp(1.0, 600.0);
+
     final details = await getObjectDetails(
       ra: coords.ra,
       dec: coords.dec,
-      radiusArcmin: 2.0, // Slightly larger radius for touch interaction
+      radiusArcmin: effectiveRadiusArcsec / 60.0,
     );
     
     if (details == null) return null;
@@ -965,5 +973,13 @@ class AnnotationService {
       default:
         return SpectralClass.unknown;
     }
+  }
+
+  double _normalizeRaHintDegrees(double raValue) {
+    // Heuristic: treat values in [0, 24] as hours; otherwise assume degrees.
+    final degrees = (raValue >= 0.0 && raValue <= 24.0)
+        ? raValue * 15.0
+        : raValue;
+    return ((degrees % 360.0) + 360.0) % 360.0;
   }
 }

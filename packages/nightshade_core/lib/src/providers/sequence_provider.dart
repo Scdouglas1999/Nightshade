@@ -444,6 +444,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     TemplateSnippet snippet, {
     String? parentId,
     int? index,
+    List<String>? profileFilterNames,
   }) {
     if (state == null) return;
     if (snippet.nodeData.isEmpty) return;
@@ -527,6 +528,40 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         orderIdx: insertIdx + i,
       );
       topLevelNodeIds.add(node.id);
+    }
+
+    // Match template filter names to actual profile filter names
+    print('insertSnippet: profileFilterNames=$profileFilterNames, createdNodes=${createdNodes.length}');
+    if (profileFilterNames != null && profileFilterNames.isNotEmpty) {
+      for (int i = 0; i < createdNodes.length; i++) {
+        final node = createdNodes[i];
+        if (node is ExposureNode && node.filter != null && node.filter!.isNotEmpty) {
+          print('insertSnippet: ExposureNode filter="${node.filter}" filterIndex=${node.filterIndex}');
+          final matchedIndex = _matchFilterToProfile(node.filter!, profileFilterNames);
+          print('insertSnippet: matchedIndex=$matchedIndex');
+          if (matchedIndex != null) {
+            createdNodes[i] = node.copyWith(
+              filter: profileFilterNames[matchedIndex],
+              filterIndex: matchedIndex,
+            );
+            print('insertSnippet: Updated to filter="${profileFilterNames[matchedIndex]}" filterIndex=$matchedIndex');
+          }
+        } else if (node is FilterChangeNode) {
+          print('insertSnippet: FilterChangeNode filterName="${node.filterName}" filterPosition=${node.filterPosition}');
+          final matchedIndex = _matchFilterToProfile(node.filterName, profileFilterNames);
+          print('insertSnippet: matchedIndex=$matchedIndex');
+          if (matchedIndex != null) {
+            createdNodes[i] = node.copyWith(
+              filterName: profileFilterNames[matchedIndex],
+              filterPosition: matchedIndex,
+            );
+          }
+        } else {
+          print('insertSnippet: Node type=${node.runtimeType}, not a filter node');
+        }
+      }
+    } else {
+      print('insertSnippet: No profile filter names provided, skipping filter matching');
     }
 
     // Add all created nodes to the sequence
@@ -753,12 +788,13 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           isEnabled: isEnabled,
         );
 
+      case 'changefilter':
       case 'filterchange':
         return FilterChangeNode(
           id: id,
           name: name ?? 'Change Filter',
-          filterName: json['filterName'] as String? ?? 'L',
-          filterPosition: (json['filterPosition'] as num?)?.toInt(),
+          filterName: json['filterName'] as String? ?? json['filter'] as String? ?? 'L',
+          filterPosition: (json['filterPosition'] as num?)?.toInt() ?? (json['filterIndex'] as num?)?.toInt(),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -920,6 +956,73 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
       (e) => e.name.toLowerCase() == str,
       orElse: () => NotificationLevel.info,
     );
+  }
+
+  /// Common abbreviation map for filter name matching.
+  /// Maps normalized template names to possible profile name patterns.
+  static const _filterAbbreviations = <String, List<String>>{
+    'l': ['lum', 'luminance', 'luminosity', 'clear'],
+    'r': ['red'],
+    'g': ['green'],
+    'b': ['blue'],
+    'ha': ['halpha', 'h-alpha', 'h_alpha', 'hydrogen', 'hydrogen-alpha'],
+    'oiii': ['o3', 'oxygen', 'oxygeniii'],
+    'sii': ['s2', 'sulfur', 'sulphur', 'sulfurii'],
+    'nii': ['n2', 'nitrogen', 'nitrogenii'],
+  };
+
+  /// Try to match a template filter name to one of the profile filter names.
+  /// Returns the matched index (0-based) or null if no match found.
+  int? _matchFilterToProfile(String templateFilter, List<String> profileNames) {
+    final templateLower = templateFilter.toLowerCase().trim();
+    if (templateLower.isEmpty) return null;
+
+    // Pass 1: Exact match (case-insensitive)
+    for (int i = 0; i < profileNames.length; i++) {
+      if (profileNames[i].toLowerCase().trim() == templateLower) return i;
+    }
+
+    // Pass 2: Profile name starts with template name (e.g. "L" matches "Lum")
+    for (int i = 0; i < profileNames.length; i++) {
+      final profileLower = profileNames[i].toLowerCase().trim();
+      if (profileLower.startsWith(templateLower)) return i;
+    }
+
+    // Pass 3: Template name starts with profile name (e.g. "Luminance" matches "Lum")
+    for (int i = 0; i < profileNames.length; i++) {
+      final profileLower = profileNames[i].toLowerCase().trim();
+      if (templateLower.startsWith(profileLower) && profileLower.isNotEmpty) return i;
+    }
+
+    // Pass 4: Known abbreviation matching
+    final knownAliases = _filterAbbreviations[templateLower];
+    if (knownAliases != null) {
+      for (int i = 0; i < profileNames.length; i++) {
+        final profileLower = profileNames[i].toLowerCase().trim();
+        for (final alias in knownAliases) {
+          if (profileLower == alias || profileLower.startsWith(alias) || alias.startsWith(profileLower)) {
+            return i;
+          }
+        }
+      }
+    }
+
+    // Pass 5: Reverse - check if any abbreviation key matches a profile name that starts with the template
+    for (final entry in _filterAbbreviations.entries) {
+      for (final alias in entry.value) {
+        if (alias == templateLower || templateLower.startsWith(alias)) {
+          // Found our template in the aliases, now match the key against profiles
+          for (int i = 0; i < profileNames.length; i++) {
+            final profileLower = profileNames[i].toLowerCase().trim();
+            if (profileLower.startsWith(entry.key) || entry.key.startsWith(profileLower)) {
+              return i;
+            }
+          }
+        }
+      }
+    }
+
+    return null;
   }
 
   /// Remove a node from the sequence

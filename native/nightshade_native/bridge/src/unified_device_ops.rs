@@ -43,13 +43,15 @@
 //! executor.set_device_ops(ops);
 //! ```
 
-use async_trait::async_trait;
-use nightshade_sequencer::{DeviceOps, DeviceResult, ImageData, PlateSolveResult, GuidingStatus, PolarAlignResult};
-use crate::state::SharedAppState;
-use crate::api::*;
-use crate::FitsWriteHeader;
 use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
+use crate::api::*;
 use crate::event::*;
+use crate::state::SharedAppState;
+use crate::FitsWriteHeader;
+use async_trait::async_trait;
+use nightshade_sequencer::{
+    DeviceOps, DeviceResult, GuidingStatus, ImageData, PlateSolveResult, PolarAlignResult,
+};
 use std::sync::Arc;
 
 /// Unified device operations implementation
@@ -74,9 +76,19 @@ impl DeviceOps for UnifiedDeviceOps {
     // =========================================================================
     // MOUNT OPERATIONS
     // =========================================================================
-    
-    async fn mount_slew_to_coordinates(&self, mount_id: &str, ra_hours: f64, dec_degrees: f64) -> DeviceResult<()> {
-        tracing::info!("Slewing mount {} to RA={:.4}h Dec={:.4}°", mount_id, ra_hours, dec_degrees);
+
+    async fn mount_slew_to_coordinates(
+        &self,
+        mount_id: &str,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Slewing mount {} to RA={:.4}h Dec={:.4}°",
+            mount_id,
+            ra_hours,
+            dec_degrees
+        );
 
         // Emit slew started event
         self.app_state.publish_event(create_event_auto_id(
@@ -84,11 +96,12 @@ impl DeviceOps for UnifiedDeviceOps {
             EventCategory::Equipment,
             EventPayload::Equipment(EquipmentEvent::MountSlewStarted {
                 ra: ra_hours,
-                dec: dec_degrees
+                dec: dec_degrees,
             }),
         ));
 
-        let result = get_device_manager().mount_slew(mount_id, ra_hours, dec_degrees)
+        let result = get_device_manager()
+            .mount_slew(mount_id, ra_hours, dec_degrees)
             .await
             .map_err(|e| format!("Slew failed: {}", e));
 
@@ -99,7 +112,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 EventCategory::Equipment,
                 EventPayload::Equipment(EquipmentEvent::MountSlewCompleted {
                     ra: ra_hours,
-                    dec: dec_degrees
+                    dec: dec_degrees,
                 }),
             ));
         }
@@ -111,28 +124,41 @@ impl DeviceOps for UnifiedDeviceOps {
 
     async fn mount_abort_slew(&self, mount_id: &str) -> DeviceResult<()> {
         tracing::info!("Aborting slew for mount {}", mount_id);
-        
-        get_device_manager().mount_abort(mount_id)
+
+        get_device_manager()
+            .mount_abort(mount_id)
             .await
             .map_err(|e| format!("Abort slew failed: {}", e))
     }
-    
+
     async fn mount_get_coordinates(&self, mount_id: &str) -> DeviceResult<(f64, f64)> {
-        let status = get_device_manager().mount_get_status(mount_id)
+        let status = get_device_manager()
+            .mount_get_status(mount_id)
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
-        
+
         Ok((status.right_ascension, status.declination))
     }
-    
-    async fn mount_sync(&self, mount_id: &str, ra_hours: f64, dec_degrees: f64) -> DeviceResult<()> {
-        tracing::info!("Syncing mount {} to RA={:.4}h Dec={:.4}°", mount_id, ra_hours, dec_degrees);
-        
-        get_device_manager().mount_sync(mount_id, ra_hours, dec_degrees)
+
+    async fn mount_sync(
+        &self,
+        mount_id: &str,
+        ra_hours: f64,
+        dec_degrees: f64,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Syncing mount {} to RA={:.4}h Dec={:.4}°",
+            mount_id,
+            ra_hours,
+            dec_degrees
+        );
+
+        get_device_manager()
+            .mount_sync(mount_id, ra_hours, dec_degrees)
             .await
             .map_err(|e| format!("Sync failed: {}", e))
     }
-    
+
     async fn mount_park(&self, mount_id: &str) -> DeviceResult<()> {
         tracing::info!("Parking mount {}", mount_id);
 
@@ -143,7 +169,8 @@ impl DeviceOps for UnifiedDeviceOps {
             EventPayload::Equipment(EquipmentEvent::MountParkStarted),
         ));
 
-        let result = get_device_manager().mount_park(mount_id)
+        let result = get_device_manager()
+            .mount_park(mount_id)
             .await
             .map_err(|e| format!("Park failed: {}", e));
 
@@ -163,7 +190,8 @@ impl DeviceOps for UnifiedDeviceOps {
     async fn mount_unpark(&self, mount_id: &str) -> DeviceResult<()> {
         tracing::info!("Unparking mount {}", mount_id);
 
-        let result = get_device_manager().mount_unpark(mount_id)
+        let result = get_device_manager()
+            .mount_unpark(mount_id)
             .await
             .map_err(|e| format!("Unpark failed: {}", e));
 
@@ -179,17 +207,19 @@ impl DeviceOps for UnifiedDeviceOps {
 
         result
     }
-    
+
     async fn mount_is_slewing(&self, mount_id: &str) -> DeviceResult<bool> {
-        let status = get_device_manager().mount_get_status(mount_id)
+        let status = get_device_manager()
+            .mount_get_status(mount_id)
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
-        
+
         Ok(status.slewing)
     }
-    
+
     async fn mount_is_parked(&self, mount_id: &str) -> DeviceResult<bool> {
-        let status = get_device_manager().mount_get_status(mount_id)
+        let status = get_device_manager()
+            .mount_get_status(mount_id)
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
 
@@ -198,7 +228,8 @@ impl DeviceOps for UnifiedDeviceOps {
 
     async fn mount_can_flip(&self, mount_id: &str) -> DeviceResult<bool> {
         // Check if mount is a GEM (German Equatorial Mount) that can flip
-        let status = get_device_manager().mount_get_status(mount_id)
+        let status = get_device_manager()
+            .mount_get_status(mount_id)
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
 
@@ -206,9 +237,13 @@ impl DeviceOps for UnifiedDeviceOps {
         Ok(status.tracking || !status.parked)
     }
 
-    async fn mount_side_of_pier(&self, mount_id: &str) -> DeviceResult<nightshade_sequencer::meridian::PierSide> {
+    async fn mount_side_of_pier(
+        &self,
+        mount_id: &str,
+    ) -> DeviceResult<nightshade_sequencer::meridian::PierSide> {
         // Get pier side from mount status
-        let status = get_device_manager().mount_get_status(mount_id)
+        let status = get_device_manager()
+            .mount_get_status(mount_id)
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
 
@@ -220,7 +255,8 @@ impl DeviceOps for UnifiedDeviceOps {
     }
 
     async fn mount_is_tracking(&self, mount_id: &str) -> DeviceResult<bool> {
-        let status = get_device_manager().mount_get_status(mount_id)
+        let status = get_device_manager()
+            .mount_get_status(mount_id)
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
 
@@ -228,9 +264,14 @@ impl DeviceOps for UnifiedDeviceOps {
     }
 
     async fn mount_set_tracking(&self, mount_id: &str, enabled: bool) -> DeviceResult<()> {
-        tracing::info!("Setting tracking {} for mount {}", if enabled { "on" } else { "off" }, mount_id);
+        tracing::info!(
+            "Setting tracking {} for mount {}",
+            if enabled { "on" } else { "off" },
+            mount_id
+        );
 
-        get_device_manager().mount_set_tracking(mount_id, enabled)
+        get_device_manager()
+            .mount_set_tracking(mount_id, enabled)
             .await
             .map_err(|e| format!("Set tracking failed: {}", e))
     }
@@ -238,7 +279,7 @@ impl DeviceOps for UnifiedDeviceOps {
     // =========================================================================
     // CAMERA OPERATIONS
     // =========================================================================
-    
+
     async fn camera_start_exposure(
         &self,
         camera_id: &str,
@@ -248,7 +289,11 @@ impl DeviceOps for UnifiedDeviceOps {
         bin_x: i32,
         bin_y: i32,
     ) -> DeviceResult<ImageData> {
-        tracing::info!("Starting {:.1}s exposure on camera {}", duration_secs, camera_id);
+        tracing::info!(
+            "Starting {:.1}s exposure on camera {}",
+            duration_secs,
+            camera_id
+        );
 
         let mgr = get_device_manager();
         let start_time = std::time::Instant::now();
@@ -271,15 +316,15 @@ impl DeviceOps for UnifiedDeviceOps {
             bin_x,
             bin_y,
         )
-            .await
-            .map_err(|e| {
-                // Publish failure event
-                self.app_state.publish_imaging_event(
-                    ImagingEvent::ExposureComplete { success: false },
-                    EventSeverity::Error,
-                );
-                format!("Exposure failed: {}", e)
-            })?;
+        .await
+        .map_err(|e| {
+            // Publish failure event
+            self.app_state.publish_imaging_event(
+                ImagingEvent::ExposureComplete { success: false },
+                EventSeverity::Error,
+            );
+            format!("Exposure failed: {}", e)
+        })?;
 
         // Wait for completion with progress updates using adaptive polling
         // This reduces CPU/network overhead for long exposures while maintaining
@@ -321,22 +366,26 @@ impl DeviceOps for UnifiedDeviceOps {
                 EventSeverity::Info,
             );
 
-        // Map bayer pattern to sensor_type and bayer_offset
+            // Map bayer pattern to sensor_type and bayer_offset
         }
 
         // Map bayer pattern to sensor_type and bayer_offset
 
         // Download image
-        let native_image = mgr.camera_download_image(camera_id).await
-            .map_err(|e| {
-                self.app_state.publish_imaging_event(
-                    ImagingEvent::ExposureComplete { success: false },
-                    EventSeverity::Error,
-                );
-                format!("Failed to download image: {}", e)
-            })?;
+        let native_image = mgr.camera_download_image(camera_id).await.map_err(|e| {
+            self.app_state.publish_imaging_event(
+                ImagingEvent::ExposureComplete { success: false },
+                EventSeverity::Error,
+            );
+            format!("Failed to download image: {}", e)
+        })?;
 
-        tracing::info!("[EXPOSURE] Download complete: {}x{} ({} pixels)", native_image.width, native_image.height, native_image.data.len());
+        tracing::info!(
+            "[EXPOSURE] Download complete: {}x{} ({} pixels)",
+            native_image.width,
+            native_image.height,
+            native_image.data.len()
+        );
 
         // Validate downloaded image data to catch corrupted/bad frames early
         // This prevents cascading failures in autofocus, plate solving, etc.
@@ -346,7 +395,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 native_image.width,
                 native_image.height,
                 1, // channels
-                &native_image.data
+                &native_image.data,
             );
 
             tracing::debug!("[EXPOSURE] Starting image validation...");
@@ -360,15 +409,17 @@ impl DeviceOps for UnifiedDeviceOps {
                 is_bias_frame,
             );
 
-
-            tracing::debug!("[EXPOSURE] Validation complete: valid={}", validation.is_valid);
+            tracing::debug!(
+                "[EXPOSURE] Validation complete: valid={}",
+                validation.is_valid
+            );
 
             // Log validation warnings (don't fail, just inform user via logging)
             for warning in &validation.warnings {
                 tracing::warn!("[CAMERA] Image validation warning: {}", warning);
             }
 
-        // Map bayer pattern to sensor_type and bayer_offset
+            // Map bayer pattern to sensor_type and bayer_offset
 
             // Fail on validation errors (corrupted/unusable images)
             if !validation.is_valid {
@@ -381,7 +432,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 return Err(format!("Image validation failed: {}", error_msg));
             }
 
-        // Map bayer pattern to sensor_type and bayer_offset
+            // Map bayer pattern to sensor_type and bayer_offset
         }
 
         // Map bayer pattern to sensor_type and bayer_offset
@@ -396,7 +447,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 (Some("Color".to_string()), Some(offset))
             }
 
-        // Map bayer pattern to sensor_type and bayer_offset
+            // Map bayer pattern to sensor_type and bayer_offset
             None => (Some("Monochrome".to_string()), None),
         };
 
@@ -435,9 +486,8 @@ impl DeviceOps for UnifiedDeviceOps {
 
                 // Auto-stretch RGB
                 use rayon::prelude::*;
-                let rgb_pixels: Vec<f64> = rgb_data.par_iter()
-                    .map(|&v| v as f64 / 65535.0)
-                    .collect();
+                let rgb_pixels: Vec<f64> =
+                    rgb_data.par_iter().map(|&v| v as f64 / 65535.0).collect();
                 let mut sorted = rgb_pixels.clone();
                 sorted.par_sort_unstable_by(|a, b| {
                     a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
@@ -463,7 +513,10 @@ impl DeviceOps for UnifiedDeviceOps {
 
             // Calculate stats and histogram
             let stats = nightshade_imaging::calculate_stats_u16(&image);
-            let stars = nightshade_imaging::detect_stars(&image, &nightshade_imaging::StarDetectionConfig::default());
+            let stars = nightshade_imaging::detect_stars(
+                &image,
+                &nightshade_imaging::StarDetectionConfig::default(),
+            );
             let star_count = stars.len() as u32;
 
             let mut histogram = vec![0u32; 256];
@@ -536,26 +589,35 @@ impl DeviceOps for UnifiedDeviceOps {
             bayer_offset,
         })
     }
-    
+
     async fn camera_abort_exposure(&self, camera_id: &str) -> DeviceResult<()> {
         tracing::info!("Aborting exposure on camera {}", camera_id);
-        
-        get_device_manager().camera_abort_exposure(camera_id)
+
+        get_device_manager()
+            .camera_abort_exposure(camera_id)
             .await
             .map_err(|e| format!("Abort failed: {}", e))
     }
-    
-    async fn camera_set_cooler(&self, camera_id: &str, enabled: bool, target_temp: f64) -> DeviceResult<()> {
-        tracing::info!("Camera {} cooler: enabled={}, target={}°C", camera_id, enabled, target_temp);
+
+    async fn camera_set_cooler(
+        &self,
+        camera_id: &str,
+        enabled: bool,
+        target_temp: f64,
+    ) -> DeviceResult<()> {
+        tracing::info!(
+            "Camera {} cooler: enabled={}, target={}°C",
+            camera_id,
+            enabled,
+            target_temp
+        );
 
         // Emit cooling event
         if enabled {
             self.app_state.publish_event(create_event_auto_id(
                 EventSeverity::Info,
                 EventCategory::Equipment,
-                EventPayload::Equipment(EquipmentEvent::CameraCoolingStarted {
-                    target_temp
-                }),
+                EventPayload::Equipment(EquipmentEvent::CameraCoolingStarted { target_temp }),
             ));
         } else {
             self.app_state.publish_event(create_event_auto_id(
@@ -571,27 +633,31 @@ impl DeviceOps for UnifiedDeviceOps {
             .await
             .map_err(|e| format!("Cooler control failed: {}", e))
     }
-    
+
     async fn camera_get_temperature(&self, camera_id: &str) -> DeviceResult<f64> {
         let status = api_get_camera_status(camera_id.to_string())
             .await
             .map_err(|e| format!("Failed to get camera status: {}", e))?;
-        
-        status.sensor_temp.ok_or_else(|| "Temperature not available".to_string())
+
+        status
+            .sensor_temp
+            .ok_or_else(|| "Temperature not available".to_string())
     }
-    
+
     async fn camera_get_cooler_power(&self, camera_id: &str) -> DeviceResult<f64> {
         let status = api_get_camera_status(camera_id.to_string())
             .await
             .map_err(|e| format!("Failed to get camera status: {}", e))?;
-        
-        status.cooler_power.ok_or_else(|| "Cooler power not available".to_string())
+
+        status
+            .cooler_power
+            .ok_or_else(|| "Cooler power not available".to_string())
     }
-    
+
     // =========================================================================
     // FOCUSER OPERATIONS
     // =========================================================================
-    
+
     async fn focuser_move_to(&self, focuser_id: &str, position: i32) -> DeviceResult<()> {
         tracing::info!("Moving focuser {} to position {}", focuser_id, position);
 
@@ -600,7 +666,7 @@ impl DeviceOps for UnifiedDeviceOps {
             EventSeverity::Info,
             EventCategory::Equipment,
             EventPayload::Equipment(EquipmentEvent::FocuserMoveStarted {
-                target_position: position
+                target_position: position,
             }),
         ));
 
@@ -612,9 +678,7 @@ impl DeviceOps for UnifiedDeviceOps {
             self.app_state.publish_event(create_event_auto_id(
                 EventSeverity::Info,
                 EventCategory::Equipment,
-                EventPayload::Equipment(EquipmentEvent::FocuserMoveCompleted {
-                    position
-                }),
+                EventPayload::Equipment(EquipmentEvent::FocuserMoveCompleted { position }),
             ));
         }
 
@@ -622,38 +686,43 @@ impl DeviceOps for UnifiedDeviceOps {
 
         result
     }
-    
+
     async fn focuser_get_position(&self, focuser_id: &str) -> DeviceResult<i32> {
-        get_device_manager().focuser_get_position(focuser_id)
+        get_device_manager()
+            .focuser_get_position(focuser_id)
             .await
             .map_err(|e| format!("Get position failed: {}", e))
     }
-    
+
     async fn focuser_is_moving(&self, focuser_id: &str) -> DeviceResult<bool> {
-        get_device_manager().focuser_is_moving(focuser_id)
+        get_device_manager()
+            .focuser_is_moving(focuser_id)
             .await
             .map_err(|e| format!("Is moving failed: {}", e))
     }
-    
+
     async fn focuser_get_temperature(&self, focuser_id: &str) -> DeviceResult<Option<f64>> {
-        get_device_manager().focuser_get_temp(focuser_id)
+        get_device_manager()
+            .focuser_get_temp(focuser_id)
             .await
             .map_err(|e| format!("Get temperature failed: {}", e))
     }
 
     async fn focuser_halt(&self, focuser_id: &str) -> DeviceResult<()> {
-        get_device_manager().focuser_halt(focuser_id)
+        get_device_manager()
+            .focuser_halt(focuser_id)
             .await
             .map_err(|e| format!("Halt failed: {}", e))
     }
-    
+
     // =========================================================================
     // FILTER WHEEL OPERATIONS
     // =========================================================================
-    
+
     async fn filterwheel_set_position(&self, fw_id: &str, position: i32) -> DeviceResult<()> {
         // Get current position for the event
-        let from_position = get_device_manager().filter_wheel_get_position(fw_id)
+        let from_position = get_device_manager()
+            .filter_wheel_get_position(fw_id)
             .await
             .unwrap_or(-1);
 
@@ -668,7 +737,8 @@ impl DeviceOps for UnifiedDeviceOps {
             }),
         ));
 
-        let result = get_device_manager().filter_wheel_set_position(fw_id, position)
+        let result = get_device_manager()
+            .filter_wheel_set_position(fw_id, position)
             .await
             .map_err(|e| format!("Set position failed: {}", e));
 
@@ -687,37 +757,40 @@ impl DeviceOps for UnifiedDeviceOps {
 
         result
     }
-    
+
     async fn filterwheel_get_position(&self, fw_id: &str) -> DeviceResult<i32> {
-        get_device_manager().filter_wheel_get_position(fw_id)
+        get_device_manager()
+            .filter_wheel_get_position(fw_id)
             .await
             .map_err(|e| format!("Get position failed: {}", e))
     }
-    
+
     async fn filterwheel_get_names(&self, fw_id: &str) -> DeviceResult<Vec<String>> {
-        let (_, names) = get_device_manager().filter_wheel_get_config(fw_id)
+        let (_, names) = get_device_manager()
+            .filter_wheel_get_config(fw_id)
             .await
             .map_err(|e| format!("Get names failed: {}", e))?;
         Ok(names)
     }
-    
+
     async fn filterwheel_set_filter_by_name(&self, fw_id: &str, name: &str) -> DeviceResult<i32> {
         let names = self.filterwheel_get_names(fw_id).await?;
-        
+
         // Find the filter position by name (case-insensitive)
-        let position = names.iter()
+        let position = names
+            .iter()
             .position(|n| n.eq_ignore_ascii_case(name))
             .map(|p| (p + 1) as i32)
             .ok_or_else(|| format!("Filter '{}' not found", name))?;
-        
+
         self.filterwheel_set_position(fw_id, position).await?;
         Ok(position)
     }
-    
+
     // =========================================================================
     // ROTATOR OPERATIONS
     // =========================================================================
-    
+
     async fn rotator_move_to(&self, rotator_id: &str, angle: f64) -> DeviceResult<()> {
         tracing::info!("Moving rotator {} to {}°", rotator_id, angle);
 
@@ -726,7 +799,7 @@ impl DeviceOps for UnifiedDeviceOps {
             EventSeverity::Info,
             EventCategory::Equipment,
             EventPayload::Equipment(EquipmentEvent::RotatorMoveStarted {
-                target_angle: angle
+                target_angle: angle,
             }),
         ));
 
@@ -746,35 +819,35 @@ impl DeviceOps for UnifiedDeviceOps {
 
         result
     }
-    
+
     async fn rotator_move_relative(&self, rotator_id: &str, delta: f64) -> DeviceResult<()> {
         tracing::info!("Moving rotator {} by {}°", rotator_id, delta);
-        
+
         api_rotator_move_relative(rotator_id.to_string(), delta)
             .await
             .map_err(|e| format!("Rotator move relative failed: {}", e))
     }
-    
+
     async fn rotator_get_angle(&self, rotator_id: &str) -> DeviceResult<f64> {
         let status = api_get_rotator_status(rotator_id.to_string())
             .await
             .map_err(|e| format!("Failed to get rotator status: {}", e))?;
-        
+
         Ok(status.position)
     }
 
     async fn rotator_halt(&self, rotator_id: &str) -> DeviceResult<()> {
         tracing::info!("Halting rotator {}", rotator_id);
-        
+
         api_rotator_halt(rotator_id.to_string())
             .await
             .map_err(|e| format!("Halt failed: {}", e))
     }
-    
+
     // =========================================================================
     // GUIDING / PHD2 OPERATIONS
     // =========================================================================
-    
+
     async fn guider_dither(
         &self,
         pixels: f64,
@@ -783,18 +856,29 @@ impl DeviceOps for UnifiedDeviceOps {
         settle_timeout: f64,
         ra_only: bool,
     ) -> DeviceResult<()> {
-        tracing::info!("Dithering {} pixels (settle: <{}px in {}s)", pixels, settle_pixels, settle_time);
-        
-        api_phd2_dither(pixels, ra_only as u8, settle_pixels, settle_time, settle_timeout)
-            .await
-            .map_err(|e| format!("Dither failed: {}", e))
+        tracing::info!(
+            "Dithering {} pixels (settle: <{}px in {}s)",
+            pixels,
+            settle_pixels,
+            settle_time
+        );
+
+        api_phd2_dither(
+            pixels,
+            ra_only as u8,
+            settle_pixels,
+            settle_time,
+            settle_timeout,
+        )
+        .await
+        .map_err(|e| format!("Dither failed: {}", e))
     }
-    
+
     async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
         let status = api_phd2_get_status()
             .await
             .map_err(|e| format!("Failed to get guiding status: {}", e))?;
-        
+
         Ok(GuidingStatus {
             is_guiding: status.state == "Guiding",
             rms_ra: status.rms_ra,
@@ -802,27 +886,32 @@ impl DeviceOps for UnifiedDeviceOps {
             rms_total: status.rms_total,
         })
     }
-    
-    async fn guider_start(&self, settle_pixels: f64, settle_time: f64, settle_timeout: f64) -> DeviceResult<()> {
+
+    async fn guider_start(
+        &self,
+        settle_pixels: f64,
+        settle_time: f64,
+        settle_timeout: f64,
+    ) -> DeviceResult<()> {
         tracing::info!("Starting guiding");
-        
+
         api_phd2_start_guiding(settle_pixels, settle_time, settle_timeout)
             .await
             .map_err(|e| format!("Start guiding failed: {}", e))
     }
-    
+
     async fn guider_stop(&self) -> DeviceResult<()> {
         tracing::info!("Stopping guiding");
-        
+
         api_phd2_stop_guiding()
             .await
             .map_err(|e| format!("Stop guiding failed: {}", e))
     }
-    
+
     // =========================================================================
     // PLATE SOLVING
     // =========================================================================
-    
+
     async fn plate_solve(
         &self,
         image_data: &ImageData,
@@ -831,12 +920,12 @@ impl DeviceOps for UnifiedDeviceOps {
         hint_scale: Option<f64>,
     ) -> DeviceResult<PlateSolveResult> {
         tracing::info!("Plate solving image");
-        
+
         // Use platform-appropriate temp directory
         let temp_dir = std::env::temp_dir();
         let temp_file = temp_dir.join("nightshade_platesolve_temp.fits");
         let temp_path = temp_file.to_string_lossy().to_string();
-        
+
         // Save the image data to the temp file first
         let header = FitsWriteHeader {
             object_name: Some("Plate Solve".to_string()),
@@ -863,43 +952,42 @@ impl DeviceOps for UnifiedDeviceOps {
             site_longitude: None,
             site_elevation: None,
         };
-        
+
         api_save_fits_file(
             temp_path.clone(),
             image_data.width,
             image_data.height,
             image_data.data.clone(),
             header,
-        ).await.map_err(|e| format!("Failed to save temp FITS for plate solve: {}", e))?;
-        
+        )
+        .await
+        .map_err(|e| format!("Failed to save temp FITS for plate solve: {}", e))?;
+
         // Use the near solve if we have hints, otherwise blind solve
         let result = if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
-            api_plate_solve_near(
-                temp_path.clone(),
-                ra,
-                dec,
-                hint_scale.unwrap_or(5.0),
-            ).await
+            api_plate_solve_near(temp_path.clone(), ra, dec, hint_scale.unwrap_or(5.0)).await
         } else {
             api_plate_solve_blind(temp_path.clone()).await
         };
-        
+
         // Clean up temp file
         let _ = std::fs::remove_file(&temp_path);
-        
-        result.map(|r| PlateSolveResult {
-            ra_degrees: r.ra,
-            dec_degrees: r.dec,
-            pixel_scale: r.pixel_scale,
-            rotation: r.rotation,
-            success: r.success,
-        }).map_err(|e| format!("Plate solve failed: {}", e))
+
+        result
+            .map(|r| PlateSolveResult {
+                ra_degrees: r.ra,
+                dec_degrees: r.dec,
+                pixel_scale: r.pixel_scale,
+                rotation: r.rotation,
+                success: r.success,
+            })
+            .map_err(|e| format!("Plate solve failed: {}", e))
     }
-    
+
     // =========================================================================
     // IMAGE SAVING
     // =========================================================================
-    
+
     async fn save_fits(
         &self,
         image_data: &ImageData,
@@ -910,7 +998,7 @@ impl DeviceOps for UnifiedDeviceOps {
         dec_degrees: Option<f64>,
     ) -> DeviceResult<()> {
         tracing::info!("Saving FITS image to: {}", file_path);
-        
+
         let header = FitsWriteHeader {
             object_name: target_name.map(|s| s.to_string()),
             exposure_time: image_data.exposure_secs,
@@ -943,23 +1031,30 @@ impl DeviceOps for UnifiedDeviceOps {
             image_data.height,
             image_data.data.clone(),
             header,
-        ).await.map_err(|e| format!("Save FITS failed: {}", e))
+        )
+        .await
+        .map_err(|e| format!("Save FITS failed: {}", e))
     }
-    
+
     // =========================================================================
     // NOTIFICATIONS
     // =========================================================================
-    
+
     async fn send_notification(&self, level: &str, title: &str, message: &str) -> DeviceResult<()> {
-        tracing::info!("[NOTIFICATION][{}] {}: {}", level.to_uppercase(), title, message);
-        
+        tracing::info!(
+            "[NOTIFICATION][{}] {}: {}",
+            level.to_uppercase(),
+            title,
+            message
+        );
+
         // Publish as event to the event bus
         let severity = match level {
             "error" => EventSeverity::Error,
             "warning" => EventSeverity::Warning,
             _ => EventSeverity::Info,
         };
-        
+
         self.app_state.publish_event(create_event_auto_id(
             severity,
             EventCategory::System,
@@ -969,13 +1064,17 @@ impl DeviceOps for UnifiedDeviceOps {
                 level: level.to_string(),
             }),
         ));
-        
+
         Ok(())
     }
 
     async fn polar_align_update(&self, result: &PolarAlignResult) -> DeviceResult<()> {
-        tracing::info!("Polar Align Update: Alt {:.1}', Az {:.1}'", result.altitude_error, result.azimuth_error);
-        
+        tracing::info!(
+            "Polar Align Update: Alt {:.1}', Az {:.1}'",
+            result.altitude_error,
+            result.azimuth_error
+        );
+
         let event = PolarAlignmentEvent {
             azimuth_error: result.azimuth_error,
             altitude_error: result.altitude_error,
@@ -985,17 +1084,16 @@ impl DeviceOps for UnifiedDeviceOps {
             target_ra: result.target_ra,
             target_dec: result.target_dec,
         };
-        
+
         self.app_state.publish_event(create_event_auto_id(
             EventSeverity::Info,
             EventCategory::PolarAlignment,
             EventPayload::PolarAlignment(event),
         ));
-        
+
         Ok(())
     }
-    
-    
+
     // =========================================================================
     // DOME OPERATIONS
     // =========================================================================
@@ -1003,7 +1101,8 @@ impl DeviceOps for UnifiedDeviceOps {
     async fn dome_open(&self, dome_id: &str) -> DeviceResult<()> {
         tracing::info!("Opening dome shutter {}", dome_id);
 
-        get_device_manager().dome_open_shutter(dome_id)
+        get_device_manager()
+            .dome_open_shutter(dome_id)
             .await
             .map_err(|e| format!("Open dome shutter failed: {}", e))
     }
@@ -1011,7 +1110,8 @@ impl DeviceOps for UnifiedDeviceOps {
     async fn dome_close(&self, dome_id: &str) -> DeviceResult<()> {
         tracing::info!("Closing dome shutter {}", dome_id);
 
-        get_device_manager().dome_close_shutter(dome_id)
+        get_device_manager()
+            .dome_close_shutter(dome_id)
             .await
             .map_err(|e| format!("Close dome shutter failed: {}", e))
     }
@@ -1019,13 +1119,15 @@ impl DeviceOps for UnifiedDeviceOps {
     async fn dome_park(&self, dome_id: &str) -> DeviceResult<()> {
         tracing::info!("Parking dome {}", dome_id);
 
-        get_device_manager().dome_park(dome_id)
+        get_device_manager()
+            .dome_park(dome_id)
             .await
             .map_err(|e| format!("Park dome failed: {}", e))
     }
 
     async fn dome_get_shutter_status(&self, dome_id: &str) -> DeviceResult<String> {
-        let status = get_device_manager().dome_get_shutter_status(dome_id)
+        let status = get_device_manager()
+            .dome_get_shutter_status(dome_id)
             .await
             .map_err(|e| format!("Get dome shutter status failed: {}", e))?;
 
@@ -1039,51 +1141,51 @@ impl DeviceOps for UnifiedDeviceOps {
             _ => "Error".to_string(),
         })
     }
-    
+
     // =========================================================================
     // UTILITY
     // =========================================================================
-    
+
     fn calculate_altitude(&self, ra_hours: f64, dec_degrees: f64, lat: f64, lon: f64) -> f64 {
         // Calculate Local Sidereal Time
         let now = chrono::Utc::now();
         let jd = julian_day(now);
         let lst = local_sidereal_time(jd, lon);
-        
+
         // Calculate hour angle
         let ha = lst - ra_hours;
         let ha_rad = ha * 15.0_f64.to_radians();
         let dec_rad = dec_degrees.to_radians();
         let lat_rad = lat.to_radians();
-        
+
         // Calculate altitude
-        let sin_alt = lat_rad.sin() * dec_rad.sin() + 
-                      lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
+        let sin_alt = lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
         sin_alt.asin().to_degrees()
     }
-    
+
     fn get_observer_location(&self) -> Option<(f64, f64)> {
         // Get observer location from app settings
         match self.app_state.get_observer_location() {
             Ok(Some(location)) => {
-                tracing::debug!("Observer location retrieved: lat={}, lon={}",
-                    location.latitude, location.longitude);
+                tracing::debug!(
+                    "Observer location retrieved: lat={}, lon={}",
+                    location.latitude,
+                    location.longitude
+                );
                 Some((location.latitude, location.longitude))
             }
 
-        // Map bayer pattern to sensor_type and bayer_offset
+            // Map bayer pattern to sensor_type and bayer_offset
             Ok(None) => {
                 tracing::debug!("Observer location not set in settings, will retry");
                 None
             }
 
-        // Map bayer pattern to sensor_type and bayer_offset
+            // Map bayer pattern to sensor_type and bayer_offset
             Err(e) => {
                 tracing::warn!("Failed to get observer location: {}", e);
                 None
-            }
-
-        // Map bayer pattern to sensor_type and bayer_offset
+            } // Map bayer pattern to sensor_type and bayer_offset
         }
 
         // Map bayer pattern to sensor_type and bayer_offset
@@ -1101,15 +1203,11 @@ impl DeviceOps for UnifiedDeviceOps {
                     None => {
                         tracing::debug!("No safety monitor configured, assuming safe");
                         return Ok(true);
-                    }
-
-        // Map bayer pattern to sensor_type and bayer_offset
+                    } // Map bayer pattern to sensor_type and bayer_offset
                 }
 
-        // Map bayer pattern to sensor_type and bayer_offset
-            }
-
-        // Map bayer pattern to sensor_type and bayer_offset
+                // Map bayer pattern to sensor_type and bayer_offset
+            } // Map bayer pattern to sensor_type and bayer_offset
         };
 
         tracing::debug!("Checking safety status for device: {}", device_id);
@@ -1117,17 +1215,19 @@ impl DeviceOps for UnifiedDeviceOps {
         // Use DeviceManager which handles all driver types (ASCOM, Alpaca, INDI, Native)
         match get_device_manager().safety_is_safe(&device_id).await {
             Ok(is_safe) => {
-                tracing::info!("Safety monitor {} reports: {}", device_id, if is_safe { "SAFE" } else { "UNSAFE" });
+                tracing::info!(
+                    "Safety monitor {} reports: {}",
+                    device_id,
+                    if is_safe { "SAFE" } else { "UNSAFE" }
+                );
                 Ok(is_safe)
             }
 
-        // Map bayer pattern to sensor_type and bayer_offset
+            // Map bayer pattern to sensor_type and bayer_offset
             Err(e) => {
                 tracing::error!("Failed to check safety monitor {}: {} - returning error for fail-mode handling", device_id, e);
                 Err(format!("Safety check failed for {}: {}", device_id, e))
-            }
-
-        // Map bayer pattern to sensor_type and bayer_offset
+            } // Map bayer pattern to sensor_type and bayer_offset
         }
 
         // Map bayer pattern to sensor_type and bayer_offset
@@ -1145,7 +1245,7 @@ impl DeviceOps for UnifiedDeviceOps {
             image_data.width,
             image_data.height,
             1,
-            &image_data.data
+            &image_data.data,
         );
 
         let config = StarDetectionConfig::default();
@@ -1164,7 +1264,10 @@ impl DeviceOps for UnifiedDeviceOps {
         Ok(Some(avg_hfr))
     }
 
-    async fn detect_stars_in_image(&self, image_data: &ImageData) -> DeviceResult<Vec<(f64, f64, f64)>> {
+    async fn detect_stars_in_image(
+        &self,
+        image_data: &ImageData,
+    ) -> DeviceResult<Vec<(f64, f64, f64)>> {
         use nightshade_imaging::{detect_stars, StarDetectionConfig};
 
         // Convert to nightshade_imaging::ImageData
@@ -1172,16 +1275,14 @@ impl DeviceOps for UnifiedDeviceOps {
             image_data.width,
             image_data.height,
             1,
-            &image_data.data
+            &image_data.data,
         );
 
         let config = StarDetectionConfig::default();
         let stars = detect_stars(&img, &config);
 
         // Convert to (x, y, hfr) tuples
-        let result: Vec<(f64, f64, f64)> = stars.iter()
-            .map(|s| (s.x, s.y, s.hfr))
-            .collect();
+        let result: Vec<(f64, f64, f64)> = stars.iter().map(|s| (s.x, s.y, s.hfr)).collect();
 
         Ok(result)
     }
@@ -1208,7 +1309,11 @@ impl DeviceOps for UnifiedDeviceOps {
             .map_err(|e| format!("Halt cover failed: {}", e))
     }
 
-    async fn cover_calibrator_calibrator_on(&self, device_id: &str, brightness: i32) -> DeviceResult<()> {
+    async fn cover_calibrator_calibrator_on(
+        &self,
+        device_id: &str,
+        brightness: i32,
+    ) -> DeviceResult<()> {
         api_cover_calibrator_calibrator_on(device_id.to_string(), brightness)
             .await
             .map_err(|e| format!("Calibrator on failed: {}", e))
@@ -1248,36 +1353,43 @@ impl DeviceOps for UnifiedDeviceOps {
 /// Calculate Julian Day from UTC datetime
 fn julian_day(dt: chrono::DateTime<chrono::Utc>) -> f64 {
     use chrono::{Datelike, Timelike};
-    
+
     let year = dt.year();
     let month = dt.month() as i32;
     let day = dt.day() as f64;
     let hour = dt.hour() as f64 + dt.minute() as f64 / 60.0 + dt.second() as f64 / 3600.0;
-    
+
     let (y, m) = if month <= 2 {
         (year - 1, month + 12)
     } else {
         (year, month)
     };
-    
+
     let a = (y as f64 / 100.0).floor();
     let b = 2.0 - a + (a / 4.0).floor();
-    
-    (365.25 * (y + 4716) as f64).floor() + 
-    (30.6001 * (m + 1) as f64).floor() + 
-    day + hour / 24.0 + b - 1524.5
+
+    (365.25 * (y + 4716) as f64).floor()
+        + (30.6001 * (m + 1) as f64).floor()
+        + day
+        + hour / 24.0
+        + b
+        - 1524.5
 }
 
 /// Calculate Local Sidereal Time in hours
 fn local_sidereal_time(jd: f64, longitude: f64) -> f64 {
     let t = (jd - 2451545.0) / 36525.0;
-    
+
     // Greenwich Mean Sidereal Time
-    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) +
-               0.000387933 * t * t - t * t * t / 38710000.0;
-    
+    let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * t * t
+        - t * t * t / 38710000.0;
+
     let lst = (gmst + longitude) % 360.0;
-    if lst < 0.0 { (lst + 360.0) / 15.0 } else { lst / 15.0 }
+    if lst < 0.0 {
+        (lst + 360.0) / 15.0
+    } else {
+        lst / 15.0
+    }
 }
 
 // =============================================================================
@@ -1293,7 +1405,9 @@ pub fn create_unified_device_ops() -> Arc<dyn nightshade_sequencer::DeviceOps> {
 }
 
 /// Create a unified DeviceOps instance with a specific app state
-pub fn create_unified_device_ops_with_state(app_state: SharedAppState) -> Arc<dyn nightshade_sequencer::DeviceOps> {
+pub fn create_unified_device_ops_with_state(
+    app_state: SharedAppState,
+) -> Arc<dyn nightshade_sequencer::DeviceOps> {
     Arc::new(UnifiedDeviceOps::new(app_state))
 }
 
@@ -1308,7 +1422,10 @@ mod tests {
         NativeCamera, NativeDevice, NativeError, NativeVendor, ReadoutMode, SensorInfo, SubFrame,
         VendorFeatures,
     };
-    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
 
     #[derive(Debug)]
     struct InstantCompleteCamera {
@@ -1416,7 +1533,11 @@ mod tests {
             })
         }
 
-        async fn set_cooler(&mut self, _enabled: bool, _target_temp: f64) -> Result<(), NativeError> {
+        async fn set_cooler(
+            &mut self,
+            _enabled: bool,
+            _target_temp: f64,
+        ) -> Result<(), NativeError> {
             Ok(())
         }
 
@@ -1519,19 +1640,21 @@ mod tests {
             let mut native_cameras = mgr.native_cameras.write().await;
             native_cameras.insert(
                 device_id.clone(),
-                Box::new(InstantCompleteCamera::new(device_id.clone(), Arc::clone(&exposure_checked))),
+                Box::new(InstantCompleteCamera::new(
+                    device_id.clone(),
+                    Arc::clone(&exposure_checked),
+                )),
             );
         }
 
         let ops = UnifiedDeviceOps::new(crate::api::get_state().clone());
         let device_id_for_exposure = device_id.clone();
-        let timed_result = tokio::time::timeout(
-            std::time::Duration::from_millis(100),
-            async move {
-                ops.camera_start_exposure(&device_id_for_exposure, 0.5, None, None, 1, 1).await
-            },
-        )
-        .await;
+        let timed_result =
+            tokio::time::timeout(std::time::Duration::from_millis(100), async move {
+                ops.camera_start_exposure(&device_id_for_exposure, 0.5, None, None, 1, 1)
+                    .await
+            })
+            .await;
         cleanup_test_camera(mgr, &device_id).await;
 
         let result = match timed_result {
@@ -1541,7 +1664,10 @@ mod tests {
             }
         };
 
-        assert!(result.is_ok(), "Exposure should succeed when complete immediately");
+        assert!(
+            result.is_ok(),
+            "Exposure should succeed when complete immediately"
+        );
         assert!(
             exposure_checked.load(Ordering::SeqCst) > 0,
             "Exposure status should be checked at least once"

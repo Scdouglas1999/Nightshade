@@ -14,8 +14,11 @@ class AnnotationOverlay extends ConsumerStatefulWidget {
   final Size imageSize;
   final void Function(CelestialObjectAnnotation object)? onObjectTapped;
   final void Function(double x, double y)? onIdentifyAt;
+
   /// Called when the mouse hovers over a celestial object
-  final void Function(CelestialObjectAnnotation object, Offset screenPosition)? onObjectHovered;
+  final void Function(CelestialObjectAnnotation object, Offset screenPosition)?
+      onObjectHovered;
+
   /// Called when the mouse moves away from all objects
   final VoidCallback? onObjectUnhovered;
 
@@ -126,7 +129,8 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
       if (foundObject != null) {
         // Debounce showing the tooltip to avoid flickering
         final objectToShow = foundObject;
-        _hoverDebounceTimer = Timer(const Duration(milliseconds: _hoverDebounceMs), () {
+        _hoverDebounceTimer =
+            Timer(const Duration(milliseconds: _hoverDebounceMs), () {
           if (!mounted) return;
           _currentHoveredObject = objectToShow;
 
@@ -147,7 +151,8 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
     }
   }
 
-  bool _isTypeVisibleForHover(ObjectType type, Set<AnnotationObjectFilter> filters) {
+  bool _isTypeVisibleForHover(
+      ObjectType type, Set<AnnotationObjectFilter> filters) {
     switch (type) {
       case ObjectType.galaxy:
         return filters.contains(AnnotationObjectFilter.galaxies);
@@ -163,6 +168,18 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
       default:
         return filters.contains(AnnotationObjectFilter.other);
     }
+  }
+
+  bool _isObjectVisibleForInteraction(
+    CelestialObjectAnnotation object,
+    AnnotationSettings settings,
+  ) {
+    if (!object.visible) return false;
+    if (object.magnitude != null) {
+      if (object.magnitude! > settings.magnitudeCutoff) return false;
+      if (object.magnitude! < settings.minMagnitude) return false;
+    }
+    return _isTypeVisibleForHover(object.type, settings.visibleTypes);
   }
 
   void _onHoverChanged(bool hovering) {
@@ -200,6 +217,8 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
     // Check if tapped on an existing object
     if (widget.annotation != null) {
       for (final object in widget.annotation!.objects) {
+        if (!_isObjectVisibleForInteraction(object, settings)) continue;
+
         final dx = object.x - imagePoint.dx;
         final dy = object.y - imagePoint.dy;
         final distance = (dx * dx + dy * dy);
@@ -221,8 +240,7 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
     final settingsAsync = ref.watch(annotationSettingsProvider);
     final markerStyleAsync = ref.watch(annotationMarkerStyleProvider);
 
-    final settings =
-        settingsAsync.valueOrNull ?? const AnnotationSettings();
+    final settings = settingsAsync.valueOrNull ?? const AnnotationSettings();
     final markerStyle =
         markerStyleAsync.valueOrNull ?? const AnnotationMarkerStyle();
 
@@ -299,8 +317,10 @@ class EnhancedAnnotationPainter extends CustomPainter {
 
     // Limit displayed objects
     if (visibleObjects.length > settings.maxObjectsToDisplay) {
-      visibleObjects.sort((a, b) => (a.magnitude ?? 20).compareTo(b.magnitude ?? 20));
-      visibleObjects.removeRange(settings.maxObjectsToDisplay, visibleObjects.length);
+      visibleObjects
+          .sort((a, b) => (a.magnitude ?? 20).compareTo(b.magnitude ?? 20));
+      visibleObjects.removeRange(
+          settings.maxObjectsToDisplay, visibleObjects.length);
     }
 
     for (final object in visibleObjects) {
@@ -367,7 +387,8 @@ class EnhancedAnnotationPainter extends CustomPainter {
     return scaled * zoomLevel;
   }
 
-  void _drawObjectMarker(Canvas canvas, CelestialObjectAnnotation object, double x, double y) {
+  void _drawObjectMarker(
+      Canvas canvas, CelestialObjectAnnotation object, double x, double y) {
     final color = _getColorForType(object.type);
     final paint = Paint()
       ..style = PaintingStyle.stroke
@@ -409,7 +430,8 @@ class EnhancedAnnotationPainter extends CustomPainter {
     }
   }
 
-  void _drawGalaxyMarker(Canvas canvas, double x, double y, double size, Paint paint) {
+  void _drawGalaxyMarker(
+      Canvas canvas, double x, double y, double size, Paint paint) {
     // Draw tilted ellipse to represent galaxy shape
     canvas.save();
     canvas.translate(x, y);
@@ -442,7 +464,8 @@ class EnhancedAnnotationPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawNebulaMarker(Canvas canvas, double x, double y, double size, Paint paint) {
+  void _drawNebulaMarker(
+      Canvas canvas, double x, double y, double size, Paint paint) {
     // Draw rounded rectangle for nebula shape
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -453,7 +476,8 @@ class EnhancedAnnotationPainter extends CustomPainter {
     );
   }
 
-  void _drawPlanetaryNebulaMarker(Canvas canvas, double x, double y, double size, Paint paint) {
+  void _drawPlanetaryNebulaMarker(
+      Canvas canvas, double x, double y, double size, Paint paint) {
     // Outer circle
     canvas.drawCircle(Offset(x, y), size / 2, paint);
 
@@ -471,7 +495,8 @@ class EnhancedAnnotationPainter extends CustomPainter {
     canvas.drawCircle(Offset(x, y), markerStyle.strokeWidth, dotPaint);
   }
 
-  void _drawClusterMarker(Canvas canvas, double x, double y, double size, Paint paint) {
+  void _drawClusterMarker(
+      Canvas canvas, double x, double y, double size, Paint paint) {
     // Dashed circle outline
     canvas.drawCircle(Offset(x, y), size / 2, paint);
 
@@ -481,14 +506,19 @@ class EnhancedAnnotationPainter extends CustomPainter {
       ..color = paint.color.withValues(alpha: 0.5);
 
     final dotRadius = markerStyle.strokeWidth * 0.8;
-    canvas.drawCircle(Offset(x - size * 0.15, y - size * 0.1), dotRadius, dotPaint);
-    canvas.drawCircle(Offset(x + size * 0.1, y - size * 0.15), dotRadius, dotPaint);
-    canvas.drawCircle(Offset(x + size * 0.12, y + size * 0.1), dotRadius, dotPaint);
-    canvas.drawCircle(Offset(x - size * 0.08, y + size * 0.12), dotRadius, dotPaint);
+    canvas.drawCircle(
+        Offset(x - size * 0.15, y - size * 0.1), dotRadius, dotPaint);
+    canvas.drawCircle(
+        Offset(x + size * 0.1, y - size * 0.15), dotRadius, dotPaint);
+    canvas.drawCircle(
+        Offset(x + size * 0.12, y + size * 0.1), dotRadius, dotPaint);
+    canvas.drawCircle(
+        Offset(x - size * 0.08, y + size * 0.12), dotRadius, dotPaint);
     canvas.drawCircle(Offset(x, y), dotRadius, dotPaint);
   }
 
-  void _drawStarMarker(Canvas canvas, double x, double y, double size, Paint paint) {
+  void _drawStarMarker(
+      Canvas canvas, double x, double y, double size, Paint paint) {
     // Draw four-pointed star crosshair
     final halfSize = size / 2;
 
@@ -504,7 +534,8 @@ class EnhancedAnnotationPainter extends CustomPainter {
     );
   }
 
-  void _drawObjectLabel(Canvas canvas, CelestialObjectAnnotation object, double x, double y) {
+  void _drawObjectLabel(
+      Canvas canvas, CelestialObjectAnnotation object, double x, double y) {
     final label = settings.showMagnitudes && object.magnitude != null
         ? '${object.name} (${object.magnitude!.toStringAsFixed(1)})'
         : object.name;
@@ -596,13 +627,27 @@ class ObjectInfoTooltip extends StatelessWidget {
               _ObjectTypeIcon(type: object.type),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  object.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      object.commonName ?? object.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (object.commonName != null)
+                      Text(
+                        object.name,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontSize: 11,
+                        ),
+                      ),
+                  ],
                 ),
               ),
               if (onClose != null)
@@ -619,9 +664,12 @@ class ObjectInfoTooltip extends StatelessWidget {
           const SizedBox(height: 8),
           _InfoRow(label: 'Type', value: _getTypeName(object.type)),
           if (object.magnitude != null)
-            _InfoRow(label: 'Magnitude', value: object.magnitude!.toStringAsFixed(2)),
+            _InfoRow(
+                label: 'Magnitude',
+                value: object.magnitude!.toStringAsFixed(2)),
           if (object.size != null)
-            _InfoRow(label: 'Size', value: '${object.size!.toStringAsFixed(1)}\''),
+            _InfoRow(
+                label: 'Size', value: '${object.size!.toStringAsFixed(1)}\''),
           _InfoRow(
             label: 'RA',
             value: _formatRA(object.ra),
@@ -667,10 +715,11 @@ class ObjectInfoTooltip extends StatelessWidget {
   }
 
   String _formatRA(double ra) {
-    final hours = ra ~/ 15;
-    final mins = ((ra / 15 - hours) * 60).toInt();
-    final secs = (((ra / 15 - hours) * 60 - mins) * 60);
-    return '${hours}h ${mins}m ${secs.toStringAsFixed(1)}s';
+    final raHours = ra / 15.0;
+    final hours = ((raHours.floor() % 24) + 24) % 24;
+    final mins = ((raHours - hours) * 60).floor();
+    final secs = ((((raHours - hours) * 60) - mins) * 60).abs();
+    return '${hours.toString().padLeft(2, '0')}h ${mins.toString().padLeft(2, '0')}m ${secs.toStringAsFixed(1).padLeft(4, '0')}s';
   }
 
   String _formatDec(double dec) {
@@ -679,7 +728,7 @@ class ObjectInfoTooltip extends StatelessWidget {
     final degs = absDec.toInt();
     final mins = ((absDec - degs) * 60).toInt();
     final secs = (((absDec - degs) * 60 - mins) * 60);
-    return '$sign$degs° $mins\' ${secs.toStringAsFixed(1)}"';
+    return '$sign${degs.toString().padLeft(2, '0')}\u00B0 ${mins.toString().padLeft(2, '0')}\' ${secs.toStringAsFixed(1).padLeft(4, '0')}"';
   }
 }
 

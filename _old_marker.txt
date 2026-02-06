@@ -1,0 +1,7 @@
+    } else {
+        Err(NightshadeError::not_supported(device_id, "Unknown ASCOM device type"))
+    }
+}
+
+#[cfg(not(windows))]
+async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, NightshadeError> {
