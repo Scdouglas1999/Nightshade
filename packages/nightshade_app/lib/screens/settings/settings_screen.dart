@@ -1716,9 +1716,92 @@ class _ScienceSettings extends ConsumerWidget {
                 ),
               ],
             ),
+            _SettingsSection(
+              title: 'Camera',
+              colors: colors,
+              isMobile: isMobile,
+              children: [
+                _ScienceReadNoiseRow(colors: colors, isMobile: isMobile),
+              ],
+            ),
           ],
         );
       },
+    );
+  }
+}
+
+class _ScienceReadNoiseRow extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+  final bool isMobile;
+  const _ScienceReadNoiseRow({required this.colors, this.isMobile = false});
+  @override
+  ConsumerState<_ScienceReadNoiseRow> createState() =>
+      _ScienceReadNoiseRowState();
+}
+
+class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
+  late TextEditingController _controller;
+  static const _key = 'science.camera.read_noise_e';
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: '3.5');
+    _loadValue();
+  }
+
+  Future<void> _loadValue() async {
+    final dao = ref.read(settingsDaoProvider);
+    final stored = await dao.getSetting(_key);
+    if (stored != null && stored.isNotEmpty && mounted) {
+      _controller.text = stored;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingRow(
+      icon: LucideIcons.zap,
+      title: 'Camera read noise (e\u207B)',
+      subtitle: 'Used for limiting magnitude calculations (default 3.5)',
+      trailing: SizedBox(
+        width: 72,
+        child: TextField(
+          controller: _controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: TextStyle(
+            color: widget.colors.textPrimary,
+            fontSize: 13,
+          ),
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: widget.colors.border),
+            ),
+          ),
+          onSubmitted: (value) async {
+            final parsed = double.tryParse(value);
+            if (parsed != null && parsed > 0 && parsed.isFinite) {
+              final dao = ref.read(settingsDaoProvider);
+              await dao.setSetting(
+                  _key, parsed.clamp(0.5, 30.0).toString());
+            }
+          },
+        ),
+      ),
+      isLast: true,
+      colors: widget.colors,
+      isMobile: widget.isMobile,
     );
   }
 }

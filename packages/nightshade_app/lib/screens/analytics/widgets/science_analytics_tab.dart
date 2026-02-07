@@ -114,15 +114,9 @@ class ScienceAnalyticsTab extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: _SeriesChartCard(
+                child: _LightCurveChartCard(
                   colors: colors,
-                  title: 'Differential Photometry',
-                  yLabel: 'dMag',
-                  points: lightCurve
-                      .map((point) => _ChartPoint(
-                          point.timestamp, point.differentialMagnitude))
-                      .toList(growable: false),
-                  color: colors.primary,
+                  lightCurve: lightCurve,
                 ),
               ),
               const SizedBox(width: 12),
@@ -309,6 +303,7 @@ class _SeriesChartCard extends StatelessWidget {
   final String yLabel;
   final List<_ChartPoint> points;
   final Color color;
+  final bool invertY;
 
   const _SeriesChartCard({
     required this.colors,
@@ -316,6 +311,7 @@ class _SeriesChartCard extends StatelessWidget {
     required this.yLabel,
     required this.points,
     required this.color,
+    this.invertY = false,
   });
 
   @override
@@ -337,21 +333,27 @@ class _SeriesChartCard extends StatelessWidget {
     final sorted = points.toList(growable: false)
       ..sort((a, b) => a.time.compareTo(b.time));
     final start = sorted.first.time;
+    // For magnitude charts (invertY), negate values so "brighter" (more
+    // negative magnitude) renders at the top — standard astronomical
+    // convention.  Axis labels negate back to show true values.
+    final ySign = invertY ? -1.0 : 1.0;
     final spots = sorted
         .map(
           (point) => FlSpot(
-              point.time.difference(start).inSeconds.toDouble(), point.value),
+              point.time.difference(start).inSeconds.toDouble(),
+              point.value * ySign),
         )
         .toList(growable: false);
 
-    var minY = sorted.first.value;
-    var maxY = sorted.first.value;
+    var minY = sorted.first.value * ySign;
+    var maxY = sorted.first.value * ySign;
     for (final point in sorted) {
-      if (point.value < minY) {
-        minY = point.value;
+      final v = point.value * ySign;
+      if (v < minY) {
+        minY = v;
       }
-      if (point.value > maxY) {
-        maxY = point.value;
+      if (v > maxY) {
+        maxY = v;
       }
     }
 
@@ -426,7 +428,7 @@ class _SeriesChartCard extends StatelessWidget {
                         showTitles: true,
                         reservedSize: 40,
                         getTitlesWidget: (value, meta) => Text(
-                          value.toStringAsFixed(1),
+                          (value * ySign).toStringAsFixed(1),
                           style: TextStyle(
                             fontSize: 10,
                             color: colors.textSecondary,
@@ -457,6 +459,208 @@ class _SeriesChartCard extends StatelessWidget {
     );
   }
 }
+
+class _LightCurveChartCard extends StatelessWidget {
+  final NightshadeColors colors;
+  final List<LightCurvePoint> lightCurve;
+
+  const _LightCurveChartCard({
+    required this.colors,
+    required this.lightCurve,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (lightCurve.isEmpty) {
+      return NightshadeCard(
+        child: SizedBox(
+          height: 240,
+          child: Center(
+            child: Text(
+              'Differential Photometry has no data yet',
+              style: TextStyle(color: colors.textMuted),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final sorted = lightCurve.toList(growable: false)
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final start = sorted.first.timestamp;
+    // Negate values for inverted Y-axis (brighter = up = more negative mag).
+    final spots = sorted
+        .map(
+          (point) => FlSpot(
+            point.timestamp.difference(start).inSeconds.toDouble(),
+            -point.differentialMagnitude,
+          ),
+        )
+        .toList(growable: false);
+
+    var minY = spots.first.y;
+    var maxY = spots.first.y;
+    for (final s in spots) {
+      if (s.y < minY) minY = s.y;
+      if (s.y > maxY) maxY = s.y;
+    }
+    // Extend range to include error bar extents so they aren't clipped.
+    for (final point in sorted) {
+      if (point.uncertainty <= 0) continue;
+      final yLow = -(point.differentialMagnitude - point.uncertainty);
+      final yHigh = -(point.differentialMagnitude + point.uncertainty);
+      if (yLow < minY) minY = yLow;
+      if (yLow > maxY) maxY = yLow;
+      if (yHigh < minY) minY = yHigh;
+      if (yHigh > maxY) maxY = yHigh;
+    }
+    final yRange = math.max(0.5, maxY - minY);
+
+    return NightshadeCard(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Differential Photometry',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 190,
+              child: LineChart(
+                LineChartData(
+                  minX: 0,
+                  maxX: spots.last.x == 0 ? 1 : spots.last.x,
+                  minY: minY - (yRange * 0.15),
+                  maxY: maxY + (yRange * 0.15),
+                  borderData: FlBorderData(
+                    show: true,
+                    border: Border.all(color: colors.border),
+                  ),
+                  gridData: FlGridData(
+                    drawVerticalLine: true,
+                    getDrawingHorizontalLine: (_) =>
+                        FlLine(color: colors.border.withValues(alpha: 0.35)),
+                    getDrawingVerticalLine: (_) =>
+                        FlLine(color: colors.border.withValues(alpha: 0.25)),
+                  ),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 24,
+                        interval: math.max(
+                            1, (spots.last.x / 4).floorToDouble()),
+                        getTitlesWidget: (value, meta) {
+                          final mins =
+                              Duration(seconds: value.round()).inMinutes;
+                          return Text(
+                            '${mins}m',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: colors.textSecondary,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      axisNameWidget: Text(
+                        'dMag',
+                        style: TextStyle(
+                            color: colors.textSecondary, fontSize: 10),
+                      ),
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) => Text(
+                          (-value).toStringAsFixed(1),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  lineBarsData: [
+                    // Main data line with dot markers.
+                    LineChartBarData(
+                      spots: spots,
+                      color: colors.primary,
+                      barWidth: 2,
+                      isCurved: false,
+                      dotData: FlDotData(
+                        show: true,
+                        getDotPainter: (spot, _, __, ___) =>
+                            FlDotCirclePainter(
+                          radius: 2.2,
+                          color: colors.primary,
+                          strokeWidth: 0,
+                        ),
+                      ),
+                      belowBarData: BarAreaData(show: false),
+                    ),
+                    // Error bars: each is a vertical line segment in chart
+                    // coordinates (2 spots per bar), so alignment with data
+                    // points is exact regardless of axis padding or layout.
+                    for (final point in sorted)
+                      if (point.uncertainty > 0)
+                        LineChartBarData(
+                          spots: [
+                            FlSpot(
+                              point.timestamp
+                                  .difference(start)
+                                  .inSeconds
+                                  .toDouble(),
+                              -(point.differentialMagnitude -
+                                  point.uncertainty),
+                            ),
+                            FlSpot(
+                              point.timestamp
+                                  .difference(start)
+                                  .inSeconds
+                                  .toDouble(),
+                              -(point.differentialMagnitude +
+                                  point.uncertainty),
+                            ),
+                          ],
+                          color: colors.primary.withValues(alpha: 0.4),
+                          barWidth: 1.0,
+                          isCurved: false,
+                          dotData: FlDotData(
+                            show: true,
+                            getDotPainter: (spot, _, __, ___) =>
+                                FlDotCirclePainter(
+                              radius: 1.5,
+                              color: colors.primary.withValues(alpha: 0.4),
+                              strokeWidth: 0,
+                            ),
+                          ),
+                          belowBarData: BarAreaData(show: false),
+                        ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class _PsfHeatmapCard extends StatelessWidget {
   final NightshadeColors colors;
@@ -893,11 +1097,13 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
   CapturedImage? _findLatestByFilter(
       List<CapturedImage> images, Set<String> names) {
     final filtered = images.where((image) {
-      final filter = (image.filter ?? '').toLowerCase();
+      final filter = (image.filter ?? '').toLowerCase().trim();
       for (final name in names) {
-        if (filter.contains(name)) {
-          return true;
-        }
+        // Match on exact filter name or as a whole-word within the filter
+        // string.  Prevents false positives like "Shah" matching "ha".
+        if (filter == name) return true;
+        final pattern = RegExp('(?:^|[\\s_-])${RegExp.escape(name)}(?:[\\s_-]|\$)');
+        if (pattern.hasMatch(filter)) return true;
       }
       return false;
     }).toList();
