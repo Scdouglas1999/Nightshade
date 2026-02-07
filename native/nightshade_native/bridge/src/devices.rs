@@ -2993,64 +2993,119 @@ impl DeviceManager {
                     let locked_client = client.read().await;
 
                     // Query INDI camera properties
-                    let sensor_temp = locked_client.get_number(&device_name, "CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE").await;
-                    let cooler_on = match locked_client.get_switch(&device_name, "CCD_COOLER", "COOLER_ON").await {
-                        Some(c) => c,
-                        None => {
-                            warn!(
-                                "Failed to read INDI cooler status for {}: property not available. Reporting cooler as off for unsupported state.",
+                    let sensor_temp = locked_client
+                        .get_number(&device_name, "CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE")
+                        .await;
+                    let cooler_state = locked_client
+                        .get_switch(&device_name, "CCD_COOLER", "COOLER_ON")
+                        .await;
+                    let has_cooler = cooler_state.is_some();
+                    let cooler_on = cooler_state.unwrap_or(false);
+                    let bin_x = locked_client
+                        .get_number(&device_name, "CCD_BINNING", "HOR_BIN")
+                        .await
+                        .map(|v| v as i32)
+                        .ok_or_else(|| {
+                            format!(
+                                "INDI camera {} missing required property CCD_BINNING.HOR_BIN; cannot determine current binning.",
                                 device_id
-                            );
-                            false
-                        }
-                    };
-                    let bin_x = match locked_client.get_number(&device_name, "CCD_BINNING", "HOR_BIN").await {
-                        Some(v) => v as i32,
-                        None => {
-                            warn!("Failed to read INDI HOR_BIN for {}: property not available. Using default 1.", device_id);
-                            1
-                        }
-                    };
-                    let bin_y = match locked_client.get_number(&device_name, "CCD_BINNING", "VER_BIN").await {
-                        Some(v) => v as i32,
-                        None => {
-                            warn!("Failed to read INDI VER_BIN for {}: property not available. Using default 1.", device_id);
-                            1
-                        }
-                    };
-                    let exposure_value = locked_client.get_number(&device_name, "CCD_EXPOSURE", "CCD_EXPOSURE_VALUE").await;
+                            )
+                        })?;
+                    let bin_y = locked_client
+                        .get_number(&device_name, "CCD_BINNING", "VER_BIN")
+                        .await
+                        .map(|v| v as i32)
+                        .ok_or_else(|| {
+                            format!(
+                                "INDI camera {} missing required property CCD_BINNING.VER_BIN; cannot determine current binning.",
+                                device_id
+                            )
+                        })?;
+                    let exposure_value = locked_client
+                        .get_number(&device_name, "CCD_EXPOSURE", "CCD_EXPOSURE_VALUE")
+                        .await;
 
                     // Determine camera state based on exposure value
                     let state = match exposure_value {
                         Some(v) if v > 0.0 => crate::device::CameraState::Exposing,
                         Some(_) => crate::device::CameraState::Idle,
                         None => {
-                            warn!(
-                                "Failed to read INDI exposure value for {}: property not available. Marking camera state as Error.",
+                            return Err(format!(
+                                "INDI camera {} missing required property CCD_EXPOSURE.CCD_EXPOSURE_VALUE; cannot determine camera state.",
                                 device_id
-                            );
-                            crate::device::CameraState::Error
+                            ))
                         }
                     };
 
-                    // Read sensor info from INDI CCD_INFO property
-                    let sensor_width = locked_client.get_number(&device_name, "CCD_INFO", "CCD_MAX_X").await
-                        .map(|v| v as u32).unwrap_or(0);
-                    let sensor_height = locked_client.get_number(&device_name, "CCD_INFO", "CCD_MAX_Y").await
-                        .map(|v| v as u32).unwrap_or(0);
-                    let pixel_size_x = locked_client.get_number(&device_name, "CCD_INFO", "CCD_PIXEL_SIZE_X").await
-                        .unwrap_or(0.0);
-                    let pixel_size_y = locked_client.get_number(&device_name, "CCD_INFO", "CCD_PIXEL_SIZE_Y").await
-                        .unwrap_or(0.0);
-                    let bit_depth = locked_client.get_number(&device_name, "CCD_INFO", "CCD_BITSPERPIXEL").await
-                        .map(|v| v as u32).unwrap_or(16);
-                    let gain = locked_client.get_number(&device_name, "CCD_GAIN", "GAIN").await
-                        .map(|v| v as i32).unwrap_or(0);
-                    let offset = locked_client.get_number(&device_name, "CCD_OFFSET", "OFFSET").await
-                        .map(|v| v as i32).unwrap_or(0);
-                    let cooler_power = locked_client.get_number(&device_name, "CCD_COOLER_POWER", "CCD_COOLER_VALUE").await;
-                    let has_cooler = locked_client.get_switch(&device_name, "CCD_COOLER", "COOLER_ON").await.is_some();
-                    let has_gain = locked_client.get_number(&device_name, "CCD_GAIN", "GAIN").await.is_some();
+                    // Read sensor info from INDI CCD_INFO property.
+                    let sensor_width = locked_client
+                        .get_number(&device_name, "CCD_INFO", "CCD_MAX_X")
+                        .await
+                        .map(|v| v as u32)
+                        .ok_or_else(|| {
+                            format!(
+                                "INDI camera {} missing required property CCD_INFO.CCD_MAX_X; cannot determine sensor width.",
+                                device_id
+                            )
+                        })?;
+                    let sensor_height = locked_client
+                        .get_number(&device_name, "CCD_INFO", "CCD_MAX_Y")
+                        .await
+                        .map(|v| v as u32)
+                        .ok_or_else(|| {
+                            format!(
+                                "INDI camera {} missing required property CCD_INFO.CCD_MAX_Y; cannot determine sensor height.",
+                                device_id
+                            )
+                        })?;
+                    let pixel_size_x = locked_client
+                        .get_number(&device_name, "CCD_INFO", "CCD_PIXEL_SIZE_X")
+                        .await
+                        .ok_or_else(|| {
+                            format!(
+                                "INDI camera {} missing required property CCD_INFO.CCD_PIXEL_SIZE_X; cannot determine pixel size.",
+                                device_id
+                            )
+                        })?;
+                    let pixel_size_y = locked_client
+                        .get_number(&device_name, "CCD_INFO", "CCD_PIXEL_SIZE_Y")
+                        .await
+                        .ok_or_else(|| {
+                            format!(
+                                "INDI camera {} missing required property CCD_INFO.CCD_PIXEL_SIZE_Y; cannot determine pixel size.",
+                                device_id
+                            )
+                        })?;
+                    let bit_depth = locked_client
+                        .get_number(&device_name, "CCD_INFO", "CCD_BITSPERPIXEL")
+                        .await
+                        .map(|v| v as u32)
+                        .ok_or_else(|| {
+                            format!(
+                                "INDI camera {} missing required property CCD_INFO.CCD_BITSPERPIXEL; cannot determine ADU scaling.",
+                                device_id
+                            )
+                        })?;
+                    if bit_depth == 0 {
+                        return Err(format!(
+                            "INDI camera {} reported invalid CCD_INFO.CCD_BITSPERPIXEL=0.",
+                            device_id
+                        ));
+                    }
+                    let gain_value = locked_client.get_number(&device_name, "CCD_GAIN", "GAIN").await;
+                    let offset_value = locked_client.get_number(&device_name, "CCD_OFFSET", "OFFSET").await;
+                    let gain = gain_value.map(|v| v as i32).unwrap_or(0);
+                    let offset = offset_value.map(|v| v as i32).unwrap_or(0);
+                    let cooler_power = locked_client
+                        .get_number(&device_name, "CCD_COOLER_POWER", "CCD_COOLER_VALUE")
+                        .await;
+                    let has_gain = gain_value.is_some();
+                    let has_offset = offset_value.is_some();
+                    let max_adu = if bit_depth >= 32 {
+                        u32::MAX
+                    } else {
+                        (1u32 << bit_depth) - 1
+                    };
 
                     return Ok(crate::device::CameraStatus {
                         connected: true,
@@ -3067,10 +3122,10 @@ impl DeviceManager {
                         sensor_height,
                         pixel_size_x,
                         pixel_size_y,
-                        max_adu: (1u32 << bit_depth) - 1,
+                        max_adu,
                         can_cool: has_cooler,
                         can_set_gain: has_gain,
-                        can_set_offset: true,
+                        can_set_offset: has_offset,
                     });
                 }
                 Err(format!("INDI client not connected for server {}", server_key))
@@ -5359,20 +5414,21 @@ impl DeviceManager {
             DriverType::Ascom => {
                 // ASCOM filter names are typically stored in the driver's configuration
                 // Many ASCOM drivers don't support programmatic name setting
-                tracing::warn!("filter_wheel_set_filter_names: ASCOM filter wheels typically manage names in their own config - skipping");
-                Ok(())
+                let msg = "ASCOM filter names are managed by the driver and cannot be set programmatically";
+                tracing::warn!("filter_wheel_set_filter_names: {}", msg);
+                Err(msg.to_string())
             }
             DriverType::Alpaca => {
                 // Alpaca filter names are typically read-only from the driver
-                tracing::warn!("filter_wheel_set_filter_names: Alpaca filter wheels typically have read-only names - skipping");
-                Ok(())
+                let msg = "Alpaca filter names are read-only and cannot be set programmatically";
+                tracing::warn!("filter_wheel_set_filter_names: {}", msg);
+                Err(msg.to_string())
             }
             DriverType::Indi => {
                 // INDI filter names can be set via FILTER_NAME property
-                tracing::warn!(
-                    "filter_wheel_set_filter_names: INDI filter name setting is unavailable in this manager path"
-                );
-                Ok(())
+                let msg = "INDI filter name setting is unavailable in this manager path";
+                tracing::warn!("filter_wheel_set_filter_names: {}", msg);
+                Err(msg.to_string())
             }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())

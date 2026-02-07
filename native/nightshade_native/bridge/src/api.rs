@@ -6423,6 +6423,7 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                     frame,
                     total,
                     filter,
+                    duration_secs,
                 } => {
                     Some(create_event_auto_id(
                         EventSeverity::Info,
@@ -6431,18 +6432,22 @@ pub async fn api_sequencer_subscribe_events() -> Result<(), NightshadeError> {
                             frame: *frame,
                             total: *total,
                             filter: filter.clone(),
-                            duration_secs: 0.0, // Duration not available in this event
+                            duration_secs: *duration_secs,
                         }),
                     ))
                 }
-                ExecutorEvent::ExposureCompleted { frame, total } => {
+                ExecutorEvent::ExposureCompleted {
+                    frame,
+                    total,
+                    duration_secs,
+                } => {
                     Some(create_event_auto_id(
                         EventSeverity::Info,
                         EventCategory::Sequencer,
                         EventPayload::Sequencer(SequencerEvent::ExposureCompleted {
                             frame: *frame,
                             total: *total,
-                            duration_secs: 0.0, // Duration not available in this event
+                            duration_secs: *duration_secs,
                         }),
                     ))
                 }
@@ -6676,17 +6681,36 @@ pub async fn api_sequencer_set_devices(
         "Setting sequencer devices: camera={:?}, mount={:?}, focuser={:?}, filterwheel={:?}, rotator={:?}, filter_names={:?}",
         camera_id, mount_id, focuser_id, filterwheel_id, rotator_id, filter_names
     );
-    let mut executor = get_sequence_executor().write().await;
-    executor.set_devices(camera_id, mount_id, focuser_id, filterwheel_id, rotator_id);
+    let filterwheel_for_names = filterwheel_id.clone();
+    {
+        let mut executor = get_sequence_executor().write().await;
+        executor.set_devices(camera_id, mount_id, focuser_id, filterwheel_id, rotator_id);
+    }
 
-    // Note: filter_names is logged but not currently used by the sequencer.
-    // The sequencer queries filter names directly from the filter wheel hardware.
-    // This parameter is provided for future use cases like profile-based name mapping.
-    if let Some(names) = &filter_names {
-        tracing::debug!(
-            "Profile filter names provided: {:?} (not used - sequencer queries hardware directly)",
-            names
-        );
+    if let Some(names) = filter_names {
+        if names.is_empty() {
+            return Err(NightshadeError::InvalidParameter(
+                "filter_names was provided but empty; provide at least one name or pass null."
+                    .to_string(),
+            ));
+        }
+
+        let filterwheel_id = filterwheel_for_names.ok_or_else(|| {
+            NightshadeError::InvalidParameter(
+                "filter_names was provided but filterwheel_id is null. Provide a filter wheel ID before setting filter names."
+                    .to_string(),
+            )
+        })?;
+
+        let mgr = get_device_manager();
+        mgr.filter_wheel_set_filter_names(&filterwheel_id, names)
+            .await
+            .map_err(|e| {
+                NightshadeError::OperationFailed(format!(
+                    "Failed to apply filter names to '{}': {}",
+                    filterwheel_id, e
+                ))
+            })?;
     }
 
     Ok(())
