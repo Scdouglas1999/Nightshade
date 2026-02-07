@@ -662,9 +662,22 @@ impl NativeMount for IOptronMount {
             return Err(NativeError::NotConnected);
         }
 
-        // iOptron returns tracking rate in the status response
-        // For now, default to sidereal as the status parsing would need enhancement
-        Ok(TrackingRate::Sidereal)
+        self.update_status()?;
+        let status = self
+            .status
+            .lock()
+            .map_err(|_| NativeError::SdkError("Lock poisoned".into()))?;
+
+        match status.tracking_rate {
+            0 => Ok(TrackingRate::Sidereal),
+            1 => Ok(TrackingRate::Lunar),
+            2 => Ok(TrackingRate::Solar),
+            3 => Ok(TrackingRate::King),
+            value => Err(NativeError::SdkError(format!(
+                "Unknown iOptron tracking rate value: {}",
+                value
+            ))),
+        }
     }
 
     fn can_set_tracking_rate(&self) -> bool {

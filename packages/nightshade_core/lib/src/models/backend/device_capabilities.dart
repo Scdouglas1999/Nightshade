@@ -89,35 +89,67 @@ class CameraCapabilities {
       maxWidth: json['maxWidth'] as int? ?? json['max_width'] as int? ?? 0,
       maxHeight: json['maxHeight'] as int? ?? json['max_height'] as int? ?? 0,
       bitDepth: json['bitDepth'] as int? ?? json['bit_depth'] as int? ?? 16,
-      hasShutter: json['hasShutter'] as bool? ?? json['has_shutter'] as bool? ?? false,
-      canSetCcdTemperature: json['canSetCcdTemperature'] as bool? ?? json['can_set_ccd_temperature'] as bool? ?? false,
-      canSetCooler: json['canSetCooler'] as bool? ?? json['can_set_cooler'] as bool? ?? false,
-      canGetCoolerPower: json['canGetCoolerPower'] as bool? ?? json['can_get_cooler_power'] as bool? ?? false,
+      hasShutter:
+          json['hasShutter'] as bool? ?? json['has_shutter'] as bool? ?? false,
+      canSetCcdTemperature: json['canSetCcdTemperature'] as bool? ??
+          json['can_set_ccd_temperature'] as bool? ??
+          false,
+      canSetCooler: json['canSetCooler'] as bool? ??
+          json['can_set_cooler'] as bool? ??
+          false,
+      canGetCoolerPower: json['canGetCoolerPower'] as bool? ??
+          json['can_get_cooler_power'] as bool? ??
+          false,
       canBin: json['canBin'] as bool? ?? json['can_bin'] as bool? ?? false,
       maxBinX: json['maxBinX'] as int? ?? json['max_bin_x'] as int? ?? 1,
       maxBinY: json['maxBinY'] as int? ?? json['max_bin_y'] as int? ?? 1,
-      canAsymmetricBin: json['canAsymmetricBin'] as bool? ?? json['can_asymmetric_bin'] as bool? ?? false,
-      canSetGain: json['canSetGain'] as bool? ?? json['can_set_gain'] as bool? ?? false,
+      canAsymmetricBin: json['canAsymmetricBin'] as bool? ??
+          json['can_asymmetric_bin'] as bool? ??
+          false,
+      canSetGain:
+          json['canSetGain'] as bool? ?? json['can_set_gain'] as bool? ?? false,
       gainMin: json['gainMin'] as int? ?? json['gain_min'] as int?,
       gainMax: json['gainMax'] as int? ?? json['gain_max'] as int?,
-      canSetOffset: json['canSetOffset'] as bool? ?? json['can_set_offset'] as bool? ?? false,
+      canSetOffset: json['canSetOffset'] as bool? ??
+          json['can_set_offset'] as bool? ??
+          false,
       offsetMin: json['offsetMin'] as int? ?? json['offset_min'] as int?,
       offsetMax: json['offsetMax'] as int? ?? json['offset_max'] as int?,
-      canAbortExposure: json['canAbortExposure'] as bool? ?? json['can_abort_exposure'] as bool? ?? false,
-      canStopExposure: json['canStopExposure'] as bool? ?? json['can_stop_exposure'] as bool? ?? false,
-      canSubframe: json['canSubframe'] as bool? ?? json['can_subframe'] as bool? ?? false,
-      pixelSizeX: (json['pixelSizeX'] as num?)?.toDouble() ?? (json['pixel_size_x'] as num?)?.toDouble(),
-      pixelSizeY: (json['pixelSizeY'] as num?)?.toDouble() ?? (json['pixel_size_y'] as num?)?.toDouble(),
+      canAbortExposure: json['canAbortExposure'] as bool? ??
+          json['can_abort_exposure'] as bool? ??
+          false,
+      canStopExposure: json['canStopExposure'] as bool? ??
+          json['can_stop_exposure'] as bool? ??
+          false,
+      canSubframe: json['canSubframe'] as bool? ??
+          json['can_subframe'] as bool? ??
+          false,
+      pixelSizeX: (json['pixelSizeX'] as num?)?.toDouble() ??
+          (json['pixel_size_x'] as num?)?.toDouble(),
+      pixelSizeY: (json['pixelSizeY'] as num?)?.toDouble() ??
+          (json['pixel_size_y'] as num?)?.toDouble(),
       isColor: json['isColor'] as bool? ?? json['is_color'] as bool? ?? false,
-      bayerPattern: json['bayerPattern'] as String? ?? json['bayer_pattern'] as String?,
-      sensorType: json['sensorType'] as String? ?? json['sensor_type'] as String?,
-      hasFastReadout: json['hasFastReadout'] as bool? ?? json['has_fast_readout'] as bool? ?? false,
-      readoutModes: (json['readoutModes'] as List? ?? json['readout_modes'] as List? ?? []).cast<String>(),
-      exposureMin: (json['exposureMin'] as num?)?.toDouble() ?? (json['exposure_min'] as num?)?.toDouble(),
-      exposureMax: (json['exposureMax'] as num?)?.toDouble() ?? (json['exposure_max'] as num?)?.toDouble(),
-      ccdTemperature: (json['ccdTemperature'] as num?)?.toDouble() ?? (json['ccd_temperature'] as num?)?.toDouble(),
-      setCcdTemperature: (json['setCcdTemperature'] as num?)?.toDouble() ?? (json['set_ccd_temperature'] as num?)?.toDouble(),
-      coolerPower: (json['coolerPower'] as num?)?.toDouble() ?? (json['cooler_power'] as num?)?.toDouble(),
+      bayerPattern:
+          json['bayerPattern'] as String? ?? json['bayer_pattern'] as String?,
+      sensorType:
+          json['sensorType'] as String? ?? json['sensor_type'] as String?,
+      hasFastReadout: json['hasFastReadout'] as bool? ??
+          json['has_fast_readout'] as bool? ??
+          false,
+      readoutModes: (json['readoutModes'] as List? ??
+              json['readout_modes'] as List? ??
+              [])
+          .cast<String>(),
+      exposureMin: (json['exposureMin'] as num?)?.toDouble() ??
+          (json['exposure_min'] as num?)?.toDouble(),
+      exposureMax: (json['exposureMax'] as num?)?.toDouble() ??
+          (json['exposure_max'] as num?)?.toDouble(),
+      ccdTemperature: (json['ccdTemperature'] as num?)?.toDouble() ??
+          (json['ccd_temperature'] as num?)?.toDouble(),
+      setCcdTemperature: (json['setCcdTemperature'] as num?)?.toDouble() ??
+          (json['set_ccd_temperature'] as num?)?.toDouble(),
+      coolerPower: (json['coolerPower'] as num?)?.toDouble() ??
+          (json['cooler_power'] as num?)?.toDouble(),
       coolerOn: json['coolerOn'] as bool? ?? json['cooler_on'] as bool?,
     );
   }
@@ -197,7 +229,7 @@ class MountCapabilities {
     this.canSetTracking = false,
     this.canSetTrackingRate = false,
     this.supportedTrackingRates = const [],
-    this.isEquatorial = true,
+    this.isEquatorial = false,
     this.supportsAltAz = false,
     this.canGetPointingState = false,
     this.canFindHome = false,
@@ -212,33 +244,64 @@ class MountCapabilities {
   factory MountCapabilities.fromJson(Map<String, dynamic> json) {
     return MountCapabilities(
       canSlew: json['canSlew'] as bool? ?? json['can_slew'] as bool? ?? false,
-      canSlewAsync: json['canSlewAsync'] as bool? ?? json['can_slew_async'] as bool? ?? false,
+      canSlewAsync: json['canSlewAsync'] as bool? ??
+          json['can_slew_async'] as bool? ??
+          false,
       canSync: json['canSync'] as bool? ?? json['can_sync'] as bool? ?? false,
       canPark: json['canPark'] as bool? ?? json['can_park'] as bool? ?? false,
-      canUnpark: json['canUnpark'] as bool? ?? json['can_unpark'] as bool? ?? false,
-      canSetPark: json['canSetPark'] as bool? ?? json['can_set_park'] as bool? ?? false,
-      canPulseGuide: json['canPulseGuide'] as bool? ?? json['can_pulse_guide'] as bool? ?? false,
-      canGetSideOfPier: json['canGetSideOfPier'] as bool? ?? json['can_get_side_of_pier'] as bool? ?? false,
-      canSetSideOfPier: json['canSetSideOfPier'] as bool? ?? json['can_set_side_of_pier'] as bool? ?? false,
-      canSetTracking: json['canSetTracking'] as bool? ?? json['can_set_tracking'] as bool? ?? false,
-      canSetTrackingRate: json['canSetTrackingRate'] as bool? ?? json['can_set_tracking_rate'] as bool? ?? false,
-      supportedTrackingRates: _parseTrackingRates(json['supportedTrackingRates'] ?? json['supported_tracking_rates']),
-      isEquatorial: json['isEquatorial'] as bool? ?? json['is_equatorial'] as bool? ?? true,
-      supportsAltAz: json['supportsAltAz'] as bool? ?? json['supports_alt_az'] as bool? ?? false,
-      canGetPointingState: json['canGetPointingState'] as bool? ?? json['can_get_pointing_state'] as bool? ?? false,
-      canFindHome: json['canFindHome'] as bool? ?? json['can_find_home'] as bool? ?? false,
+      canUnpark:
+          json['canUnpark'] as bool? ?? json['can_unpark'] as bool? ?? false,
+      canSetPark:
+          json['canSetPark'] as bool? ?? json['can_set_park'] as bool? ?? false,
+      canPulseGuide: json['canPulseGuide'] as bool? ??
+          json['can_pulse_guide'] as bool? ??
+          false,
+      canGetSideOfPier: json['canGetSideOfPier'] as bool? ??
+          json['can_get_side_of_pier'] as bool? ??
+          false,
+      canSetSideOfPier: json['canSetSideOfPier'] as bool? ??
+          json['can_set_side_of_pier'] as bool? ??
+          false,
+      canSetTracking: json['canSetTracking'] as bool? ??
+          json['can_set_tracking'] as bool? ??
+          false,
+      canSetTrackingRate: json['canSetTrackingRate'] as bool? ??
+          json['can_set_tracking_rate'] as bool? ??
+          false,
+      supportedTrackingRates: _parseTrackingRates(
+          json['supportedTrackingRates'] ?? json['supported_tracking_rates']),
+      isEquatorial: json['isEquatorial'] as bool? ??
+          json['is_equatorial'] as bool? ??
+          false,
+      supportsAltAz: json['supportsAltAz'] as bool? ??
+          json['supports_alt_az'] as bool? ??
+          false,
+      canGetPointingState: json['canGetPointingState'] as bool? ??
+          json['can_get_pointing_state'] as bool? ??
+          false,
+      canFindHome: json['canFindHome'] as bool? ??
+          json['can_find_home'] as bool? ??
+          false,
       tracking: json['tracking'] as bool?,
-      trackingRate: _parseTrackingRate(json['trackingRate'] ?? json['tracking_rate']),
-      canAbortSlew: json['canAbortSlew'] as bool? ?? json['can_abort_slew'] as bool? ?? false,
-      maxSlewRate: (json['maxSlewRate'] as num?)?.toDouble() ?? (json['max_slew_rate'] as num?)?.toDouble(),
-      canMoveAxis: json['canMoveAxis'] as bool? ?? json['can_move_axis'] as bool? ?? false,
+      trackingRate:
+          _parseTrackingRate(json['trackingRate'] ?? json['tracking_rate']),
+      canAbortSlew: json['canAbortSlew'] as bool? ??
+          json['can_abort_slew'] as bool? ??
+          false,
+      maxSlewRate: (json['maxSlewRate'] as num?)?.toDouble() ??
+          (json['max_slew_rate'] as num?)?.toDouble(),
+      canMoveAxis: json['canMoveAxis'] as bool? ??
+          json['can_move_axis'] as bool? ??
+          false,
       axisCount: json['axisCount'] as int? ?? json['axis_count'] as int? ?? 2,
     );
   }
 
   static List<TrackingRate> _parseTrackingRates(dynamic list) {
     if (list == null) return [];
-    return (list as List).map((e) => _parseTrackingRate(e) ?? TrackingRate.sidereal).toList();
+    return (list as List)
+        .map((e) => _parseTrackingRate(e) ?? TrackingRate.sidereal)
+        .toList();
   }
 
   static TrackingRate? _parseTrackingRate(dynamic value) {
@@ -266,7 +329,8 @@ class MountCapabilities {
         'canSetSideOfPier': canSetSideOfPier,
         'canSetTracking': canSetTracking,
         'canSetTrackingRate': canSetTrackingRate,
-        'supportedTrackingRates': supportedTrackingRates.map((e) => e.name).toList(),
+        'supportedTrackingRates':
+            supportedTrackingRates.map((e) => e.name).toList(),
         'isEquatorial': isEquatorial,
         'supportsAltAz': supportsAltAz,
         'canGetPointingState': canGetPointingState,
@@ -299,7 +363,7 @@ class FocuserCapabilities {
     required this.maxPosition,
     required this.maxIncrement,
     this.stepSize,
-    this.absolute = true,
+    this.absolute = false,
     this.tempCompAvailable = false,
     this.tempComp = false,
     this.temperature,
@@ -312,17 +376,25 @@ class FocuserCapabilities {
 
   factory FocuserCapabilities.fromJson(Map<String, dynamic> json) {
     return FocuserCapabilities(
-      maxPosition: json['maxPosition'] as int? ?? json['max_position'] as int? ?? 0,
-      maxIncrement: json['maxIncrement'] as int? ?? json['max_increment'] as int? ?? 0,
-      stepSize: (json['stepSize'] as num?)?.toDouble() ?? (json['step_size'] as num?)?.toDouble(),
-      absolute: json['absolute'] as bool? ?? true,
-      tempCompAvailable: json['tempCompAvailable'] as bool? ?? json['temp_comp_available'] as bool? ?? false,
-      tempComp: json['tempComp'] as bool? ?? json['temp_comp'] as bool? ?? false,
+      maxPosition:
+          json['maxPosition'] as int? ?? json['max_position'] as int? ?? 0,
+      maxIncrement:
+          json['maxIncrement'] as int? ?? json['max_increment'] as int? ?? 0,
+      stepSize: (json['stepSize'] as num?)?.toDouble() ??
+          (json['step_size'] as num?)?.toDouble(),
+      absolute: json['absolute'] as bool? ?? false,
+      tempCompAvailable: json['tempCompAvailable'] as bool? ??
+          json['temp_comp_available'] as bool? ??
+          false,
+      tempComp:
+          json['tempComp'] as bool? ?? json['temp_comp'] as bool? ?? false,
       temperature: (json['temperature'] as num?)?.toDouble(),
-      isMoving: json['isMoving'] as bool? ?? json['is_moving'] as bool? ?? false,
+      isMoving:
+          json['isMoving'] as bool? ?? json['is_moving'] as bool? ?? false,
       position: json['position'] as int?,
       canHalt: json['canHalt'] as bool? ?? json['can_halt'] as bool? ?? false,
-      canReverse: json['canReverse'] as bool? ?? json['can_reverse'] as bool? ?? false,
+      canReverse:
+          json['canReverse'] as bool? ?? json['can_reverse'] as bool? ?? false,
       reverse: json['reverse'] as bool?,
     );
   }
@@ -365,13 +437,25 @@ class FilterWheelCapabilities {
 
   factory FilterWheelCapabilities.fromJson(Map<String, dynamic> json) {
     return FilterWheelCapabilities(
-      positionCount: json['positionCount'] as int? ?? json['position_count'] as int? ?? 0,
-      currentPosition: json['currentPosition'] as int? ?? json['current_position'] as int?,
-      filterNames: (json['filterNames'] as List? ?? json['filter_names'] as List? ?? []).cast<String>(),
-      focusOffsets: (json['focusOffsets'] as List? ?? json['focus_offsets'] as List? ?? []).cast<int>(),
-      isMoving: json['isMoving'] as bool? ?? json['is_moving'] as bool? ?? false,
-      canSetFilterNames: json['canSetFilterNames'] as bool? ?? json['can_set_filter_names'] as bool? ?? false,
-      canSetFocusOffsets: json['canSetFocusOffsets'] as bool? ?? json['can_set_focus_offsets'] as bool? ?? false,
+      positionCount:
+          json['positionCount'] as int? ?? json['position_count'] as int? ?? 0,
+      currentPosition:
+          json['currentPosition'] as int? ?? json['current_position'] as int?,
+      filterNames:
+          (json['filterNames'] as List? ?? json['filter_names'] as List? ?? [])
+              .cast<String>(),
+      focusOffsets: (json['focusOffsets'] as List? ??
+              json['focus_offsets'] as List? ??
+              [])
+          .cast<int>(),
+      isMoving:
+          json['isMoving'] as bool? ?? json['is_moving'] as bool? ?? false,
+      canSetFilterNames: json['canSetFilterNames'] as bool? ??
+          json['can_set_filter_names'] as bool? ??
+          false,
+      canSetFocusOffsets: json['canSetFocusOffsets'] as bool? ??
+          json['can_set_focus_offsets'] as bool? ??
+          false,
     );
   }
 
@@ -412,13 +496,19 @@ class RotatorCapabilities {
 
   factory RotatorCapabilities.fromJson(Map<String, dynamic> json) {
     return RotatorCapabilities(
-      canReverse: json['canReverse'] as bool? ?? json['can_reverse'] as bool? ?? false,
+      canReverse:
+          json['canReverse'] as bool? ?? json['can_reverse'] as bool? ?? false,
       reverse: json['reverse'] as bool? ?? false,
-      stepSize: (json['stepSize'] as num?)?.toDouble() ?? (json['step_size'] as num?)?.toDouble(),
-      isMoving: json['isMoving'] as bool? ?? json['is_moving'] as bool? ?? false,
-      mechanicalPosition: (json['mechanicalPosition'] as num?)?.toDouble() ?? (json['mechanical_position'] as num?)?.toDouble(),
+      stepSize: (json['stepSize'] as num?)?.toDouble() ??
+          (json['step_size'] as num?)?.toDouble(),
+      isMoving:
+          json['isMoving'] as bool? ?? json['is_moving'] as bool? ?? false,
+      mechanicalPosition: (json['mechanicalPosition'] as num?)?.toDouble() ??
+          (json['mechanical_position'] as num?)?.toDouble(),
       position: (json['position'] as num?)?.toDouble(),
-      canMoveAbsolute: json['canMoveAbsolute'] as bool? ?? json['can_move_absolute'] as bool? ?? false,
+      canMoveAbsolute: json['canMoveAbsolute'] as bool? ??
+          json['can_move_absolute'] as bool? ??
+          false,
       canHalt: json['canHalt'] as bool? ?? json['can_halt'] as bool? ?? false,
       canSync: json['canSync'] as bool? ?? json['can_sync'] as bool? ?? false,
     );

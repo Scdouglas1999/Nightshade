@@ -5,6 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../services/sequence_action_service.dart';
+import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
 
 /// Compact playback control bar for mobile devices.
@@ -53,20 +54,30 @@ class MobilePlaybackBar extends ConsumerWidget {
                 label: isRunning ? 'Pause' : (isPaused ? 'Resume' : 'Start'),
                 isActive: isRunning,
                 isCompact: isNarrow,
-                onPressed: () {
+                onPressed: () async {
                   if (isIdle) {
                     showDialog(
                       context: context,
                       builder: (context) => PreFlightValidationDialog(
-                        onStartSequence: () {
-                          ref.read(sequenceActionServiceProvider).start();
+                        onStartSequence: () async {
+                          final result = await ref
+                              .read(sequenceActionServiceProvider)
+                              .start();
+                          if (!context.mounted) return;
+                          context.showCommandActionResult(result);
                         },
                       ),
                     );
                   } else if (isRunning) {
-                    ref.read(sequenceActionServiceProvider).pause(context);
+                    final result =
+                        await ref.read(sequenceActionServiceProvider).pause();
+                    if (!context.mounted) return;
+                    context.showCommandActionResult(result);
                   } else if (isPaused) {
-                    ref.read(sequenceActionServiceProvider).resume(context);
+                    final result =
+                        await ref.read(sequenceActionServiceProvider).resume();
+                    if (!context.mounted) return;
+                    context.showCommandActionResult(result);
                   }
                 },
               ),
@@ -80,8 +91,11 @@ class MobilePlaybackBar extends ConsumerWidget {
                 label: 'Stop',
                 isEnabled: isRunning || isPaused,
                 isCompact: isNarrow,
-                onPressed: () {
-                  ref.read(sequenceActionServiceProvider).stop(context);
+                onPressed: () async {
+                  final result =
+                      await ref.read(sequenceActionServiceProvider).stop();
+                  if (!context.mounted) return;
+                  context.showCommandActionResult(result);
                 },
               ),
 
@@ -94,8 +108,11 @@ class MobilePlaybackBar extends ConsumerWidget {
                 label: 'Skip',
                 isEnabled: isRunning,
                 isCompact: isNarrow,
-                onPressed: () {
-                  ref.read(sequenceActionServiceProvider).skip(context);
+                onPressed: () async {
+                  final result =
+                      await ref.read(sequenceActionServiceProvider).skip();
+                  if (!context.mounted) return;
+                  context.showCommandActionResult(result);
                 },
               ),
 
@@ -122,7 +139,10 @@ class MobilePlaybackBar extends ConsumerWidget {
               ],
 
               // Status badge
-              _StatusBadge(colors: colors, state: executionState, isCompact: isVeryNarrow),
+              _StatusBadge(
+                  colors: colors,
+                  state: executionState,
+                  isCompact: isVeryNarrow),
             ],
           );
         },

@@ -416,7 +416,7 @@ class _TutorialOverlayContentState extends State<_TutorialOverlayContent> {
     final screenSize = MediaQuery.of(context).size;
 
     // Check if step is interactive (allows click-through)
-    // For now, default to true if there's a target
+    // Default to interactive when a target is available
     final isInteractive = targetRect != null;
 
     return Focus(

@@ -28,8 +28,50 @@ jobs:
       - name: Bootstrap workspace
         run: melos bootstrap
 
-      - name: Analyze code
-        run: melos run analyze
+      - name: Placeholder/Stub Audit Gate
+        run: dart run tools/production/placeholder_audit.dart --allowlist docs/production-readiness/placeholder-allowlist.txt --fail-on-any-highrisk
+
+      - name: Fail-Closed Policy Gate
+        run: dart run tools/production/fail_closed_check.dart
+
+      - name: Behavioral Audit Gate
+        run: dart run tools/production/behavioral_audit.dart --register docs/production-readiness/behavioral-audit-register.md --fail-on-unregistered --fail-on-open --report .behavioral_audit_hits.txt
+
+      - name: Dependency Hygiene Gate
+        run: dart run tools/production/dependency_hygiene.dart
+
+      - name: Analyze code (production gate)
+        run: dart run tools/production/analyzer_rollup.dart --policy docs/production-readiness/analyzer-policy.yaml --critical-codes docs/production-readiness/critical-warning-codes.txt --report docs/production-readiness/analyzer-rollup.json
+
+  launch-gate:
+    name: Launch Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap workspace
+        run: melos bootstrap
+
+      - name: Launch Analyzer Gate (zero production warnings)
+        run: dart run tools/production/analyzer_rollup.dart --policy docs/production-readiness/analyzer-policy.yaml --critical-codes docs/production-readiness/critical-warning-codes.txt --report docs/production-readiness/analyzer-rollup.json
+
+      - name: Runtime Placeholder Gate
+        run: dart run tools/production/placeholder_audit.dart --allowlist docs/production-readiness/placeholder-allowlist.txt --fail-on-any-highrisk
+
+      - name: Runtime Behavioral Gate
+        run: dart run tools/production/behavioral_audit.dart --register docs/production-readiness/behavioral-audit-register.md --fail-on-unregistered --fail-on-open --report .behavioral_audit_hits.txt
 
   test-dart:
     name: Dart Tests

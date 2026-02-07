@@ -197,7 +197,8 @@ String _cleanupId(String id) {
 }
 
 /// Get display name for a device, preferring deviceName, falling back to formatted deviceId
-String _getDeviceDisplayName(String? deviceName, String? deviceId, String fallback) {
+String _getDeviceDisplayName(
+    String? deviceName, String? deviceId, String fallback) {
   if (deviceName != null && deviceName.isNotEmpty) {
     return deviceName;
   }
@@ -233,7 +234,8 @@ class ConnectedDeviceCard extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<ConnectedDeviceCard> createState() => _ConnectedDeviceCardState();
+  ConsumerState<ConnectedDeviceCard> createState() =>
+      _ConnectedDeviceCardState();
 }
 
 class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
@@ -352,7 +354,8 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     }
   }
 
-  Widget _buildHeader(NightshadeColors colors, Color accentColor, DeviceConnectionState state) {
+  Widget _buildHeader(
+      NightshadeColors colors, Color accentColor, DeviceConnectionState state) {
     final deviceName = _getDeviceName();
 
     return Row(
@@ -375,7 +378,9 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           child: Icon(
             widget.type.icon,
             size: 18,
-            color: state == DeviceConnectionState.connected ? colors.success : accentColor,
+            color: state == DeviceConnectionState.connected
+                ? colors.success
+                : accentColor,
           ),
         ),
 
@@ -418,31 +423,49 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     switch (widget.type) {
       case ConnectedDeviceType.camera:
         final state = ref.watch(cameraStateProvider);
-        return _getDeviceDisplayName(state.deviceName, state.deviceId, 'Camera');
+        return _getDeviceDisplayName(
+            state.deviceName, state.deviceId, 'Camera');
       case ConnectedDeviceType.mount:
         final state = ref.watch(mountStateProvider);
         return _getDeviceDisplayName(state.deviceName, state.deviceId, 'Mount');
       case ConnectedDeviceType.focuser:
         final state = ref.watch(focuserStateProvider);
-        return _getDeviceDisplayName(state.deviceName, state.deviceId, 'Focuser');
+        return _getDeviceDisplayName(
+            state.deviceName, state.deviceId, 'Focuser');
       case ConnectedDeviceType.filterWheel:
         final state = ref.watch(filterWheelStateProvider);
-        return _getDeviceDisplayName(state.deviceName, state.deviceId, 'Filter Wheel');
+        return _getDeviceDisplayName(
+            state.deviceName, state.deviceId, 'Filter Wheel');
       case ConnectedDeviceType.guider:
         final state = ref.watch(guiderStateProvider);
-        return _getDeviceDisplayName(state.deviceName, state.deviceId, 'Guider');
+        return _getDeviceDisplayName(
+            state.deviceName, state.deviceId, 'Guider');
       case ConnectedDeviceType.rotator:
         final state = ref.watch(rotatorStateProvider);
-        return _getDeviceDisplayName(state.deviceName, state.deviceId, 'Rotator');
+        return _getDeviceDisplayName(
+            state.deviceName, state.deviceId, 'Rotator');
     }
   }
 
-  Widget _buildConnectionBadge(DeviceConnectionState state, NightshadeColors colors) {
+  Widget _buildConnectionBadge(
+      DeviceConnectionState state, NightshadeColors colors) {
     final (color, icon, text) = switch (state) {
-      DeviceConnectionState.connected => (colors.success, LucideIcons.check, 'Connected'),
-      DeviceConnectionState.connecting => (colors.warning, LucideIcons.loader, 'Connecting'),
+      DeviceConnectionState.connected => (
+          colors.success,
+          LucideIcons.check,
+          'Connected'
+        ),
+      DeviceConnectionState.connecting => (
+          colors.warning,
+          LucideIcons.loader,
+          'Connecting'
+        ),
       DeviceConnectionState.error => (colors.error, LucideIcons.x, 'Error'),
-      DeviceConnectionState.disconnected => (colors.textMuted, LucideIcons.circle, 'Disconnected'),
+      DeviceConnectionState.disconnected => (
+          colors.textMuted,
+          LucideIcons.circle,
+          'Disconnected'
+        ),
     };
 
     return Container(
@@ -568,15 +591,11 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
         final state = ref.watch(mountStateProvider);
         return [
           _DeviceMetric(
-            value: state.ra != null
-                ? _formatRA(state.ra!)
-                : '---',
+            value: state.ra != null ? _formatRA(state.ra!) : '---',
             label: 'RA',
           ),
           _DeviceMetric(
-            value: state.dec != null
-                ? _formatDec(state.dec!)
-                : '---',
+            value: state.dec != null ? _formatDec(state.dec!) : '---',
             label: 'Dec',
           ),
           _DeviceMetric(
@@ -798,15 +817,18 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _showEditNameDialog(context),
-                    icon: Icon(LucideIcons.pencil, size: 14, color: colors.textSecondary),
+                    icon: Icon(LucideIcons.pencil,
+                        size: 14, color: colors.textSecondary),
                     label: Text(
                       'Edit Name',
-                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                      style:
+                          TextStyle(fontSize: 12, color: colors.textSecondary),
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: colors.textSecondary,
                       side: BorderSide(color: colors.border),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                     ),
                   ),
                 ),
@@ -823,11 +845,24 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       case ConnectedDeviceType.camera:
         final state = ref.watch(cameraStateProvider);
         return [
-          _TelemetryRow(label: 'Device ID', value: state.deviceId ?? 'Unknown', colors: colors),
-          _TelemetryRow(label: 'Gain', value: state.gain?.toString() ?? '---', colors: colors),
-          _TelemetryRow(label: 'Offset', value: state.offset?.toString() ?? '---', colors: colors),
-          _TelemetryRow(label: 'Binning', value: state.binning ?? '---', colors: colors),
-          _TelemetryRow(label: 'Cooling', value: state.isCooling ? 'Active' : 'Off', colors: colors),
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
+          _TelemetryRow(
+              label: 'Gain',
+              value: state.gain?.toString() ?? '---',
+              colors: colors),
+          _TelemetryRow(
+              label: 'Offset',
+              value: state.offset?.toString() ?? '---',
+              colors: colors),
+          _TelemetryRow(
+              label: 'Binning', value: state.binning ?? '---', colors: colors),
+          _TelemetryRow(
+              label: 'Cooling',
+              value: state.isCooling ? 'Active' : 'Off',
+              colors: colors),
           _TelemetryRow(
             label: 'Target Temp',
             value: '${state.targetTemp.toStringAsFixed(1)}C',
@@ -838,7 +873,10 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       case ConnectedDeviceType.mount:
         final state = ref.watch(mountStateProvider);
         return [
-          _TelemetryRow(label: 'Device ID', value: state.deviceId ?? 'Unknown', colors: colors),
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
           _TelemetryRow(
             label: 'RA',
             value: state.ra?.toStringAsFixed(4) ?? '---',
@@ -851,12 +889,16 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           ),
           _TelemetryRow(
             label: 'Altitude',
-            value: state.altitude != null ? state.altitude!.toStringAsFixed(2) : '---',
+            value: state.altitude != null
+                ? state.altitude!.toStringAsFixed(2)
+                : '---',
             colors: colors,
           ),
           _TelemetryRow(
             label: 'Azimuth',
-            value: state.azimuth != null ? state.azimuth!.toStringAsFixed(2) : '---',
+            value: state.azimuth != null
+                ? state.azimuth!.toStringAsFixed(2)
+                : '---',
             colors: colors,
           ),
           _TelemetryRow(
@@ -874,7 +916,10 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       case ConnectedDeviceType.focuser:
         final state = ref.watch(focuserStateProvider);
         return [
-          _TelemetryRow(label: 'Device ID', value: state.deviceId ?? 'Unknown', colors: colors),
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
           _TelemetryRow(
             label: 'Max Position',
             value: state.maxPosition?.toString() ?? '---',
@@ -885,7 +930,10 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       case ConnectedDeviceType.filterWheel:
         final state = ref.watch(filterWheelStateProvider);
         return [
-          _TelemetryRow(label: 'Device ID', value: state.deviceId ?? 'Unknown', colors: colors),
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
           _TelemetryRow(
             label: 'Filters',
             value: state.filterNames.join(', '),
@@ -896,15 +944,22 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       case ConnectedDeviceType.guider:
         final state = ref.watch(guiderStateProvider);
         return [
-          _TelemetryRow(label: 'Device ID', value: state.deviceId ?? 'Unknown', colors: colors),
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
           _TelemetryRow(
             label: 'RA RMS',
-            value: state.rmsRa != null ? '${state.rmsRa!.toStringAsFixed(3)}"' : '---',
+            value: state.rmsRa != null
+                ? '${state.rmsRa!.toStringAsFixed(3)}"'
+                : '---',
             colors: colors,
           ),
           _TelemetryRow(
             label: 'Dec RMS',
-            value: state.rmsDec != null ? '${state.rmsDec!.toStringAsFixed(3)}"' : '---',
+            value: state.rmsDec != null
+                ? '${state.rmsDec!.toStringAsFixed(3)}"'
+                : '---',
             colors: colors,
           ),
           _TelemetryRow(
@@ -917,7 +972,10 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       case ConnectedDeviceType.rotator:
         final state = ref.watch(rotatorStateProvider);
         return [
-          _TelemetryRow(label: 'Device ID', value: state.deviceId ?? 'Unknown', colors: colors),
+          _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors),
           _TelemetryRow(
             label: 'Mechanical Position',
             value: state.mechanicalPosition != null
@@ -971,9 +1029,11 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   Future<void> _handleCoolCamera(double targetTemp) async {
     final deviceService = ref.read(deviceServiceProvider);
     try {
-      await deviceService.setCameraCooling(enabled: true, targetTemp: targetTemp);
+      await deviceService.setCameraCooling(
+          enabled: true, targetTemp: targetTemp);
       if (mounted) {
-        context.showSuccessSnackBar('Cooling to ${targetTemp.toStringAsFixed(0)}C');
+        context.showSuccessSnackBar(
+            'Cooling to ${targetTemp.toStringAsFixed(0)}C');
       }
     } catch (e) {
       if (mounted) {
@@ -983,17 +1043,20 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   }
 
   Future<void> _showCoolingTempDialog(double currentTemp) async {
-    final controller = TextEditingController(text: currentTemp.toStringAsFixed(0));
+    final controller =
+        TextEditingController(text: currentTemp.toStringAsFixed(0));
     final result = await showDialog<double>(
       context: context,
       builder: (ctx) {
         final colors = Theme.of(ctx).extension<NightshadeColors>()!;
         return AlertDialog(
           backgroundColor: colors.surface,
-          title: Text('Set Cooling Target', style: TextStyle(color: colors.textPrimary)),
+          title: Text('Set Cooling Target',
+              style: TextStyle(color: colors.textPrimary)),
           content: TextField(
             controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+            keyboardType: const TextInputType.numberWithOptions(
+                decimal: true, signed: true),
             autofocus: true,
             decoration: InputDecoration(
               labelText: 'Target Temperature (C)',
@@ -1045,12 +1108,16 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
   Future<void> _handleTogglePark() async {
     final mountService = ref.read(mountCommandServiceProvider);
-    await mountService.togglePark(context);
+    final result = await mountService.togglePark();
+    if (!mounted) return;
+    context.showCommandActionResult(result);
   }
 
   Future<void> _handleToggleTracking(bool currentlyTracking) async {
     final mountService = ref.read(mountCommandServiceProvider);
-    await mountService.setTracking(context, !currentlyTracking);
+    final result = await mountService.setTracking(!currentlyTracking);
+    if (!mounted) return;
+    context.showCommandActionResult(result);
   }
 
   Future<void> _handleFilterChange(int position) async {
@@ -1180,17 +1247,15 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       ),
     );
 
-    if (result != null && mounted) {
+    if (result != null && context.mounted) {
       final deviceService = ref.read(deviceServiceProvider);
       try {
         await deviceService.moveFocuserTo(result);
-        if (mounted) {
-          context.showSuccessSnackBar('Moving focuser to $result');
-        }
+        if (!context.mounted) return;
+        context.showSuccessSnackBar('Moving focuser to $result');
       } catch (e) {
-        if (mounted) {
-          context.showErrorSnackBar('Failed to move focuser: $e');
-        }
+        if (!context.mounted) return;
+        context.showErrorSnackBar('Failed to move focuser: $e');
       }
     }
   }
@@ -1222,7 +1287,8 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
             TextField(
               controller: controller,
               autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               style: TextStyle(color: colors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Angle',
@@ -1261,19 +1327,18 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       ),
     );
 
-    if (result != null && mounted) {
+    if (result != null && context.mounted) {
       final backend = ref.read(backendProvider);
       final rotatorState = ref.read(rotatorStateProvider);
       if (rotatorState.deviceId != null) {
         try {
           await backend.rotatorMoveTo(rotatorState.deviceId!, result);
-          if (mounted) {
-            context.showSuccessSnackBar('Rotating to ${result.toStringAsFixed(1)} degrees');
-          }
+          if (!context.mounted) return;
+          context.showSuccessSnackBar(
+              'Rotating to ${result.toStringAsFixed(1)} degrees');
         } catch (e) {
-          if (mounted) {
-            context.showErrorSnackBar('Failed to rotate: $e');
-          }
+          if (!context.mounted) return;
+          context.showErrorSnackBar('Failed to rotate: $e');
         }
       }
     }
@@ -1329,7 +1394,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       ),
     );
 
-    if (result != null && mounted) {
+    if (result != null && context.mounted) {
       widget.onNameChanged?.call(result);
       context.showSuccessSnackBar('Device name updated');
     }
@@ -1412,7 +1477,8 @@ class _FilterDropdown extends StatelessWidget {
           isDense: true,
           dropdownColor: colors.surface,
           style: TextStyle(fontSize: 12, color: colors.textSecondary),
-          icon: Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
+          icon:
+              Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
           items: filterNames.asMap().entries.map((entry) {
             return DropdownMenuItem<int>(
               value: entry.key,

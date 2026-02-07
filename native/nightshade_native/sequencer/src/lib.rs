@@ -51,12 +51,14 @@ pub type NodeId = String;
 /// This mirrors the Dart-side SafetyFailMode enum in app_settings.dart.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SafetyFailMode {
-    /// Assume safe when device/API fails (continue imaging) - default for experienced users
+    /// Treat unavailable safety data as unsafe (required production behavior).
     #[default]
-    FailOpen,
-    /// Assume unsafe when device/API fails (pause/park) - conservative choice
     FailClosed,
-    /// Show warning but continue - user decides
+    /// Legacy mode retained for backward compatibility.
+    /// Runtime logic coerces this to fail-closed behavior.
+    FailOpen,
+    /// Legacy mode retained for backward compatibility.
+    /// Runtime logic coerces this to fail-closed behavior.
     WarnOnly,
 }
 
@@ -436,6 +438,8 @@ impl Default for SlewConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CenterConfig {
     pub use_target_coords: bool,
+    pub custom_ra: Option<f64>,
+    pub custom_dec: Option<f64>,
     pub accuracy_arcsec: f64,
     pub max_attempts: u32,
     pub exposure_duration: f64,
@@ -446,6 +450,8 @@ impl Default for CenterConfig {
     fn default() -> Self {
         Self {
             use_target_coords: true,
+            custom_ra: None,
+            custom_dec: None,
             accuracy_arcsec: 5.0,
             max_attempts: 5,
             exposure_duration: 5.0,

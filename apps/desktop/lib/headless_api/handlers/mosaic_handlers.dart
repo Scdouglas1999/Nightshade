@@ -10,18 +10,26 @@ class MosaicHandlers {
 
   MosaicHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'MosaicHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'MosaicHandlers');
+
   // ===========================================================================
   // Generate Mosaic Panels
   // ===========================================================================
 
   Future<Response> handleGeneratePanels(Request request) async {
-    print('[API] POST /api/mosaic/generate-panels');
+    _logInfo('[API] POST /api/mosaic/generate-panels');
     try {
       final payload = jsonDecode(await request.readAsString());
 
-      final config = _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
+      final config =
+          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
 
-      final service = const MosaicService();
+      const service = MosaicService();
       final panels = service.generatePanels(config);
 
       return Response.ok(
@@ -31,7 +39,7 @@ class MosaicHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Generate panels error: $e');
+      _logError('[API] Generate panels error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -44,18 +52,20 @@ class MosaicHandlers {
   // ===========================================================================
 
   Future<Response> handleGenerateSequence(Request request) async {
-    print('[API] POST /api/mosaic/generate-sequence');
+    _logInfo('[API] POST /api/mosaic/generate-sequence');
     try {
       final payload = jsonDecode(await request.readAsString());
 
       final mosaicName = payload['mosaicName'] as String? ?? 'Mosaic';
-      final config = _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
-      final exposure = _parseExposureSettings(payload['exposure'] as Map<String, dynamic>);
+      final config =
+          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
+      final exposure =
+          _parseExposureSettings(payload['exposure'] as Map<String, dynamic>);
       final options = payload['options'] != null
           ? _parseSequenceOptions(payload['options'] as Map<String, dynamic>)
           : const MosaicSequenceOptions();
 
-      final service = const MosaicService();
+      const service = MosaicService();
       final nodes = service.createMosaicSequence(
         mosaicName: mosaicName,
         config: config,
@@ -88,7 +98,7 @@ class MosaicHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Generate mosaic sequence error: $e');
+      _logError('[API] Generate mosaic sequence error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -101,13 +111,14 @@ class MosaicHandlers {
   // ===========================================================================
 
   Future<Response> handleCalculateArea(Request request) async {
-    print('[API] POST /api/mosaic/calculate-area');
+    _logInfo('[API] POST /api/mosaic/calculate-area');
     try {
       final payload = jsonDecode(await request.readAsString());
 
-      final config = _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
+      final config =
+          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
 
-      final service = const MosaicService();
+      const service = MosaicService();
       final area = service.calculateMosaicArea(config);
 
       return Response.ok(
@@ -118,7 +129,7 @@ class MosaicHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Calculate area error: $e');
+      _logError('[API] Calculate area error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -131,13 +142,14 @@ class MosaicHandlers {
   // ===========================================================================
 
   Future<Response> handleValidateMosaic(Request request) async {
-    print('[API] POST /api/mosaic/validate');
+    _logInfo('[API] POST /api/mosaic/validate');
     try {
       final payload = jsonDecode(await request.readAsString());
 
-      final config = _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
+      final config =
+          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
 
-      final service = const MosaicService();
+      const service = MosaicService();
       final validation = service.validateMosaic(config);
 
       return Response.ok(
@@ -149,7 +161,7 @@ class MosaicHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Validate mosaic error: $e');
+      _logError('[API] Validate mosaic error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -162,15 +174,18 @@ class MosaicHandlers {
   // ===========================================================================
 
   Future<Response> handleEstimateTime(Request request) async {
-    print('[API] POST /api/mosaic/estimate-time');
+    _logInfo('[API] POST /api/mosaic/estimate-time');
     try {
       final payload = jsonDecode(await request.readAsString());
 
-      final config = _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
-      final exposure = _parseExposureSettings(payload['exposure'] as Map<String, dynamic>);
-      final overheadPerPanel = (payload['overheadPerPanelSecs'] as num?)?.toDouble() ?? 60.0;
+      final config =
+          _parseMosaicConfig(payload['config'] as Map<String, dynamic>);
+      final exposure =
+          _parseExposureSettings(payload['exposure'] as Map<String, dynamic>);
+      final overheadPerPanel =
+          (payload['overheadPerPanelSecs'] as num?)?.toDouble() ?? 60.0;
 
-      final service = const MosaicService();
+      const service = MosaicService();
       final timeSecs = service.estimateMosaicTime(
         config,
         exposure,
@@ -186,7 +201,7 @@ class MosaicHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Estimate time error: $e');
+      _logError('[API] Estimate time error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -224,10 +239,10 @@ class MosaicHandlers {
 
   MosaicSequenceOptions _parseSequenceOptions(Map<String, dynamic> json) {
     return MosaicSequenceOptions(
-      serpentineOrdering: json['serpentineOrdering'] as bool? ?? true,
+      serpentineOrdering: json['serpentineOrdering'] as bool? ?? false,
       autofocusPerPanel: json['autofocusPerPanel'] as bool? ?? false,
       autofocusInterval: json['autofocusInterval'] as int? ?? 0,
-      centerAfterSlew: json['centerAfterSlew'] as bool? ?? true,
+      centerAfterSlew: json['centerAfterSlew'] as bool? ?? false,
       ditherBetweenExposures: json['ditherBetweenExposures'] as bool? ?? false,
       ditherPixels: (json['ditherPixels'] as num?)?.toDouble(),
       minAltitude: (json['minAltitude'] as num?)?.toDouble(),
@@ -263,7 +278,7 @@ class MosaicHandlers {
       base['frameType'] = node.frameType.name;
     } else if (node is InstructionSetNode) {
       base['childIds'] = node.childIds;
-    } else if (node is TargetGroupNode) {
+    } else if (node is TargetHeaderNode) {
       base['targetName'] = node.targetName;
       base['raHours'] = node.raHours;
       base['decDegrees'] = node.decDegrees;

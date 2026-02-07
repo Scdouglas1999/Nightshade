@@ -4,11 +4,11 @@ import '../coordinate_system.dart';
 
 /// Status of a queued target
 enum QueuedTargetStatus {
-  pending,     // Waiting to be imaged
-  active,      // Currently being imaged
-  completed,   // Imaging completed
-  skipped,     // User skipped this target
-  failed,      // Failed during imaging
+  pending, // Waiting to be imaged
+  active, // Currently being imaged
+  completed, // Imaging completed
+  skipped, // User skipped this target
+  failed, // Failed during imaging
 }
 
 /// A target in the imaging queue
@@ -111,7 +111,8 @@ class TargetQueueState {
   }) {
     return TargetQueueState(
       targets: targets ?? this.targets,
-      activeTargetId: clearActiveTarget ? null : (activeTargetId ?? this.activeTargetId),
+      activeTargetId:
+          clearActiveTarget ? null : (activeTargetId ?? this.activeTargetId),
       isRunning: isRunning ?? this.isRunning,
       autoAdvance: autoAdvance ?? this.autoAdvance,
       sessionStartTime: sessionStartTime ?? this.sessionStartTime,
@@ -121,9 +122,9 @@ class TargetQueueState {
   QueuedTarget? get activeTarget {
     if (activeTargetId == null) return null;
     return targets.cast<QueuedTarget?>().firstWhere(
-      (t) => t?.id == activeTargetId,
-      orElse: () => null,
-    );
+          (t) => t?.id == activeTargetId,
+          orElse: () => null,
+        );
   }
 
   List<QueuedTarget> get pendingTargets =>
@@ -140,7 +141,8 @@ class TargetQueueState {
 
   double get overallProgress {
     if (totalPlannedExposures <= 0) return 0;
-    return (totalCompletedExposures / totalPlannedExposures * 100).clamp(0, 100);
+    return (totalCompletedExposures / totalPlannedExposures * 100)
+        .clamp(0, 100);
   }
 }
 
@@ -149,7 +151,8 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
   TargetQueueNotifier() : super(const TargetQueueState());
 
   /// Add a target to the queue
-  void addTarget(CelestialObject object, {int? priority, int plannedExposures = 0, String? notes}) {
+  void addTarget(CelestialObject object,
+      {int? priority, int plannedExposures = 0, String? notes}) {
     final id = '${object.id}_${DateTime.now().millisecondsSinceEpoch}';
     final newTarget = QueuedTarget(
       id: id,
@@ -190,10 +193,12 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
   /// Remove a target from the queue
   void removeTarget(String targetId) {
-    final updatedTargets = state.targets.where((t) => t.id != targetId).toList();
+    final updatedTargets =
+        state.targets.where((t) => t.id != targetId).toList();
     state = state.copyWith(
       targets: updatedTargets,
-      activeTargetId: state.activeTargetId == targetId ? null : state.activeTargetId,
+      activeTargetId:
+          state.activeTargetId == targetId ? null : state.activeTargetId,
       clearActiveTarget: state.activeTargetId == targetId,
     );
   }
@@ -220,7 +225,8 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
     // Update previous active target to pending if it wasn't completed
     final updatedTargets = state.targets.map((t) {
-      if (t.id == state.activeTargetId && t.status == QueuedTargetStatus.active) {
+      if (t.id == state.activeTargetId &&
+          t.status == QueuedTargetStatus.active) {
         return t.copyWith(status: QueuedTargetStatus.pending);
       }
       if (t.id == targetId) {
@@ -254,9 +260,9 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
     // Auto-advance to next pending target if enabled
     if (state.autoAdvance) {
-      final nextPending = updatedTargets
-          .cast<QueuedTarget?>()
-          .firstWhere((t) => t?.status == QueuedTargetStatus.pending, orElse: () => null);
+      final nextPending = updatedTargets.cast<QueuedTarget?>().firstWhere(
+          (t) => t?.status == QueuedTargetStatus.pending,
+          orElse: () => null);
       if (nextPending != null) {
         setActiveTarget(nextPending.id);
       }
@@ -278,9 +284,9 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
     // Auto-advance to next pending target if enabled
     if (state.autoAdvance) {
-      final nextPending = updatedTargets
-          .cast<QueuedTarget?>()
-          .firstWhere((t) => t?.status == QueuedTargetStatus.pending, orElse: () => null);
+      final nextPending = updatedTargets.cast<QueuedTarget?>().firstWhere(
+          (t) => t?.status == QueuedTargetStatus.pending,
+          orElse: () => null);
       if (nextPending != null) {
         setActiveTarget(nextPending.id);
       }
@@ -317,9 +323,9 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
     );
 
     // Set first pending target as active
-    final firstPending = state.targets
-        .cast<QueuedTarget?>()
-        .firstWhere((t) => t?.status == QueuedTargetStatus.pending, orElse: () => null);
+    final firstPending = state.targets.cast<QueuedTarget?>().firstWhere(
+        (t) => t?.status == QueuedTargetStatus.pending,
+        orElse: () => null);
     if (firstPending != null) {
       setActiveTarget(firstPending.id);
     }
@@ -337,8 +343,9 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
   /// Clear only completed targets
   void clearCompletedTargets() {
-    final updatedTargets =
-        state.targets.where((t) => t.status != QueuedTargetStatus.completed).toList();
+    final updatedTargets = state.targets
+        .where((t) => t.status != QueuedTargetStatus.completed)
+        .toList();
     state = state.copyWith(targets: updatedTargets);
   }
 
@@ -361,35 +368,83 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
   /// Sync from sequencer - update queue based on sequencer data
   void syncFromSequencer(List<Map<String, dynamic>> sequencerTargets) {
-    // This would be called when the sequencer provides target updates
-    // For now, just a placeholder for the sync mechanism
-    final updatedTargets = <QueuedTarget>[];
+    final existingById = <String, QueuedTarget>{
+      for (final target in state.targets) target.id: target,
+    };
+    final existingBySequencerId = <String, QueuedTarget>{
+      for (final target in state.targets)
+        if (target.sequencerData?['sequencerId'] != null)
+          target.sequencerData!['sequencerId'].toString(): target,
+    };
 
-    for (final seqTarget in sequencerTargets) {
-      final id = seqTarget['id'] as String?;
-      final existing = state.targets.cast<QueuedTarget?>().firstWhere(
-        (t) => t?.id == id || t?.sequencerData?['sequencerId'] == seqTarget['sequencerId'],
-        orElse: () => null,
+    final syncedTargets = <QueuedTarget>[];
+
+    for (var i = 0; i < sequencerTargets.length; i++) {
+      final seqTarget = sequencerTargets[i];
+      final sequencerId = seqTarget['sequencerId']?.toString();
+      final sourceId = seqTarget['id']?.toString();
+      final resolvedId = sourceId?.isNotEmpty == true
+          ? sourceId!
+          : (sequencerId?.isNotEmpty == true
+              ? 'seq_$sequencerId'
+              : 'seq_orphan_$i');
+
+      final existing = existingById[resolvedId] ??
+          (sequencerId != null ? existingBySequencerId[sequencerId] : null);
+
+      final coordinates = _coordinatesFromSequencer(seqTarget, existing);
+      if (coordinates == null) {
+        continue;
+      }
+
+      final plannedExposures = _intFromAny(
+        seqTarget['plannedExposures'] ?? seqTarget['totalExposures'],
+      );
+      final completedExposures = _intFromAny(
+          seqTarget['completedExposures'] ?? seqTarget['completed']);
+
+      final queuedTarget = QueuedTarget(
+        id: resolvedId,
+        object: existing?.object,
+        coordinates: coordinates,
+        displayName: (seqTarget['name']?.toString().trim().isNotEmpty ?? false)
+            ? seqTarget['name'].toString().trim()
+            : (existing?.displayName ?? resolvedId),
+        status: _mapSequencerStatus(seqTarget['status']?.toString()),
+        priority: _intFromAny(seqTarget['priority']) ?? (i + 1),
+        addedAt: existing?.addedAt ?? DateTime.now(),
+        startedAt: existing?.startedAt,
+        completedAt: _mapSequencerStatus(seqTarget['status']?.toString()) ==
+                QueuedTargetStatus.completed
+            ? (existing?.completedAt ?? DateTime.now())
+            : existing?.completedAt,
+        plannedExposures: plannedExposures ?? existing?.plannedExposures ?? 0,
+        completedExposures:
+            completedExposures ?? existing?.completedExposures ?? 0,
+        notes: seqTarget['notes']?.toString() ?? existing?.notes,
+        sequencerData: seqTarget,
       );
 
-      if (existing != null) {
-        // Update existing target
-        updatedTargets.add(existing.copyWith(
-          completedExposures: seqTarget['completedExposures'] as int? ?? existing.completedExposures,
-          status: _mapSequencerStatus(seqTarget['status'] as String?),
-          sequencerData: seqTarget,
-        ));
-      }
+      syncedTargets.add(queuedTarget);
     }
 
-    // Add targets that weren't in the sequencer data
-    for (final target in state.targets) {
-      if (!updatedTargets.any((t) => t.id == target.id)) {
-        updatedTargets.add(target);
-      }
-    }
+    syncedTargets.sort((a, b) => a.priority.compareTo(b.priority));
 
-    state = state.copyWith(targets: updatedTargets);
+    final hasActiveTarget =
+        syncedTargets.any((t) => t.status == QueuedTargetStatus.active);
+    final activeTargetId = hasActiveTarget
+        ? syncedTargets
+            .firstWhere((t) => t.status == QueuedTargetStatus.active)
+            .id
+        : (syncedTargets.any((t) => t.id == state.activeTargetId)
+            ? state.activeTargetId
+            : null);
+
+    state = state.copyWith(
+      targets: syncedTargets,
+      activeTargetId: activeTargetId,
+      clearActiveTarget: activeTargetId == null,
+    );
   }
 
   QueuedTargetStatus _mapSequencerStatus(String? status) {
@@ -410,21 +465,62 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
     }
   }
 
+  int? _intFromAny(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
+
+  double? _doubleFromAny(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    return double.tryParse(value.toString());
+  }
+
+  CelestialCoordinate? _coordinatesFromSequencer(
+    Map<String, dynamic> seqTarget,
+    QueuedTarget? fallback,
+  ) {
+    final raDegrees = _doubleFromAny(seqTarget['raDegrees']);
+    final decDegrees = _doubleFromAny(seqTarget['decDegrees']);
+    if (raDegrees != null && decDegrees != null) {
+      return CelestialCoordinate(
+        ra: raDegrees / 15.0,
+        dec: decDegrees,
+      );
+    }
+
+    final raHours = _doubleFromAny(seqTarget['ra']);
+    final dec = _doubleFromAny(seqTarget['dec']);
+    if (raHours != null && dec != null) {
+      return CelestialCoordinate(
+        ra: raHours,
+        dec: dec,
+      );
+    }
+
+    return fallback?.coordinates;
+  }
+
   /// Export queue to sequencer format
   List<Map<String, dynamic>> exportToSequencer() {
-    return state.targets.map((t) => {
-      'id': t.id,
-      'name': t.displayName,
-      'ra': t.coordinates.ra,
-      'dec': t.coordinates.dec,
-      'raDegrees': t.coordinates.raDegrees,
-      'priority': t.priority,
-      'plannedExposures': t.plannedExposures,
-      'notes': t.notes,
-      if (t.object != null) 'objectId': t.object!.id,
-      if (t.object != null && t.object is DeepSkyObject)
-        'type': (t.object as DeepSkyObject).type.name,
-    }).toList();
+    return state.targets
+        .map((t) => {
+              'id': t.id,
+              'name': t.displayName,
+              'ra': t.coordinates.ra,
+              'dec': t.coordinates.dec,
+              'raDegrees': t.coordinates.raDegrees,
+              'priority': t.priority,
+              'plannedExposures': t.plannedExposures,
+              'notes': t.notes,
+              if (t.object != null) 'objectId': t.object!.id,
+              if (t.object != null && t.object is DeepSkyObject)
+                'type': (t.object as DeepSkyObject).type.name,
+            })
+        .toList();
   }
 }
 

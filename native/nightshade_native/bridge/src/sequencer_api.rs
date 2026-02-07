@@ -128,6 +128,14 @@ pub async fn sequencer_set_simulation_mode(enabled: bool) -> Result<(), Nightsha
     let executor = get_executor();
     let mut exec = executor.write().await;
 
+    // Production/release artifacts must not execute simulated hardware paths.
+    if enabled && !cfg!(debug_assertions) {
+        return Err(NightshadeError::NotSupported {
+            device_id: "sequencer".to_string(),
+            operation: "set_simulation_mode(true)".to_string(),
+        });
+    }
+
     if enabled {
         // Use NullDeviceOps for simulation
         exec.set_device_ops(std::sync::Arc::new(nightshade_sequencer::NullDeviceOps));
@@ -151,18 +159,24 @@ pub async fn sequencer_set_simulation_mode(enabled: bool) -> Result<(), Nightsha
 
 /// Set the safety fail mode for the sequencer.
 /// This determines behavior when safety devices fail or are unavailable:
-/// - "fail_open": Assume safe and continue imaging (default)
-/// - "fail_closed": Assume unsafe and pause/park
-/// - "warn_only": Show warning but continue
+/// - "fail_closed": Treat unavailable safety data as unsafe (enforced)
+/// - "fail_open"/"warn_only": accepted for backward compatibility and coerced to fail_closed
 #[flutter_rust_bridge::frb(sync)]
 pub async fn sequencer_set_safety_fail_mode(mode: String) -> Result<(), NightshadeError> {
-    let fail_mode = match mode.to_lowercase().as_str() {
-        "fail_open" | "failopen" => SafetyFailMode::FailOpen,
+    let mode_lower = mode.to_lowercase();
+    let fail_mode = match mode_lower.as_str() {
         "fail_closed" | "failclosed" => SafetyFailMode::FailClosed,
-        "warn_only" | "warnonly" => SafetyFailMode::WarnOnly,
+        "fail_open" | "failopen" | "warn_only" | "warnonly" => {
+            tracing::warn!(
+                "Safety fail mode '{}' requested, but strict fail-closed is enforced; using fail_closed",
+                mode
+            );
+            SafetyFailMode::FailClosed
+        }
         _ => {
             return Err(NightshadeError::InvalidParameter(format!(
-                "Invalid safety fail mode: '{}'. Must be 'fail_open', 'fail_closed', or 'warn_only'", mode
+                "Invalid safety fail mode: '{}'. Must be 'fail_closed' (legacy aliases: 'fail_open', 'warn_only').",
+                mode
             )));
         }
     };

@@ -238,6 +238,101 @@ impl Default for ReconnectConfig {
     }
 }
 
+fn infer_indi_device_type_from_properties(
+    properties: &[nightshade_indi::IndiProperty],
+) -> Option<DeviceType> {
+    let has = |name: &str| properties.iter().any(|p| p.name == name);
+
+    if has("CCD_EXPOSURE") || has("CCD_INFO") || has("CCD_FRAME") || has("CCD1") {
+        return Some(DeviceType::Camera);
+    }
+    if has("EQUATORIAL_EOD_COORD")
+        || has("ON_COORD_SET")
+        || has("TELESCOPE_TRACK_MODE")
+        || has("TELESCOPE_MOTION_NS")
+        || has("TELESCOPE_MOTION_WE")
+    {
+        return Some(DeviceType::Mount);
+    }
+    if has("ABS_FOCUS_POSITION") || has("REL_FOCUS_POSITION") || has("FOCUS_MOTION") {
+        return Some(DeviceType::Focuser);
+    }
+    if has("FILTER_SLOT") || has("FILTER_NAME") {
+        return Some(DeviceType::FilterWheel);
+    }
+    if has("DOME_SHUTTER") || has("DOME_MOTION") || has("ABS_DOME_POSITION") {
+        return Some(DeviceType::Dome);
+    }
+    if has("ABS_ROTATOR_ANGLE") || has("ROTATOR_ANGLE") {
+        return Some(DeviceType::Rotator);
+    }
+    if has("TELESCOPE_TIMED_GUIDE_NS") || has("TELESCOPE_TIMED_GUIDE_WE") {
+        return Some(DeviceType::Guider);
+    }
+    if has("SAFETY_STATUS") || has("AUX_SAFETY") {
+        return Some(DeviceType::SafetyMonitor);
+    }
+    if has("WEATHER_STATUS") || has("WEATHER_PARAMETERS") {
+        return Some(DeviceType::Weather);
+    }
+    if has("CAP_PARK")
+        || has("FLAT_LIGHT_CONTROL")
+        || has("FLAT_LIGHT_INTENSITY")
+        || has("DUSTCAP_CONTROL")
+        || has("LIGHTBOX_BRIGHTNESS")
+    {
+        return Some(DeviceType::CoverCalibrator);
+    }
+    if properties
+        .iter()
+        .any(|p| matches!(p.property_type, nightshade_indi::IndiPropertyType::Switch))
+    {
+        return Some(DeviceType::Switch);
+    }
+
+    None
+}
+
+fn infer_indi_device_type_from_name_driver(name: &str, driver: &str) -> Option<DeviceType> {
+    let name_upper = name.to_uppercase();
+    let driver_upper = driver.to_uppercase();
+
+    if name_upper.contains("CCD")
+        || name_upper.contains("CAMERA")
+        || driver_upper.contains("CCD")
+        || driver_upper.contains("CAMERA")
+    {
+        return Some(DeviceType::Camera);
+    }
+    if name_upper.contains("TELESCOPE")
+        || name_upper.contains("MOUNT")
+        || driver_upper.contains("TELESCOPE")
+        || driver_upper.contains("MOUNT")
+    {
+        return Some(DeviceType::Mount);
+    }
+    if name_upper.contains("FOCUSER") || driver_upper.contains("FOCUSER") {
+        return Some(DeviceType::Focuser);
+    }
+    if name_upper.contains("WHEEL") || driver_upper.contains("WHEEL") {
+        return Some(DeviceType::FilterWheel);
+    }
+    if name_upper.contains("ROTATOR") || driver_upper.contains("ROTATOR") {
+        return Some(DeviceType::Rotator);
+    }
+    if name_upper.contains("DOME") || driver_upper.contains("DOME") {
+        return Some(DeviceType::Dome);
+    }
+    if name_upper.contains("WEATHER") || driver_upper.contains("WEATHER") {
+        return Some(DeviceType::Weather);
+    }
+    if name_upper.contains("SAFETY") || driver_upper.contains("SAFETY") {
+        return Some(DeviceType::SafetyMonitor);
+    }
+
+    None
+}
+
 /// State of a managed device
 #[derive(Debug, Clone)]
 pub struct ManagedDevice {
@@ -803,7 +898,7 @@ impl DeviceManager {
             }
             _ => {
                 return Err(format!(
-                    "ASCOM {} not yet implemented",
+                    "ASCOM {} is not supported in this DeviceManager path",
                     info.device_type.as_str()
                 ));
             }
@@ -911,7 +1006,7 @@ impl DeviceManager {
             }
             _ => {
                 return Err(format!(
-                    "Alpaca {} not yet implemented",
+                    "Alpaca {} is not supported in this DeviceManager path",
                     info.device_type.as_str()
                 ));
             }
@@ -1350,7 +1445,7 @@ impl DeviceManager {
                             let _ = cover.disconnect().await;
                         }
                     }
-                    DeviceType::Guider => {} // Guider not implemented for Alpaca
+                    DeviceType::Guider => {} // Alpaca guider devices are not currently managed here
                 }
             }
             #[cfg(windows)]
@@ -1406,7 +1501,7 @@ impl DeviceManager {
                             let _ = c.disconnect().await;
                         }
                     }
-                    _ => {} // Rotator, Weather, SafetyMonitor, Guider - not implemented for ASCOM
+                    _ => {} // Rotator/Weather/SafetyMonitor/Guider are not persisted in this manager path
                 }
             }
             #[cfg(not(windows))]
@@ -1995,8 +2090,7 @@ impl DeviceManager {
             return version.supports_version(required_version);
         }
 
-        // Optimistic fallback
-        true
+        false
     }
 
     /// Check if a device supports a specific action
@@ -2013,8 +2107,7 @@ impl DeviceManager {
             return version.supports_action(action);
         }
 
-        // Optimistic fallback
-        true
+        false
     }
 
     /// Enable or disable auto-reconnect for a device
@@ -2104,7 +2197,7 @@ impl DeviceManager {
 
         // Wait a moment for devices to be populated
         // In a real scenario, we might want to wait for a specific event or have a timeout
-        // For now, we'll wait up to 2 seconds for devices to appear
+        // Wait up to 2 seconds for devices to appear.
         let start = std::time::Instant::now();
         loop {
             {
@@ -2128,37 +2221,19 @@ impl DeviceManager {
 
         let mut devices = Vec::new();
         for dev in indi_devices {
-            // Determine device type based on properties
-            // This is a simplification; robust type detection might need more property checks
-            // Determine device type based on name/driver
-            let name_upper = dev.name.to_uppercase();
-            let driver_upper = dev.driver.to_uppercase();
-
-            let device_type = if name_upper.contains("CCD")
-                || name_upper.contains("CAMERA")
-                || driver_upper.contains("CCD")
-                || driver_upper.contains("CAMERA")
-            {
-                DeviceType::Camera
-            } else if name_upper.contains("TELESCOPE")
-                || name_upper.contains("MOUNT")
-                || driver_upper.contains("TELESCOPE")
-                || driver_upper.contains("MOUNT")
-            {
-                DeviceType::Mount
-            } else if name_upper.contains("FOCUSER") || driver_upper.contains("FOCUSER") {
-                DeviceType::Focuser
-            } else if name_upper.contains("WHEEL") || driver_upper.contains("WHEEL") {
-                DeviceType::FilterWheel
-            } else if name_upper.contains("ROTATOR") || driver_upper.contains("ROTATOR") {
-                DeviceType::Rotator
-            } else {
-                // Default to Camera if unknown, or skip?
-                // For now, let's assume Camera if ambiguous as it's most common
-                DeviceType::Camera
+            let properties = locked_client.get_properties(&dev.name).await;
+            let device_type = infer_indi_device_type_from_properties(&properties)
+                .or_else(|| infer_indi_device_type_from_name_driver(&dev.name, &dev.driver));
+            let Some(device_type) = device_type else {
+                tracing::warn!(
+                    "Skipping INDI device '{}' with unrecognized type (driver='{}')",
+                    dev.name,
+                    dev.driver
+                );
+                continue;
             };
 
-            // TODO: Query DEVICE_INFO property for serial number
+            // Serial number is not consistently exposed by INDI discovery; leave unset.
             devices.push(DeviceInfo {
                 id: format!("indi:{}:{}:{}", host, port, dev.name),
                 name: dev.name.clone(),
@@ -2185,34 +2260,19 @@ impl DeviceManager {
             let indi_devices = client.get_devices().await;
 
             for dev in indi_devices {
-                // Determine device type
-                // Determine device type based on name/driver
-                let name_upper = dev.name.to_uppercase();
-                let driver_upper = dev.driver.to_uppercase();
-
-                let device_type = if name_upper.contains("CCD")
-                    || name_upper.contains("CAMERA")
-                    || driver_upper.contains("CCD")
-                    || driver_upper.contains("CAMERA")
-                {
-                    DeviceType::Camera
-                } else if name_upper.contains("TELESCOPE")
-                    || name_upper.contains("MOUNT")
-                    || driver_upper.contains("TELESCOPE")
-                    || driver_upper.contains("MOUNT")
-                {
-                    DeviceType::Mount
-                } else if name_upper.contains("FOCUSER") || driver_upper.contains("FOCUSER") {
-                    DeviceType::Focuser
-                } else if name_upper.contains("WHEEL") || driver_upper.contains("WHEEL") {
-                    DeviceType::FilterWheel
-                } else if name_upper.contains("ROTATOR") || driver_upper.contains("ROTATOR") {
-                    DeviceType::Rotator
-                } else {
+                let properties = client.get_properties(&dev.name).await;
+                let device_type = infer_indi_device_type_from_properties(&properties)
+                    .or_else(|| infer_indi_device_type_from_name_driver(&dev.name, &dev.driver));
+                let Some(device_type) = device_type else {
+                    tracing::warn!(
+                        "Skipping INDI device '{}' with unrecognized type (driver='{}')",
+                        dev.name,
+                        dev.driver
+                    );
                     continue;
                 };
 
-                // TODO: Query DEVICE_INFO property for serial number
+                // Serial number is not consistently exposed by INDI discovery; leave unset.
                 all_devices.push(DeviceInfo {
                     id: format!("indi:{}:{}", server_key, dev.name),
                     name: dev.name.clone(),
@@ -2396,8 +2456,13 @@ impl DeviceManager {
                         if let Some(value) = locked_client.get_number(&device_name, "CCD_EXPOSURE", "CCD_EXPOSURE_VALUE").await {
                             return Ok(value <= 0.0);
                         }
-                        // If we can't get the value, assume complete
-                        return Ok(true);
+                        if locked_client.is_property_busy(&device_name, "CCD_EXPOSURE").await {
+                            return Ok(false);
+                        }
+                        return Err(format!(
+                            "INDI camera {} exposure status is unavailable (missing CCD_EXPOSURE_VALUE)",
+                            device_name
+                        ));
                     }
                 }
                 Err(format!("INDI camera {} not found", device_id))
@@ -2486,8 +2551,11 @@ impl DeviceManager {
                     let sensor_type = match camera.sensor_type().await {
                         Ok(t) => t,
                         Err(e) => {
-                            warn!("Failed to read sensor type for {}: {}. Assuming monochrome.", device_id, e);
-                            0
+                            warn!(
+                                "Failed to read sensor type for {}: {}. Marking sensor type unknown.",
+                                device_id, e
+                            );
+                            -1
                         }
                     };
                     let bayer_pattern = if sensor_type == 1 {
@@ -2616,7 +2684,7 @@ impl DeviceManager {
                                         nightshade_indi::IndiEvent::BlobReceived { device, element, data, .. } => {
                                             if device == device_name && (element == "CCD1" || element == "CCD2") {
                                                 // Parse FITS data
-                                                // For now, we'll try to extract the raw image data
+                                                // Attempt to extract raw image data.
                                                 // FITS files have a header followed by binary data
                                                 // This is a simplified implementation - full FITS parsing would be more robust
 
@@ -2824,90 +2892,24 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    // Get status from Alpaca camera
-                    let state = match camera.camera_state().await {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca camera state for {}: {}. Assuming Idle.", device_id, e);
-                            nightshade_alpaca::CameraState::Idle
-                        }
-                    };
-                    let sensor_temp = camera.ccd_temperature().await.ok();
-                    let cooler_power = camera.cooler_power().await.ok();
-                    let cooler_on = match camera.cooler_on().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca cooler status for {}: {}. Assuming off.", device_id, e);
-                            false
-                        }
-                    };
-                    let gain = match camera.gain().await {
-                        Ok(g) => g,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca camera gain for {}: {}. Using default 0.", device_id, e);
-                            0
-                        }
-                    };
-                    let offset = match camera.offset().await {
-                        Ok(o) => o,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca camera offset for {}: {}. Using default 0.", device_id, e);
-                            0
-                        }
-                    };
-                    let bin_x = match camera.bin_x().await {
-                        Ok(b) => b,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca camera bin_x for {}: {}. Using default 1.", device_id, e);
-                            1
-                        }
-                    };
-                    let bin_y = match camera.bin_y().await {
-                        Ok(b) => b,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca camera bin_y for {}: {}. Using default 1.", device_id, e);
-                            1
-                        }
-                    };
-                    let sensor_width = match camera.camera_x_size().await {
-                        Ok(w) => w as u32,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca camera width for {}: {}. Using default 4144.", device_id, e);
-                            4144
-                        }
-                    };
-                    let sensor_height = match camera.camera_y_size().await {
-                        Ok(h) => h as u32,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca camera height for {}: {}. Using default 2822.", device_id, e);
-                            2822
-                        }
-                    };
-                    let pixel_size_x = match camera.pixel_size_x().await {
-                        Ok(p) => p,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca pixel_size_x for {}: {}. Using default 3.76.", device_id, e);
-                            3.76
-                        }
-                    };
-                    let pixel_size_y = match camera.pixel_size_y().await {
-                        Ok(p) => p,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca pixel_size_y for {}: {}. Using default 3.76.", device_id, e);
-                            3.76
-                        }
-                    };
-                    let max_adu = match camera.max_adu().await {
-                        Ok(m) => m as u32,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca max_adu for {}: {}. Using default 65535.", device_id, e);
-                            65535
-                        }
-                    };
+                    let status = camera.get_status().await.map_err(|e| {
+                        format!("Failed to read Alpaca camera status for {}: {}", device_id, e)
+                    })?;
+                    let capabilities = camera.get_capabilities().await.map_err(|e| {
+                        format!(
+                            "Failed to read Alpaca camera capabilities for {}: {}",
+                            device_id, e
+                        )
+                    })?;
+                    let sensor = camera.get_sensor_info().await.map_err(|e| {
+                        format!("Failed to read Alpaca camera sensor info for {}: {}", device_id, e)
+                    })?;
+                    let gain = camera.gain().await.ok();
+                    let offset = camera.offset().await.ok();
 
                     return Ok(crate::device::CameraStatus {
                         connected: true,
-                        state: match state {
+                        state: match status.state {
                             nightshade_alpaca::CameraState::Idle => crate::device::CameraState::Idle,
                             nightshade_alpaca::CameraState::Waiting => crate::device::CameraState::Waiting,
                             nightshade_alpaca::CameraState::Exposing => crate::device::CameraState::Exposing,
@@ -2915,28 +2917,22 @@ impl DeviceManager {
                             nightshade_alpaca::CameraState::Download => crate::device::CameraState::Download,
                             nightshade_alpaca::CameraState::Error => crate::device::CameraState::Error,
                         },
-                        sensor_temp,
-                        cooler_power,
+                        sensor_temp: status.ccd_temperature,
+                        cooler_power: status.cooler_power,
                         target_temp: None, // Alpaca doesn't provide target temp directly
-                        cooler_on,
-                        gain,
-                        offset,
-                        bin_x,
-                        bin_y,
-                        sensor_width,
-                        sensor_height,
-                        pixel_size_x,
-                        pixel_size_y,
-                        max_adu,
-                        can_cool: match camera.can_set_ccd_temperature().await {
-                            Ok(c) => c,
-                            Err(e) => {
-                                warn!("Failed to query Alpaca can_set_ccd_temperature for {}: {}. Assuming false.", device_id, e);
-                                false
-                            }
-                        },
-                        can_set_gain: true,
-                        can_set_offset: true,
+                        cooler_on: status.cooler_on.unwrap_or(false),
+                        gain: gain.unwrap_or(0),
+                        offset: offset.unwrap_or(0),
+                        bin_x: status.bin_x,
+                        bin_y: status.bin_y,
+                        sensor_width: sensor.camera_x_size as u32,
+                        sensor_height: sensor.camera_y_size as u32,
+                        pixel_size_x: sensor.pixel_size_x,
+                        pixel_size_y: sensor.pixel_size_y,
+                        max_adu: sensor.max_adu as u32,
+                        can_cool: capabilities.can_set_ccd_temperature,
+                        can_set_gain: gain.is_some(),
+                        can_set_offset: offset.is_some(),
                     });
                 }
                 Err(format!("Alpaca camera {} not found", device_id))
@@ -3001,7 +2997,10 @@ impl DeviceManager {
                     let cooler_on = match locked_client.get_switch(&device_name, "CCD_COOLER", "COOLER_ON").await {
                         Some(c) => c,
                         None => {
-                            warn!("Failed to read INDI cooler status for {}: property not available. Assuming off.", device_id);
+                            warn!(
+                                "Failed to read INDI cooler status for {}: property not available. Reporting cooler as off for unsupported state.",
+                                device_id
+                            );
                             false
                         }
                     };
@@ -3026,8 +3025,11 @@ impl DeviceManager {
                         Some(v) if v > 0.0 => crate::device::CameraState::Exposing,
                         Some(_) => crate::device::CameraState::Idle,
                         None => {
-                            warn!("Failed to read INDI exposure value for {}: property not available. Assuming Idle.", device_id);
-                            crate::device::CameraState::Idle
+                            warn!(
+                                "Failed to read INDI exposure value for {}: property not available. Marking camera state as Error.",
+                                device_id
+                            );
+                            crate::device::CameraState::Error
                         }
                     };
 
@@ -3161,6 +3163,94 @@ impl DeviceManager {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
                     return camera.set_offset(offset).await.map_err(|e| e.to_string());
+                }
+                Err(format!("Native SDK camera {} not found", device_id))
+            }
+            Some(DriverType::Simulator) => {
+                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+            }
+            _ => Err(format!("Camera {} not found or not supported", device_id)),
+        }
+    }
+
+    /// Set camera binning
+    pub async fn camera_set_binning(
+        &self,
+        device_id: &str,
+        bin_x: i32,
+        bin_y: i32,
+    ) -> Result<(), String> {
+        tracing::info!(
+            "DeviceManager: camera_set_binning for {} bin={}x{}",
+            device_id,
+            bin_x,
+            bin_y
+        );
+
+        if bin_x < 1 || bin_y < 1 {
+            return Err(format!(
+                "Invalid binning values: {}x{} (must be >= 1)",
+                bin_x, bin_y
+            ));
+        }
+
+        let driver_type = {
+            let devices = self.devices.read().await;
+            devices.get(device_id).map(|d| d.info.driver_type.clone())
+        };
+
+        match driver_type {
+            Some(DriverType::Ascom) => {
+                #[cfg(windows)]
+                {
+                    let cameras = self.ascom_cameras.read().await;
+                    if let Some(camera) = cameras.get(device_id) {
+                        let mut camera = camera.write().await;
+                        return camera.set_binning(bin_x, bin_y).await.map_err(|e| e.to_string());
+                    }
+                }
+                Err(format!("ASCOM camera {} not found", device_id))
+            }
+            Some(DriverType::Alpaca) => {
+                let cameras = self.alpaca_cameras.read().await;
+                if let Some(camera) = cameras.get(device_id) {
+                    camera.set_bin_x(bin_x).await?;
+                    camera.set_bin_y(bin_y).await?;
+                    return Ok(());
+                }
+                Err(format!("Alpaca camera {} not found", device_id))
+            }
+            Some(DriverType::Indi) => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() < 4 {
+                    return Err(format!("Invalid INDI device ID format: {}", device_id));
+                }
+
+                let host = parts[1];
+                let port = parts[2];
+                let device_name = parts[3..].join(":");
+                let server_key = format!("{}:{}", host, port);
+
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let mut locked_client = client.write().await;
+                    locked_client
+                        .set_number(&device_name, "CCD_BINNING", "HOR_BIN", bin_x as f64)
+                        .await?;
+                    locked_client
+                        .set_number(&device_name, "CCD_BINNING", "VER_BIN", bin_y as f64)
+                        .await?;
+                    return Ok(());
+                }
+                Err(format!("INDI client not connected for server {}", server_key))
+            }
+            Some(DriverType::Native) => {
+                let mut native_cameras = self.native_cameras.write().await;
+                if let Some(camera) = native_cameras.get_mut(device_id) {
+                    return camera
+                        .set_binning(bin_x, bin_y)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err(format!("Native SDK camera {} not found", device_id))
             }
@@ -3528,8 +3618,28 @@ impl DeviceManager {
                 }
                 Err("Native mount not connected".to_string())
             }
-            DriverType::Alpaca | DriverType::Indi => {
-                Err("Not implemented for this driver type".to_string())
+            DriverType::Alpaca => {
+                let mounts = self.alpaca_mounts.read().await;
+                if let Some(mount) = mounts.get(device_id) {
+                    let ra = mount.right_ascension().await.map_err(|e| e.to_string())?;
+                    let dec = mount.declination().await.map_err(|e| e.to_string())?;
+                    return Ok((ra, dec));
+                }
+                Err(format!("Alpaca mount {} not connected", device_id))
+            }
+            DriverType::Indi => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() >= 4 {
+                    let server_key = format!("{}:{}", parts[1], parts[2]);
+                    let device_name = parts[3..].join(":");
+                    let clients = self.indi_clients.read().await;
+                    if let Some(client) = clients.get(&server_key) {
+                        let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
+                        return mount.get_coordinates().await;
+                    }
+                    return Err(format!("INDI client not connected for {}", server_key));
+                }
+                Err(format!("Invalid INDI device ID format: {}", device_id))
             }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
@@ -3563,8 +3673,26 @@ impl DeviceManager {
                 }
                 Err("Native mount not connected".to_string())
             }
-            DriverType::Alpaca | DriverType::Indi => {
-                Err("Not implemented for this driver type".to_string())
+            DriverType::Alpaca => {
+                let mounts = self.alpaca_mounts.read().await;
+                if let Some(mount) = mounts.get(device_id) {
+                    return mount.abort_slew().await.map_err(|e| e.to_string());
+                }
+                Err(format!("Alpaca mount {} not connected", device_id))
+            }
+            DriverType::Indi => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() >= 4 {
+                    let server_key = format!("{}:{}", parts[1], parts[2]);
+                    let device_name = parts[3..].join(":");
+                    let clients = self.indi_clients.read().await;
+                    if let Some(client) = clients.get(&server_key) {
+                        let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
+                        return mount.abort_slew().await.map_err(|e| e.to_string());
+                    }
+                    return Err(format!("INDI client not connected for {}", server_key));
+                }
+                Err(format!("Invalid INDI device ID format: {}", device_id))
             }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
@@ -3606,7 +3734,18 @@ impl DeviceManager {
                 Err(format!("Alpaca mount {} not connected", device_id))
             }
             DriverType::Indi => {
-                Err("Not implemented for this driver type".to_string())
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() >= 4 {
+                    let server_key = format!("{}:{}", parts[1], parts[2]);
+                    let device_name = parts[3..].join(":");
+                    let clients = self.indi_clients.read().await;
+                    if let Some(client) = clients.get(&server_key) {
+                        let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
+                        return mount.abort_slew().await.map_err(|e| e.to_string());
+                    }
+                    return Err(format!("INDI client not connected for {}", server_key));
+                }
+                Err(format!("Invalid INDI device ID format: {}", device_id))
             }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
@@ -3640,8 +3779,26 @@ impl DeviceManager {
                 }
                 Err("Native mount not connected".to_string())
             }
-            DriverType::Alpaca | DriverType::Indi => {
-                Err("Not implemented for this driver type".to_string())
+            DriverType::Alpaca => {
+                let mounts = self.alpaca_mounts.read().await;
+                if let Some(mount) = mounts.get(device_id) {
+                    return mount.set_tracking(enabled).await.map_err(|e| e.to_string());
+                }
+                Err(format!("Alpaca mount {} not connected", device_id))
+            }
+            DriverType::Indi => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() >= 4 {
+                    let server_key = format!("{}:{}", parts[1], parts[2]);
+                    let device_name = parts[3..].join(":");
+                    let clients = self.indi_clients.read().await;
+                    if let Some(client) = clients.get(&server_key) {
+                        let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
+                        return mount.set_tracking(enabled).await.map_err(|e| e.to_string());
+                    }
+                    return Err(format!("INDI client not connected for {}", server_key));
+                }
+                Err(format!("Invalid INDI device ID format: {}", device_id))
             }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
@@ -3661,7 +3818,8 @@ impl DeviceManager {
             .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
 
-        let dir = match direction.to_lowercase().as_str() {
+        let direction_lower = direction.to_lowercase();
+        let dir = match direction_lower.as_str() {
             "north" | "n" => nightshade_native::traits::GuideDirection::North,
             "south" | "s" => nightshade_native::traits::GuideDirection::South,
             "east" | "e" => nightshade_native::traits::GuideDirection::East,
@@ -3688,8 +3846,57 @@ impl DeviceManager {
                 }
                 Err("Native mount not connected".to_string())
             }
-            DriverType::Alpaca | DriverType::Indi => {
-                Err("Not implemented for this driver type".to_string())
+            DriverType::Alpaca => {
+                let mounts = self.alpaca_mounts.read().await;
+                if let Some(mount) = mounts.get(device_id) {
+                    let alpaca_dir = match dir {
+                        nightshade_native::traits::GuideDirection::North => 0,
+                        nightshade_native::traits::GuideDirection::South => 1,
+                        nightshade_native::traits::GuideDirection::East => 2,
+                        nightshade_native::traits::GuideDirection::West => 3,
+                    };
+                    return mount
+                        .pulse_guide(alpaca_dir, duration_ms as i32)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err(format!("Alpaca mount {} not connected", device_id))
+            }
+            DriverType::Indi => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() >= 4 {
+                    let server_key = format!("{}:{}", parts[1], parts[2]);
+                    let device_name = parts[3..].join(":");
+                    let clients = self.indi_clients.read().await;
+                    if let Some(client) = clients.get(&server_key) {
+                        let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
+                        match dir {
+                            nightshade_native::traits::GuideDirection::North => {
+                                mount.move_north(true).await.map_err(|e| e.to_string())?;
+                                tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+                                mount.move_north(false).await.map_err(|e| e.to_string())?;
+                            }
+                            nightshade_native::traits::GuideDirection::South => {
+                                mount.move_south(true).await.map_err(|e| e.to_string())?;
+                                tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+                                mount.move_south(false).await.map_err(|e| e.to_string())?;
+                            }
+                            nightshade_native::traits::GuideDirection::East => {
+                                mount.move_east(true).await.map_err(|e| e.to_string())?;
+                                tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+                                mount.move_east(false).await.map_err(|e| e.to_string())?;
+                            }
+                            nightshade_native::traits::GuideDirection::West => {
+                                mount.move_west(true).await.map_err(|e| e.to_string())?;
+                                tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+                                mount.move_west(false).await.map_err(|e| e.to_string())?;
+                            }
+                        }
+                        return Ok(());
+                    }
+                    return Err(format!("INDI client not connected for {}", server_key));
+                }
+                Err(format!("Invalid INDI device ID format: {}", device_id))
             }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
@@ -3716,7 +3923,20 @@ impl DeviceManager {
                 }
                 Err("ASCOM mount not connected".to_string())
             }
-            DriverType::Native => Ok(true),
+            DriverType::Native => {
+                let native_mounts = self.native_mounts.read().await;
+                if let Some(mount) = native_mounts.get(device_id) {
+                    return match mount.is_parked().await {
+                        Ok(_) => Ok(true),
+                        Err(nightshade_native::traits::NativeError::NotSupported) => Ok(false),
+                        Err(e) => Err(format!(
+                            "Failed to determine native mount park capability for {}: {}",
+                            device_id, e
+                        )),
+                    };
+                }
+                Err(format!("Native mount {} not connected", device_id))
+            }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
@@ -3725,7 +3945,26 @@ impl DeviceManager {
                 Err(format!("Alpaca mount {} not connected", device_id))
             }
             DriverType::Indi => {
-                Err("Not implemented for this driver type".to_string())
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() >= 4 {
+                    let server_key = format!("{}:{}", parts[1], parts[2]);
+                    let device_name = parts[3..].join(":");
+                    let clients = self.indi_clients.read().await;
+                    if let Some(client) = clients.get(&server_key) {
+                        let locked = client.read().await;
+                        let supports_park = locked
+                            .get_switch(&device_name, "TELESCOPE_PARK", "PARK")
+                            .await
+                            .is_some()
+                            || locked
+                                .get_switch(&device_name, "TELESCOPE_PARK", "UNPARK")
+                                .await
+                                .is_some();
+                        return Ok(supports_park);
+                    }
+                    return Err(format!("INDI client not connected for {}", server_key));
+                }
+                Err(format!("Invalid INDI device ID format: {}", device_id))
             }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
@@ -3761,10 +4000,23 @@ impl DeviceManager {
                             nightshade_native::traits::PierSide::Unknown => crate::device::PierSide::Unknown,
                         };
                         let sidereal_time = mount.get_sidereal_time().await.map_err(|e| e.to_string())?;
-                        let can_park = match mount.can_park().await {
-                            Ok(value) => value,
+                        let capabilities = match mount.get_capabilities().await {
+                            Ok(caps) => caps,
                             Err(err) => {
-                                tracing::warn!("Failed to query ASCOM mount CanPark: {}", err);
+                                warn!(
+                                    "Failed to query ASCOM mount capabilities for {}: {}. Marking capabilities unavailable.",
+                                    device_id, err
+                                );
+                                crate::ascom_wrapper_mount::AscomMountCapabilities::default()
+                            }
+                        };
+                        let can_set_tracking_rate = match mount.get_tracking_rate().await {
+                            Ok(_) => true,
+                            Err(err) => {
+                                warn!(
+                                    "Failed to query ASCOM mount tracking rate support for {}: {}. Marking unsupported.",
+                                    device_id, err
+                                );
                                 false
                             }
                         };
@@ -3774,19 +4026,19 @@ impl DeviceManager {
                             tracking,
                             slewing,
                             parked,
-                            at_home: false, // Not implemented yet
+                            at_home: false, // ASCOM mount wrapper does not currently expose AtHome
                             side_of_pier,
                             right_ascension: ra,
                             declination: dec,
                             altitude: alt,
                             azimuth: az,
                             sidereal_time,
-                            tracking_rate: TrackingRate::Sidereal, // Default for now
-                            can_park,
-                            can_slew: true,
-                            can_sync: true,
-                            can_pulse_guide: true,
-                            can_set_tracking_rate: true, // ASCOM mounts typically support this
+                            tracking_rate: TrackingRate::Sidereal,
+                            can_park: capabilities.can_park,
+                            can_slew: capabilities.can_slew,
+                            can_sync: capabilities.can_sync,
+                            can_pulse_guide: capabilities.can_pulse_guide,
+                            can_set_tracking_rate,
                         });
                     }
                 }
@@ -3799,7 +4051,16 @@ impl DeviceManager {
                     let (ra, dec) = mount.get_coordinates().await.map_err(|e| e.to_string())?;
                     let tracking = mount.get_tracking().await.map_err(|e| e.to_string())?;
                     let slewing = mount.is_slewing().await.map_err(|e| e.to_string())?;
-                    let parked = mount.is_parked().await.map_err(|e| e.to_string())?;
+                    let (parked, can_park) = match mount.is_parked().await {
+                        Ok(p) => (p, true),
+                        Err(nightshade_native::traits::NativeError::NotSupported) => (false, false),
+                        Err(e) => {
+                            return Err(format!(
+                                "Failed to read native mount parked state for {}: {}",
+                                device_id, e
+                            ));
+                        }
+                    };
                     let side_of_pier_native = mount.get_side_of_pier().await.map_err(|e| e.to_string())?;
                     let side_of_pier = match side_of_pier_native {
                         nightshade_native::traits::PierSide::East => crate::device::PierSide::East,
@@ -3836,7 +4097,7 @@ impl DeviceManager {
                         azimuth: az,
                         sidereal_time,
                         tracking_rate: TrackingRate::Sidereal,
-                        can_park: true,
+                        can_park,
                         can_slew: true,
                         can_sync: true,
                         can_pulse_guide: true,
@@ -3848,115 +4109,77 @@ impl DeviceManager {
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
-                    let ra = match mount.right_ascension().await {
-                        Ok(r) => r,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount RA for {}: {}. Using default 0.0.", device_id, e);
-                            0.0
-                        }
-                    };
-                    let dec = match mount.declination().await {
-                        Ok(d) => d,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount Dec for {}: {}. Using default 0.0.", device_id, e);
-                            0.0
-                        }
-                    };
-                    let alt = match mount.altitude().await {
-                        Ok(a) => a,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount altitude for {}: {}. Using default 0.0.", device_id, e);
-                            0.0
-                        }
-                    };
-                    let az = match mount.azimuth().await {
-                        Ok(a) => a,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount azimuth for {}: {}. Using default 0.0.", device_id, e);
-                            0.0
-                        }
-                    };
-                    let tracking = match mount.tracking().await {
-                        Ok(t) => t,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount tracking for {}: {}. Assuming false.", device_id, e);
-                            false
-                        }
-                    };
-                    let slewing = match mount.slewing().await {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount slewing for {}: {}. Assuming false.", device_id, e);
-                            false
-                        }
-                    };
-                    let parked = match mount.at_park().await {
-                        Ok(p) => p,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount at_park for {}: {}. Assuming false.", device_id, e);
-                            false
-                        }
-                    };
-                    let at_home = match mount.at_home().await {
-                        Ok(h) => h,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount at_home for {}: {}. Assuming false.", device_id, e);
-                            false
-                        }
-                    };
-                    let sidereal_time = match mount.sidereal_time().await {
-                        Ok(t) => t,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount sidereal_time for {}: {}. Using default 0.0.", device_id, e);
-                            0.0
-                        }
-                    };
-                    let side_of_pier_alpaca = match mount.side_of_pier().await {
-                        Ok(s) => s,
-                        Err(e) => {
-                            warn!("Failed to read Alpaca mount side_of_pier for {}: {}. Using Unknown.", device_id, e);
-                            nightshade_alpaca::PierSide::Unknown
-                        }
-                    };
+                    let ra = mount.right_ascension().await.map_err(|e| {
+                        format!("Failed to read Alpaca mount RA for {}: {}", device_id, e)
+                    })?;
+                    let dec = mount.declination().await.map_err(|e| {
+                        format!("Failed to read Alpaca mount Dec for {}: {}", device_id, e)
+                    })?;
+                    let alt = mount.altitude().await.map_err(|e| {
+                        format!("Failed to read Alpaca mount altitude for {}: {}", device_id, e)
+                    })?;
+                    let az = mount.azimuth().await.map_err(|e| {
+                        format!("Failed to read Alpaca mount azimuth for {}: {}", device_id, e)
+                    })?;
+                    let tracking = mount.tracking().await.map_err(|e| {
+                        format!("Failed to read Alpaca mount tracking for {}: {}", device_id, e)
+                    })?;
+                    let slewing = mount.slewing().await.map_err(|e| {
+                        format!("Failed to read Alpaca mount slewing for {}: {}", device_id, e)
+                    })?;
+                    let parked = mount.at_park().await.map_err(|e| {
+                        format!("Failed to read Alpaca mount at_park for {}: {}", device_id, e)
+                    })?;
+                    let at_home = mount.at_home().await.map_err(|e| {
+                        format!("Failed to read Alpaca mount at_home for {}: {}", device_id, e)
+                    })?;
+                    let sidereal_time = mount.sidereal_time().await.map_err(|e| {
+                        format!(
+                            "Failed to read Alpaca mount sidereal_time for {}: {}",
+                            device_id, e
+                        )
+                    })?;
+                    let side_of_pier_alpaca = mount.side_of_pier().await.unwrap_or(
+                        nightshade_alpaca::PierSide::Unknown
+                    );
                     let side_of_pier = match side_of_pier_alpaca {
                         nightshade_alpaca::PierSide::East => crate::device::PierSide::East,
                         nightshade_alpaca::PierSide::West => crate::device::PierSide::West,
                         nightshade_alpaca::PierSide::Unknown => crate::device::PierSide::Unknown,
                     };
 
-                    let can_park = match mount.can_park().await {
-                        Ok(c) => c,
+                    let (can_park, can_slew, can_sync, can_pulse_guide) =
+                        match mount.get_capabilities().await {
+                            Ok(caps) => (
+                                caps.can_park,
+                                caps.can_slew,
+                                caps.can_sync,
+                                caps.can_pulse_guide,
+                            ),
+                            Err(e) => {
+                                warn!(
+                                    "Failed to query Alpaca mount capabilities for {}: {}. Marking capabilities unsupported.",
+                                    device_id, e
+                                );
+                                (false, false, false, false)
+                            }
+                        };
+                    // Alpaca telescope capabilities do not expose a dedicated "can set tracking rate" flag.
+                    // Fail-closed: do not advertise this capability unless the API contract adds one.
+                    let can_set_tracking_rate = false;
+                    let tracking_rate = match mount.tracking_rate().await {
+                        Ok(rate) => match rate {
+                            nightshade_alpaca::DriveRate::Sidereal => TrackingRate::Sidereal,
+                            nightshade_alpaca::DriveRate::Lunar => TrackingRate::Lunar,
+                            nightshade_alpaca::DriveRate::Solar => TrackingRate::Solar,
+                            nightshade_alpaca::DriveRate::King => TrackingRate::King,
+                        },
                         Err(e) => {
-                            warn!("Failed to query Alpaca mount can_park for {}: {}. Assuming true.", device_id, e);
-                            true
-                        }
-                    };
-                    let can_slew = match mount.can_slew().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            warn!("Failed to query Alpaca mount can_slew for {}: {}. Assuming true.", device_id, e);
-                            true
-                        }
-                    };
-                    let can_sync = match mount.can_sync().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            warn!("Failed to query Alpaca mount can_sync for {}: {}. Assuming true.", device_id, e);
-                            true
-                        }
-                    };
-                    let can_pulse_guide = match mount.can_pulse_guide().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            warn!("Failed to query Alpaca mount can_pulse_guide for {}: {}. Assuming false.", device_id, e);
-                            false
-                        }
-                    };
-                    let can_set_tracking_rate = match mount.can_set_tracking().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            warn!("Failed to query Alpaca mount can_set_tracking for {}: {}. Assuming false.", device_id, e);
-                            false
+                            warn!(
+                                "Failed to read Alpaca mount tracking_rate for {}: {}. Using Sidereal.",
+                                device_id, e
+                            );
+                            TrackingRate::Sidereal
                         }
                     };
 
@@ -3972,7 +4195,7 @@ impl DeviceManager {
                         altitude: alt,
                         azimuth: az,
                         sidereal_time,
-                        tracking_rate: TrackingRate::Sidereal, // TODO: Get actual tracking rate
+                        tracking_rate,
                         can_park,
                         can_slew,
                         can_sync,
@@ -3990,23 +4213,61 @@ impl DeviceManager {
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
-                        let (ra, dec) = match mount.get_coordinates().await {
-                            Ok(coords) => coords,
-                            Err(e) => {
-                                warn!("Failed to read INDI mount coordinates for {}: {}. Using default (0.0, 0.0).", device_id, e);
-                                (0.0, 0.0)
-                            }
-                        };
-                        let (alt, az) = match mount.get_horizontal_coordinates().await {
-                            Ok(coords) => coords,
-                            Err(e) => {
-                                warn!("Failed to read INDI mount horizontal coordinates for {}: {}. Using default (0.0, 0.0).", device_id, e);
-                                (0.0, 0.0)
-                            }
-                        };
+                        let (ra, dec) = mount.get_coordinates().await.map_err(|e| {
+                            format!(
+                                "Failed to read INDI mount coordinates for {}: {}",
+                                device_id, e
+                            )
+                        })?;
+                        let (alt, az) = mount.get_horizontal_coordinates().await.map_err(|e| {
+                            format!(
+                                "Failed to read INDI mount horizontal coordinates for {}: {}",
+                                device_id, e
+                            )
+                        })?;
                         let tracking = mount.is_tracking().await;
                         let slewing = mount.is_slewing().await;
                         let parked = mount.is_parked().await;
+                        let (can_park, can_slew, can_sync, can_pulse_guide) = {
+                            let locked = client.read().await;
+                            let can_park = locked
+                                .get_switch(&device_name, "TELESCOPE_PARK", "PARK")
+                                .await
+                                .is_some()
+                                || locked
+                                    .get_switch(&device_name, "TELESCOPE_PARK", "UNPARK")
+                                    .await
+                                    .is_some();
+                            let can_slew = locked
+                                .get_switch(&device_name, "ON_COORD_SET", "SLEW")
+                                .await
+                                .is_some();
+                            let can_sync = locked
+                                .get_switch(&device_name, "ON_COORD_SET", "SYNC")
+                                .await
+                                .is_some();
+                            let can_pulse_guide = locked
+                                .get_switch(&device_name, "TELESCOPE_MOTION_NS", "MOTION_NORTH")
+                                .await
+                                .is_some()
+                                && locked
+                                    .get_switch(
+                                        &device_name,
+                                        "TELESCOPE_MOTION_NS",
+                                        "MOTION_SOUTH",
+                                    )
+                                    .await
+                                    .is_some()
+                                && locked
+                                    .get_switch(&device_name, "TELESCOPE_MOTION_WE", "MOTION_EAST")
+                                    .await
+                                    .is_some()
+                                && locked
+                                    .get_switch(&device_name, "TELESCOPE_MOTION_WE", "MOTION_WEST")
+                                    .await
+                                    .is_some();
+                            (can_park, can_slew, can_sync, can_pulse_guide)
+                        };
 
                         return Ok(MountStatus {
                             connected: true,
@@ -4021,10 +4282,10 @@ impl DeviceManager {
                             azimuth: az,
                             sidereal_time: 0.0, // Would need to calculate from coordinates
                             tracking_rate: TrackingRate::Sidereal,
-                            can_park: true,
-                            can_slew: true,
-                            can_sync: true,
-                            can_pulse_guide: true,
+                            can_park,
+                            can_slew,
+                            can_sync,
+                            can_pulse_guide,
                             can_set_tracking_rate: false,
                         });
                     }
@@ -5108,7 +5369,9 @@ impl DeviceManager {
             }
             DriverType::Indi => {
                 // INDI filter names can be set via FILTER_NAME property
-                tracing::warn!("filter_wheel_set_filter_names: INDI filter name setting not yet implemented");
+                tracing::warn!(
+                    "filter_wheel_set_filter_names: INDI filter name setting is unavailable in this manager path"
+                );
                 Ok(())
             }
             DriverType::Simulator => {
@@ -5137,7 +5400,30 @@ impl DeviceManager {
                 Err(format!("Alpaca rotator {} not found", device_id))
             }
             Some(DriverType::Ascom) => {
-                Err("Not implemented for this driver type".to_string())
+                #[cfg(windows)]
+                {
+                    let prog_id = device_id
+                        .strip_prefix("ascom:")
+                        .ok_or_else(|| format!("Invalid ASCOM rotator ID: {}", device_id))?
+                        .to_string();
+                    return tokio::task::spawn_blocking(move || {
+                        nightshade_ascom::init_com()
+                            .map_err(|e| format!("COM init failed: {}", e))?;
+                        let result = (|| {
+                            let mut rotator = nightshade_ascom::AscomRotator::new(&prog_id)?;
+                            rotator.connect()?;
+                            let position = rotator.position();
+                            let _ = rotator.disconnect();
+                            position
+                        })();
+                        nightshade_ascom::uninit_com();
+                        result
+                    })
+                    .await
+                    .map_err(|e| format!("ASCOM rotator task join error: {}", e))?;
+                }
+                #[cfg(not(windows))]
+                Err("ASCOM is only available on Windows".to_string())
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -5190,7 +5476,30 @@ impl DeviceManager {
                 Err(format!("Alpaca rotator {} not found", device_id))
             }
             Some(DriverType::Ascom) => {
-                Err("Not implemented for this driver type".to_string())
+                #[cfg(windows)]
+                {
+                    let prog_id = device_id
+                        .strip_prefix("ascom:")
+                        .ok_or_else(|| format!("Invalid ASCOM rotator ID: {}", device_id))?
+                        .to_string();
+                    return tokio::task::spawn_blocking(move || {
+                        nightshade_ascom::init_com()
+                            .map_err(|e| format!("COM init failed: {}", e))?;
+                        let result = (|| {
+                            let mut rotator = nightshade_ascom::AscomRotator::new(&prog_id)?;
+                            rotator.connect()?;
+                            let move_result = rotator.move_absolute(position);
+                            let _ = rotator.disconnect();
+                            move_result
+                        })();
+                        nightshade_ascom::uninit_com();
+                        result
+                    })
+                    .await
+                    .map_err(|e| format!("ASCOM rotator task join error: {}", e))?;
+                }
+                #[cfg(not(windows))]
+                Err("ASCOM is only available on Windows".to_string())
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -5237,7 +5546,30 @@ impl DeviceManager {
                 Err(format!("Alpaca rotator {} not found", device_id))
             }
             Some(DriverType::Ascom) => {
-                Err("Not implemented for this driver type".to_string())
+                #[cfg(windows)]
+                {
+                    let prog_id = device_id
+                        .strip_prefix("ascom:")
+                        .ok_or_else(|| format!("Invalid ASCOM rotator ID: {}", device_id))?
+                        .to_string();
+                    return tokio::task::spawn_blocking(move || {
+                        nightshade_ascom::init_com()
+                            .map_err(|e| format!("COM init failed: {}", e))?;
+                        let result = (|| {
+                            let mut rotator = nightshade_ascom::AscomRotator::new(&prog_id)?;
+                            rotator.connect()?;
+                            let halt_result = rotator.halt();
+                            let _ = rotator.disconnect();
+                            halt_result
+                        })();
+                        nightshade_ascom::uninit_com();
+                        result
+                    })
+                    .await
+                    .map_err(|e| format!("ASCOM rotator task join error: {}", e))?;
+                }
+                #[cfg(not(windows))]
+                Err("ASCOM is only available on Windows".to_string())
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -5283,8 +5615,46 @@ impl DeviceManager {
                 }
                 Err(format!("Alpaca rotator {} not found", device_id))
             }
-            Some(DriverType::Ascom) | Some(DriverType::Indi) => {
-                Err("Not implemented for this driver type".to_string())
+            Some(DriverType::Ascom) => {
+                #[cfg(windows)]
+                {
+                    let prog_id = device_id
+                        .strip_prefix("ascom:")
+                        .ok_or_else(|| format!("Invalid ASCOM rotator ID: {}", device_id))?
+                        .to_string();
+                    return tokio::task::spawn_blocking(move || {
+                        nightshade_ascom::init_com()
+                            .map_err(|e| format!("COM init failed: {}", e))?;
+                        let result = (|| {
+                            let mut rotator = nightshade_ascom::AscomRotator::new(&prog_id)?;
+                            rotator.connect()?;
+                            let moving = rotator.is_moving();
+                            let _ = rotator.disconnect();
+                            moving
+                        })();
+                        nightshade_ascom::uninit_com();
+                        result
+                    })
+                    .await
+                    .map_err(|e| format!("ASCOM rotator task join error: {}", e))?;
+                }
+                #[cfg(not(windows))]
+                Err("ASCOM is only available on Windows".to_string())
+            }
+            Some(DriverType::Indi) => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() < 4 {
+                    return Err("Invalid INDI device ID".to_string());
+                }
+                let server_key = format!("{}:{}", parts[1], parts[2]);
+                let device_name = parts[3..].join(":");
+
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let locked = client.read().await;
+                    return Ok(locked.is_property_busy(&device_name, "ABS_ROTATOR_ANGLE").await);
+                }
+                Err("INDI rotator not connected".to_string())
             }
             Some(DriverType::Native) => {
                 let native_rotators = self.native_rotators.read().await;
@@ -5693,7 +6063,23 @@ impl DeviceManager {
                 Err("ASCOM not supported on this platform".to_string())
             }
             Some(DriverType::Indi) => {
-                Err("Not implemented for this driver type".to_string())
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() < 4 {
+                    return Err("Invalid INDI device ID".to_string());
+                }
+                let server_key = format!("{}:{}", parts[1], parts[2]);
+                let device_name = parts[3..].join(":");
+
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let locked = client.read().await;
+                    let az_busy = locked
+                        .is_property_busy(&device_name, "ABS_DOME_POSITION")
+                        .await;
+                    let shutter_busy = locked.is_property_busy(&device_name, "DOME_SHUTTER").await;
+                    return Ok(az_busy || shutter_busy);
+                }
+                Err("INDI dome not connected".to_string())
             }
             Some(DriverType::Native) => {
                 let native_domes = self.native_domes.read().await;
@@ -5727,34 +6113,27 @@ impl DeviceManager {
                     let alpaca_status = dome.get_status().await?;
 
                     // Query capabilities
-                    let can_set_altitude = match dome.can_set_altitude().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            warn!("Failed to query Alpaca dome can_set_altitude for {}: {}. Assuming false.", device_id, e);
-                            false
-                        }
-                    };
-                    let can_set_azimuth = match dome.can_set_azimuth().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            warn!("Failed to query Alpaca dome can_set_azimuth for {}: {}. Assuming false.", device_id, e);
-                            false
-                        }
-                    };
-                    let can_set_shutter = match dome.can_set_shutter().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            warn!("Failed to query Alpaca dome can_set_shutter for {}: {}. Assuming false.", device_id, e);
-                            false
-                        }
-                    };
-                    let can_slave = match dome.can_slave().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            warn!("Failed to query Alpaca dome can_slave for {}: {}. Assuming false.", device_id, e);
-                            false
-                        }
-                    };
+                    let can_set_altitude = dome.can_set_altitude().await.map_err(|e| {
+                        format!(
+                            "Failed to query Alpaca dome can_set_altitude for {}: {}",
+                            device_id, e
+                        )
+                    })?;
+                    let can_set_azimuth = dome.can_set_azimuth().await.map_err(|e| {
+                        format!(
+                            "Failed to query Alpaca dome can_set_azimuth for {}: {}",
+                            device_id, e
+                        )
+                    })?;
+                    let can_set_shutter = dome.can_set_shutter().await.map_err(|e| {
+                        format!(
+                            "Failed to query Alpaca dome can_set_shutter for {}: {}",
+                            device_id, e
+                        )
+                    })?;
+                    let can_slave = dome.can_slave().await.map_err(|e| {
+                        format!("Failed to query Alpaca dome can_slave for {}: {}", device_id, e)
+                    })?;
 
                     return Ok(crate::device::DomeStatus {
                         connected: true,
@@ -5794,20 +6173,12 @@ impl DeviceManager {
                                 4 // Error state
                             }
                         };
-                        let slewing = match dome_guard.slewing().await {
-                            Ok(s) => s,
-                            Err(e) => {
-                                warn!("Failed to read ASCOM dome slewing for {}: {}. Assuming false.", device_id, e);
-                                false
-                            }
-                        };
-                        let at_park = match dome_guard.at_park().await {
-                            Ok(p) => p,
-                            Err(e) => {
-                                warn!("Failed to read ASCOM dome at_park for {}: {}. Assuming false.", device_id, e);
-                                false
-                            }
-                        };
+                        let slewing = dome_guard.slewing().await.map_err(|e| {
+                            format!("Failed to read ASCOM dome slewing for {}: {}", device_id, e)
+                        })?;
+                        let at_park = dome_guard.at_park().await.map_err(|e| {
+                            format!("Failed to read ASCOM dome at_park for {}: {}", device_id, e)
+                        })?;
 
                         // Map ASCOM shutter status codes to ShutterState
                         let shutter_status = match shutter_status_code {
@@ -5840,47 +6211,113 @@ impl DeviceManager {
                 Err("ASCOM not supported on this platform".to_string())
             }
             Some(DriverType::Indi) => {
-                // INDI dome status is retrieved via INDI client property queries
-                // For now, return a basic status indicating the dome is connected
-                // Full INDI dome status polling will be implemented in a future update
                 #[cfg(not(windows))]
                 {
-                    // Return basic connected status - dome control works via INDI switches
-                    return Ok(crate::device::DomeStatus {
-                        connected: true,
-                        azimuth: 0.0,
-                        altitude: None,
-                        shutter_status: crate::device::ShutterState::Unknown,
-                        slewing: false,
-                        at_home: false,
-                        at_park: false,
-                        can_set_altitude: false,
-                        can_set_azimuth: true,
-                        can_set_shutter: true,
-                        can_slave: false,
-                        is_slaved: false,
-                    });
+                    let parts: Vec<&str> = device_id.split(':').collect();
+                    if parts.len() < 4 {
+                        return Err("Invalid INDI device ID".to_string());
+                    }
+                    let server_key = format!("{}:{}", parts[1], parts[2]);
+                    let device_name = parts[3..].join(":");
+
+                    let clients = self.indi_clients.read().await;
+                    if let Some(client) = clients.get(&server_key) {
+                        let locked = client.read().await;
+
+                        let azimuth = locked
+                            .get_number(&device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION")
+                            .await
+                            .ok_or_else(|| {
+                                format!("Failed to read INDI dome azimuth for {}", device_id)
+                            })?;
+                        let can_set_azimuth = true;
+
+                        let shutter_open = locked
+                            .get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_OPEN")
+                            .await;
+                        let shutter_close = locked
+                            .get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_CLOSE")
+                            .await;
+                        let shutter_busy = locked.is_property_busy(&device_name, "DOME_SHUTTER").await;
+
+                        let shutter_status = match (shutter_open, shutter_close, shutter_busy) {
+                            (Some(true), Some(false), true) => crate::device::ShutterState::Opening,
+                            (Some(false), Some(true), true) => crate::device::ShutterState::Closing,
+                            (Some(true), Some(false), false) => crate::device::ShutterState::Open,
+                            (Some(false), Some(true), false) => crate::device::ShutterState::Closed,
+                            _ => crate::device::ShutterState::Unknown,
+                        };
+
+                        let azimuth_busy = locked
+                            .is_property_busy(&device_name, "ABS_DOME_POSITION")
+                            .await;
+                        let slewing = azimuth_busy || shutter_busy;
+
+                        let at_home = locked
+                            .get_switch(&device_name, "DOME_GOTO", "DOME_HOME")
+                            .await
+                            .unwrap_or(false);
+                        let at_park = locked
+                            .get_switch(&device_name, "DOME_PARK", "PARK")
+                            .await
+                            .unwrap_or(false)
+                            || locked
+                                .get_switch(&device_name, "DOME_GOTO", "DOME_PARK")
+                                .await
+                                .unwrap_or(false);
+
+                        let can_set_shutter = shutter_open.is_some() || shutter_close.is_some();
+
+                        let autosync_enable = locked
+                            .get_switch(&device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_ENABLE")
+                            .await;
+                        let autosync_disable = locked
+                            .get_switch(&device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_DISABLE")
+                            .await;
+                        let can_slave = autosync_enable.is_some() || autosync_disable.is_some();
+                        let is_slaved = autosync_enable.unwrap_or(false);
+
+                        return Ok(crate::device::DomeStatus {
+                            connected: true,
+                            azimuth,
+                            altitude: None,
+                            shutter_status,
+                            slewing,
+                            at_home,
+                            at_park,
+                            can_set_altitude: false,
+                            can_set_azimuth,
+                            can_set_shutter,
+                            can_slave,
+                            is_slaved,
+                        });
+                    }
+
+                    Err("INDI dome not connected".to_string())
                 }
                 #[cfg(windows)]
-                Err("INDI not supported on this platform".to_string())
+                {
+                    Err("INDI not supported on this platform".to_string())
+                }
             }
             Some(DriverType::Native) => {
                 let native_domes = self.native_domes.read().await;
                 if let Some(dome) = native_domes.get(device_id) {
                     // Query all native dome properties
-                    let azimuth = match dome.get_azimuth().await {
-                        Ok(a) => a,
-                        Err(e) => {
-                            warn!("Failed to read native dome azimuth for {}: {}. Using default 0.0.", device_id, e);
-                            0.0
-                        }
-                    };
+                    let azimuth = dome.get_azimuth().await.map_err(|e| {
+                        format!("Failed to read native dome azimuth for {}: {}", device_id, e)
+                    })?;
                     let altitude = dome.get_altitude().await.ok().flatten();
                     let shutter_state_native = match dome.get_shutter_status().await {
                         Ok(s) => s,
-                        Err(e) => {
-                            warn!("Failed to read native dome shutter status for {}: {}. Using Unknown.", device_id, e);
+                        Err(nightshade_native::traits::NativeError::NotSupported) => {
                             nightshade_native::traits::ShutterState::Unknown
+                        }
+                        Err(e) => {
+                            return Err(format!(
+                                "Failed to read native dome shutter status for {}: {}",
+                                device_id, e
+                            ));
                         }
                     };
                     let shutter_status = match shutter_state_native {
@@ -5893,30 +6330,42 @@ impl DeviceManager {
                     };
                     let slewing = match dome.is_slewing().await {
                         Ok(s) => s,
+                        Err(nightshade_native::traits::NativeError::NotSupported) => false,
                         Err(e) => {
-                            warn!("Failed to read native dome slewing for {}: {}. Assuming false.", device_id, e);
-                            false
+                            return Err(format!(
+                                "Failed to read native dome slewing for {}: {}",
+                                device_id, e
+                            ));
                         }
                     };
                     let at_home = match dome.is_at_home().await {
                         Ok(h) => h,
+                        Err(nightshade_native::traits::NativeError::NotSupported) => false,
                         Err(e) => {
-                            warn!("Failed to read native dome is_at_home for {}: {}. Assuming false.", device_id, e);
-                            false
+                            return Err(format!(
+                                "Failed to read native dome is_at_home for {}: {}",
+                                device_id, e
+                            ));
                         }
                     };
                     let at_park = match dome.is_parked().await {
                         Ok(p) => p,
+                        Err(nightshade_native::traits::NativeError::NotSupported) => false,
                         Err(e) => {
-                            warn!("Failed to read native dome is_parked for {}: {}. Assuming false.", device_id, e);
-                            false
+                            return Err(format!(
+                                "Failed to read native dome is_parked for {}: {}",
+                                device_id, e
+                            ));
                         }
                     };
                     let is_slaved = match dome.is_slaved().await {
                         Ok(s) => s,
+                        Err(nightshade_native::traits::NativeError::NotSupported) => false,
                         Err(e) => {
-                            warn!("Failed to read native dome is_slaved for {}: {}. Assuming false.", device_id, e);
-                            false
+                            return Err(format!(
+                                "Failed to read native dome is_slaved for {}: {}",
+                                device_id, e
+                            ));
                         }
                     };
 
@@ -6004,7 +6453,42 @@ impl DeviceManager {
                 Err("INDI weather device not connected".to_string())
             }
             Some(DriverType::Ascom) => {
-                Err("Not implemented for this driver type".to_string())
+                #[cfg(windows)]
+                {
+                    let prog_id = device_id
+                        .strip_prefix("ascom:")
+                        .ok_or_else(|| format!("Invalid ASCOM weather device ID: {}", device_id))?
+                        .to_string();
+                    return tokio::task::spawn_blocking(move || {
+                        nightshade_ascom::init_com()
+                            .map_err(|e| format!("COM init failed: {}", e))?;
+                        let result = (|| {
+                            let mut weather =
+                                nightshade_ascom::AscomObservingConditions::new(&prog_id)?;
+                            weather.connect()?;
+                            let conditions = WeatherConditions {
+                                temperature: weather.temperature().ok(),
+                                humidity: weather.humidity().ok(),
+                                pressure: weather.pressure().ok(),
+                                cloud_cover: weather.cloud_cover().ok(),
+                                dew_point: weather.dew_point().ok(),
+                                wind_speed: weather.wind_speed().ok(),
+                                wind_direction: weather.wind_direction().ok(),
+                                sky_quality: weather.sky_quality().ok(),
+                                sky_temperature: weather.sky_temperature().ok(),
+                                rain_rate: weather.rain_rate().ok(),
+                            };
+                            let _ = weather.disconnect();
+                            Ok(conditions)
+                        })();
+                        nightshade_ascom::uninit_com();
+                        result
+                    })
+                    .await
+                    .map_err(|e| format!("ASCOM weather task join error: {}", e))?;
+                }
+                #[cfg(not(windows))]
+                Err("ASCOM is only available on Windows".to_string())
             }
             Some(DriverType::Native) => {
                 let native_weather = self.native_weather.read().await;
@@ -6056,7 +6540,30 @@ impl DeviceManager {
                 Err("INDI safety monitor not standardized".to_string())
             }
             Some(DriverType::Ascom) => {
-                Err("Not implemented for this driver type".to_string())
+                #[cfg(windows)]
+                {
+                    let prog_id = device_id
+                        .strip_prefix("ascom:")
+                        .ok_or_else(|| format!("Invalid ASCOM safety monitor device ID: {}", device_id))?
+                        .to_string();
+                    return tokio::task::spawn_blocking(move || {
+                        nightshade_ascom::init_com()
+                            .map_err(|e| format!("COM init failed: {}", e))?;
+                        let result = (|| {
+                            let mut safety = nightshade_ascom::AscomSafetyMonitor::new(&prog_id)?;
+                            safety.connect()?;
+                            let is_safe = safety.is_safe();
+                            let _ = safety.disconnect();
+                            is_safe
+                        })();
+                        nightshade_ascom::uninit_com();
+                        result
+                    })
+                    .await
+                    .map_err(|e| format!("ASCOM safety monitor task join error: {}", e))?;
+                }
+                #[cfg(not(windows))]
+                Err("ASCOM is only available on Windows".to_string())
             }
             Some(DriverType::Native) => {
                 let native_safety = self.native_safety_monitors.read().await;
@@ -7045,7 +7552,7 @@ impl DeviceManager {
                 let switches = self.indi_get_all_switches(device_id).await?;
                 Ok(switches.len() as i32)
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }
@@ -7081,7 +7588,7 @@ impl DeviceManager {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 Ok(sw.state)
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }
@@ -7134,7 +7641,7 @@ impl DeviceManager {
                 }
                 Err("INDI switch device not connected".to_string())
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }
@@ -7170,7 +7677,7 @@ impl DeviceManager {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 Ok(sw.element_name.clone())
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }
@@ -7211,7 +7718,7 @@ impl DeviceManager {
                 // For INDI, description is "property_name / label"
                 Ok(format!("{} / {}", sw.property_name, sw.label))
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }
@@ -7260,7 +7767,7 @@ impl DeviceManager {
                 }
                 Err("INDI switch device not connected".to_string())
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }
@@ -7313,7 +7820,7 @@ impl DeviceManager {
                 }
                 Err("INDI switch device not connected".to_string())
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }
@@ -7353,7 +7860,7 @@ impl DeviceManager {
                 // INDI boolean switches have min 0.0
                 Ok(0.0)
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }
@@ -7393,7 +7900,7 @@ impl DeviceManager {
                 // INDI boolean switches have max 1.0
                 Ok(1.0)
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }
@@ -7429,7 +7936,7 @@ impl DeviceManager {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 Ok(sw.writable)
             }
-            DriverType::Native => Err("Native switch support not implemented".to_string()),
+            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
             DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
         }
     }

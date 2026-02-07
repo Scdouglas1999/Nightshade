@@ -19,6 +19,8 @@ dependencies:
     path: ../../packages/nightshade_webrtc
   nightshade_app:
     path: ../../packages/nightshade_app
+  nightshade_bridge:
+    path: ../../packages/nightshade_bridge
   nightshade_planetarium:
     path: ../../packages/nightshade_planetarium
   nightshade_updater:
@@ -41,6 +43,7 @@ dependencies:
   json_annotation: ^4.8.1
   path_provider: ^2.1.2
   path: ^1.8.3
+  intl: ^0.19.0
 
   
 
@@ -77,4 +80,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-

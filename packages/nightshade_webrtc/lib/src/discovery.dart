@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
 
@@ -80,7 +81,7 @@ class NightshadeDiscovery {
     final seen = <String>{};
 
     try {
-      print('[NightshadeDiscovery] Creating UDP socket for discovery...');
+      developer.log('Creating UDP socket for discovery...', name: 'NightshadeDiscovery');
       // Create socket for receiving responses
       // Must bind to the specific discovery port to receive broadcasts sent to that port
       final socket = await RawDatagramSocket.bind(
@@ -89,7 +90,7 @@ class NightshadeDiscovery {
         reuseAddress: true,
       );
       socket.broadcastEnabled = true;
-      print('[NightshadeDiscovery] Socket bound to port $_discoveryPort, listening for broadcasts...');
+      developer.log('Socket bound to port $_discoveryPort, listening for broadcasts...', name: 'NightshadeDiscovery');
 
       socket.listen((RawSocketEvent event) {
         if (event == RawSocketEvent.read) {
@@ -97,7 +98,7 @@ class NightshadeDiscovery {
           if (datagram != null) {
             try {
               final message = utf8.decode(datagram.data);
-              print('[NightshadeDiscovery] Received UDP packet: $message from ${datagram.address.address}');
+              developer.log('Received UDP packet from ${datagram.address.address}', name: 'NightshadeDiscovery');
               if (message.startsWith(_responsePrefix)) {
                 final jsonStr = message.substring(_responsePrefix.length);
                 final info = jsonDecode(jsonStr) as Map<String, dynamic>;
@@ -115,29 +116,29 @@ class NightshadeDiscovery {
                     version: info['version'] as String? ?? '2.0.0',
                   );
                   servers.add(server);
-                  print('[NightshadeDiscovery] Found server: ${server.name} at $host');
+                  developer.log('Found server: ${server.name} at $host', name: 'NightshadeDiscovery', level: 800);
                 }
               }
             } catch (e) {
-              print('[NightshadeDiscovery] Error parsing packet: $e');
+              developer.log('Error parsing packet: $e', name: 'NightshadeDiscovery', level: 1000);
             }
           }
         }
       });
 
       // Send discovery broadcast
-      print('[NightshadeDiscovery] Sending discovery broadcast to 255.255.255.255:$_discoveryPort');
+      developer.log('Sending discovery broadcast to 255.255.255.255:$_discoveryPort', name: 'NightshadeDiscovery');
       final discoveryData = utf8.encode(_discoveryMessage);
       socket.send(discoveryData, InternetAddress('255.255.255.255'), _discoveryPort);
 
       // Wait for responses
       await Future.delayed(timeout);
-      print('[NightshadeDiscovery] Discovery timeout reached, found ${servers.length} servers');
+      developer.log('Discovery timeout reached, found ${servers.length} servers', name: 'NightshadeDiscovery');
       socket.close();
 
       return servers;
     } catch (e) {
-      print('[NightshadeDiscovery] Discovery error: $e');
+      developer.log('Discovery error: $e', name: 'NightshadeDiscovery', level: 1000);
       return servers;
     }
   }
@@ -188,7 +189,7 @@ class UpdatePushDiscovery {
     final seen = <String>{};
 
     try {
-      print('[UpdatePushDiscovery] Creating UDP socket for discovery...');
+      developer.log('Creating UDP socket for discovery...', name: 'UpdatePushDiscovery');
       final socket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
         _discoveryPort,
@@ -220,29 +221,29 @@ class UpdatePushDiscovery {
                     isReceiving: info['isReceiving'] as bool? ?? false,
                   );
                   targets.add(target);
-                  print('[UpdatePushDiscovery] Found target: $target');
+                  developer.log('Found target: $target', name: 'UpdatePushDiscovery', level: 800);
                 }
               }
             } catch (e) {
-              print('[UpdatePushDiscovery] Error parsing packet: $e');
+              developer.log('Error parsing packet: $e', name: 'UpdatePushDiscovery', level: 1000);
             }
           }
         }
       });
 
       // Send update push discovery broadcast
-      print('[UpdatePushDiscovery] Sending discovery broadcast...');
+      developer.log('Sending discovery broadcast...', name: 'UpdatePushDiscovery');
       final discoveryData = utf8.encode(_updatePushMessage);
       socket.send(discoveryData, InternetAddress('255.255.255.255'), _discoveryPort);
 
       // Wait for responses
       await Future.delayed(timeout);
-      print('[UpdatePushDiscovery] Discovery complete, found ${targets.length} targets');
+      developer.log('Discovery complete, found ${targets.length} targets', name: 'UpdatePushDiscovery');
       socket.close();
 
       return targets;
     } catch (e) {
-      print('[UpdatePushDiscovery] Discovery error: $e');
+      developer.log('Discovery error: $e', name: 'UpdatePushDiscovery', level: 1000);
       return targets;
     }
   }
@@ -279,16 +280,16 @@ class UpdatePushDiscovery {
               final response = '$_updateResponsePrefix${jsonEncode(info)}';
               final data = utf8.encode(response);
               socket.send(data, datagram.address, datagram.port);
-              print('[UpdatePushDiscovery] Responded to discovery from ${datagram.address.address}');
+              developer.log('Responded to discovery from ${datagram.address.address}', name: 'UpdatePushDiscovery');
             }
           } catch (e) {
-            print('[UpdatePushDiscovery] Error handling discovery: $e');
+            developer.log('Error handling discovery: $e', name: 'UpdatePushDiscovery', level: 1000);
           }
         }
       }
     });
 
-    print('[UpdatePushDiscovery] Listening for update push discovery on port $_discoveryPort');
+    developer.log('Listening for update push discovery on port $_discoveryPort', name: 'UpdatePushDiscovery', level: 800);
     return socket;
   }
 }

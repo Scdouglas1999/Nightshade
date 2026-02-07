@@ -7,8 +7,14 @@ import 'package:shelf/shelf.dart';
 /// Handlers for equipment status and capabilities endpoints
 class EquipmentHandlers {
   final ProviderContainer container;
-
   EquipmentHandlers(this.container);
+
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'EquipmentHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'EquipmentHandlers');
 
   // ===========================================================================
   // Equipment Status
@@ -24,7 +30,7 @@ class EquipmentHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Camera status error: $e');
+      _logError('[API] Camera status error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -42,7 +48,7 @@ class EquipmentHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount status error: $e');
+      _logError('[API] Mount status error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -60,7 +66,7 @@ class EquipmentHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Focuser status error: $e');
+      _logError('[API] Focuser status error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -78,7 +84,7 @@ class EquipmentHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Filter wheel status error: $e');
+      _logError('[API] Filter wheel status error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -96,7 +102,7 @@ class EquipmentHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Rotator status error: $e');
+      _logError('[API] Rotator status error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -114,14 +120,15 @@ class EquipmentHandlers {
       final backend = container.read(backendProvider);
       final caps = await backend.getCameraCapabilities(deviceId);
       if (caps == null) {
-        return Response.notFound(jsonEncode({"error": "Device not found or capabilities unavailable"}));
+        return Response.notFound(jsonEncode(
+            {"error": "Device not found or capabilities unavailable"}));
       }
       return Response.ok(
         jsonEncode(caps.toJson()),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Camera capabilities error: $e');
+      _logError('[API] Camera capabilities error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -135,14 +142,15 @@ class EquipmentHandlers {
       final backend = container.read(backendProvider);
       final caps = await backend.getMountCapabilities(deviceId);
       if (caps == null) {
-        return Response.notFound(jsonEncode({"error": "Device not found or capabilities unavailable"}));
+        return Response.notFound(jsonEncode(
+            {"error": "Device not found or capabilities unavailable"}));
       }
       return Response.ok(
         jsonEncode(caps.toJson()),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount capabilities error: $e');
+      _logError('[API] Mount capabilities error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -156,14 +164,15 @@ class EquipmentHandlers {
       final backend = container.read(backendProvider);
       final caps = await backend.getFocuserCapabilities(deviceId);
       if (caps == null) {
-        return Response.notFound(jsonEncode({"error": "Device not found or capabilities unavailable"}));
+        return Response.notFound(jsonEncode(
+            {"error": "Device not found or capabilities unavailable"}));
       }
       return Response.ok(
         jsonEncode(caps.toJson()),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Focuser capabilities error: $e');
+      _logError('[API] Focuser capabilities error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -177,14 +186,15 @@ class EquipmentHandlers {
       final backend = container.read(backendProvider);
       final caps = await backend.getFilterWheelCapabilities(deviceId);
       if (caps == null) {
-        return Response.notFound(jsonEncode({"error": "Device not found or capabilities unavailable"}));
+        return Response.notFound(jsonEncode(
+            {"error": "Device not found or capabilities unavailable"}));
       }
       return Response.ok(
         jsonEncode(caps.toJson()),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Filter wheel capabilities error: $e');
+      _logError('[API] Filter wheel capabilities error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -198,14 +208,15 @@ class EquipmentHandlers {
       final backend = container.read(backendProvider);
       final caps = await backend.getRotatorCapabilities(deviceId);
       if (caps == null) {
-        return Response.notFound(jsonEncode({"error": "Device not found or capabilities unavailable"}));
+        return Response.notFound(jsonEncode(
+            {"error": "Device not found or capabilities unavailable"}));
       }
       return Response.ok(
         jsonEncode(caps.toJson()),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Rotator capabilities error: $e');
+      _logError('[API] Rotator capabilities error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -218,7 +229,7 @@ class EquipmentHandlers {
   // ===========================================================================
 
   Future<Response> handleStartDeviceHeartbeat(Request request) async {
-    print('[API] POST /api/device/heartbeat/start');
+    _logInfo('[API] POST /api/device/heartbeat/start');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceTypeStr = payload['device_type'] as String;
@@ -244,7 +255,7 @@ class EquipmentHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Start device heartbeat error: $e');
+      _logError('[API] Start device heartbeat error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -253,7 +264,7 @@ class EquipmentHandlers {
   }
 
   Future<Response> handleStopDeviceHeartbeat(Request request) async {
-    print('[API] POST /api/device/heartbeat/stop');
+    _logInfo('[API] POST /api/device/heartbeat/stop');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['device_id'] as String;
@@ -265,7 +276,7 @@ class EquipmentHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Stop device heartbeat error: $e');
+      _logError('[API] Stop device heartbeat error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -273,7 +284,8 @@ class EquipmentHandlers {
     }
   }
 
-  Future<Response> handleGetDeviceHealth(Request request, String deviceId) async {
+  Future<Response> handleGetDeviceHealth(
+      Request request, String deviceId) async {
     try {
       final backend = container.read(backendProvider);
       final (lastComm, isHealthy) = await backend.getDeviceHealth(deviceId);
@@ -285,7 +297,7 @@ class EquipmentHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get device health error: $e');
+      _logError('[API] Get device health error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

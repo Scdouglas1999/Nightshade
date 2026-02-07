@@ -1,12 +1,16 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
+
 import 'headless_api_server.dart';
+
+const _headlessLogSource = 'HeadlessMain';
 
 /// Headless entry point for Nightshade
 ///
@@ -25,83 +29,100 @@ import 'headless_api_server.dart';
 ///
 /// Authentication:
 ///   --auth-token=<token>  Set a specific authentication token
-///   --require-auth        Generate a random token (printed to console)
+///   --require-auth        Generate a random token
 ///
 ///   Environment variables:
 ///   NIGHTSHADE_AUTH_TOKEN  Authentication token
 ///   NIGHTSHADE_PORT        Server port (default: 8080)
 void main(List<String> args) async {
-  // Initialize Flutter bindings (required for async operations)
   WidgetsFlutterBinding.ensureInitialized();
 
-  print('Nightshade 2.0 - Headless Mode');
-  print('==============================');
+  debugPrint('Nightshade 2.0 - Headless Mode');
+  debugPrint('==============================');
+
+  LoggingService? logger;
+  ProviderContainer? container;
+  HeadlessApiServer? apiServer;
 
   try {
-    // Initialize the native bridge
-    print('Initializing native bridge...');
+    debugPrint('Initializing native bridge...');
     await bridge.NativeBridge.init();
-    print('✓ Native bridge initialized');
+    debugPrint('[OK] Native bridge initialized');
 
-    // Initialize catalog manager with app data directory
-    print('Initializing catalog manager...');
+    debugPrint('Initializing catalog manager...');
     await _initializeCatalogManager();
-    print('✓ Catalog manager initialized');
+    debugPrint('[OK] Catalog manager initialized');
 
-    // Create Riverpod container for dependency injection
-    print('Initializing services...');
-    final container = ProviderContainer();
-    // Explicitly use local backend for headless server
+    debugPrint('Initializing services...');
+    container = ProviderContainer();
+    final runtimeLogger = container.read(loggingServiceProvider);
+    logger = runtimeLogger;
+    await runtimeLogger.initialize();
     container.read(backendProvider.notifier).useLocalBackend();
-    print('✓ Services initialized');
+    runtimeLogger.info('Services initialized', source: _headlessLogSource);
 
-    // Parse command-line arguments for auth
     final authConfig = _parseAuthConfig(args);
+    runtimeLogger.info(
+      'Starting headless API server on port ${authConfig.port}',
+      source: _headlessLogSource,
+    );
 
-    // Start headless services
-    print('Starting headless API server...');
-    final apiServer = await _startHeadlessServices(
+    apiServer = await _startHeadlessServices(
       container,
+      logger: runtimeLogger,
       authToken: authConfig.token,
       requireAuth: authConfig.requireAuth,
       port: authConfig.port,
     );
-    print('✓ Headless API server started');
+    runtimeLogger.info('Headless API server started',
+        source: _headlessLogSource);
 
-    print('\\nNightshade is running in headless mode.');
-    print('Press Ctrl+C to stop.\\n');
+    debugPrint('\nNightshade is running in headless mode.');
+    debugPrint('Press Ctrl+C to stop.\n');
 
-    // Handle interrupt signal (works on Windows, Linux, macOS)
-    ProcessSignal.sigint.watch().listen((signal) async {
-      print('\\nShutting down...');
+    ProcessSignal.sigint.watch().listen((_) async {
+      logger?.info('Received SIGINT, shutting down',
+          source: _headlessLogSource);
       await apiServer?.stop();
-      container.dispose();
+      container?.dispose();
       exit(0);
     });
-    
-    // Also handle SIGTERM on Unix systems (Linux, macOS)
+
     if (Platform.isLinux || Platform.isMacOS) {
-      ProcessSignal.sigterm.watch().listen((signal) async {
-        print('\\nShutting down...');
+      ProcessSignal.sigterm.watch().listen((_) async {
+        logger?.info(
+          'Received SIGTERM, shutting down',
+          source: _headlessLogSource,
+        );
         await apiServer?.stop();
-        container.dispose();
+        container?.dispose();
         exit(0);
       });
     }
 
-    // Set up event broadcasting to WebSocket clients
     final backend = container.read(backendProvider);
-    backend.eventStream.listen((event) {
-      apiServer?.broadcastEvent(event);
-    });
+    backend.eventStream.listen(
+      (event) => apiServer?.broadcastEvent(event),
+      onError: (Object error, StackTrace stackTrace) {
+        logger?.warning(
+          'Backend event stream error: $error',
+          source: _headlessLogSource,
+        );
+      },
+    );
 
-    // Keep alive loop
     while (true) {
       await Future.delayed(const Duration(seconds: 1));
     }
   } catch (e, stackTrace) {
-    print('Error starting headless mode: $e');
-    print('Stack trace: $stackTrace');
+    logger?.critical(
+      'Error starting headless mode: $e\n$stackTrace',
+      source: _headlessLogSource,
+    );
+    debugPrint('Error starting headless mode: $e');
+    debugPrint('Stack trace: $stackTrace');
+    await apiServer?.stop();
+    container?.dispose();
     exit(1);
   }
 }
@@ -113,11 +134,9 @@ Future<void> _initializeCatalogManager() async {
     await CatalogManager.instance.initialize(catalogDir);
   } catch (e) {
     debugPrint('Failed to initialize catalog manager: $e');
-    // Don't fail completely - catalogs are optional
   }
 }
 
-/// Authentication configuration parsed from args/environment
 class _AuthConfig {
   final String? token;
   final bool requireAuth;
@@ -126,19 +145,16 @@ class _AuthConfig {
   _AuthConfig({this.token, this.requireAuth = false, this.port = 8080});
 }
 
-/// Parse authentication configuration from command-line args and environment
 _AuthConfig _parseAuthConfig(List<String> args) {
   String? token;
-  bool requireAuth = false;
-  int port = 8080;
+  var requireAuth = false;
+  var port = 8080;
 
-  // Check environment variables first
   token = Platform.environment['NIGHTSHADE_AUTH_TOKEN'];
   if (Platform.environment['NIGHTSHADE_PORT'] != null) {
     port = int.tryParse(Platform.environment['NIGHTSHADE_PORT']!) ?? 8080;
   }
 
-  // Command-line args override environment
   for (final arg in args) {
     if (arg.startsWith('--auth-token=')) {
       token = arg.substring('--auth-token='.length);
@@ -154,96 +170,115 @@ _AuthConfig _parseAuthConfig(List<String> args) {
 
 Future<HeadlessApiServer?> _startHeadlessServices(
   ProviderContainer container, {
+  required LoggingService logger,
   String? authToken,
   bool requireAuth = false,
   int port = 8080,
 }) async {
-  // Initialize database for API access
   try {
     container.read(databaseProvider);
-    print('  ✓ Database initialized');
+    logger.info('Database initialized', source: _headlessLogSource);
   } catch (e) {
-    print('  ⚠ Database initialization failed: $e');
+    logger.warning(
+      'Database initialization failed: $e',
+      source: _headlessLogSource,
+    );
   }
 
-  // Start UDP discovery server
   try {
-    await _startDiscoveryServer();
-    print('  ✓ Discovery server started on UDP port 45679');
+    await _startDiscoveryServer(logger: logger, advertisedPort: port);
+    logger.info(
+      'Discovery server started on UDP port 45679 (advertising $port)',
+      source: _headlessLogSource,
+    );
   } catch (e) {
-    print('  ⚠ Discovery server failed: $e');
+    logger.warning('Discovery server failed: $e', source: _headlessLogSource);
   }
 
-  // Start comprehensive API server with authentication
   final apiServer = HeadlessApiServer(
     port: port,
     container: container,
     authToken: authToken,
     requireAuth: requireAuth,
   );
-  
+
   try {
     await apiServer.start();
-    print('  ✓ API server started on port $port');
-    
-    // Get local IP for user info
+    logger.info('API server started on port $port', source: _headlessLogSource);
+
     try {
       final interfaces = await NetworkInterface.list();
       String? localIp;
-      
+
       for (final interface in interfaces) {
-        if (!interface.name.contains('lo') && !interface.name.contains('Loopback')) {
-          for (final addr in interface.addresses) {
-            if (addr.type == InternetAddressType.IPv4) {
-              localIp = addr.address;
-              break;
-            }
+        final isLoopback = interface.name.contains('lo') ||
+            interface.name.contains('Loopback');
+        if (isLoopback) {
+          continue;
+        }
+        for (final addr in interface.addresses) {
+          if (addr.type == InternetAddressType.IPv4) {
+            localIp = addr.address;
+            break;
           }
-          if (localIp != null) break;
+        }
+        if (localIp != null) {
+          break;
         }
       }
-      
+
       if (localIp != null) {
-        print('\\n  Mobile devices can connect to:');
-        print('    http://$localIp:$port');
+        debugPrint('\n  Mobile devices can connect to:');
+        debugPrint('    http://$localIp:$port');
         if (apiServer.effectiveAuthToken != null) {
-          print('\\n  Authentication required:');
-          print('    Authorization: Bearer ${apiServer.effectiveAuthToken}');
+          debugPrint('\n  Authentication required:');
+          debugPrint(
+              '    Authorization: Bearer ${apiServer.effectiveAuthToken}');
         }
-        print('');
+        debugPrint('');
       }
-    } catch (e) {
-      // Ignore IP detection errors
+    } catch (_) {
+      // Best-effort local IP discovery only.
     }
-    
+
     return apiServer;
   } catch (e) {
-    print('  ⚠ API server failed to start: $e');
+    logger.error('API server failed to start: $e', source: _headlessLogSource);
     return null;
   }
 }
 
 RawDatagramSocket? _discoverySocket;
 
-Future<void> _startDiscoveryServer() async {
-  _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 45679);
-  
-  _discoverySocket!.listen((event) {
-    if (event == RawSocketEvent.read) {
-      final datagram = _discoverySocket!.receive();
-      if (datagram != null) {
-        final message = String.fromCharCodes(datagram.data);
-        
-        // Respond to discovery requests
-        if (message.startsWith('NIGHTSHADE_DISCOVER')) {
-          const response = 'NIGHTSHADE_SERVER:8080';
-          _discoverySocket!.send(
-            response.codeUnits,
-            datagram.address,
-            datagram.port,
-          );
-        }
+Future<void> _startDiscoveryServer({
+  required LoggingService logger,
+  required int advertisedPort,
+}) async {
+  _discoverySocket = await RawDatagramSocket.bind(
+    InternetAddress.anyIPv4,
+    45679,
+  );
+
+  _discoverySocket!.listen(
+    (event) {
+      if (event != RawSocketEvent.read) {
+        return;
       }
-    }
-  });
+      final datagram = _discoverySocket!.receive();
+      if (datagram == null) {
+        return;
+      }
+      final message = String.fromCharCodes(datagram.data);
+      if (!message.startsWith('NIGHTSHADE_DISCOVER')) {
+        return;
+      }
+      final response = 'NIGHTSHADE_SERVER:$advertisedPort';
+      _discoverySocket!
+          .send(response.codeUnits, datagram.address, datagram.port);
+    },
+    onError: (Object error, StackTrace stackTrace) {
+      logger.error('Discovery socket error: $error',
+          source: _headlessLogSource);
+    },
+  );
 }

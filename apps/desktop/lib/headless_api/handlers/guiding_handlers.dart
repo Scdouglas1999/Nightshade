@@ -10,8 +10,15 @@ class GuidingHandlers {
 
   GuidingHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'GuidingHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'GuidingHandlers');
+
   Future<Response> handlePhd2Connect(Request request) async {
-    print('[API] POST /api/phd2/connect');
+    _logInfo('[API] POST /api/phd2/connect');
     try {
       final payload = jsonDecode(await request.readAsString());
       final host = payload['host'] as String? ?? 'localhost';
@@ -25,7 +32,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 connect error: $e');
+      _logError('[API] PHD2 connect error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -34,7 +41,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2Disconnect(Request request) async {
-    print('[API] POST /api/phd2/disconnect');
+    _logInfo('[API] POST /api/phd2/disconnect');
     try {
       final backend = container.read(backendProvider);
       await backend.phd2Disconnect();
@@ -44,7 +51,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 disconnect error: $e');
+      _logError('[API] PHD2 disconnect error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -53,12 +60,13 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2StartGuiding(Request request) async {
-    print('[API] POST /api/phd2/start-guiding');
+    _logInfo('[API] POST /api/phd2/start-guiding');
     try {
       final payload = jsonDecode(await request.readAsString());
       final settlePixels = (payload['settlePixels'] as num?)?.toDouble() ?? 1.0;
       final settleTime = (payload['settleTime'] as num?)?.toDouble() ?? 10.0;
-      final settleTimeout = (payload['settleTimeout'] as num?)?.toDouble() ?? 60.0;
+      final settleTimeout =
+          (payload['settleTimeout'] as num?)?.toDouble() ?? 60.0;
 
       final backend = container.read(backendProvider);
       await backend.phd2StartGuiding(
@@ -72,7 +80,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 start guiding error: $e');
+      _logError('[API] PHD2 start guiding error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -81,7 +89,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2StopGuiding(Request request) async {
-    print('[API] POST /api/phd2/stop-guiding');
+    _logInfo('[API] POST /api/phd2/stop-guiding');
     try {
       final backend = container.read(backendProvider);
       await backend.phd2StopGuiding();
@@ -91,7 +99,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 stop guiding error: $e');
+      _logError('[API] PHD2 stop guiding error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -100,14 +108,15 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2Dither(Request request) async {
-    print('[API] POST /api/phd2/dither');
+    _logInfo('[API] POST /api/phd2/dither');
     try {
       final payload = jsonDecode(await request.readAsString());
       final amount = (payload['amount'] as num?)?.toDouble() ?? 5.0;
       final raOnly = payload['raOnly'] as bool? ?? false;
       final settlePixels = (payload['settlePixels'] as num?)?.toDouble() ?? 1.0;
       final settleTime = (payload['settleTime'] as num?)?.toDouble() ?? 10.0;
-      final settleTimeout = (payload['settleTimeout'] as num?)?.toDouble() ?? 60.0;
+      final settleTimeout =
+          (payload['settleTimeout'] as num?)?.toDouble() ?? 60.0;
 
       final backend = container.read(backendProvider);
       await backend.phd2Dither(
@@ -123,7 +132,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 dither error: $e');
+      _logError('[API] PHD2 dither error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -150,7 +159,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 get status error: $e');
+      _logError('[API] PHD2 get status error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -159,7 +168,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2SetPaused(Request request) async {
-    print('[API] POST /api/phd2/pause');
+    _logInfo('[API] POST /api/phd2/pause');
     try {
       final payload = jsonDecode(await request.readAsString());
       final paused = payload['paused'] as bool;
@@ -172,7 +181,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 set paused error: $e');
+      _logError('[API] PHD2 set paused error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -181,7 +190,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2ClearCalibration(Request request) async {
-    print('[API] POST /api/phd2/clear-calibration');
+    _logInfo('[API] POST /api/phd2/clear-calibration');
     try {
       final payload = jsonDecode(await request.readAsString());
       final which = payload['which'] as String? ?? 'both';
@@ -194,7 +203,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 clear calibration error: $e');
+      _logError('[API] PHD2 clear calibration error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -203,7 +212,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2FlipCalibration(Request request) async {
-    print('[API] POST /api/phd2/flip-calibration');
+    _logInfo('[API] POST /api/phd2/flip-calibration');
     try {
       final backend = container.read(backendProvider);
       await backend.phd2FlipCalibration();
@@ -213,7 +222,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 flip calibration error: $e');
+      _logError('[API] PHD2 flip calibration error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -222,7 +231,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2GetCalibrationData(Request request) async {
-    print('[API] POST /api/phd2/get-calibration-data');
+    _logInfo('[API] POST /api/phd2/get-calibration-data');
     try {
       final backend = container.read(backendProvider);
       final data = await backend.phd2GetCalibrationData();
@@ -237,7 +246,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 get calibration data error: $e');
+      _logError('[API] PHD2 get calibration data error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -246,7 +255,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2FindStar(Request request) async {
-    print('[API] POST /api/phd2/find-star');
+    _logInfo('[API] POST /api/phd2/find-star');
     try {
       final backend = container.read(backendProvider);
       final (x, y) = await backend.phd2FindStar();
@@ -256,7 +265,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 find star error: $e');
+      _logError('[API] PHD2 find star error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -265,7 +274,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2SetLockPosition(Request request) async {
-    print('[API] POST /api/phd2/set-lock-position');
+    _logInfo('[API] POST /api/phd2/set-lock-position');
     try {
       final payload = jsonDecode(await request.readAsString());
       final x = (payload['x'] as num).toDouble();
@@ -280,7 +289,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 set lock position error: $e');
+      _logError('[API] PHD2 set lock position error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -298,7 +307,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 get lock position error: $e');
+      _logError('[API] PHD2 get lock position error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -307,7 +316,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2Loop(Request request) async {
-    print('[API] POST /api/phd2/loop');
+    _logInfo('[API] POST /api/phd2/loop');
     try {
       final backend = container.read(backendProvider);
       await backend.phd2Loop();
@@ -317,7 +326,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 loop error: $e');
+      _logError('[API] PHD2 loop error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -326,7 +335,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2DeselectStar(Request request) async {
-    print('[API] POST /api/phd2/deselect-star');
+    _logInfo('[API] POST /api/phd2/deselect-star');
     try {
       final backend = container.read(backendProvider);
       await backend.phd2DeselectStar();
@@ -336,7 +345,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 deselect star error: $e');
+      _logError('[API] PHD2 deselect star error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -365,7 +374,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 get star image error: $e');
+      _logError('[API] PHD2 get star image error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -379,7 +388,8 @@ class GuidingHandlers {
       if (axis == null || (axis != 'ra' && axis != 'dec')) {
         return Response.badRequest(
           body: jsonEncode({
-            "error": "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
+            "error":
+                "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
           }),
           headers: {'content-type': 'application/json'},
         );
@@ -393,7 +403,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 get algo param names error: $e');
+      _logError('[API] PHD2 get algo param names error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -409,7 +419,8 @@ class GuidingHandlers {
       if (axis == null || (axis != 'ra' && axis != 'dec')) {
         return Response.badRequest(
           body: jsonEncode({
-            "error": "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
+            "error":
+                "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
           }),
           headers: {'content-type': 'application/json'},
         );
@@ -430,7 +441,7 @@ class GuidingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 get algo param error: $e');
+      _logError('[API] PHD2 get algo param error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -439,7 +450,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2SetAlgoParam(Request request) async {
-    print('[API] POST /api/phd2/algo-param');
+    _logInfo('[API] POST /api/phd2/algo-param');
     try {
       final payload = jsonDecode(await request.readAsString());
       final axis = payload['axis'] as String?;
@@ -449,7 +460,8 @@ class GuidingHandlers {
       if (axis == null || (axis != 'ra' && axis != 'dec')) {
         return Response.badRequest(
           body: jsonEncode({
-            "error": "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
+            "error":
+                "Missing or invalid 'axis' parameter. Must be 'ra' or 'dec'."
           }),
           headers: {'content-type': 'application/json'},
         );
@@ -473,11 +485,12 @@ class GuidingHandlers {
       await backend.phd2SetAlgoParam(axis: axis, name: name, value: value);
 
       return Response.ok(
-        jsonEncode({"status": "ok", "axis": axis, "name": name, "value": value}),
+        jsonEncode(
+            {"status": "ok", "axis": axis, "name": name, "value": value}),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] PHD2 set algo param error: $e');
+      _logError('[API] PHD2 set algo param error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

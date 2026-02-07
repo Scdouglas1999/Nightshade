@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as path;
@@ -243,11 +244,7 @@ class NightshadeWebServer {
       _apiOnlyMode = !webRootDir.existsSync();
     }
     
-    // Log handler registration
-    print('[WebServer] Initialized with:');
-    print('[WebServer]   devicesHandler: ${devicesHandler != null ? "REGISTERED" : "NULL"}');
-    print('[WebServer]   sequenceStatusHandler: ${sequenceStatusHandler != null ? "REGISTERED" : "NULL"}');
-    print('[WebServer]   API-only mode: $_apiOnlyMode');
+    developer.log('Initialized (API-only: $_apiOnlyMode, devicesHandler: ${devicesHandler != null}, sequenceStatusHandler: ${sequenceStatusHandler != null})', name: 'WebServer');
   }
 
   /// Check if server is running
@@ -359,6 +356,75 @@ class NightshadeWebServer {
   set getActiveProfileHandler(GetActiveProfileHandler? h) => _getActiveProfileHandler = h;
 
   // =========================================================================
+  // JSON Field Extraction Helpers
+  // =========================================================================
+
+  /// Safely extract a required field from a JSON map with type checking.
+  ///
+  /// Throws [FormatException] if the field is missing or has the wrong type.
+  static T _jsonField<T>(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value == null && !json.containsKey(key)) {
+      throw FormatException('Missing required field: $key');
+    }
+    if (value is! T) {
+      throw FormatException(
+        'Field "$key" must be $T but got ${value.runtimeType}',
+      );
+    }
+    return value;
+  }
+
+  /// Safely extract an optional field from a JSON map with type checking.
+  ///
+  /// Returns null if the field is absent or null; throws [FormatException] if
+  /// the field is present and non-null but has the wrong type.
+  static T? _jsonFieldOptional<T>(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value == null) return null;
+    if (value is! T) {
+      throw FormatException(
+        'Field "$key" must be $T but got ${value.runtimeType}',
+      );
+    }
+    return value;
+  }
+
+  /// Parse the request body as a JSON Map, returning a 400 response on failure.
+  ///
+  /// Returns null if parsing failed (the response has already been written and
+  /// closed in that case). Callers should check for null and return early.
+  static Map<String, dynamic>? _tryParseJsonBody(
+    String body,
+    HttpResponse response,
+  ) {
+    if (body.isEmpty) {
+      response
+        ..statusCode = HttpStatus.badRequest
+        ..headers.contentType = ContentType.json
+        ..write(jsonEncode({'error': 'Request body is empty'}));
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) {
+        response
+          ..statusCode = HttpStatus.badRequest
+          ..headers.contentType = ContentType.json
+          ..write(jsonEncode({'error': 'Request body must be a JSON object'}));
+        return null;
+      }
+      return decoded;
+    } on FormatException catch (e) {
+      response
+        ..statusCode = HttpStatus.badRequest
+        ..headers.contentType = ContentType.json
+        ..write(jsonEncode({'error': 'Invalid JSON: ${e.message}'}));
+      return null;
+    }
+  }
+
+  // =========================================================================
   // Structured Error Response Helpers
   // =========================================================================
 
@@ -459,7 +525,7 @@ class NightshadeWebServer {
   /// Start the web server
   Future<void> start() async {
     if (_isRunning) {
-      print('Web server is already running');
+      developer.log('Web server is already running', name: 'WebServer', level: 900);
       return;
     }
 
@@ -471,15 +537,14 @@ class NightshadeWebServer {
         _isRunning = true;
         _actualPort = p;
 
-        print('Nightshade web server started on port $p');
-        print('Access at: http://localhost:$p');
+        developer.log('Web server started on port $p (http://localhost:$p)', name: 'WebServer', level: 800);
 
         _server!.listen(_handleRequest);
         return; // Success!
       } catch (e) {
-        print('Failed to bind port $p: $e');
+        developer.log('Failed to bind port $p: $e', name: 'WebServer', level: 900);
         if (p == port + 9) {
-          print('Failed to start web server after 10 attempts');
+          developer.log('Failed to start web server after 10 attempts', name: 'WebServer', level: 1000);
           _isRunning = false;
           rethrow;
         }
@@ -498,7 +563,7 @@ class NightshadeWebServer {
     await _server?.close(force: true);
     _server = null;
     _isRunning = false;
-    print('Web server stopped');
+    developer.log('Web server stopped', name: 'WebServer', level: 800);
   }
 
   void _handleRequest(HttpRequest request) {
@@ -600,30 +665,24 @@ class NightshadeWebServer {
 
       // GET /api/devices - List connected devices
       if (apiPath == '/api/devices' && method == 'GET') {
-        print('[WebServer] GET /api/devices request received');
-        print('[WebServer] _devicesHandler is: ${_devicesHandler != null ? "REGISTERED" : "NULL"}');
-        
         if (_devicesHandler != null) {
           try {
-            print('[WebServer] Calling devicesHandler...');
             final result = await _devicesHandler!();
-            print('[WebServer] Handler returned ${result['devices']?.length ?? 0} devices');
             response
               ..statusCode = HttpStatus.ok
               ..headers.contentType = ContentType.json
               ..write(jsonEncode(result));
             response.close();
-            print('[WebServer] Response sent successfully');
             return;
           } catch (e) {
-            print('[WebServer] Handler threw exception: $e');
+            developer.log('GET /api/devices handler error: $e', name: 'WebServer', level: 1000);
             _writeErrorResponse(response, e, context: 'Failed to get devices');
             response.close();
             return;
           }
         }
         // Fallback with empty device list structure
-        print('[WebServer] No handler registered, returning empty fallback');
+        developer.log('No devices handler registered, returning empty fallback', name: 'WebServer', level: 900);
         response
           ..statusCode = HttpStatus.ok
           ..headers.contentType = ContentType.json
@@ -647,16 +706,24 @@ class NightshadeWebServer {
         if (_deviceConnectHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            final deviceType = json['deviceType'] as String;
-            final deviceId = json['deviceId'] as String;
-            
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            final deviceType = _jsonField<String>(json, 'deviceType');
+            final deviceId = _jsonField<String>(json, 'deviceId');
+
             await _deviceConnectHandler!(deviceType, deviceId);
-            
+
             response
               ..statusCode = HttpStatus.ok
               ..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'connected', 'deviceId': deviceId}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -676,16 +743,24 @@ class NightshadeWebServer {
         if (_deviceDisconnectHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            final deviceType = json['deviceType'] as String;
-            final deviceId = json['deviceId'] as String;
-            
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            final deviceType = _jsonField<String>(json, 'deviceType');
+            final deviceId = _jsonField<String>(json, 'deviceId');
+
             await _deviceDisconnectHandler!(deviceType, deviceId);
-            
+
             response
               ..statusCode = HttpStatus.ok
               ..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'disconnected', 'deviceId': deviceId}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -730,16 +805,30 @@ class NightshadeWebServer {
         if (_phd2ConnectHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = body.isEmpty ? <String, dynamic>{} : jsonDecode(body) as Map<String, dynamic>;
-            final host = json['host'] as String?;
-            final port = json['port'] as int?;
-            
+            final Map<String, dynamic> json;
+            if (body.isEmpty) {
+              json = <String, dynamic>{};
+            } else {
+              final parsed = _tryParseJsonBody(body, response);
+              if (parsed == null) { response.close(); return; }
+              json = parsed;
+            }
+            final host = _jsonFieldOptional<String>(json, 'host');
+            final port = _jsonFieldOptional<int>(json, 'port');
+
             await _phd2ConnectHandler!(host: host, port: port);
-            
+
             response
               ..statusCode = HttpStatus.ok
               ..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'connected'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -787,7 +876,8 @@ class NightshadeWebServer {
         if (_cameraExposeHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
             await _cameraExposeHandler!(json);
             response
               ..statusCode = HttpStatus.ok
@@ -812,10 +902,18 @@ class NightshadeWebServer {
         if (_cameraAbortHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _cameraAbortHandler!(json['deviceId'] as String);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _cameraAbortHandler!(_jsonField<String>(json, 'deviceId'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'aborted'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -857,14 +955,22 @@ class NightshadeWebServer {
         if (_cameraSetCoolingHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
             await _cameraSetCoolingHandler!(
-              json['deviceId'] as String,
-              json['enabled'] as bool,
-              (json['targetTemp'] as num?)?.toDouble(),
+              _jsonField<String>(json, 'deviceId'),
+              _jsonField<bool>(json, 'enabled'),
+              _jsonFieldOptional<num>(json, 'targetTemp')?.toDouble(),
             );
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'ok'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -884,10 +990,18 @@ class NightshadeWebServer {
         if (_cameraSetGainHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _cameraSetGainHandler!(json['deviceId'] as String, json['gain'] as int);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _cameraSetGainHandler!(_jsonField<String>(json, 'deviceId'), _jsonField<int>(json, 'gain'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'ok'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -907,10 +1021,18 @@ class NightshadeWebServer {
         if (_cameraSetOffsetHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _cameraSetOffsetHandler!(json['deviceId'] as String, json['offset'] as int);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _cameraSetOffsetHandler!(_jsonField<String>(json, 'deviceId'), _jsonField<int>(json, 'offset'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'ok'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -934,14 +1056,22 @@ class NightshadeWebServer {
         if (_mountSlewHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
             await _mountSlewHandler!(
-              json['deviceId'] as String,
-              (json['ra'] as num).toDouble(),
-              (json['dec'] as num).toDouble(),
+              _jsonField<String>(json, 'deviceId'),
+              _jsonField<num>(json, 'ra').toDouble(),
+              _jsonField<num>(json, 'dec').toDouble(),
             );
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'slewing'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -961,14 +1091,22 @@ class NightshadeWebServer {
         if (_mountSyncHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
             await _mountSyncHandler!(
-              json['deviceId'] as String,
-              (json['ra'] as num).toDouble(),
-              (json['dec'] as num).toDouble(),
+              _jsonField<String>(json, 'deviceId'),
+              _jsonField<num>(json, 'ra').toDouble(),
+              _jsonField<num>(json, 'dec').toDouble(),
             );
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'synced'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -988,10 +1126,18 @@ class NightshadeWebServer {
         if (_mountParkHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _mountParkHandler!(json['deviceId'] as String);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _mountParkHandler!(_jsonField<String>(json, 'deviceId'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'parking'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1011,10 +1157,18 @@ class NightshadeWebServer {
         if (_mountUnparkHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _mountUnparkHandler!(json['deviceId'] as String);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _mountUnparkHandler!(_jsonField<String>(json, 'deviceId'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'unparked'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1034,10 +1188,18 @@ class NightshadeWebServer {
         if (_mountSetTrackingHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _mountSetTrackingHandler!(json['deviceId'] as String, json['enabled'] as bool);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _mountSetTrackingHandler!(_jsonField<String>(json, 'deviceId'), _jsonField<bool>(json, 'enabled'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'ok'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1057,14 +1219,22 @@ class NightshadeWebServer {
         if (_mountPulseGuideHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
             await _mountPulseGuideHandler!(
-              json['deviceId'] as String,
-              json['direction'] as String,
-              json['durationMs'] as int,
+              _jsonField<String>(json, 'deviceId'),
+              _jsonField<String>(json, 'direction'),
+              _jsonField<int>(json, 'durationMs'),
             );
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'ok'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1084,10 +1254,18 @@ class NightshadeWebServer {
         if (_mountAbortHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _mountAbortHandler!(json['deviceId'] as String);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _mountAbortHandler!(_jsonField<String>(json, 'deviceId'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'aborted'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1133,10 +1311,18 @@ class NightshadeWebServer {
         if (_focuserMoveToHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _focuserMoveToHandler!(json['deviceId'] as String, json['position'] as int);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _focuserMoveToHandler!(_jsonField<String>(json, 'deviceId'), _jsonField<int>(json, 'position'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'moving'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1156,10 +1342,18 @@ class NightshadeWebServer {
         if (_focuserMoveRelativeHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _focuserMoveRelativeHandler!(json['deviceId'] as String, json['delta'] as int);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _focuserMoveRelativeHandler!(_jsonField<String>(json, 'deviceId'), _jsonField<int>(json, 'delta'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'moving'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1179,10 +1373,18 @@ class NightshadeWebServer {
         if (_focuserHaltHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _focuserHaltHandler!(json['deviceId'] as String);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _focuserHaltHandler!(_jsonField<String>(json, 'deviceId'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'halted'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1202,7 +1404,8 @@ class NightshadeWebServer {
         if (_autofocusStartHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
             final result = await _autofocusStartHandler!(json);
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode(result));
@@ -1250,10 +1453,18 @@ class NightshadeWebServer {
         if (_filterWheelSetPositionHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _filterWheelSetPositionHandler!(json['deviceId'] as String, json['position'] as int);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _filterWheelSetPositionHandler!(_jsonField<String>(json, 'deviceId'), _jsonField<int>(json, 'position'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'moving'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1295,10 +1506,18 @@ class NightshadeWebServer {
         if (_filterWheelSetByNameHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _filterWheelSetByNameHandler!(json['deviceId'] as String, json['name'] as String);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _filterWheelSetByNameHandler!(_jsonField<String>(json, 'deviceId'), _jsonField<String>(json, 'name'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'moving'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1322,10 +1541,18 @@ class NightshadeWebServer {
         if (_rotatorMoveToHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _rotatorMoveToHandler!(json['deviceId'] as String, (json['angle'] as num).toDouble());
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _rotatorMoveToHandler!(_jsonField<String>(json, 'deviceId'), _jsonField<num>(json, 'angle').toDouble());
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'moving'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1345,10 +1572,18 @@ class NightshadeWebServer {
         if (_rotatorMoveRelativeHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _rotatorMoveRelativeHandler!(json['deviceId'] as String, (json['delta'] as num).toDouble());
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _rotatorMoveRelativeHandler!(_jsonField<String>(json, 'deviceId'), _jsonField<num>(json, 'delta').toDouble());
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'moving'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1390,10 +1625,18 @@ class NightshadeWebServer {
         if (_rotatorHaltHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _rotatorHaltHandler!(json['deviceId'] as String);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _rotatorHaltHandler!(_jsonField<String>(json, 'deviceId'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'halted'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1669,7 +1912,14 @@ class NightshadeWebServer {
         if (_phd2StartGuidingHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = body.isEmpty ? <String, dynamic>{} : jsonDecode(body) as Map<String, dynamic>;
+            final Map<String, dynamic> json;
+            if (body.isEmpty) {
+              json = <String, dynamic>{};
+            } else {
+              final parsed = _tryParseJsonBody(body, response);
+              if (parsed == null) { response.close(); return; }
+              json = parsed;
+            }
             await _phd2StartGuidingHandler!(json);
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'guiding'}));
@@ -1713,7 +1963,14 @@ class NightshadeWebServer {
         if (_phd2DitherHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = body.isEmpty ? <String, dynamic>{} : jsonDecode(body) as Map<String, dynamic>;
+            final Map<String, dynamic> json;
+            if (body.isEmpty) {
+              json = <String, dynamic>{};
+            } else {
+              final parsed = _tryParseJsonBody(body, response);
+              if (parsed == null) { response.close(); return; }
+              json = parsed;
+            }
             await _phd2DitherHandler!(json);
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'dithering'}));
@@ -1816,19 +2073,21 @@ class NightshadeWebServer {
         if (_phd2SetAlgoParamHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            final axis = json['axis'] as String?;
-            final name = json['name'] as String?;
-            final value = (json['value'] as num?)?.toDouble();
-            if (axis == null || name == null || value == null) {
-              _writeErrorResponse(response, 'Missing required "axis", "name", or "value" field',
-                  statusCode: HttpStatus.badRequest, category: 'validation');
-              response.close();
-              return;
-            }
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            final axis = _jsonField<String>(json, 'axis');
+            final name = _jsonField<String>(json, 'name');
+            final value = _jsonField<num>(json, 'value').toDouble();
             await _phd2SetAlgoParamHandler!(axis: axis, name: name, value: value);
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'updated'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1873,10 +2132,18 @@ class NightshadeWebServer {
         if (_updateSettingsHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _updateSettingsHandler!(json['settings'] as Map<String, dynamic>);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _updateSettingsHandler!(_jsonField<Map<String, dynamic>>(json, 'settings'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'updated'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1917,10 +2184,18 @@ class NightshadeWebServer {
         if (_setLocationHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _setLocationHandler!(json['location'] as Map<String, dynamic>?);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _setLocationHandler!(_jsonFieldOptional<Map<String, dynamic>>(json, 'location'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'updated'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -1986,10 +2261,18 @@ class NightshadeWebServer {
         if (_saveProfileHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _saveProfileHandler!(json['profile'] as Map<String, dynamic>);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _saveProfileHandler!(_jsonField<Map<String, dynamic>>(json, 'profile'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'saved'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -2164,10 +2447,18 @@ class NightshadeWebServer {
         if (_sequencerLoadHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _sequencerLoadHandler!(json['json'] as String);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _sequencerLoadHandler!(_jsonField<String>(json, 'json'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'loaded'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -2187,10 +2478,18 @@ class NightshadeWebServer {
         if (_sequencerSetSimulationHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            await _sequencerSetSimulationHandler!(json['enabled'] as bool);
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            await _sequencerSetSimulationHandler!(_jsonField<bool>(json, 'enabled'));
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'ok'}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -2235,7 +2534,8 @@ class NightshadeWebServer {
         if (_plateSolveHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
             final result = await _plateSolveHandler!(json);
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode(result));
@@ -2263,13 +2563,21 @@ class NightshadeWebServer {
         if (_saveFitsFromCaptureHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
-            final deviceId = json['deviceId'] as String;
-            final filePath = json['filePath'] as String;
-            final headerData = json['headerData'] as Map<String, dynamic>;
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
+            final deviceId = _jsonField<String>(json, 'deviceId');
+            final filePath = _jsonField<String>(json, 'filePath');
+            final headerData = _jsonField<Map<String, dynamic>>(json, 'headerData');
             await _saveFitsFromCaptureHandler!(deviceId, filePath, headerData);
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'saved', 'filePath': filePath}));
+            response.close();
+            return;
+          } on FormatException catch (e) {
+            response
+              ..statusCode = HttpStatus.badRequest
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode({'error': e.message}));
             response.close();
             return;
           } catch (e) {
@@ -2315,7 +2623,8 @@ class NightshadeWebServer {
         if (_polarAlignmentStartHandler != null) {
           try {
             final body = await utf8.decoder.bind(request).join();
-            final json = jsonDecode(body) as Map<String, dynamic>;
+            final json = _tryParseJsonBody(body, response);
+            if (json == null) { response.close(); return; }
             await _polarAlignmentStartHandler!(json);
             response..statusCode = HttpStatus.ok..headers.contentType = ContentType.json
               ..write(jsonEncode({'status': 'started'}));
@@ -2620,17 +2929,17 @@ class NightshadeWebServer {
           ...jsonEvent,
         });
       } catch (e) {
-        print('Error forwarding event to WebSocket: $e');
+        developer.log('Error forwarding event to WebSocket: $e', name: 'WebServer', level: 1000);
       }
     }, onError: (error) {
-      print('Event stream error: $error');
+      developer.log('Event stream error: $error', name: 'WebServer', level: 1000);
     });
   }
 
   void _handleWebSocketUpgrade(HttpRequest request) {
     WebSocketTransformer.upgrade(request).then((WebSocket webSocket) {
       _webSocketClients.add(webSocket);
-      print('WebSocket client connected (${_webSocketClients.length} total)');
+      developer.log('WebSocket client connected (${_webSocketClients.length} total)', name: 'WebServer', level: 800);
 
       webSocket.listen(
         (message) {
@@ -2648,15 +2957,15 @@ class NightshadeWebServer {
         },
         onDone: () {
           _webSocketClients.remove(webSocket);
-          print('WebSocket client disconnected (${_webSocketClients.length} total)');
+          developer.log('WebSocket client disconnected (${_webSocketClients.length} total)', name: 'WebServer', level: 800);
         },
         onError: (error) {
           _webSocketClients.remove(webSocket);
-          print('WebSocket error: $error');
+          developer.log('WebSocket error: $error', name: 'WebServer', level: 1000);
         },
       );
     }).catchError((error) {
-      print('WebSocket upgrade failed: $error');
+      developer.log('WebSocket upgrade failed: $error', name: 'WebServer', level: 1000);
     });
   }
 

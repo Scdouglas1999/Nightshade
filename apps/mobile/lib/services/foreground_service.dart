@@ -1,10 +1,13 @@
+// ignore_for_file: unused_field
+
 import 'dart:async';
 import 'dart:isolate';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'notification_service.dart';
 
 class ImagingForegroundService {
-  static final ImagingForegroundService _instance = ImagingForegroundService._internal();
+  static final ImagingForegroundService _instance =
+      ImagingForegroundService._internal();
   factory ImagingForegroundService() => _instance;
   ImagingForegroundService._internal();
 
@@ -74,7 +77,8 @@ class ImagingForegroundService {
 
     _completedExposures = completedExposures;
     _totalExposures = totalExposures;
-    _percentComplete = totalExposures > 0 ? (completedExposures / totalExposures) * 100 : 0;
+    _percentComplete =
+        totalExposures > 0 ? (completedExposures / totalExposures) * 100 : 0;
 
     String text = '$completedExposures/$totalExposures exposures';
     if (currentFilter != null) {

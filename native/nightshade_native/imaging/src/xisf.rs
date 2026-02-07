@@ -366,9 +366,9 @@ pub fn write_xisf(
     // which depends on the offset (circular dependency).
     // Solution: Use a fixed alignment and iterate if needed.
 
-    // First pass: estimate XML size with placeholder offset
-    let placeholder_offset = 16 + 4096; // Conservative estimate
-    let xml_v1 = build_xisf_xml_with_location(image, metadata, placeholder_offset, data_size);
+    // First pass: estimate XML size with an initial offset guess
+    let initial_offset_guess = 16 + 4096; // Conservative estimate
+    let xml_v1 = build_xisf_xml_with_location(image, metadata, initial_offset_guess, data_size);
 
     // Calculate required padding to align data to 16-byte boundary (XISF spec recommendation)
     let xml_len_v1 = xml_v1.len();

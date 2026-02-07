@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
@@ -26,7 +28,7 @@ import '../services/mosaic_planner.dart';
       return (messierNum, 'M');
     }
   }
-  
+
   // For non-Messier objects, use NGC/IC designation as name
   final ngcIc = dso.ngcIcDesignation;
   if (ngcIc != null) {
@@ -36,7 +38,7 @@ import '../services/mosaic_planner.dart';
       return (ngcIc, 'IC');
     }
   }
-  
+
   // Fallback to id and extract catalog prefix
   if (dso.id.startsWith('NGC')) {
     return (dso.id, 'NGC');
@@ -45,7 +47,7 @@ import '../services/mosaic_planner.dart';
   } else if (dso.id.startsWith('M')) {
     return (dso.id, 'M');
   }
-  
+
   // Last resort: use name and id
   return (dso.name, dso.id);
 }
@@ -60,14 +62,14 @@ class ObserverLocation {
   final double longitude;
   final double elevation;
   final String? locationName;
-  
+
   const ObserverLocation({
     this.latitude = 34.0522, // Los Angeles default
     this.longitude = -118.2437,
     this.elevation = 0,
     this.locationName,
   });
-  
+
   ObserverLocation copyWith({
     double? latitude,
     double? longitude,
@@ -85,7 +87,7 @@ class ObserverLocation {
 
 class ObserverLocationNotifier extends StateNotifier<ObserverLocation> {
   ObserverLocationNotifier() : super(const ObserverLocation());
-  
+
   void setLocation({
     double? latitude,
     double? longitude,
@@ -98,12 +100,13 @@ class ObserverLocationNotifier extends StateNotifier<ObserverLocation> {
       elevation: elevation,
       locationName: locationName,
     );
-    
+
     // Settings sync will be handled at app level
   }
 }
 
-final observerLocationProvider = StateNotifierProvider<ObserverLocationNotifier, ObserverLocation>((ref) {
+final observerLocationProvider =
+    StateNotifierProvider<ObserverLocationNotifier, ObserverLocation>((ref) {
   return ObserverLocationNotifier();
 });
 
@@ -116,13 +119,13 @@ class ObservationTimeState {
   final DateTime time;
   final bool isRealTime;
   final double speedMultiplier;
-  
+
   const ObservationTimeState({
     required this.time,
     this.isRealTime = true,
     this.speedMultiplier = 1.0,
   });
-  
+
   ObservationTimeState copyWith({
     DateTime? time,
     bool? isRealTime,
@@ -138,11 +141,12 @@ class ObservationTimeState {
 
 class ObservationTimeNotifier extends StateNotifier<ObservationTimeState> {
   Timer? _timer;
-  
-  ObservationTimeNotifier() : super(ObservationTimeState(time: DateTime.now())) {
+
+  ObservationTimeNotifier()
+      : super(ObservationTimeState(time: DateTime.now())) {
     _startTimer();
   }
-  
+
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -154,36 +158,36 @@ class ObservationTimeNotifier extends StateNotifier<ObservationTimeState> {
       }
     });
   }
-  
+
   void setTime(DateTime time) {
     state = state.copyWith(time: time, isRealTime: false);
   }
-  
+
   void setRealTime(bool realTime) {
     state = state.copyWith(
       isRealTime: realTime,
       time: realTime ? DateTime.now() : state.time,
     );
   }
-  
+
   void setSpeedMultiplier(double multiplier) {
     state = state.copyWith(speedMultiplier: multiplier, isRealTime: false);
   }
-  
+
   void fastForward(Duration duration) {
     state = state.copyWith(
       time: state.time.add(duration),
       isRealTime: false,
     );
   }
-  
+
   void rewind(Duration duration) {
     state = state.copyWith(
       time: state.time.subtract(duration),
       isRealTime: false,
     );
   }
-  
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -191,7 +195,8 @@ class ObservationTimeNotifier extends StateNotifier<ObservationTimeState> {
   }
 }
 
-final observationTimeProvider = StateNotifierProvider<ObservationTimeNotifier, ObservationTimeState>((ref) {
+final observationTimeProvider =
+    StateNotifierProvider<ObservationTimeNotifier, ObservationTimeState>((ref) {
   return ObservationTimeNotifier();
 });
 
@@ -200,145 +205,154 @@ final observationTimeProvider = StateNotifierProvider<ObservationTimeNotifier, O
 // ============================================================================
 
 class SkyViewNotifier extends StateNotifier<SkyViewState> {
-  SkyViewNotifier() : super(const SkyViewState(
-    centerRA: 0,
-    centerDec: 0,
-    fieldOfView: 60,
-  ));
-  
+  SkyViewNotifier()
+      : super(const SkyViewState(
+          centerRA: 0,
+          centerDec: 0,
+          fieldOfView: 60,
+        ));
+
   void setCenter(double ra, double dec) {
     state = state.copyWith(
       centerRA: ra.clamp(0, 24),
       centerDec: dec.clamp(-90, 90),
     );
   }
-  
+
   void setFieldOfView(double fov) {
     state = state.copyWith(fieldOfView: fov.clamp(1, 180));
   }
-  
+
   void setRotation(double rotation) {
     state = state.copyWith(rotation: rotation % 360);
   }
-  
+
   void setProjection(SkyProjection projection) {
     state = state.copyWith(projection: projection);
   }
-  
+
   void zoomIn({Offset? mousePosition, Size? viewSize}) {
     if (mousePosition != null && viewSize != null) {
       _zoomAtPosition(mousePosition, viewSize, 1.5);
     } else {
-      state = state.copyWith(fieldOfView: (state.fieldOfView / 1.5).clamp(1, 180));
+      state =
+          state.copyWith(fieldOfView: (state.fieldOfView / 1.5).clamp(1, 180));
     }
   }
-  
+
   void zoomOut({Offset? mousePosition, Size? viewSize}) {
     if (mousePosition != null && viewSize != null) {
       _zoomAtPosition(mousePosition, viewSize, 1 / 1.5);
     } else {
-      state = state.copyWith(fieldOfView: (state.fieldOfView * 1.5).clamp(1, 180));
+      state =
+          state.copyWith(fieldOfView: (state.fieldOfView * 1.5).clamp(1, 180));
     }
   }
-  
+
   /// Zoom at a specific screen position, keeping that position fixed
   void _zoomAtPosition(Offset mousePosition, Size viewSize, double zoomFactor) {
     // Get the celestial coordinate at the mouse position before zoom
     final coordBefore = _screenToCelestial(mousePosition, viewSize);
     if (coordBefore == null) {
       // Fallback to center zoom if conversion fails
-      state = state.copyWith(fieldOfView: (state.fieldOfView / zoomFactor).clamp(1, 180));
+      state = state.copyWith(
+          fieldOfView: (state.fieldOfView / zoomFactor).clamp(1, 180));
       return;
     }
-    
+
     // Apply zoom
     final oldFOV = state.fieldOfView;
     final newFOV = (oldFOV / zoomFactor).clamp(1.0, 180.0);
     state = state.copyWith(fieldOfView: newFOV);
-    
+
     // Get the celestial coordinate at the same screen position after zoom
     final coordAfter = _screenToCelestial(mousePosition, viewSize);
     if (coordAfter == null) return;
-    
+
     // Calculate the offset needed to keep the mouse position pointing at the same celestial coordinate
     final dRA = coordBefore.ra - coordAfter.ra;
     final dDec = coordBefore.dec - coordAfter.dec;
-    
+
     // Adjust center to compensate
     var newRA = state.centerRA + dRA;
     if (newRA < 0) newRA += 24;
     if (newRA >= 24) newRA -= 24;
-    
+
     state = state.copyWith(
       centerRA: newRA,
       centerDec: (state.centerDec + dDec).clamp(-90, 90),
     );
   }
-  
+
   /// Convert screen position to celestial coordinates
   CelestialCoordinate? _screenToCelestial(Offset position, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final scale = math.min(size.width, size.height) / 2 / (state.fieldOfView / 2);
-    
+    final scale =
+        math.min(size.width, size.height) / 2 / (state.fieldOfView / 2);
+
     // Offset from center in screen pixels
     final dx = -(position.dx - center.dx) / scale;
     final dy = -(position.dy - center.dy) / scale;
-    
+
     // Reverse rotation
     final rotRad = -state.rotation * math.pi / 180;
     final x = dx * math.cos(rotRad) - dy * math.sin(rotRad);
     final y = dx * math.sin(rotRad) + dy * math.cos(rotRad);
-    
+
     // Convert to RA/Dec (inverse of stereographic projection)
     final centerRaDeg = state.centerRA * 15;
     final centerDecDeg = state.centerDec;
-    
+
     final xRad = x * math.pi / 180;
     final yRad = y * math.pi / 180;
     final centerRaRad = centerRaDeg * math.pi / 180;
     final centerDecRad = centerDecDeg * math.pi / 180;
-    
+
     final rho = math.sqrt(xRad * xRad + yRad * yRad);
     if (rho < 0.0001) {
       return CelestialCoordinate(ra: state.centerRA, dec: state.centerDec);
     }
-    
+
     final c = 2 * math.atan(rho / 2);
     final sinc = math.sin(c);
     final cosc = math.cos(c);
-    
-    final dec = math.asin(cosc * math.sin(centerDecRad) + yRad * sinc * math.cos(centerDecRad) / rho);
-    final ra = centerRaRad + math.atan2(
-      xRad * sinc,
-      rho * math.cos(centerDecRad) * cosc - yRad * math.sin(centerDecRad) * sinc,
-    );
-    
+
+    final dec = math.asin(cosc * math.sin(centerDecRad) +
+        yRad * sinc * math.cos(centerDecRad) / rho);
+    final ra = centerRaRad +
+        math.atan2(
+          xRad * sinc,
+          rho * math.cos(centerDecRad) * cosc -
+              yRad * math.sin(centerDecRad) * sinc,
+        );
+
     var raHours = (ra * 180 / math.pi / 15).toDouble();
     if (raHours < 0) raHours += 24;
     if (raHours >= 24) raHours -= 24;
-    
+
     final decDeg = (dec * 180 / math.pi).toDouble();
-    
+
     return CelestialCoordinate(ra: raHours, dec: decDeg.clamp(-90, 90));
   }
-  
+
   void pan(double dRA, double dDec) {
     var newRA = state.centerRA + dRA;
     if (newRA < 0) newRA += 24;
     if (newRA >= 24) newRA -= 24;
-    
+
     state = state.copyWith(
       centerRA: newRA,
       centerDec: (state.centerDec + dDec).clamp(-90, 90),
     );
   }
-  
+
   void lookAt(CelestialCoordinate coord) {
     state = state.copyWith(centerRA: coord.ra, centerDec: coord.dec);
   }
 }
 
-final skyViewStateProvider = StateNotifierProvider<SkyViewNotifier, SkyViewState>((ref) {
+final skyViewStateProvider =
+    StateNotifierProvider<SkyViewNotifier, SkyViewState>((ref) {
   return SkyViewNotifier();
 });
 
@@ -348,7 +362,8 @@ final skyViewStateProvider = StateNotifierProvider<SkyViewNotifier, SkyViewState
 final viewCenterAltAzProvider = Provider<(double, double)>((ref) {
   final viewState = ref.watch(skyViewStateProvider);
   final location = ref.watch(observerLocationProvider);
-  final time = ref.watch(_currentMinuteProvider);  // Use minute precision instead
+  final time =
+      ref.watch(_currentMinuteProvider); // Use minute precision instead
 
   // Convert view center (RA/Dec) to Alt/Az
   final lst = AstronomyCalculations.localSiderealTime(time, location.longitude);
@@ -382,47 +397,49 @@ final showGroundPlaneProvider = StateProvider<bool>((ref) => true);
 
 class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
   SkyRenderConfigNotifier() : super(const SkyRenderConfig());
-  
+
   void toggleStars() {
     state = state.copyWith(showStars: !state.showStars);
   }
-  
+
   void toggleConstellationLines() {
-    state = state.copyWith(showConstellationLines: !state.showConstellationLines);
+    state =
+        state.copyWith(showConstellationLines: !state.showConstellationLines);
   }
-  
+
   void toggleConstellationLabels() {
-    state = state.copyWith(showConstellationLabels: !state.showConstellationLabels);
+    state =
+        state.copyWith(showConstellationLabels: !state.showConstellationLabels);
   }
-  
+
   void toggleDSOs() {
     state = state.copyWith(showDSOs: !state.showDSOs);
   }
-  
+
   void toggleGrid() {
     state = state.copyWith(showCoordinateGrid: !state.showCoordinateGrid);
   }
-  
+
   void toggleEquatorialGrid() {
     state = state.copyWith(showEquatorialGrid: !state.showEquatorialGrid);
   }
-  
+
   void toggleAltAzGrid() {
     state = state.copyWith(showAltAzGrid: !state.showAltAzGrid);
   }
-  
+
   void toggleEcliptic() {
     state = state.copyWith(showEcliptic: !state.showEcliptic);
   }
-  
+
   void toggleHorizon() {
     state = state.copyWith(showHorizon: !state.showHorizon);
   }
-  
+
   void setStarMagnitudeLimit(double limit) {
     state = state.copyWith(starMagnitudeLimit: limit);
   }
-  
+
   void setDsoMagnitudeLimit(double limit) {
     state = state.copyWith(dsoMagnitudeLimit: limit);
   }
@@ -452,7 +469,8 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
   }
 }
 
-final skyRenderConfigProvider = StateNotifierProvider<SkyRenderConfigNotifier, SkyRenderConfig>((ref) {
+final skyRenderConfigProvider =
+    StateNotifierProvider<SkyRenderConfigNotifier, SkyRenderConfig>((ref) {
   return SkyRenderConfigNotifier();
 });
 
@@ -514,7 +532,8 @@ class RenderQualityNotifier extends StateNotifier<RenderQualityConfig> {
 }
 
 /// Provider for render quality configuration
-final renderQualityProvider = StateNotifierProvider<RenderQualityNotifier, RenderQualityConfig>((ref) {
+final renderQualityProvider =
+    StateNotifierProvider<RenderQualityNotifier, RenderQualityConfig>((ref) {
   return RenderQualityNotifier();
 });
 
@@ -606,7 +625,8 @@ final fovFilteredStarsProvider = Provider<AsyncValue<List<Star>>>((ref) {
 /// DSOs filtered by dynamic magnitude limit based on current FOV
 /// As the user zooms in (narrower FOV), fainter DSOs become visible.
 /// This provider should be used by the sky renderer for FOV-aware DSO display.
-final fovFilteredDsosProvider = Provider<AsyncValue<List<DeepSkyObject>>>((ref) {
+final fovFilteredDsosProvider =
+    Provider<AsyncValue<List<DeepSkyObject>>>((ref) {
   final indexAsync = ref.watch(dsoSpatialIndexProvider);
   final (_, dsoMagLimit) = ref.watch(dynamicMagnitudeLimitsProvider);
   final viewState = ref.watch(skyViewStateProvider);
@@ -717,7 +737,8 @@ final sunPositionProvider = Provider<(double ra, double dec)>((ref) {
 
 /// Moon position for current time
 /// Uses minute precision - moon moves ~0.5 arcmin per minute which is fine for rendering.
-final moonPositionProvider = Provider<(double ra, double dec, double distance)>((ref) {
+final moonPositionProvider =
+    Provider<(double ra, double dec, double distance)>((ref) {
   final time = ref.watch(_currentMinuteProvider);
   return AstronomyCalculations.moonPosition(time);
 });
@@ -805,7 +826,8 @@ class MountPositionNotifier extends StateNotifier<MountPositionState> {
   }
 }
 
-final mountPositionProvider = StateNotifierProvider<MountPositionNotifier, MountPositionState>((ref) {
+final mountPositionProvider =
+    StateNotifierProvider<MountPositionNotifier, MountPositionState>((ref) {
   return MountPositionNotifier();
 });
 
@@ -819,7 +841,7 @@ class SelectedObjectState {
   final CelestialCoordinate? coordinates;
   final ObjectVisibility? visibility;
   final (double alt, double az)? currentAltAz;
-  
+
   const SelectedObjectState({
     this.object,
     this.coordinates,
@@ -830,13 +852,13 @@ class SelectedObjectState {
 
 class SelectedObjectNotifier extends StateNotifier<SelectedObjectState> {
   final Ref _ref;
-  
+
   SelectedObjectNotifier(this._ref) : super(const SelectedObjectState());
-  
+
   void selectObject(CelestialObject object) {
     final location = _ref.read(observerLocationProvider);
     final time = _ref.read(observationTimeProvider);
-    
+
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: object.coordinates.raDegrees,
       decDeg: object.coordinates.dec,
@@ -844,7 +866,7 @@ class SelectedObjectNotifier extends StateNotifier<SelectedObjectState> {
       latitudeDeg: location.latitude,
       longitudeDeg: location.longitude,
     );
-    
+
     final altAz = AstronomyCalculations.objectAltAz(
       raDeg: object.coordinates.raDegrees,
       decDeg: object.coordinates.dec,
@@ -852,7 +874,7 @@ class SelectedObjectNotifier extends StateNotifier<SelectedObjectState> {
       latitudeDeg: location.latitude,
       longitudeDeg: location.longitude,
     );
-    
+
     state = SelectedObjectState(
       object: object,
       coordinates: object.coordinates,
@@ -860,11 +882,11 @@ class SelectedObjectNotifier extends StateNotifier<SelectedObjectState> {
       currentAltAz: altAz,
     );
   }
-  
+
   void selectCoordinates(CelestialCoordinate coord) {
     final location = _ref.read(observerLocationProvider);
     final time = _ref.read(observationTimeProvider);
-    
+
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: coord.raDegrees,
       decDeg: coord.dec,
@@ -872,7 +894,7 @@ class SelectedObjectNotifier extends StateNotifier<SelectedObjectState> {
       latitudeDeg: location.latitude,
       longitudeDeg: location.longitude,
     );
-    
+
     final altAz = AstronomyCalculations.objectAltAz(
       raDeg: coord.raDegrees,
       decDeg: coord.dec,
@@ -880,20 +902,21 @@ class SelectedObjectNotifier extends StateNotifier<SelectedObjectState> {
       latitudeDeg: location.latitude,
       longitudeDeg: location.longitude,
     );
-    
+
     state = SelectedObjectState(
       coordinates: coord,
       visibility: visibility,
       currentAltAz: altAz,
     );
   }
-  
+
   void clearSelection() {
     state = const SelectedObjectState();
   }
 }
 
-final selectedObjectProvider = StateNotifierProvider<SelectedObjectNotifier, SelectedObjectState>((ref) {
+final selectedObjectProvider =
+    StateNotifierProvider<SelectedObjectNotifier, SelectedObjectState>((ref) {
   return SelectedObjectNotifier(ref);
 });
 
@@ -907,41 +930,41 @@ class EquipmentFOVState {
   final TelescopeSpecs? telescope;
   final double focalReducer;
   final double rotation;
-  
+
   const EquipmentFOVState({
     this.camera,
     this.telescope,
     this.focalReducer = 1.0,
     this.rotation = 0,
   });
-  
+
   /// Get effective focal length
   double? get effectiveFocalLength {
     if (telescope == null) return null;
     return telescope!.focalLengthMm * focalReducer;
   }
-  
+
   /// Get calculated FOV
   (double width, double height)? get fov {
     if (camera == null || effectiveFocalLength == null) return null;
-    
+
     return FOVCalculator.calculateFOV(
       sensorWidthMm: camera!.widthMm,
       sensorHeightMm: camera!.heightMm,
       focalLengthMm: effectiveFocalLength!,
     );
   }
-  
+
   /// Get image scale in arcsec/pixel
   double? get imageScale {
     if (camera == null || effectiveFocalLength == null) return null;
-    
+
     return FOVCalculator.calculateImageScale(
       pixelSizeMicrons: camera!.pixelSizeMicrons,
       focalLengthMm: effectiveFocalLength!,
     );
   }
-  
+
   EquipmentFOVState copyWith({
     CameraSensorSpecs? camera,
     TelescopeSpecs? telescope,
@@ -959,25 +982,26 @@ class EquipmentFOVState {
 
 class EquipmentFOVNotifier extends StateNotifier<EquipmentFOVState> {
   EquipmentFOVNotifier() : super(const EquipmentFOVState());
-  
+
   void setCamera(CameraSensorSpecs camera) {
     state = state.copyWith(camera: camera);
   }
-  
+
   void setTelescope(TelescopeSpecs telescope) {
     state = state.copyWith(telescope: telescope);
   }
-  
+
   void setFocalReducer(double multiplier) {
     state = state.copyWith(focalReducer: multiplier);
   }
-  
+
   void setRotation(double rotation) {
     state = state.copyWith(rotation: rotation % 360);
   }
 }
 
-final equipmentFOVProvider = StateNotifierProvider<EquipmentFOVNotifier, EquipmentFOVState>((ref) {
+final equipmentFOVProvider =
+    StateNotifierProvider<EquipmentFOVNotifier, EquipmentFOVState>((ref) {
   return EquipmentFOVNotifier();
 });
 
@@ -990,13 +1014,13 @@ class MosaicPlanState {
   final MosaicPlan? plan;
   final MosaicConfig? config;
   final bool isEditing;
-  
+
   const MosaicPlanState({
     this.plan,
     this.config,
     this.isEditing = false,
   });
-  
+
   MosaicPlanState copyWith({
     MosaicPlan? plan,
     MosaicConfig? config,
@@ -1012,9 +1036,9 @@ class MosaicPlanState {
 
 class MosaicPlanNotifier extends StateNotifier<MosaicPlanState> {
   final Ref _ref;
-  
+
   MosaicPlanNotifier(this._ref) : super(const MosaicPlanState());
-  
+
   void createMosaic({
     required CelestialCoordinate center,
     required double totalWidth,
@@ -1022,9 +1046,9 @@ class MosaicPlanNotifier extends StateNotifier<MosaicPlanState> {
   }) {
     final equipment = _ref.read(equipmentFOVProvider);
     final fov = equipment.fov;
-    
+
     if (fov == null) return;
-    
+
     final config = MosaicConfig(
       center: center,
       totalWidth: totalWidth,
@@ -1033,16 +1057,16 @@ class MosaicPlanNotifier extends StateNotifier<MosaicPlanState> {
       panelFovHeight: fov.$2,
       rotation: equipment.rotation,
     );
-    
+
     final plan = MosaicPlanner.generateMosaic(config);
-    
+
     state = MosaicPlanState(
       plan: plan,
       config: config,
       isEditing: true,
     );
   }
-  
+
   void createRectangularMosaic({
     required CelestialCoordinate center,
     required int rows,
@@ -1050,9 +1074,9 @@ class MosaicPlanNotifier extends StateNotifier<MosaicPlanState> {
   }) {
     final equipment = _ref.read(equipmentFOVProvider);
     final fov = equipment.fov;
-    
+
     if (fov == null) return;
-    
+
     final plan = MosaicPlanner.generateRectangularMosaic(
       center: center,
       rows: rows,
@@ -1061,56 +1085,57 @@ class MosaicPlanNotifier extends StateNotifier<MosaicPlanState> {
       panelFovHeight: fov.$2,
       rotation: equipment.rotation,
     );
-    
+
     state = MosaicPlanState(
       plan: plan,
       config: plan.config,
       isEditing: true,
     );
   }
-  
+
   void updateOverlap(double horizontal, double vertical) {
     if (state.config == null) return;
-    
+
     final newConfig = state.config!.copyWith(
       overlap: MosaicOverlap(horizontal: horizontal, vertical: vertical),
     );
-    
+
     final plan = MosaicPlanner.generateMosaic(newConfig);
-    
+
     state = state.copyWith(plan: plan, config: newConfig);
   }
-  
+
   void updateRotation(double rotation) {
     if (state.config == null) return;
-    
+
     final newConfig = state.config!.copyWith(rotation: rotation);
     final plan = MosaicPlanner.generateMosaic(newConfig);
-    
+
     state = state.copyWith(plan: plan, config: newConfig);
   }
-  
+
   void optimizeCaptureOrder({bool snakePattern = true}) {
     state.plan?.optimizeCaptureOrder(snakePattern: snakePattern);
     state = state.copyWith(plan: state.plan);
   }
-  
+
   void clearMosaic() {
     state = const MosaicPlanState();
   }
-  
+
   String exportToJson() {
     if (state.plan == null) return '{}';
     return MosaicExporter.toJson(state.plan!);
   }
-  
+
   String exportToCsv() {
     if (state.plan == null) return '';
     return MosaicExporter.toCsv(state.plan!);
   }
 }
 
-final mosaicPlanProvider = StateNotifierProvider<MosaicPlanNotifier, MosaicPlanState>((ref) {
+final mosaicPlanProvider =
+    StateNotifierProvider<MosaicPlanNotifier, MosaicPlanState>((ref) {
   return MosaicPlanNotifier(ref);
 });
 
@@ -1120,24 +1145,25 @@ final mosaicPlanProvider = StateNotifierProvider<MosaicPlanNotifier, MosaicPlanS
 
 /// Find best imaging targets for tonight
 /// Uses cached date to avoid flickering from second-by-second updates
-final bestTargetsProvider = FutureProvider<List<(DeepSkyObject, ObjectVisibility)>>((ref) async {
+final bestTargetsProvider =
+    FutureProvider<List<(DeepSkyObject, ObjectVisibility)>>((ref) async {
   final dsos = await ref.watch(loadedDsosProvider.future);
   final location = ref.watch(observerLocationProvider);
   final currentDate = ref.watch(_currentDateProvider);
-  
+
   // Calculate twilight times for the current date (not watching the time provider directly)
   final twilight = AstronomyCalculations.calculateTwilightTimes(
     date: currentDate,
     latitudeDeg: location.latitude,
     longitudeDeg: location.longitude,
   );
-  
+
   // Use astronomical twilight as imaging time, or 9 PM if not available
-  final imagingTime = twilight.astronomicalDusk ?? 
+  final imagingTime = twilight.astronomicalDusk ??
       DateTime(currentDate.year, currentDate.month, currentDate.day, 21, 0);
-  
+
   final targetsWithVisibility = <(DeepSkyObject, ObjectVisibility)>[];
-  
+
   for (final dso in dsos) {
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: dso.coordinates.raDegrees,
@@ -1147,17 +1173,16 @@ final bestTargetsProvider = FutureProvider<List<(DeepSkyObject, ObjectVisibility
       longitudeDeg: location.longitude,
       minAltitude: 30, // Only consider objects above 30°
     );
-    
+
     if (!visibility.neverRises && (visibility.transitAltitude ?? 0) > 30) {
       targetsWithVisibility.add((dso, visibility));
     }
   }
-  
+
   // Sort by transit altitude (highest first)
-  targetsWithVisibility.sort((a, b) => 
-    (b.$2.transitAltitude ?? 0).compareTo(a.$2.transitAltitude ?? 0)
-  );
-  
+  targetsWithVisibility.sort((a, b) =>
+      (b.$2.transitAltitude ?? 0).compareTo(a.$2.transitAltitude ?? 0));
+
   return targetsWithVisibility.take(20).toList();
 });
 
@@ -1170,13 +1195,13 @@ class ObjectSearchState {
   final String query;
   final List<CelestialObject> results;
   final bool isSearching;
-  
+
   const ObjectSearchState({
     this.query = '',
     this.results = const [],
     this.isSearching = false,
   });
-  
+
   ObjectSearchState copyWith({
     String? query,
     List<CelestialObject>? results,
@@ -1192,17 +1217,17 @@ class ObjectSearchState {
 
 class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
   final Ref _ref;
-  
+
   ObjectSearchNotifier(this._ref) : super(const ObjectSearchState());
-  
+
   Future<void> search(String query) async {
     if (query.isEmpty) {
       state = const ObjectSearchState();
       return;
     }
-    
+
     state = state.copyWith(query: query, isSearching: true);
-    
+
     // Normalize query for better matching (e.g., "IC 410" -> "ic410")
     // Define it here so it's accessible in the sort callback
     final qLower = query.toLowerCase().trim();
@@ -1210,57 +1235,66 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
 
     try {
       final results = <CelestialObject>[];
-      
+
       // Search stars - use cached provider if available
       try {
         final loadedStars = await _ref.read(loadedStarsProvider.future);
-        final matchingStars = loadedStars.where((s) {
-          final nameLower = s.name.toLowerCase();
-          final idLower = s.id.toLowerCase();
-          return nameLower.contains(qLower) || idLower.contains(qLower);
-        }).take(20).toList(); // Limit stars to avoid too many results
+        final matchingStars = loadedStars
+            .where((s) {
+              final nameLower = s.name.toLowerCase();
+              final idLower = s.id.toLowerCase();
+              return nameLower.contains(qLower) || idLower.contains(qLower);
+            })
+            .take(20)
+            .toList(); // Limit stars to avoid too many results
         results.addAll(matchingStars);
       } catch (_) {
         // Star search failed, continue with DSOs
       }
-      
+
       // Search DSOs - use cached loadedDsosProvider instead of loading from disk
       // This is much faster since the catalog is already loaded
       try {
         final loadedDsos = await _ref.read(loadedDsosProvider.future);
-        
+
         final matchingDsos = loadedDsos.where((o) {
           // Check ID, name, and catalog IDs
           final idLower = o.id.toLowerCase();
           final nameLower = o.name.toLowerCase();
-          
+
           // Direct matches
           final idMatch = idLower.contains(qLower);
           final nameMatch = nameLower.contains(qLower);
-          final catalogMatch = o.catalogIds.any((c) => c.toLowerCase().contains(qLower));
-          
+          final catalogMatch =
+              o.catalogIds.any((c) => c.toLowerCase().contains(qLower));
+
           // Normalized matches (handles "IC 410" vs "IC410")
           final normalizedId = idLower.replaceAll(RegExp(r'\s+'), '');
           final normalizedName = nameLower.replaceAll(RegExp(r'\s+'), '');
-          
+
           final normalizedIdMatch = normalizedId.contains(normalizedQuery);
           final normalizedNameMatch = normalizedName.contains(normalizedQuery);
-          
+
           // Also check catalog IDs with normalization
           final normalizedCatalogMatch = o.catalogIds.any((c) {
             final cNormalized = c.toLowerCase().replaceAll(RegExp(r'\s+'), '');
             return cNormalized.contains(normalizedQuery);
           });
-          
-          return idMatch || nameMatch || catalogMatch || normalizedIdMatch || normalizedNameMatch || normalizedCatalogMatch;
+
+          return idMatch ||
+              nameMatch ||
+              catalogMatch ||
+              normalizedIdMatch ||
+              normalizedNameMatch ||
+              normalizedCatalogMatch;
         }).toList();
-        
+
         results.addAll(matchingDsos);
       } catch (e) {
         // DSO search failed, continue with what we have
         debugPrint('[Planetarium] DSO search error: $e');
       }
-      
+
       // Sort by relevance (exact matches first, then by brightness)
       results.sort((a, b) {
         // For DSOs, also check display name and catalog IDs
@@ -1268,7 +1302,7 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
         String bDisplayName = b.name;
         List<String> aCatalogIds = [];
         List<String> bCatalogIds = [];
-        
+
         if (a is DeepSkyObject) {
           final (displayName, _) = _getDsoDisplayInfoForSearch(a);
           aDisplayName = displayName;
@@ -1279,12 +1313,12 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
           bDisplayName = displayName;
           bCatalogIds = b.catalogIds;
         }
-        
+
         final aNameLower = aDisplayName.toLowerCase();
         final bNameLower = bDisplayName.toLowerCase();
         final aIdLower = a.id.toLowerCase();
         final bIdLower = b.id.toLowerCase();
-        
+
         // Check exact match (including normalized)
         bool isExact(String val) {
           final valLower = val.toLowerCase();
@@ -1293,21 +1327,21 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
           final normalizedVal = valLower.replaceAll(RegExp(r'\s+'), '');
           return normalizedVal == normalizedQuery;
         }
-        
-        final aExact = isExact(aDisplayName) || 
-                       isExact(a.id) || 
-                       aCatalogIds.any((c) => isExact(c));
-                       
-        final bExact = isExact(bDisplayName) || 
-                       isExact(b.id) || 
-                       bCatalogIds.any((c) => isExact(c));
-        
+
+        final aExact = isExact(aDisplayName) ||
+            isExact(a.id) ||
+            aCatalogIds.any((c) => isExact(c));
+
+        final bExact = isExact(bDisplayName) ||
+            isExact(b.id) ||
+            bCatalogIds.any((c) => isExact(c));
+
         if (aExact && !bExact) return -1;
         if (!aExact && bExact) return 1;
-        
+
         return (a.magnitude ?? 99).compareTo(b.magnitude ?? 99);
       });
-      
+
       state = ObjectSearchState(
         query: query,
         results: results.take(50).toList(),
@@ -1322,13 +1356,14 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
       );
     }
   }
-  
+
   void clear() {
     state = const ObjectSearchState();
   }
 }
 
-final objectSearchProvider = StateNotifierProvider<ObjectSearchNotifier, ObjectSearchState>((ref) {
+final objectSearchProvider =
+    StateNotifierProvider<ObjectSearchNotifier, ObjectSearchState>((ref) {
   return ObjectSearchNotifier(ref);
 });
 
@@ -1339,7 +1374,8 @@ final objectSearchProvider = StateNotifierProvider<ObjectSearchNotifier, ObjectS
 /// Calculates density hotspots for crowded regions when zoomed out.
 /// Returns list of (ra, dec, visibleCount, hiddenCount) for areas with many hidden objects.
 /// This helps users know when to zoom in to reveal more objects.
-final densityHotspotsDataProvider = Provider<List<(double, double, int, int)>>((ref) {
+final densityHotspotsDataProvider =
+    Provider<List<(double, double, int, int)>>((ref) {
   final (starMagLimit, _) = ref.watch(dynamicMagnitudeLimitsProvider);
 
   // Get all loaded stars (not the filtered ones - we need the full set to count hidden)
@@ -1358,8 +1394,10 @@ final densityHotspotsDataProvider = Provider<List<(double, double, int, int)>>((
     final decDegs = star.coordinates.dec;
 
     // Normalize RA to 0-360 range before gridding
-    final normalizedRA = raDegs < 0 ? raDegs + 360 : (raDegs >= 360 ? raDegs - 360 : raDegs);
-    final cellKey = '${(normalizedRA ~/ cellSize)}_${((decDegs + 90) ~/ cellSize)}';
+    final normalizedRA =
+        raDegs < 0 ? raDegs + 360 : (raDegs >= 360 ? raDegs - 360 : raDegs);
+    final cellKey =
+        '${(normalizedRA ~/ cellSize)}_${((decDegs + 90) ~/ cellSize)}';
 
     final current = cells[cellKey] ?? (0, 0);
     final starMag = star.magnitude ?? 99;
@@ -1372,26 +1410,26 @@ final densityHotspotsDataProvider = Provider<List<(double, double, int, int)>>((
   }
 
   // Return cells with significant hidden objects (> 30)
-  return cells.entries
-      .where((e) => e.value.$2 > 30)
-      .map((e) {
-        final parts = e.key.split('_');
-        final raCellIndex = double.parse(parts[0]);
-        final decCellIndex = double.parse(parts[1]);
-        // Convert back to center of cell in RA (hours) and Dec (degrees)
-        final ra = (raCellIndex * cellSize + cellSize / 2) / 15; // Convert to hours
-        final dec = decCellIndex * cellSize - 90 + cellSize / 2; // Convert from shifted index
-        return (ra, dec, e.value.$1, e.value.$2);
-      })
-      .toList();
+  return cells.entries.where((e) => e.value.$2 > 30).map((e) {
+    final parts = e.key.split('_');
+    final raCellIndex = double.parse(parts[0]);
+    final decCellIndex = double.parse(parts[1]);
+    // Convert back to center of cell in RA (hours) and Dec (degrees)
+    final ra = (raCellIndex * cellSize + cellSize / 2) / 15; // Convert to hours
+    final dec = decCellIndex * cellSize -
+        90 +
+        cellSize / 2; // Convert from shifted index
+    return (ra, dec, e.value.$1, e.value.$2);
+  }).toList();
 });
 
-final densityHotspotsProvider = Provider<List<(double, double, int, int)>>((ref) {
-  final fieldOfView = ref.watch(skyViewStateProvider.select((state) => state.fieldOfView));
+final densityHotspotsProvider =
+    Provider<List<(double, double, int, int)>>((ref) {
+  final fieldOfView =
+      ref.watch(skyViewStateProvider.select((state) => state.fieldOfView));
 
   // Only show density indicators when zoomed out (FOV > 30 degrees)
   if (fieldOfView < 30) return [];
 
   return ref.watch(densityHotspotsDataProvider);
 });
-

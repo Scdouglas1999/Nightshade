@@ -125,4 +125,99 @@ void main() {
         lightCurve.first.timestamp.isBefore(lightCurve.last.timestamp), isTrue);
     expect(lightCurve.first.flux, closeTo(1200, 1e-6));
   });
+
+  test('replaces and streams frame quality metrics by image', () async {
+    final sessionId = await createSession(name: 'Frame quality test');
+    final imageId = await database.into(database.capturedImages).insert(
+          CapturedImagesCompanion.insert(
+            filePath: 'test_frame.fits',
+            fileName: 'test_frame.fits',
+            exposureDuration: 120.0,
+            capturedAt: DateTime.now(),
+            frameType: const Value('light'),
+            sessionId: Value(sessionId),
+          ),
+        );
+
+    await dao.replaceFrameQualityMetricsForImage(
+      imageId,
+      ScienceFrameQualityMetricsCompanion.insert(
+        capturedImageId: Value(imageId),
+        sessionId: Value(sessionId),
+        timestamp: Value(DateTime.now()),
+        median: const Value(500.0),
+        mean: const Value(540.0),
+        stdDev: const Value(20.0),
+        mad: const Value(14.0),
+        background: const Value(480.0),
+        noise: const Value(19.0),
+        snr: const Value(28.0),
+        dynamicRangeP1P99: const Value(2200.0),
+        lowClipPercent: const Value(0.4),
+        highClipPercent: const Value(0.2),
+        uniformityCv: const Value(0.08),
+        gradientX: const Value(1.4),
+        gradientY: const Value(-0.8),
+        processingTier: const Value('live'),
+        processingMs: const Value(92),
+      ),
+    );
+
+    final rows = await dao.watchFrameQualityMetricsForSession(sessionId).first;
+    expect(rows, hasLength(1));
+    expect(rows.first.snr, closeTo(28.0, 1e-6));
+    expect(rows.first.processingTier, 'live');
+  });
+
+  test('replaces tile metrics by image and streams by session', () async {
+    final sessionId = await createSession(name: 'Tile metrics test');
+    final imageId = await database.into(database.capturedImages).insert(
+          CapturedImagesCompanion.insert(
+            filePath: 'test_tiles.fits',
+            fileName: 'test_tiles.fits',
+            exposureDuration: 180.0,
+            capturedAt: DateTime.now(),
+            frameType: const Value('light'),
+            sessionId: Value(sessionId),
+          ),
+        );
+
+    await dao.replaceTileMetricsForImage(
+      imageId,
+      [
+        ScienceTileMetricsCompanion.insert(
+          capturedImageId: Value(imageId),
+          sessionId: Value(sessionId),
+          timestamp: Value(DateTime.now()),
+          layerType: 'uniformity',
+          tileRow: 0,
+          tileCol: 0,
+          sampleCount: const Value(1024),
+          value: const Value(0.11),
+          p05: const Value(420),
+          p50: const Value(510),
+          p95: const Value(640),
+          auxValue: const Value(2.4),
+        ),
+        ScienceTileMetricsCompanion.insert(
+          capturedImageId: Value(imageId),
+          sessionId: Value(sessionId),
+          timestamp: Value(DateTime.now()),
+          layerType: 'clip_high',
+          tileRow: 0,
+          tileCol: 0,
+          sampleCount: const Value(1024),
+          value: const Value(0.6),
+          p05: const Value(0.6),
+          p50: const Value(0.6),
+          p95: const Value(0.6),
+          auxValue: const Value(6),
+        ),
+      ],
+    );
+
+    final rows = await dao.watchTileMetricsForSession(sessionId).first;
+    expect(rows.length, 2);
+    expect(rows.first.capturedImageId, imageId);
+  });
 }

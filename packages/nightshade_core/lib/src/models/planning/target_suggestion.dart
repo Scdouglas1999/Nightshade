@@ -91,6 +91,15 @@ class TargetVisibilityInfoConverter
       neverRises: json['neverRises'] as bool? ?? false,
       airmass: (json['airmass'] as num).toDouble(),
       moonDistance: (json['moonDistance'] as num).toDouble(),
+      peakAltitude: json['peakAltitude'] != null
+          ? (json['peakAltitude'] as num).toDouble()
+          : null,
+      peakAltitudeTime: json['peakAltitudeTime'] != null
+          ? DateTime.parse(json['peakAltitudeTime'] as String)
+          : null,
+      hoursAboveMinAlt: json['hoursAboveMinAlt'] != null
+          ? (json['hoursAboveMinAlt'] as num).toDouble()
+          : null,
     );
   }
 
@@ -107,6 +116,9 @@ class TargetVisibilityInfoConverter
       'neverRises': object.neverRises,
       'airmass': object.airmass,
       'moonDistance': object.moonDistance,
+      'peakAltitude': object.peakAltitude,
+      'peakAltitudeTime': object.peakAltitudeTime?.toIso8601String(),
+      'hoursAboveMinAlt': object.hoursAboveMinAlt,
     };
   }
 }
@@ -163,6 +175,9 @@ class TargetSuggestion with _$TargetSuggestion {
 
     /// Constellation abbreviation
     String? constellation,
+
+    /// Informational tags (e.g., "Mosaic recommended")
+    @Default(<String>[]) List<String> tags,
   }) = _TargetSuggestion;
 
   factory TargetSuggestion.fromJson(Map<String, dynamic> json) =>

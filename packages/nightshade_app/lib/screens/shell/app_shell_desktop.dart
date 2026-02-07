@@ -14,8 +14,8 @@ class _WindowCloseListener extends WindowListener {
 
   @override
   void onWindowClose() async {
-    // If no callback or callback returns true, close the window
-    final shouldClose = await onCloseRequested?.call() ?? true;
+    final closeDecision = await onCloseRequested?.call();
+    final shouldClose = closeDecision != false;
     if (shouldClose) {
       await windowManager.destroy();
     }
@@ -55,7 +55,7 @@ void disposeWindowManager(State state) {
   }
 }
 
-// Stub mixin for compatibility (not actually used)
+// Compatibility mixin for platforms with window manager
 mixin WindowListenerMixin {
   // Empty - not needed for basic functionality
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart' as drift;
@@ -18,6 +19,10 @@ import 'science_backend.dart';
 
 class ScienceProcessingService {
   final Ref _ref;
+  int _adaptiveLiveGridRows = 12;
+  int _adaptiveLiveGridCols = 16;
+  int _liveBudgetBreachCount = 0;
+  int _queueDepth = 0;
 
   ScienceProcessingService(this._ref);
 
@@ -28,9 +33,13 @@ class ScienceProcessingService {
 
   Future<void> processCapturedFrame({
     required String imagePath,
+    String? deviceId,
     int? capturedImageId,
     int? sessionId,
   }) async {
+    _queueDepth++;
+    _logger.debug('science.queue_depth=$_queueDepth',
+        source: 'ScienceProcessingService');
     try {
       db.CapturedImage? capturedImage;
       if (capturedImageId != null) {
@@ -49,6 +58,20 @@ class ScienceProcessingService {
                   .read(scienceSessionConfigProvider(sessionId).future)
                   .catchError((_) => null) ??
               const ScienceSessionConfig();
+      final frameTimestamp = await _resolveFrameTimestamp(
+        imagePath: imagePath,
+        capturedImage: capturedImage,
+      );
+
+      if (globalSettings.frameQualityMapsEnabled) {
+        await _processImmediateQualityLane(
+          imagePath: imagePath,
+          deviceId: deviceId,
+          capturedImageId: capturedImageId,
+          sessionId: sessionId,
+          timestamp: frameTimestamp,
+        );
+      }
 
       WcsSolution? wcs = await _resolveWcsSolution(
         imagePath: imagePath,
@@ -114,15 +137,23 @@ class ScienceProcessingService {
                   image: rowImage,
                   timestamp: row.timestamp,
                 );
+          final exposureSeconds = rowImage?.exposureDuration;
+          if (exposureSeconds == null ||
+              !exposureSeconds.isFinite ||
+              exposureSeconds <= 0) {
+            _logger.warning(
+              'Transparency sample skipped for calibration ${row.id}: missing or invalid exposure metadata.',
+              source: 'ScienceProcessingService',
+            );
+            continue;
+          }
           recent.add(
             FramePhotometricCalibration(
               capturedImageId: row.capturedImageId,
               sessionId: row.sessionId,
               timestamp: row.timestamp,
               airmass: airmass,
-              exposureSeconds: (rowImage?.exposureDuration ?? 1.0)
-                  .clamp(0.001, 1e6)
-                  .toDouble(),
+              exposureSeconds: exposureSeconds.clamp(0.001, 1e6).toDouble(),
               isCalibrated: row.isCalibrated,
               zeroPoint: row.zeroPoint,
               limitingMag3Sigma: row.limitingMag3Sigma,
@@ -189,6 +220,77 @@ class ScienceProcessingService {
               )
               .toList(growable: false);
           await _scienceDao.replacePsfTilesForImage(capturedImageId, rows);
+
+          final fwhmTiles = psfMap.tiles
+              .map(
+                (tile) => db.ScienceTileMetricsCompanion.insert(
+                  capturedImageId: drift.Value(capturedImageId),
+                  sessionId: drift.Value(sessionId),
+                  timestamp: drift.Value(frameContext.capturedAt),
+                  layerType: ScienceLayerType.fwhm.dbValue,
+                  tileRow: tile.row,
+                  tileCol: tile.col,
+                  sampleCount: drift.Value(tile.starCount),
+                  value: drift.Value(tile.medianFwhm),
+                  p05: drift.Value(tile.medianFwhm),
+                  p50: drift.Value(tile.medianFwhm),
+                  p95: drift.Value(tile.medianFwhm),
+                  auxValue: drift.Value(tile.roundness),
+                ),
+              )
+              .toList(growable: false);
+          final hfrTiles = psfMap.tiles
+              .map(
+                (tile) => db.ScienceTileMetricsCompanion.insert(
+                  capturedImageId: drift.Value(capturedImageId),
+                  sessionId: drift.Value(sessionId),
+                  timestamp: drift.Value(frameContext.capturedAt),
+                  layerType: ScienceLayerType.hfr.dbValue,
+                  tileRow: tile.row,
+                  tileCol: tile.col,
+                  sampleCount: drift.Value(tile.starCount),
+                  value: drift.Value(tile.medianHfr),
+                  p05: drift.Value(tile.medianHfr),
+                  p50: drift.Value(tile.medianHfr),
+                  p95: drift.Value(tile.medianHfr),
+                  auxValue: drift.Value(tile.roundness),
+                ),
+              )
+              .toList(growable: false);
+          final eccTiles = psfMap.tiles
+              .map(
+                (tile) => db.ScienceTileMetricsCompanion.insert(
+                  capturedImageId: drift.Value(capturedImageId),
+                  sessionId: drift.Value(sessionId),
+                  timestamp: drift.Value(frameContext.capturedAt),
+                  layerType: ScienceLayerType.eccentricity.dbValue,
+                  tileRow: tile.row,
+                  tileCol: tile.col,
+                  sampleCount: drift.Value(tile.starCount),
+                  value: drift.Value(tile.medianEccentricity),
+                  p05: drift.Value(tile.medianEccentricity),
+                  p50: drift.Value(tile.medianEccentricity),
+                  p95: drift.Value(tile.medianEccentricity),
+                  auxValue: drift.Value(tile.roundness),
+                ),
+              )
+              .toList(growable: false);
+
+          await _scienceDao.replaceTileMetricsForImageLayer(
+            capturedImageId,
+            ScienceLayerType.fwhm.dbValue,
+            fwhmTiles,
+          );
+          await _scienceDao.replaceTileMetricsForImageLayer(
+            capturedImageId,
+            ScienceLayerType.hfr.dbValue,
+            hfrTiles,
+          );
+          await _scienceDao.replaceTileMetricsForImageLayer(
+            capturedImageId,
+            ScienceLayerType.eccentricity.dbValue,
+            eccTiles,
+          );
         }
       }
 
@@ -294,6 +396,8 @@ class ScienceProcessingService {
         'Science frame processing failed for $imagePath: $error\n$stack',
         source: 'ScienceProcessingService',
       );
+    } finally {
+      _queueDepth = math.max(0, _queueDepth - 1);
     }
   }
 
@@ -325,6 +429,134 @@ class ScienceProcessingService {
         createdAt: drift.Value(product.createdAt),
       ),
     );
+  }
+
+  Future<void> _processImmediateQualityLane({
+    required String imagePath,
+    required String? deviceId,
+    required int? capturedImageId,
+    required int? sessionId,
+    required DateTime timestamp,
+  }) async {
+    final laneStopwatch = Stopwatch()..start();
+    final prefs = await _ref
+        .read(scienceVisualizationPrefsProvider.future)
+        .catchError((_) => const ScienceVisualizationPrefs());
+
+    if (_adaptiveLiveGridRows <= 0) {
+      _adaptiveLiveGridRows = prefs.liveGridRows;
+    }
+    if (_adaptiveLiveGridCols <= 0) {
+      _adaptiveLiveGridCols = prefs.liveGridCols;
+    }
+
+    const lowClipAdu = 16;
+    const highClipAdu = 65520;
+    (ScienceFrameQualityMetrics, List<ScienceTileMetric>) products;
+
+    try {
+      if (deviceId != null && deviceId.isNotEmpty) {
+        products = await _scienceBackend.computeLastCaptureQualityMaps(
+          deviceId: deviceId,
+          gridRows: _adaptiveLiveGridRows,
+          gridCols: _adaptiveLiveGridCols,
+          lowClipAdu: lowClipAdu,
+          highClipAdu: highClipAdu,
+          timestamp: timestamp,
+          capturedImageId: capturedImageId,
+          sessionId: sessionId,
+        );
+      } else {
+        throw StateError('No device ID available for live quality maps');
+      }
+    } catch (error, stack) {
+      _logger.warning(
+        'Live quality-map lane failed for $imagePath; falling back to FITS lane: $error\n$stack',
+        source: 'ScienceProcessingService',
+      );
+      products = await _scienceBackend.computeFitsQualityMaps(
+        filePath: imagePath,
+        gridRows: prefs.analysisGridRows,
+        gridCols: prefs.analysisGridCols,
+        lowClipAdu: lowClipAdu,
+        highClipAdu: highClipAdu,
+        timestamp: timestamp,
+        capturedImageId: capturedImageId,
+        sessionId: sessionId,
+      );
+    }
+
+    final frameMetrics = products.$1.copyWith(
+      processingMs: laneStopwatch.elapsedMilliseconds,
+    );
+    final tileMetrics = products.$2;
+    final frameCompanion = db.ScienceFrameQualityMetricsCompanion.insert(
+      capturedImageId: drift.Value(capturedImageId),
+      sessionId: drift.Value(sessionId),
+      timestamp: drift.Value(frameMetrics.timestamp),
+      median: drift.Value(frameMetrics.median),
+      mean: drift.Value(frameMetrics.mean),
+      stdDev: drift.Value(frameMetrics.stdDev),
+      mad: drift.Value(frameMetrics.mad),
+      background: drift.Value(frameMetrics.background),
+      noise: drift.Value(frameMetrics.noise),
+      snr: drift.Value(frameMetrics.snr),
+      dynamicRangeP1P99: drift.Value(frameMetrics.dynamicRangeP1P99),
+      lowClipPercent: drift.Value(frameMetrics.lowClipPercent),
+      highClipPercent: drift.Value(frameMetrics.highClipPercent),
+      uniformityCv: drift.Value(frameMetrics.uniformityCv),
+      gradientX: drift.Value(frameMetrics.gradientX),
+      gradientY: drift.Value(frameMetrics.gradientY),
+      processingTier: drift.Value(frameMetrics.processingTier),
+      processingMs: drift.Value(frameMetrics.processingMs),
+    );
+
+    final tileCompanions = tileMetrics
+        .map(
+          (tile) => db.ScienceTileMetricsCompanion.insert(
+            capturedImageId: drift.Value(tile.capturedImageId),
+            sessionId: drift.Value(tile.sessionId),
+            timestamp: drift.Value(tile.timestamp),
+            layerType: tile.layerType.dbValue,
+            tileRow: tile.tileRow,
+            tileCol: tile.tileCol,
+            sampleCount: drift.Value(tile.sampleCount),
+            value: drift.Value(tile.value),
+            p05: drift.Value(tile.p05),
+            p50: drift.Value(tile.p50),
+            p95: drift.Value(tile.p95),
+            auxValue: drift.Value(tile.auxValue),
+          ),
+        )
+        .toList(growable: false);
+
+    if (capturedImageId != null) {
+      await _scienceDao.replaceFrameQualityMetricsForImage(
+        capturedImageId,
+        frameCompanion,
+      );
+      await _scienceDao.replaceTileMetricsForImage(
+          capturedImageId, tileCompanions);
+    } else {
+      await _scienceDao.insertFrameQualityMetrics(frameCompanion);
+      await _scienceDao.insertTileMetrics(tileCompanions);
+    }
+
+    final liveMs = laneStopwatch.elapsedMilliseconds;
+    _logger.debug('science.live_ms=$liveMs',
+        source: 'ScienceProcessingService');
+    if (liveMs > 150) {
+      _liveBudgetBreachCount++;
+      if (_liveBudgetBreachCount >= 3) {
+        _adaptiveLiveGridRows =
+            math.max(6, (_adaptiveLiveGridRows * 0.8).floor());
+        _adaptiveLiveGridCols =
+            math.max(8, (_adaptiveLiveGridCols * 0.8).floor());
+        _liveBudgetBreachCount = 0;
+      }
+    } else {
+      _liveBudgetBreachCount = math.max(0, _liveBudgetBreachCount - 1);
+    }
   }
 
   Future<void> _computeAndStorePhotometry({
@@ -724,15 +956,29 @@ class ScienceProcessingService {
     FitsReadResult? fits;
     try {
       fits = await apiReadFitsFile(filePath: imagePath);
-    } catch (_) {}
+    } catch (error, stack) {
+      _logger.warning(
+        'FITS metadata read failed for $imagePath. Continuing only with trusted DB metadata: $error\n$stack',
+        source: 'ScienceProcessingService',
+      );
+    }
 
-    final capturedAt = capturedImage?.capturedAt ??
-        (fits?.dateObs == null ? null : DateTime.tryParse(fits!.dateObs!)) ??
-        DateTime.now();
-    final exposureSeconds =
-        (capturedImage?.exposureDuration ?? fits?.exposureTime ?? 1.0)
-            .clamp(0.001, 1e6)
-            .toDouble();
+    final fitsCapturedAt =
+        fits?.dateObs == null ? null : DateTime.tryParse(fits!.dateObs!);
+    final capturedAt = capturedImage?.capturedAt ?? fitsCapturedAt;
+    if (capturedAt == null) {
+      throw StateError(
+        'Capture timestamp unavailable for $imagePath. Need captured image metadata or FITS DATE-OBS.',
+      );
+    }
+
+    final exposureRaw = capturedImage?.exposureDuration ?? fits?.exposureTime;
+    if (exposureRaw == null || !exposureRaw.isFinite || exposureRaw <= 0.0) {
+      throw StateError(
+        'Exposure duration unavailable for $imagePath. Need captured image metadata or FITS exposure time.',
+      );
+    }
+    final exposureSeconds = exposureRaw.clamp(0.001, 1e6).toDouble();
     final filterName = capturedImage?.filter ?? fits?.filter;
     final width = fits?.width ?? 0;
     final height = fits?.height ?? 0;
@@ -762,9 +1008,44 @@ class ScienceProcessingService {
     );
   }
 
+  Future<DateTime> _resolveFrameTimestamp({
+    required String imagePath,
+    required db.CapturedImage? capturedImage,
+  }) async {
+    if (capturedImage?.capturedAt case final ts?) {
+      return ts;
+    }
+
+    try {
+      return await File(imagePath).lastModified();
+    } catch (error, stack) {
+      _logger.warning(
+        'Failed to resolve frame timestamp from metadata for $imagePath: $error\n$stack',
+        source: 'ScienceProcessingService',
+      );
+      throw StateError(
+        'Frame timestamp is unavailable for $imagePath. Capture metadata is required.',
+      );
+    }
+  }
+
   Future<double?> _airmassFromWcs({
     required WcsSolution wcs,
     required DateTime timestamp,
+  }) async {
+    return _airmassFromCoordinates(
+      raHours: wcs.raHours,
+      decDegrees: wcs.decDegrees,
+      timestamp: timestamp,
+      sourceLabel: 'WCS',
+    );
+  }
+
+  Future<double?> _airmassFromCoordinates({
+    required double raHours,
+    required double decDegrees,
+    required DateTime timestamp,
+    required String sourceLabel,
   }) async {
     final settings = _ref.read(appSettingsProvider).valueOrNull;
     if (settings == null ||
@@ -773,14 +1054,18 @@ class ScienceProcessingService {
     }
     try {
       final altitude = apiCalculateAltitude(
-        raHours: wcs.raHours,
-        decDegrees: wcs.decDegrees,
+        raHours: raHours,
+        decDegrees: decDegrees,
         latitude: settings.latitude,
         longitude: settings.longitude,
         timeUnixMillis: timestamp.toUtc().millisecondsSinceEpoch,
       );
       return _airmassFromAltitude(altitude);
-    } catch (_) {
+    } catch (error, stack) {
+      _logger.warning(
+        'Airmass calculation failed ($sourceLabel RA=$raHours, Dec=$decDegrees, lat=${settings.latitude}, lon=${settings.longitude}, ts=${timestamp.toUtc().toIso8601String()}): $error\n$stack',
+        source: 'ScienceProcessingService',
+      );
       return null;
     }
   }
@@ -793,18 +1078,11 @@ class ScienceProcessingService {
       return _airmassFromAltitude(image.mountAltitude!);
     }
     if (image.solvedRa != null && image.solvedDec != null) {
-      return _airmassFromWcs(
-        wcs: WcsSolution(
-          raHours: image.solvedRa!,
-          decDegrees: image.solvedDec!,
-          pixelScaleArcsecPerPixel:
-              (image.solvedPixelScale ?? 1.0).clamp(0.01, 30.0).toDouble(),
-          rotationDegrees: image.solvedRotation ?? 0.0,
-          fieldWidthDegrees: 1.0,
-          fieldHeightDegrees: 1.0,
-          solverId: 'stored',
-        ),
+      return _airmassFromCoordinates(
+        raHours: image.solvedRa!,
+        decDegrees: image.solvedDec!,
         timestamp: timestamp,
+        sourceLabel: 'Stored solved coordinates',
       );
     }
     return null;

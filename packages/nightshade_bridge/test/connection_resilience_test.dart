@@ -46,18 +46,16 @@ void main() {
     test('exhausts retries and throws RetryExhaustedException', () async {
       int attempts = 0;
 
-      try {
-        await withRetry(
+      await expectLater(
+        () => withRetry(
           () async {
             attempts++;
             throw TimeoutException('Timeout');
           },
           const RetryConfig(maxAttempts: 3, initialDelay: Duration(milliseconds: 10)),
-        );
-        fail('Should have thrown RetryExhaustedException');
-      } on RetryExhaustedException catch (_) {
-        // Expected
-      }
+        ),
+        throwsA(isA<RetryExhaustedException>()),
+      );
 
       expect(attempts, 3);
     });
@@ -84,18 +82,16 @@ void main() {
     test('withNetworkRetry retries on network errors', () async {
       int attempts = 0;
 
-      try {
-        await withNetworkRetry(
+      await expectLater(
+        () => withNetworkRetry(
           () async {
             attempts++;
             throw const SocketException('Network error');
           },
           config: const RetryConfig(maxAttempts: 3, initialDelay: Duration(milliseconds: 10)),
-        );
-        fail('Should have thrown RetryExhaustedException');
-      } on RetryExhaustedException catch (_) {
-        // Expected
-      }
+        ),
+        throwsA(isA<RetryExhaustedException>()),
+      );
 
       expect(attempts, 3);
     });

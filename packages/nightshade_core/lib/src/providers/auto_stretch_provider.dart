@@ -98,6 +98,8 @@ final connectedCameraIdProvider = Provider<String?>((ref) {
 ///
 /// This is the main entry point for stretch operations. It delegates to
 /// specific stretch methods and runs compute-intensive operations in isolates.
+/// Always returns RGBA (4 bytes per pixel, alpha=255) to match the format
+/// expected by Flutter's decodeImageFromPixels.
 Future<Uint8List> _applyStretch({
   required Uint16List rawData,
   required int width,
@@ -105,17 +107,23 @@ Future<Uint8List> _applyStretch({
   required bool isColor,
   required AutoStretchSettings settings,
 }) async {
+  final Uint8List stretched;
   switch (settings.method) {
     case AutoStretchMethod.stf:
-      return _applyStfStretch(
+      stretched = await _applyStfStretch(
         rawData: rawData,
         width: width,
         height: height,
         isColor: isColor,
         settings: settings,
       );
+      // STF uses Rust bridge which now returns RGBA directly
+      // Check if the result is already RGBA (4 bytes per pixel)
+      if (stretched.length == width * height * 4) {
+        return stretched;
+      }
     case AutoStretchMethod.histogram:
-      return _applyHistogramStretch(
+      stretched = await _applyHistogramStretch(
         rawData: rawData,
         width: width,
         height: height,
@@ -123,7 +131,7 @@ Future<Uint8List> _applyStretch({
         settings: settings,
       );
     case AutoStretchMethod.asinh:
-      return _applyAsinhStretch(
+      stretched = await _applyAsinhStretch(
         rawData: rawData,
         width: width,
         height: height,
@@ -131,7 +139,7 @@ Future<Uint8List> _applyStretch({
         settings: settings,
       );
     case AutoStretchMethod.log:
-      return _applyLogStretch(
+      stretched = await _applyLogStretch(
         rawData: rawData,
         width: width,
         height: height,
@@ -139,7 +147,7 @@ Future<Uint8List> _applyStretch({
         settings: settings,
       );
     case AutoStretchMethod.gamma:
-      return _applyGammaStretch(
+      stretched = await _applyGammaStretch(
         rawData: rawData,
         width: width,
         height: height,
@@ -147,6 +155,41 @@ Future<Uint8List> _applyStretch({
         settings: settings,
       );
   }
+
+  // Convert grayscale or RGB stretch output to RGBA.
+  // The Dart stretch isolates return grayscale (pixelCount bytes) or
+  // RGB (pixelCount*3 bytes). Convert to RGBA for Flutter rendering.
+  return _stretchedToRgba(stretched, width, height, isColor);
+}
+
+/// Convert grayscale or RGB stretched data to RGBA (4 bytes per pixel).
+Uint8List _stretchedToRgba(Uint8List src, int width, int height, bool isColor) {
+  final numPixels = width * height;
+  // If already RGBA, return as-is
+  if (src.length == numPixels * 4) {
+    return src;
+  }
+  final rgba = Uint8List(numPixels * 4);
+  if (isColor && src.length == numPixels * 3) {
+    for (int i = 0; i < numPixels; i++) {
+      final s = i * 3;
+      final d = i * 4;
+      rgba[d] = src[s];
+      rgba[d + 1] = src[s + 1];
+      rgba[d + 2] = src[s + 2];
+      rgba[d + 3] = 255;
+    }
+  } else {
+    for (int i = 0; i < numPixels; i++) {
+      final gray = src[i];
+      final d = i * 4;
+      rgba[d] = gray;
+      rgba[d + 1] = gray;
+      rgba[d + 2] = gray;
+      rgba[d + 3] = 255;
+    }
+  }
+  return rgba;
 }
 
 // =============================================================================

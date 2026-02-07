@@ -596,21 +596,21 @@ impl DeviceApiVersion {
     /// Check if a specific interface version is supported
     ///
     /// Returns true if the device reports an interface version >= the required version.
-    /// Returns true if no interface version is known (optimistic fallback).
+    /// Returns false if no interface version is known.
     pub fn supports_version(&self, required_version: u32) -> bool {
         match self.interface_version {
             Some(version) => version >= required_version,
-            None => true, // Optimistic fallback
+            None => false,
         }
     }
 
     /// Check if a specific action is supported
     ///
     /// For ASCOM/Alpaca devices, checks the supported_actions list.
-    /// Returns true if the action is in the list or if no actions are known.
+    /// Returns true only when the action is explicitly listed.
     pub fn supports_action(&self, action: &str) -> bool {
         if self.supported_actions.is_empty() {
-            true // Optimistic fallback
+            false
         } else {
             self.supported_actions
                 .iter()

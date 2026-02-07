@@ -12,52 +12,28 @@ class ConsolePluginLogger implements PluginLogger {
 
   @override
   void info(String message) {
-    final logMessage = '[$_pluginId] INFO: $message';
-    developer.log(logMessage, name: 'Plugin.$_pluginId', level: 800);
-    // ignore: avoid_print
-    print(logMessage);
+    developer.log(message, name: 'Plugin.$_pluginId', level: 800);
   }
 
   @override
   void debug(String message) {
-    final logMessage = '[$_pluginId] DEBUG: $message';
-    developer.log(logMessage, name: 'Plugin.$_pluginId', level: 500);
-    // Only print debug in debug mode
-    assert(() {
-      // ignore: avoid_print
-      print(logMessage);
-      return true;
-    }());
+    developer.log(message, name: 'Plugin.$_pluginId', level: 500);
   }
 
   @override
   void warning(String message) {
-    final logMessage = '[$_pluginId] WARNING: $message';
-    developer.log(logMessage, name: 'Plugin.$_pluginId', level: 900);
-    // ignore: avoid_print
-    print(logMessage);
+    developer.log(message, name: 'Plugin.$_pluginId', level: 900);
   }
 
   @override
   void error(String message, [Object? error, StackTrace? stackTrace]) {
-    final logMessage = '[$_pluginId] ERROR: $message';
     developer.log(
-      logMessage,
+      message,
       name: 'Plugin.$_pluginId',
       level: 1000,
       error: error,
       stackTrace: stackTrace,
     );
-    // ignore: avoid_print
-    print(logMessage);
-    if (error != null) {
-      // ignore: avoid_print
-      print('  Error: $error');
-    }
-    if (stackTrace != null) {
-      // ignore: avoid_print
-      print('  Stack trace:\n$stackTrace');
-    }
   }
 }
 

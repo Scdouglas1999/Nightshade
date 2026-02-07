@@ -1,0 +1,18 @@
+production:
+  include:
+    - apps/*/lib/**
+    - packages/*/lib/**
+    - native/nightshade_native/**/src/**
+  exclude:
+    - '**/.dart_tool/**'
+    - '**/.git/**'
+    - '**/build/**'
+    - '**/coverage/**'
+    - '**/test/**'
+    - '**/tests/**'
+    - '**/*.g.dart'
+    - '**/frb_generated*.dart'
+thresholds:
+  errors: 0
+  warnings: 0
+  infos: 999999

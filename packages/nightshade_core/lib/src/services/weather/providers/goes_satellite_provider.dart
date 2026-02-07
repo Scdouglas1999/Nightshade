@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import '../radar_provider.dart';
 import '../../../models/weather/weather_models.dart';
@@ -101,8 +102,7 @@ class GoesSatelliteProvider extends RadarProvider {
         },
       );
 
-      print('GoesSatelliteProvider: Built satellite frame for $timestamp');
-      print('GoesSatelliteProvider: Layer: $_layerName');
+      developer.log('Built satellite frame for $timestamp, layer: $_layerName', name: 'GoesSatellite', level: 800);
 
       return RadarFetchResult.success([frame]);
     } on http.ClientException catch (e) {

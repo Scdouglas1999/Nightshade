@@ -1251,11 +1251,11 @@ mod tests {
 
         let error = AlpacaError::DeviceError {
             code: 1031,
-            message: "Method not implemented".to_string(),
+            message: "Method unavailable".to_string(),
         };
         let error_string: String = error.into();
         assert!(error_string.contains("1031"));
-        assert!(error_string.contains("Method not implemented"));
+        assert!(error_string.contains("Method unavailable"));
     }
 
     #[test]

@@ -65,27 +65,37 @@ class _MountTabState extends ConsumerState<MountTab> {
   }
 
   /// Sync mount to coordinates from text fields with validation
-  void _handleSync() {
+  Future<void> _handleSync() async {
     final ra = CoordinateParser.parseRa(_raController.text);
     final dec = CoordinateParser.parseDec(_decController.text);
     if (ra == null || dec == null) {
-      context.showErrorSnackBar("Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
+      context.showErrorSnackBar(
+          "Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
       return;
     }
-    ref.read(mountCommandServiceProvider).sync(context, ra, dec);
+    final result = await ref.read(mountCommandServiceProvider).sync(ra, dec);
+    if (!mounted) return;
+    context.showCommandActionResult(result);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final mountState = ref.watch(mountStateProvider);
-    final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+    final isConnected =
+        mountState.connectionState == DeviceConnectionState.connected;
     final isMobile = Responsive.isMobile(context);
 
     // Watch mount capabilities to gate UI features
-    final capabilitiesAsync = ref.watch(
-        mountCapabilitiesProvider(mountState.deviceId ?? ''));
+    final capabilitiesAsync =
+        ref.watch(mountCapabilitiesProvider(mountState.deviceId ?? ''));
     final capabilities = capabilitiesAsync.valueOrNull;
+    final canTogglePark = isConnected &&
+        (mountState.isParked
+            ? (capabilities == null || capabilities.canUnpark)
+            : (capabilities == null || capabilities.canPark));
+    final canToggleTracking =
+        isConnected && (capabilities == null || capabilities.canSetTracking);
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 24),
@@ -111,10 +121,16 @@ class _MountTabState extends ConsumerState<MountTab> {
                       ),
                       if (isConnected)
                         _StatusBadge(
-                          label: mountState.isSlewing ? 'SLEWING' : (mountState.isTracking ? 'TRACKING' : 'STOPPED'),
+                          label: mountState.isSlewing
+                              ? 'SLEWING'
+                              : (mountState.isTracking
+                                  ? 'TRACKING'
+                                  : 'STOPPED'),
                           color: mountState.isSlewing
                               ? colors.warning
-                              : (mountState.isTracking ? colors.success : colors.textSecondary),
+                              : (mountState.isTracking
+                                  ? colors.success
+                                  : colors.textSecondary),
                         ),
                       if (!isConnected)
                         _StatusBadge(
@@ -127,24 +143,37 @@ class _MountTabState extends ConsumerState<MountTab> {
                   _ResponsiveCoordinateGrid(
                     isMobile: isMobile,
                     children: [
-                      _InfoRow(label: 'RA', value: mountState.ra?.toStringAsFixed(4) ?? '--'),
-                      _InfoRow(label: 'Dec', value: mountState.dec?.toStringAsFixed(4) ?? '--'),
+                      _InfoRow(
+                          label: 'RA',
+                          value: mountState.ra?.toStringAsFixed(4) ?? '--'),
+                      _InfoRow(
+                          label: 'Dec',
+                          value: mountState.dec?.toStringAsFixed(4) ?? '--'),
                     ],
                   ),
                   const SizedBox(height: 8),
                   _ResponsiveCoordinateGrid(
                     isMobile: isMobile,
                     children: [
-                      _InfoRow(label: 'Alt', value: mountState.altitude?.toStringAsFixed(2) ?? '--'),
-                      _InfoRow(label: 'Az', value: mountState.azimuth?.toStringAsFixed(2) ?? '--'),
+                      _InfoRow(
+                          label: 'Alt',
+                          value:
+                              mountState.altitude?.toStringAsFixed(2) ?? '--'),
+                      _InfoRow(
+                          label: 'Az',
+                          value:
+                              mountState.azimuth?.toStringAsFixed(2) ?? '--'),
                     ],
                   ),
                   const SizedBox(height: 8),
                   _ResponsiveCoordinateGrid(
                     isMobile: isMobile,
                     children: [
-                      _InfoRow(label: 'Pier', value: mountState.sideOfPier ?? '--'),
-                      _InfoRow(label: 'Status', value: mountState.isParked ? 'Parked' : 'Ready'),
+                      _InfoRow(
+                          label: 'Pier', value: mountState.sideOfPier ?? '--'),
+                      _InfoRow(
+                          label: 'Status',
+                          value: mountState.isParked ? 'Parked' : 'Ready'),
                     ],
                   ),
                 ],
@@ -177,24 +206,35 @@ class _MountTabState extends ConsumerState<MountTab> {
                           label: mountState.isParked ? 'Unpark' : 'Park',
                           icon: LucideIcons.parkingSquare,
                           variant: ButtonVariant.outline,
-                          // Gate on canPark/canUnpark capabilities
-                          onPressed: isConnected &&
-                              (mountState.isParked
-                                  ? (capabilities?.canUnpark ?? true)
-                                  : (capabilities?.canPark ?? true))
-                              ? () => ref.read(mountCommandServiceProvider).togglePark(context)
+                          onPressed: canTogglePark
+                              ? () async {
+                                  final result = await ref
+                                      .read(mountCommandServiceProvider)
+                                      .togglePark();
+                                  if (!context.mounted) return;
+                                  context.showCommandActionResult(result);
+                                }
                               : null,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: NightshadeButton(
-                          label: mountState.isTracking ? 'Stop Track' : 'Start Track',
+                          label: mountState.isTracking
+                              ? 'Stop Track'
+                              : 'Start Track',
                           icon: LucideIcons.activity,
-                          variant: mountState.isTracking ? ButtonVariant.outline : ButtonVariant.primary,
-                          // Gate on canSetTracking capability
-                          onPressed: isConnected && (capabilities?.canSetTracking ?? true)
-                              ? () => ref.read(mountCommandServiceProvider).setTracking(context, !mountState.isTracking)
+                          variant: mountState.isTracking
+                              ? ButtonVariant.outline
+                              : ButtonVariant.primary,
+                          onPressed: canToggleTracking
+                              ? () async {
+                                  final result = await ref
+                                      .read(mountCommandServiceProvider)
+                                      .setTracking(!mountState.isTracking);
+                                  if (!context.mounted) return;
+                                  context.showCommandActionResult(result);
+                                }
                               : null,
                         ),
                       ),
@@ -207,7 +247,15 @@ class _MountTabState extends ConsumerState<MountTab> {
                       label: 'ABORT SLEW',
                       icon: LucideIcons.octagon,
                       variant: ButtonVariant.primary,
-                      onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).abortSlew(context) : null,
+                      onPressed: isConnected
+                          ? () async {
+                              final result = await ref
+                                  .read(mountCommandServiceProvider)
+                                  .abortSlew();
+                              if (!context.mounted) return;
+                              context.showCommandActionResult(result);
+                            }
+                          : null,
                     ),
                   ),
                 ],
@@ -245,7 +293,8 @@ class _MountTabState extends ConsumerState<MountTab> {
                           builder: (context) => Dialog(
                             backgroundColor: colors.surface,
                             child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 800, maxHeight: 600),
+                              constraints: const BoxConstraints(
+                                  maxWidth: 800, maxHeight: 600),
                               child: const PolarAlignmentScreen(),
                             ),
                           ),
@@ -285,7 +334,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                           onChanged: (value) {
                             _raController.text = value;
                             ref.read(slewCoordinatesProvider.notifier).state =
-                                ref.read(slewCoordinatesProvider).copyWith(raText: value);
+                                ref
+                                    .read(slewCoordinatesProvider)
+                                    .copyWith(raText: value);
                           },
                         ),
                       ),
@@ -297,7 +348,9 @@ class _MountTabState extends ConsumerState<MountTab> {
                           onChanged: (value) {
                             _decController.text = value;
                             ref.read(slewCoordinatesProvider.notifier).state =
-                                ref.read(slewCoordinatesProvider).copyWith(decText: value);
+                                ref
+                                    .read(slewCoordinatesProvider)
+                                    .copyWith(decText: value);
                           },
                         ),
                       ),
@@ -310,13 +363,15 @@ class _MountTabState extends ConsumerState<MountTab> {
                         child: Builder(
                           builder: (context) {
                             // Parse coordinates for the slew dropdown
-                            final ra = CoordinateParser.parseRa(_raController.text);
-                            final dec = CoordinateParser.parseDec(_decController.text);
+                            final ra =
+                                CoordinateParser.parseRa(_raController.text);
+                            final dec =
+                                CoordinateParser.parseDec(_decController.text);
                             final hasValidCoords = ra != null && dec != null;
 
                             if (!hasValidCoords) {
                               // Show disabled button if coordinates are invalid
-                              return NightshadeButton(
+                              return const NightshadeButton(
                                 label: 'Slew',
                                 icon: LucideIcons.move,
                                 // onPressed null makes button appear disabled
@@ -372,16 +427,52 @@ class _MountTabState extends ConsumerState<MountTab> {
                   Center(
                     child: Column(
                       children: [
-                        _PulseButton(icon: LucideIcons.chevronUp, label: "N", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide(context, "North")),
+                        _PulseButton(
+                            icon: LucideIcons.chevronUp,
+                            label: "N",
+                            onPressed: () async {
+                              final result = await ref
+                                  .read(mountCommandServiceProvider)
+                                  .pulseGuide("North");
+                              if (!context.mounted) return;
+                              context.showCommandActionResult(result);
+                            }),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _PulseButton(icon: LucideIcons.chevronLeft, label: "W", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide(context, "West")),
+                            _PulseButton(
+                                icon: LucideIcons.chevronLeft,
+                                label: "W",
+                                onPressed: () async {
+                                  final result = await ref
+                                      .read(mountCommandServiceProvider)
+                                      .pulseGuide("West");
+                                  if (!context.mounted) return;
+                                  context.showCommandActionResult(result);
+                                }),
                             const SizedBox(width: 48),
-                            _PulseButton(icon: LucideIcons.chevronRight, label: "E", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide(context, "East")),
+                            _PulseButton(
+                                icon: LucideIcons.chevronRight,
+                                label: "E",
+                                onPressed: () async {
+                                  final result = await ref
+                                      .read(mountCommandServiceProvider)
+                                      .pulseGuide("East");
+                                  if (!context.mounted) return;
+                                  context.showCommandActionResult(result);
+                                }),
                           ],
                         ),
-                        _PulseButton(icon: LucideIcons.chevronDown, label: "S", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide(context, "South")),
+                        _PulseButton(
+                            icon: LucideIcons.chevronDown,
+                            label: "S",
+                            onPressed: () async {
+                              final result = await ref
+                                  .read(mountCommandServiceProvider)
+                                  .pulseGuide("South");
+                              if (!context.mounted) return;
+                              context.showCommandActionResult(result);
+                            }),
                       ],
                     ),
                   ),
@@ -407,7 +498,8 @@ class _InfoRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 11, color: colors.textSecondary)),
+        Text(label,
+            style: TextStyle(fontSize: 11, color: colors.textSecondary)),
         const SizedBox(height: 2),
         Text(
           value,
@@ -438,7 +530,8 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
+        style:
+            TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
@@ -449,7 +542,8 @@ class _PulseButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
 
-  const _PulseButton({required this.icon, required this.label, required this.onPressed});
+  const _PulseButton(
+      {required this.icon, required this.label, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -471,7 +565,8 @@ class _PulseButton extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 10, color: colors.textSecondary)),
+        Text(label,
+            style: TextStyle(fontSize: 10, color: colors.textSecondary)),
       ],
     );
   }

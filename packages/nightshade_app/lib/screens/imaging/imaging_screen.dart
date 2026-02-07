@@ -124,6 +124,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
         );
       }
     } catch (e) {
+      if (!mounted) return;
       context.showErrorSnackBar('Capture failed: $e');
     } finally {
       if (mounted) {
@@ -783,6 +784,9 @@ class _LivePreviewArea extends ConsumerWidget {
     final starDetectionResult = ref.watch(starDetectionResultProvider);
     final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull ??
         const ScienceSettings();
+    final scienceVizPrefs =
+        ref.watch(scienceVisualizationPrefsProvider).valueOrNull ??
+            const ScienceVisualizationPrefs();
     final scienceMode = ref.watch(scienceModeStateProvider);
     final scienceOverlay = ref.watch(scienceOverlayStateProvider);
     final scienceSnapshot = ref.watch(currentScienceSnapshotProvider);
@@ -811,6 +815,42 @@ class _LivePreviewArea extends ConsumerWidget {
       sessionVectors: sessionResidualVectors,
       capturedImageId: currentFrameImageId,
     );
+    final sessionTileMetrics = sessionId == null
+        ? const <ScienceTileMetricRow>[]
+        : ref.watch(sessionTileMetricsProvider(sessionId)).valueOrNull ??
+            const <ScienceTileMetricRow>[];
+    final currentFrameTileMetrics = _selectCurrentFrameTileMetrics(
+      sessionTiles: sessionTileMetrics,
+      capturedImageId: currentFrameImageId,
+    );
+    final uniformityTiles = currentFrameTileMetrics
+        .where(
+          (tile) => tile.layerType == ScienceLayerType.uniformity.dbValue,
+        )
+        .toList(growable: false);
+    final clipHighTiles = currentFrameTileMetrics
+        .where(
+          (tile) => tile.layerType == ScienceLayerType.clipHigh.dbValue,
+        )
+        .toList(growable: false);
+    final clipLowTiles = currentFrameTileMetrics
+        .where(
+          (tile) => tile.layerType == ScienceLayerType.clipLow.dbValue,
+        )
+        .toList(growable: false);
+    final sessionMovingCandidates = sessionId == null
+        ? const <MovingObjectCandidateRow>[]
+        : ref
+                .watch(sessionMovingObjectCandidatesProvider(sessionId))
+                .valueOrNull ??
+            const <MovingObjectCandidateRow>[];
+    final movingCandidates = _selectCurrentFrameMovingCandidates(
+      sessionCandidates: sessionMovingCandidates,
+      capturedImageId: currentFrameImageId,
+    );
+    final currentFrameWcs = currentFrameImageId == null
+        ? null
+        : ref.watch(capturedImageWcsProvider(currentFrameImageId)).valueOrNull;
 
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
@@ -829,6 +869,14 @@ class _LivePreviewArea extends ConsumerWidget {
                 panOffset: panOffset,
               )
             : Offset.zero;
+        final projectedMovingTracks = currentImage == null
+            ? const <_ProjectedMovingTrack>[]
+            : _projectMovingTracks(
+                candidates: movingCandidates,
+                wcs: currentFrameWcs,
+                imageWidth: currentImage.width.toDouble(),
+                imageHeight: currentImage.height.toDouble(),
+              );
 
         return Listener(
           onPointerSignal: (signal) {
@@ -846,7 +894,7 @@ class _LivePreviewArea extends ConsumerWidget {
               color: const Color(0xFF08080C),
               child: Stack(
                 children: [
-                  // Image display or placeholder
+                  // Image display or empty state
                   if (currentImage != null)
                     Positioned.fill(
                       child: _ImageDisplayWidget(
@@ -856,7 +904,7 @@ class _LivePreviewArea extends ConsumerWidget {
                       ),
                     )
                   else
-                    // Star field background with placeholder message
+                    // Star field background with empty-state message
                     Positioned.fill(
                       child: Stack(
                         children: [
@@ -990,6 +1038,70 @@ class _LivePreviewArea extends ConsumerWidget {
                             vectors: residualVectors,
                             imageOffset: imageOffset,
                             zoomLevel: zoomLevel,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (currentImage != null &&
+                      scienceSettings.advancedModeEnabled &&
+                      scienceSettings.overlayEnabled &&
+                      scienceOverlay.showUniformityMap &&
+                      uniformityTiles.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _ScienceUniformityOverlayPainter(
+                            tiles: uniformityTiles,
+                            imageOffset: imageOffset,
+                            zoomLevel: zoomLevel,
+                            imageWidth: currentImage.width.toDouble(),
+                            imageHeight: currentImage.height.toDouble(),
+                            opacity: scienceVizPrefs.overlayOpacity,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (currentImage != null &&
+                      scienceSettings.advancedModeEnabled &&
+                      scienceSettings.overlayEnabled &&
+                      (scienceOverlay.showClipHighMap ||
+                          scienceOverlay.showClipLowMap))
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: _ScienceClipOverlayPainter(
+                            highTiles: scienceOverlay.showClipHighMap
+                                ? clipHighTiles
+                                : const <ScienceTileMetricRow>[],
+                            lowTiles: scienceOverlay.showClipLowMap
+                                ? clipLowTiles
+                                : const <ScienceTileMetricRow>[],
+                            imageOffset: imageOffset,
+                            zoomLevel: zoomLevel,
+                            imageWidth: currentImage.width.toDouble(),
+                            imageHeight: currentImage.height.toDouble(),
+                            opacity: scienceVizPrefs.overlayOpacity,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (currentImage != null &&
+                      scienceSettings.advancedModeEnabled &&
+                      scienceSettings.overlayEnabled &&
+                      scienceOverlay.showMovingObjectTracks &&
+                      projectedMovingTracks.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _ScienceMovingTrackOverlayPainter(
+                              tracks: projectedMovingTracks,
+                              imageOffset: imageOffset,
+                              zoomLevel: zoomLevel,
+                            ),
                           ),
                         ),
                       ),
@@ -1481,6 +1593,189 @@ class _LivePreviewArea extends ConsumerWidget {
     return sessionVectors
         .where((vector) => vector.capturedImageId == latestImageId)
         .toList(growable: false);
+  }
+
+  List<ScienceTileMetricRow> _selectCurrentFrameTileMetrics({
+    required List<ScienceTileMetricRow> sessionTiles,
+    required int? capturedImageId,
+  }) {
+    if (sessionTiles.isEmpty) {
+      return const <ScienceTileMetricRow>[];
+    }
+    if (capturedImageId != null) {
+      final matched = sessionTiles
+          .where((tile) => tile.capturedImageId == capturedImageId)
+          .toList(growable: false);
+      if (matched.isNotEmpty) {
+        return matched;
+      }
+    }
+    final latestImageId = sessionTiles
+        .where((tile) => tile.capturedImageId != null)
+        .map((tile) => tile.capturedImageId!)
+        .fold<int?>(null, (latest, id) {
+      if (latest == null) {
+        return id;
+      }
+      final latestTimestamp = sessionTiles
+          .where((tile) => tile.capturedImageId == latest)
+          .map((tile) => tile.timestamp)
+          .fold<DateTime>(DateTime.fromMillisecondsSinceEpoch(0),
+              (a, b) => a.isAfter(b) ? a : b);
+      final idTimestamp = sessionTiles
+          .where((tile) => tile.capturedImageId == id)
+          .map((tile) => tile.timestamp)
+          .fold<DateTime>(DateTime.fromMillisecondsSinceEpoch(0),
+              (a, b) => a.isAfter(b) ? a : b);
+      return idTimestamp.isAfter(latestTimestamp) ? id : latest;
+    });
+    if (latestImageId == null) {
+      return sessionTiles;
+    }
+    return sessionTiles
+        .where((tile) => tile.capturedImageId == latestImageId)
+        .toList(growable: false);
+  }
+
+  List<MovingObjectCandidateRow> _selectCurrentFrameMovingCandidates({
+    required List<MovingObjectCandidateRow> sessionCandidates,
+    required int? capturedImageId,
+  }) {
+    if (sessionCandidates.isEmpty) {
+      return const <MovingObjectCandidateRow>[];
+    }
+    if (capturedImageId != null) {
+      final matched = sessionCandidates
+          .where((candidate) => candidate.capturedImageId == capturedImageId)
+          .toList(growable: false);
+      if (matched.isNotEmpty) {
+        return matched;
+      }
+    }
+    final latestImageId = sessionCandidates
+        .where((candidate) => candidate.capturedImageId != null)
+        .map((candidate) => candidate.capturedImageId!)
+        .fold<int?>(null, (latest, id) {
+      if (latest == null) {
+        return id;
+      }
+      final latestTimestamp = sessionCandidates
+          .where((candidate) => candidate.capturedImageId == latest)
+          .map((candidate) => candidate.timestamp)
+          .fold<DateTime>(DateTime.fromMillisecondsSinceEpoch(0),
+              (a, b) => a.isAfter(b) ? a : b);
+      final idTimestamp = sessionCandidates
+          .where((candidate) => candidate.capturedImageId == id)
+          .map((candidate) => candidate.timestamp)
+          .fold<DateTime>(DateTime.fromMillisecondsSinceEpoch(0),
+              (a, b) => a.isAfter(b) ? a : b);
+      return idTimestamp.isAfter(latestTimestamp) ? id : latest;
+    });
+    if (latestImageId == null) {
+      return sessionCandidates;
+    }
+    return sessionCandidates
+        .where((candidate) => candidate.capturedImageId == latestImageId)
+        .toList(growable: false);
+  }
+
+  List<_ProjectedMovingTrack> _projectMovingTracks({
+    required List<MovingObjectCandidateRow> candidates,
+    required CapturedImageWcsData? wcs,
+    required double imageWidth,
+    required double imageHeight,
+  }) {
+    if (candidates.isEmpty || wcs == null) {
+      return const <_ProjectedMovingTrack>[];
+    }
+    final solvedRaHours = wcs.solvedRaHours;
+    final solvedDecDegrees = wcs.solvedDecDegrees;
+    final solvedRotation = wcs.solvedRotationDegrees;
+    final solvedScale = wcs.solvedPixelScaleArcsecPerPixel;
+    if (!wcs.isPlateSolved ||
+        solvedRaHours == null ||
+        solvedDecDegrees == null ||
+        solvedRotation == null ||
+        solvedScale == null ||
+        solvedScale <= 0) {
+      return const <_ProjectedMovingTrack>[];
+    }
+
+    final tracks = <_ProjectedMovingTrack>[];
+    final centerRaDeg = solvedRaHours * 15.0;
+    for (final candidate in candidates.take(200)) {
+      final projected = _skyToPixel(
+        raDegrees: candidate.raDegrees,
+        decDegrees: candidate.decDegrees,
+        centerRaDegrees: centerRaDeg,
+        centerDecDegrees: solvedDecDegrees,
+        rotationDegrees: solvedRotation,
+        pixelScaleArcsecPerPixel: solvedScale,
+        imageWidth: imageWidth,
+        imageHeight: imageHeight,
+      );
+      if (projected == null) {
+        continue;
+      }
+      tracks.add(
+        _ProjectedMovingTrack(
+          imageX: projected.dx,
+          imageY: projected.dy,
+          positionAngleDegrees: candidate.positionAngleDegrees,
+          motionArcsecPerMinute: candidate.motionArcsecPerMinute,
+          confidence: candidate.confidence,
+        ),
+      );
+    }
+    return tracks;
+  }
+
+  Offset? _skyToPixel({
+    required double raDegrees,
+    required double decDegrees,
+    required double centerRaDegrees,
+    required double centerDecDegrees,
+    required double rotationDegrees,
+    required double pixelScaleArcsecPerPixel,
+    required double imageWidth,
+    required double imageHeight,
+  }) {
+    final raRad = raDegrees * math.pi / 180.0;
+    final decRad = decDegrees * math.pi / 180.0;
+    final centerRaRad = centerRaDegrees * math.pi / 180.0;
+    final centerDecRad = centerDecDegrees * math.pi / 180.0;
+
+    var dRa = raRad - centerRaRad;
+    while (dRa > math.pi) {
+      dRa -= 2 * math.pi;
+    }
+    while (dRa < -math.pi) {
+      dRa += 2 * math.pi;
+    }
+
+    final cosDec = math.cos(decRad);
+    final sinDec = math.sin(decRad);
+    final cosCenterDec = math.cos(centerDecRad);
+    final sinCenterDec = math.sin(centerDecRad);
+    final denom = sinCenterDec * sinDec + cosCenterDec * cosDec * math.cos(dRa);
+    if (denom <= 0) {
+      return null;
+    }
+
+    final xi = cosDec * math.sin(dRa) / denom;
+    final eta =
+        (cosCenterDec * sinDec - sinCenterDec * cosDec * math.cos(dRa)) / denom;
+    final xiDeg = xi * 180.0 / math.pi;
+    final etaDeg = eta * 180.0 / math.pi;
+    final rot = rotationDegrees * math.pi / 180.0;
+    final xr = xiDeg * math.cos(rot) - etaDeg * math.sin(rot);
+    final yr = xiDeg * math.sin(rot) + etaDeg * math.cos(rot);
+    final x = xr * 3600.0 / pixelScaleArcsecPerPixel + imageWidth / 2.0;
+    final y = imageHeight / 2.0 - yr * 3600.0 / pixelScaleArcsecPerPixel;
+    if (!x.isFinite || !y.isFinite) {
+      return null;
+    }
+    return Offset(x, y);
   }
 }
 
@@ -2296,64 +2591,18 @@ class _ImageDisplayWidgetState extends ConsumerState<_ImageDisplayWidget> {
     try {
       final width = widget.imageData.width;
       final height = widget.imageData.height;
-      // Use stretched data if available, otherwise fall back to display data
-      final pixels = stretchedData ?? widget.imageData.displayData;
+      // Use stretched data if available, otherwise fall back to display data.
+      // Both are always RGBA (4 bytes per pixel, alpha=255) — the conversion
+      // is done in Rust (for display_data) or at the provider boundary (for
+      // stretched data), so no per-pixel loop is needed here.
+      final Uint8List rgbaBytes = stretchedData ?? widget.imageData.displayData;
 
       // Skip re-decoding if pixels haven't changed
-      if (_lastDecodedPixels != null && _lastDecodedPixels == pixels) {
+      if (_lastDecodedPixels != null && _lastDecodedPixels == rgbaBytes) {
         _isDecoding = false;
         return;
       }
-      _lastDecodedPixels = pixels;
-
-      // If RGB, we need to add Alpha channel (RGBA) for decodeImageFromPixels
-      // Or use a format that supports RGB. Unfortunately, Flutter usually expects RGBA.
-      // Let's check if we can use RGB directly. PixelFormat.rgb888 might work if available,
-      // but standard is rgba8888.
-
-      // Converting RGB to RGBA in Dart is slow.
-      // Ideally, the backend should return RGBA.
-      // But for now, let's assume we can use the raw bytes if we specify the correct format.
-      // Actually, let's try to use BMP header trick or just iterate once to convert.
-      // Wait, iterating 40MP pixels in Dart to convert RGB->RGBA is ALSO slow.
-
-      // BETTER APPROACH: Use `decodeImageFromPixels` with `PixelFormat.bgra8888` or similar?
-      // Flutter's `decodeImageFromPixels` supports `PixelFormat.rgba8888` and `bgra8888`.
-      // It does NOT support RGB (3 bytes).
-
-      // So we MUST convert to RGBA in Rust or Dart.
-      // Doing it in Dart is the bottleneck.
-      // I should update `api.rs` to return RGBA!
-
-      // But for now, let's just try to implement the widget structure.
-      // I will assume the backend sends RGBA for now, or I will accept the slow conversion ONCE.
-      // Converting once is better than converting every frame.
-
-      // Let's implement the conversion here for now, but mark it as a TODO to move to Rust.
-
-      // Create RGBA buffer
-      final int numPixels = width * height;
-      final Uint8List rgbaBytes = Uint8List(numPixels * 4);
-      final Uint8List src = pixels;
-
-      if (widget.imageData.isColor) {
-        // RGB -> RGBA
-        for (int i = 0; i < numPixels; i++) {
-          rgbaBytes[i * 4] = src[i * 3]; // R
-          rgbaBytes[i * 4 + 1] = src[i * 3 + 1]; // G
-          rgbaBytes[i * 4 + 2] = src[i * 3 + 2]; // B
-          rgbaBytes[i * 4 + 3] = 255; // A
-        }
-      } else {
-        // Gray -> RGBA
-        for (int i = 0; i < numPixels; i++) {
-          final val = src[i];
-          rgbaBytes[i * 4] = val;
-          rgbaBytes[i * 4 + 1] = val;
-          rgbaBytes[i * 4 + 2] = val;
-          rgbaBytes[i * 4 + 3] = 255;
-        }
-      }
+      _lastDecodedPixels = rgbaBytes;
 
       ui.decodeImageFromPixels(
         rgbaBytes,
@@ -2826,6 +3075,305 @@ class _ScienceResidualOverlayPainter extends CustomPainter {
         imageOffset != oldDelegate.imageOffset ||
         zoomLevel != oldDelegate.zoomLevel;
   }
+}
+
+class _ScienceUniformityOverlayPainter extends CustomPainter {
+  final List<ScienceTileMetricRow> tiles;
+  final Offset imageOffset;
+  final double zoomLevel;
+  final double imageWidth;
+  final double imageHeight;
+  final double opacity;
+
+  _ScienceUniformityOverlayPainter({
+    required this.tiles,
+    required this.imageOffset,
+    required this.zoomLevel,
+    required this.imageWidth,
+    required this.imageHeight,
+    required this.opacity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (tiles.isEmpty) {
+      return;
+    }
+
+    var maxRow = 0;
+    var maxCol = 0;
+    for (final tile in tiles) {
+      if (tile.tileRow > maxRow) {
+        maxRow = tile.tileRow;
+      }
+      if (tile.tileCol > maxCol) {
+        maxCol = tile.tileCol;
+      }
+    }
+
+    final values = tiles
+        .map((tile) => tile.value)
+        .where((value) => value.isFinite && value >= 0.0)
+        .toList(growable: false)
+      ..sort();
+    final low = values.isEmpty ? 0.0 : _percentile(values, 0.05);
+    final high = values.isEmpty
+        ? 1.0
+        : _percentile(values, 0.95).clamp(low + 1e-6, double.infinity);
+
+    final rows = maxRow + 1;
+    final cols = maxCol + 1;
+    final tileW = imageWidth / cols;
+    final tileH = imageHeight / rows;
+    final borderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.6;
+
+    for (final tile in tiles) {
+      final norm = high <= low
+          ? 0.0
+          : ((tile.value - low) / (high - low)).clamp(0.0, 1.0);
+      final fill = Paint()
+        ..color = Color.lerp(
+          const Color(0xFF0B3D91),
+          const Color(0xFFFF8C42),
+          norm,
+        )!
+            .withValues(alpha: opacity)
+        ..style = PaintingStyle.fill;
+
+      final left = (tile.tileCol * tileW) * zoomLevel + imageOffset.dx;
+      final top = (tile.tileRow * tileH) * zoomLevel + imageOffset.dy;
+      final rect = Rect.fromLTWH(
+        left,
+        top,
+        tileW * zoomLevel,
+        tileH * zoomLevel,
+      );
+      canvas.drawRect(rect, fill);
+      canvas.drawRect(rect, borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScienceUniformityOverlayPainter oldDelegate) {
+    return tiles != oldDelegate.tiles ||
+        imageOffset != oldDelegate.imageOffset ||
+        zoomLevel != oldDelegate.zoomLevel ||
+        imageWidth != oldDelegate.imageWidth ||
+        imageHeight != oldDelegate.imageHeight ||
+        opacity != oldDelegate.opacity;
+  }
+
+  double _percentile(List<double> sortedValues, double p) {
+    if (sortedValues.isEmpty) {
+      return 0.0;
+    }
+    final q = p.clamp(0.0, 1.0);
+    final pos = (sortedValues.length - 1) * q;
+    final lo = pos.floor();
+    final hi = pos.ceil();
+    if (lo == hi) {
+      return sortedValues[lo];
+    }
+    final t = pos - lo;
+    return sortedValues[lo] * (1.0 - t) + sortedValues[hi] * t;
+  }
+}
+
+class _ScienceClipOverlayPainter extends CustomPainter {
+  final List<ScienceTileMetricRow> highTiles;
+  final List<ScienceTileMetricRow> lowTiles;
+  final Offset imageOffset;
+  final double zoomLevel;
+  final double imageWidth;
+  final double imageHeight;
+  final double opacity;
+
+  _ScienceClipOverlayPainter({
+    required this.highTiles,
+    required this.lowTiles,
+    required this.imageOffset,
+    required this.zoomLevel,
+    required this.imageWidth,
+    required this.imageHeight,
+    required this.opacity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (highTiles.isEmpty && lowTiles.isEmpty) {
+      return;
+    }
+    var maxRow = 0;
+    var maxCol = 0;
+    for (final tile in highTiles) {
+      if (tile.tileRow > maxRow) {
+        maxRow = tile.tileRow;
+      }
+      if (tile.tileCol > maxCol) {
+        maxCol = tile.tileCol;
+      }
+    }
+    for (final tile in lowTiles) {
+      if (tile.tileRow > maxRow) {
+        maxRow = tile.tileRow;
+      }
+      if (tile.tileCol > maxCol) {
+        maxCol = tile.tileCol;
+      }
+    }
+    final rows = maxRow + 1;
+    final cols = maxCol + 1;
+    final tileW = imageWidth / cols;
+    final tileH = imageHeight / rows;
+    final borderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.6;
+
+    final highMap = <(int, int), double>{};
+    final lowMap = <(int, int), double>{};
+    for (final tile in highTiles) {
+      highMap[(tile.tileRow, tile.tileCol)] = tile.value;
+    }
+    for (final tile in lowTiles) {
+      lowMap[(tile.tileRow, tile.tileCol)] = tile.value;
+    }
+
+    for (var row = 0; row < rows; row++) {
+      for (var col = 0; col < cols; col++) {
+        final high = (highMap[(row, col)] ?? 0.0).clamp(0.0, 100.0);
+        final low = (lowMap[(row, col)] ?? 0.0).clamp(0.0, 100.0);
+        if (high <= 0 && low <= 0) {
+          continue;
+        }
+        final alpha = (math.max(high, low) / 100.0).clamp(0.08, 1.0) * opacity;
+        final fillColor = Color.lerp(
+          const Color(0xFF3B82F6), // low clipping: blue
+          const Color(0xFFEF4444), // high clipping: red
+          high / math.max(1.0, high + low),
+        )!
+            .withValues(alpha: alpha);
+        final fill = Paint()
+          ..color = fillColor
+          ..style = PaintingStyle.fill;
+
+        final left = (col * tileW) * zoomLevel + imageOffset.dx;
+        final top = (row * tileH) * zoomLevel + imageOffset.dy;
+        final rect = Rect.fromLTWH(
+          left,
+          top,
+          tileW * zoomLevel,
+          tileH * zoomLevel,
+        );
+        canvas.drawRect(rect, fill);
+        canvas.drawRect(rect, borderPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScienceClipOverlayPainter oldDelegate) {
+    return highTiles != oldDelegate.highTiles ||
+        lowTiles != oldDelegate.lowTiles ||
+        imageOffset != oldDelegate.imageOffset ||
+        zoomLevel != oldDelegate.zoomLevel ||
+        imageWidth != oldDelegate.imageWidth ||
+        imageHeight != oldDelegate.imageHeight ||
+        opacity != oldDelegate.opacity;
+  }
+}
+
+class _ScienceMovingTrackOverlayPainter extends CustomPainter {
+  final List<_ProjectedMovingTrack> tracks;
+  final Offset imageOffset;
+  final double zoomLevel;
+
+  _ScienceMovingTrackOverlayPainter({
+    required this.tracks,
+    required this.imageOffset,
+    required this.zoomLevel,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (tracks.isEmpty) {
+      return;
+    }
+
+    for (final track in tracks) {
+      final x = track.imageX * zoomLevel + imageOffset.dx;
+      final y = track.imageY * zoomLevel + imageOffset.dy;
+      if (x < -120 ||
+          x > size.width + 120 ||
+          y < -120 ||
+          y > size.height + 120) {
+        continue;
+      }
+
+      final confidenceColor = Color.lerp(
+        const Color(0xFFF59E0B),
+        const Color(0xFF22C55E),
+        track.confidence.clamp(0.0, 1.0),
+      )!;
+
+      final trailLength =
+          (8.0 + track.motionArcsecPerMinute * 1.8).clamp(8.0, 44.0).toDouble();
+      final paRad = track.positionAngleDegrees * math.pi / 180.0;
+      final dx = math.sin(paRad) * trailLength;
+      final dy = -math.cos(paRad) * trailLength;
+      final start = Offset(x - dx * 0.45, y - dy * 0.45);
+      final end = Offset(x + dx * 0.55, y + dy * 0.55);
+
+      final linePaint = Paint()
+        ..color = confidenceColor.withValues(alpha: 0.86)
+        ..strokeWidth = 1.6
+        ..style = PaintingStyle.stroke;
+      final pointPaint = Paint()
+        ..color = confidenceColor.withValues(alpha: 0.95)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawLine(start, end, linePaint);
+      canvas.drawCircle(end, 2.2, pointPaint);
+      canvas.drawCircle(
+        Offset(x, y),
+        3.6,
+        Paint()
+          ..color = Colors.black.withValues(alpha: 0.35)
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawCircle(
+        Offset(x, y),
+        2.0,
+        pointPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScienceMovingTrackOverlayPainter oldDelegate) {
+    return tracks != oldDelegate.tracks ||
+        imageOffset != oldDelegate.imageOffset ||
+        zoomLevel != oldDelegate.zoomLevel;
+  }
+}
+
+class _ProjectedMovingTrack {
+  final double imageX;
+  final double imageY;
+  final double positionAngleDegrees;
+  final double motionArcsecPerMinute;
+  final double confidence;
+
+  const _ProjectedMovingTrack({
+    required this.imageX,
+    required this.imageY,
+    required this.positionAngleDegrees,
+    required this.motionArcsecPerMinute,
+    required this.confidence,
+  });
 }
 
 class _QuickStatsPanel extends ConsumerWidget {
@@ -3393,11 +3941,13 @@ class _CapturePanel extends ConsumerWidget {
       // Park mount if requested (service handles connection check)
       if (parkOnEnd) {
         debugPrint('[Imaging] Parking mount after session end...');
-        final success =
-            await ref.read(mountCommandServiceProvider).park(context);
-        debugPrint(success
+        final result = await ref.read(mountCommandServiceProvider).park();
+        if (context.mounted) {
+          context.showCommandActionResult(result);
+        }
+        debugPrint(result.isSuccess
             ? '[Imaging] Mount parked successfully'
-            : '[Imaging] Mount park failed or not connected');
+            : '[Imaging] Mount park failed: ${result.message}');
       }
     } catch (e) {
       debugPrint('[Imaging] Error ending session: $e');
@@ -3437,13 +3987,20 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
         ref.watch(cameraCapabilitiesProvider(cameraState.deviceId ?? ''));
     final capabilities = capabilitiesAsync.valueOrNull;
     final capabilitiesLoading = capabilitiesAsync.isLoading;
-    final capabilitiesError = capabilitiesAsync.hasError;
-    // Show cooling section if: loading, error (assume capable and let user try),
-    // or capabilities confirm camera supports cooling
+    final hasCoolingTelemetry = cameraState.temperature != null ||
+        cameraState.coolerPower != null ||
+        cameraState.isCooling;
+    // Show cooling controls when support is known, still loading, or live
+    // telemetry confirms cooling is active.
     final showCoolingSection = isConnected &&
         (capabilitiesLoading ||
-            capabilitiesError ||
-            (capabilities?.canSetCcdTemperature ?? false));
+            (capabilities?.canSetCcdTemperature == true) ||
+            hasCoolingTelemetry);
+    // If capabilities are unavailable, infer controls from live camera telemetry
+    // to avoid blocking devices that omit explicit capability reporting.
+    final canSetGain = capabilities?.canSetGain ?? (cameraState.gain != null);
+    final canSetOffset =
+        capabilities?.canSetOffset ?? (cameraState.offset != null);
 
     // Get binning options based on camera capabilities
     final binningOptions = ref.watch(
@@ -3621,6 +4178,7 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
                                   .read(cameraStateProvider.notifier)
                                   .setCooling(true);
                             } catch (e) {
+                              if (!context.mounted) return;
                               context.showErrorSnackBar(
                                   'Failed to set cooling: $e');
                             } finally {
@@ -3651,6 +4209,7 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
                                   .read(cameraStateProvider.notifier)
                                   .setCooling(false);
                             } catch (e) {
+                              if (!context.mounted) return;
                               context.showErrorSnackBar(
                                   'Failed to turn off cooler: $e');
                             }
@@ -3665,7 +4224,7 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
           // Show "not supported" message when camera is connected and capabilities confirm no cooling support
           if (isConnected &&
               !capabilitiesLoading &&
-              !capabilitiesError &&
+              !capabilitiesAsync.hasError &&
               capabilities != null &&
               !capabilities.canSetCcdTemperature)
             _PanelSection(
@@ -3726,15 +4285,14 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
           const SizedBox(height: 20),
 
           // Gain/Offset - only show if camera supports these features
-          if ((capabilities?.canSetGain ?? true) ||
-              (capabilities?.canSetOffset ?? true))
+          if (canSetGain || canSetOffset)
             _PanelSection(
               title: 'Gain / Offset',
               colors: widget.colors,
               child: Column(
                 children: [
                   // Only show gain control if camera supports it
-                  if (capabilities?.canSetGain ?? true)
+                  if (canSetGain)
                     _InputRowEditable(
                       label:
                           'Gain${capabilities?.gainMin != null ? ' (${capabilities!.gainMin}-${capabilities.gainMax})' : ''}',
@@ -3753,11 +4311,9 @@ class _CameraPanelState extends ConsumerState<_CameraPanel> {
                         }
                       },
                     ),
-                  if ((capabilities?.canSetGain ?? true) &&
-                      (capabilities?.canSetOffset ?? true))
-                    const SizedBox(height: 12),
+                  if (canSetGain && canSetOffset) const SizedBox(height: 12),
                   // Only show offset control if camera supports it
-                  if (capabilities?.canSetOffset ?? true)
+                  if (canSetOffset)
                     _InputRowEditable(
                       label:
                           'Offset${capabilities?.offsetMin != null ? ' (${capabilities!.offsetMin}-${capabilities.offsetMax})' : ''}',
@@ -3805,6 +4361,7 @@ class _FocusPanelState extends ConsumerState<_FocusPanel> {
       final deviceService = ref.read(deviceServiceProvider);
       await deviceService.moveFocuserTo(position);
     } catch (e) {
+      if (!mounted) return;
       context.showErrorSnackBar('Focuser error: $e');
     }
   }
@@ -4185,6 +4742,7 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
       );
       ref.read(sessionStateProvider.notifier).setGuiding(true);
     } catch (e) {
+      if (!mounted) return;
       context.showErrorSnackBar('Failed to start guiding: $e');
     } finally {
       if (mounted) setState(() => _isStartingGuiding = false);
@@ -4197,6 +4755,7 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
       await deviceService.stopGuiding();
       ref.read(sessionStateProvider.notifier).setGuiding(false);
     } catch (e) {
+      if (!mounted) return;
       context.showErrorSnackBar('Failed to stop guiding: $e');
     }
   }
@@ -4213,6 +4772,7 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
         settleTime: ditherSettings.settleTime,
       );
     } catch (e) {
+      if (!mounted) return;
       context.showErrorSnackBar('Dither failed: $e');
     } finally {
       if (mounted) {
@@ -4266,74 +4826,12 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
               ),
             ),
 
-          // Guiding graph placeholder
-          Container(
-            height: 120,
-            decoration: BoxDecoration(
-              color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: widget.colors.border),
-            ),
-            child: Stack(
-              children: [
-                if (isGuiding)
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _GuidingGraphPainter(colors: widget.colors),
-                    ),
-                  ),
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isGuiding
-                            ? LucideIcons.activity
-                            : LucideIcons.crosshair,
-                        size: 24,
-                        color: isGuiding
-                            ? widget.colors.success
-                            : widget.colors.textMuted,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isGuiding
-                            ? 'Guiding Active'
-                            : isConnected
-                                ? 'Ready to guide'
-                                : 'Connect PHD2',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isGuiding
-                              ? widget.colors.success
-                              : widget.colors.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Legend
-                Positioned(
-                  bottom: 8,
-                  left: 8,
-                  child: Row(
-                    children: [
-                      Container(width: 12, height: 2, color: Colors.red),
-                      const SizedBox(width: 4),
-                      Text('RA',
-                          style: TextStyle(
-                              fontSize: 9, color: widget.colors.textMuted)),
-                      const SizedBox(width: 12),
-                      Container(width: 12, height: 2, color: Colors.blue),
-                      const SizedBox(width: 4),
-                      Text('Dec',
-                          style: TextStyle(
-                              fontSize: 9, color: widget.colors.textMuted)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          // Guiding graph with real data
+          _CompactGuidingGraph(
+            colors: widget.colors,
+            data: ref.watch(guideGraphProvider),
+            isGuiding: isGuiding,
+            isConnected: isConnected,
           ),
           const SizedBox(height: 16),
 
@@ -4455,54 +4953,167 @@ class _GuidingPanelState extends ConsumerState<_GuidingPanel> {
   }
 }
 
-class _GuidingGraphPainter extends CustomPainter {
+/// Compact guiding graph widget for the imaging screen overview panel.
+/// Displays real RA/Dec error data from guideGraphProvider, or a
+/// empty-state message when no guide data is available.
+class _CompactGuidingGraph extends StatelessWidget {
+  final NightshadeColors colors;
+  final List<GuideGraphPoint> data;
+  final bool isGuiding;
+  final bool isConnected;
+
+  const _CompactGuidingGraph({
+    required this.colors,
+    required this.data,
+    required this.isGuiding,
+    required this.isConnected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = data.isNotEmpty;
+
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
+      ),
+      child: Stack(
+        children: [
+          // Draw the real graph when we have data
+          if (hasData)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(9),
+                child: CustomPaint(
+                  painter: _CompactGuidingGraphPainter(
+                    data: data,
+                    colors: colors,
+                  ),
+                ),
+              ),
+            ),
+          // Show empty state when no data
+          if (!hasData)
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isGuiding ? LucideIcons.activity : LucideIcons.crosshair,
+                    size: 24,
+                    color: isGuiding ? colors.success : colors.textMuted,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isGuiding
+                        ? 'Waiting for guide data...'
+                        : isConnected
+                            ? 'Ready to guide'
+                            : 'No guide data',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isGuiding ? colors.success : colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          // Legend (always visible)
+          Positioned(
+            bottom: 8,
+            left: 8,
+            child: Row(
+              children: [
+                Container(width: 12, height: 2, color: Colors.redAccent),
+                const SizedBox(width: 4),
+                Text('RA',
+                    style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                const SizedBox(width: 12),
+                Container(width: 12, height: 2, color: Colors.blueAccent),
+                const SizedBox(width: 4),
+                Text('Dec',
+                    style: TextStyle(fontSize: 9, color: colors.textMuted)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// CustomPainter that renders real RA/Dec guide error data.
+/// Matches the rendering approach from the guiding_tab.dart _GraphPainter
+/// but is simplified for the compact 120px overview panel.
+class _CompactGuidingGraphPainter extends CustomPainter {
+  final List<GuideGraphPoint> data;
   final NightshadeColors colors;
 
-  _GuidingGraphPainter({required this.colors});
+  _CompactGuidingGraphPainter({
+    required this.data,
+    required this.colors,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw a simple placeholder guiding graph
-    final random = math.Random(42);
+    final centerY = size.height / 2;
+
+    // Draw center zero-line
+    final zeroPaint = Paint()
+      ..color = colors.textMuted.withValues(alpha: 0.3)
+      ..strokeWidth = 0.5;
+    canvas.drawLine(Offset(0, centerY), Offset(size.width, centerY), zeroPaint);
+
+    if (data.isEmpty) return;
 
     final raPaint = Paint()
-      ..color = Colors.red.withValues(alpha: 0.7)
-      ..strokeWidth = 1
+      ..color = Colors.redAccent.withValues(alpha: 0.8)
+      ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
     final decPaint = Paint()
-      ..color = Colors.blue.withValues(alpha: 0.7)
-      ..strokeWidth = 1
+      ..color = Colors.blueAccent.withValues(alpha: 0.8)
+      ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
-    final centerY = size.height / 2;
+    // Scale: +/- 4 arcsec range (same as the full guiding graph)
+    const range = 4.0;
+    final scaleY = size.height / (range * 2);
+    // Show last 100 points spread across the width
+    final stepX = size.width / 100;
 
-    // Draw RA line
     final raPath = Path();
-    raPath.moveTo(0, centerY + (random.nextDouble() - 0.5) * 20);
-    for (double x = 1; x < size.width; x += 2) {
-      raPath.lineTo(x, centerY + (random.nextDouble() - 0.5) * 20);
-    }
-    canvas.drawPath(raPath, raPaint);
-
-    // Draw Dec line
     final decPath = Path();
-    decPath.moveTo(0, centerY + (random.nextDouble() - 0.5) * 20);
-    for (double x = 1; x < size.width; x += 2) {
-      decPath.lineTo(x, centerY + (random.nextDouble() - 0.5) * 20);
-    }
-    canvas.drawPath(decPath, decPaint);
 
-    // Draw center line
-    final centerPaint = Paint()
-      ..color = colors.border
-      ..strokeWidth = 0.5;
-    canvas.drawLine(
-        Offset(0, centerY), Offset(size.width, centerY), centerPaint);
+    for (int i = 0; i < data.length; i++) {
+      final point = data[i];
+      final x = size.width - ((data.length - 1 - i) * stepX);
+
+      if (x < 0) continue;
+
+      final raY = centerY - (point.ra.clamp(-range, range) * scaleY);
+      final decY = centerY - (point.dec.clamp(-range, range) * scaleY);
+
+      if (i == 0 || x < stepX) {
+        raPath.moveTo(x, raY);
+        decPath.moveTo(x, decY);
+      } else {
+        raPath.lineTo(x, raY);
+        decPath.lineTo(x, decY);
+      }
+    }
+
+    canvas.drawPath(raPath, raPaint);
+    canvas.drawPath(decPath, decPaint);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _CompactGuidingGraphPainter oldDelegate) {
+    return oldDelegate.data != data;
+  }
 }
 
 class _GuideStat extends StatelessWidget {

@@ -69,6 +69,9 @@ mixin _$TargetSuggestion {
   /// Constellation abbreviation
   String? get constellation => throw _privateConstructorUsedError;
 
+  /// Informational tags (e.g., "Mosaic recommended")
+  List<String> get tags => throw _privateConstructorUsedError;
+
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
   $TargetSuggestionCopyWith<TargetSuggestion> get copyWith =>
@@ -96,7 +99,8 @@ abstract class $TargetSuggestionCopyWith<$Res> {
       String? objectType,
       double? magnitude,
       double? sizeArcmin,
-      String? constellation});
+      String? constellation,
+      List<String> tags});
 }
 
 /// @nodoc
@@ -127,6 +131,7 @@ class _$TargetSuggestionCopyWithImpl<$Res, $Val extends TargetSuggestion>
     Object? magnitude = freezed,
     Object? sizeArcmin = freezed,
     Object? constellation = freezed,
+    Object? tags = null,
   }) {
     return _then(_value.copyWith(
       targetId: null == targetId
@@ -189,6 +194,10 @@ class _$TargetSuggestionCopyWithImpl<$Res, $Val extends TargetSuggestion>
           ? _value.constellation
           : constellation // ignore: cast_nullable_to_non_nullable
               as String?,
+      tags: null == tags
+          ? _value.tags
+          : tags // ignore: cast_nullable_to_non_nullable
+              as List<String>,
     ) as $Val);
   }
 }
@@ -216,7 +225,8 @@ abstract class _$$TargetSuggestionImplCopyWith<$Res>
       String? objectType,
       double? magnitude,
       double? sizeArcmin,
-      String? constellation});
+      String? constellation,
+      List<String> tags});
 }
 
 /// @nodoc
@@ -245,6 +255,7 @@ class __$$TargetSuggestionImplCopyWithImpl<$Res>
     Object? magnitude = freezed,
     Object? sizeArcmin = freezed,
     Object? constellation = freezed,
+    Object? tags = null,
   }) {
     return _then(_$TargetSuggestionImpl(
       targetId: null == targetId
@@ -307,6 +318,10 @@ class __$$TargetSuggestionImplCopyWithImpl<$Res>
           ? _value.constellation
           : constellation // ignore: cast_nullable_to_non_nullable
               as String?,
+      tags: null == tags
+          ? _value._tags
+          : tags // ignore: cast_nullable_to_non_nullable
+              as List<String>,
     ));
   }
 }
@@ -330,9 +345,11 @@ class _$TargetSuggestionImpl implements _TargetSuggestion {
       this.objectType,
       this.magnitude,
       this.sizeArcmin,
-      this.constellation})
+      this.constellation,
+      final List<String> tags = const <String>[]})
       : _scoreBreakdown = scoreBreakdown,
-        _warnings = warnings;
+        _warnings = warnings,
+        _tags = tags;
 
   factory _$TargetSuggestionImpl.fromJson(Map<String, dynamic> json) =>
       _$$TargetSuggestionImplFromJson(json);
@@ -420,9 +437,21 @@ class _$TargetSuggestionImpl implements _TargetSuggestion {
   @override
   final String? constellation;
 
+  /// Informational tags (e.g., "Mosaic recommended")
+  final List<String> _tags;
+
+  /// Informational tags (e.g., "Mosaic recommended")
+  @override
+  @JsonKey()
+  List<String> get tags {
+    if (_tags is EqualUnmodifiableListView) return _tags;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_tags);
+  }
+
   @override
   String toString() {
-    return 'TargetSuggestion(targetId: $targetId, targetName: $targetName, catalogId: $catalogId, raHours: $raHours, decDegrees: $decDegrees, totalScore: $totalScore, scoreBreakdown: $scoreBreakdown, warnings: $warnings, visibility: $visibility, reasoning: $reasoning, dataProgress: $dataProgress, objectType: $objectType, magnitude: $magnitude, sizeArcmin: $sizeArcmin, constellation: $constellation)';
+    return 'TargetSuggestion(targetId: $targetId, targetName: $targetName, catalogId: $catalogId, raHours: $raHours, decDegrees: $decDegrees, totalScore: $totalScore, scoreBreakdown: $scoreBreakdown, warnings: $warnings, visibility: $visibility, reasoning: $reasoning, dataProgress: $dataProgress, objectType: $objectType, magnitude: $magnitude, sizeArcmin: $sizeArcmin, constellation: $constellation, tags: $tags)';
   }
 
   @override
@@ -457,7 +486,8 @@ class _$TargetSuggestionImpl implements _TargetSuggestion {
             (identical(other.sizeArcmin, sizeArcmin) ||
                 other.sizeArcmin == sizeArcmin) &&
             (identical(other.constellation, constellation) ||
-                other.constellation == constellation));
+                other.constellation == constellation) &&
+            const DeepCollectionEquality().equals(other._tags, _tags));
   }
 
   @JsonKey(ignore: true)
@@ -478,7 +508,8 @@ class _$TargetSuggestionImpl implements _TargetSuggestion {
       objectType,
       magnitude,
       sizeArcmin,
-      constellation);
+      constellation,
+      const DeepCollectionEquality().hash(_tags));
 
   @JsonKey(ignore: true)
   @override
@@ -512,7 +543,8 @@ abstract class _TargetSuggestion implements TargetSuggestion {
       final String? objectType,
       final double? magnitude,
       final double? sizeArcmin,
-      final String? constellation}) = _$TargetSuggestionImpl;
+      final String? constellation,
+      final List<String> tags}) = _$TargetSuggestionImpl;
 
   factory _TargetSuggestion.fromJson(Map<String, dynamic> json) =
       _$TargetSuggestionImpl.fromJson;
@@ -581,6 +613,10 @@ abstract class _TargetSuggestion implements TargetSuggestion {
 
   /// Constellation abbreviation
   String? get constellation;
+  @override
+
+  /// Informational tags (e.g., "Mosaic recommended")
+  List<String> get tags;
   @override
   @JsonKey(ignore: true)
   _$$TargetSuggestionImplCopyWith<_$TargetSuggestionImpl> get copyWith =>

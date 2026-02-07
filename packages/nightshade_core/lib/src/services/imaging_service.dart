@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -336,6 +338,7 @@ class ImagingService {
           unawaited(
             _ref.read(scienceProcessingServiceProvider).processCapturedFrame(
                   imagePath: savedFilePath,
+                  deviceId: deviceId,
                   capturedImageId: dbImageId,
                   sessionId: sessionState.dbSessionId,
                 ),
@@ -701,8 +704,22 @@ class ImagingService {
       weightSum += 0.3;
     }
 
-    // Return normalized score
-    return weightSum > 0.0 ? (score / weightSum).clamp(0.0, 100.0) : 0.0;
+    if (weightSum <= 0.0) {
+      return 0.0;
+    }
+
+    var normalizedScore = (score / weightSum).clamp(0.0, 100.0);
+
+    // Apply an additional global penalty for severe focus issues.
+    // Extremely high HFR should meaningfully reduce overall quality even when
+    // star count/background metrics look strong.
+    if (hfr != null && hfr > 5.0) {
+      final hfrExcess = math.min(15.0, hfr - 5.0);
+      final penaltyFactor = 1.0 - (hfrExcess / 15.0) * 0.25;
+      normalizedScore *= penaltyFactor;
+    }
+
+    return normalizedScore.clamp(0.0, 100.0);
   }
 
   /// Generate a simulated star field image
@@ -713,7 +730,7 @@ class ImagingService {
     String? targetName,
   }) {
     final pixelCount = width * height;
-    final displayData = Uint8List(pixelCount);
+    final grayData = Uint8List(pixelCount);
     final histogram = List<int>.filled(256, 0);
 
     // Random number generator
@@ -736,7 +753,7 @@ class ImagingService {
     // Fill with background + noise
     for (int i = 0; i < pixelCount; i++) {
       final noise = (randomDouble() * noiseLevel).round() - noiseLevel ~/ 2;
-      displayData[i] = (baseBackground + noise).clamp(0, 255);
+      grayData[i] = (baseBackground + noise).clamp(0, 255);
     }
 
     // Add stars
@@ -764,8 +781,7 @@ class ImagingService {
             final intensity = brightness * math.exp(-distSq / (2 * sigmaSq));
 
             final idx = py * width + px;
-            displayData[idx] =
-                (displayData[idx] + intensity.round()).clamp(0, 255);
+            grayData[idx] = (grayData[idx] + intensity.round()).clamp(0, 255);
           }
         }
       }
@@ -778,21 +794,21 @@ class ImagingService {
     // Add hot pixels
     for (int i = 0; i < 15; i++) {
       final idx = randomRange(0, pixelCount);
-      displayData[idx] = randomRange(200, 255);
+      grayData[idx] = randomRange(200, 255);
     }
 
-    // Calculate histogram
+    // Calculate histogram from grayscale data (before RGBA conversion)
     for (int i = 0; i < pixelCount; i++) {
-      histogram[displayData[i]]++;
+      histogram[grayData[i]]++;
     }
 
-    // Calculate stats
+    // Calculate stats from grayscale data
     double sum = 0;
     int min = 255;
     int max = 0;
 
     for (int i = 0; i < pixelCount; i++) {
-      final val = displayData[i];
+      final val = grayData[i];
       sum += val;
       if (val < min) min = val;
       if (val > max) max = val;
@@ -805,7 +821,7 @@ class ImagingService {
     // Calculate standard deviation
     double varianceSum = 0;
     for (int i = 0; i < pixelCount; i++) {
-      final diff = displayData[i] - mean;
+      final diff = grayData[i] - mean;
       varianceSum += diff * diff;
     }
     final stdDev = math.sqrt(varianceSum / pixelCount);
@@ -819,6 +835,17 @@ class ImagingService {
         median = i.toDouble();
         break;
       }
+    }
+
+    // Convert grayscale to RGBA for display
+    final displayData = Uint8List(pixelCount * 4);
+    for (int i = 0; i < pixelCount; i++) {
+      final gray = grayData[i];
+      final d = i * 4;
+      displayData[d] = gray;
+      displayData[d + 1] = gray;
+      displayData[d + 2] = gray;
+      displayData[d + 3] = 255;
     }
 
     return CapturedImageData(

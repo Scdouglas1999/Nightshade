@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'plugin_api.dart';
 import 'plugin_context.dart';
@@ -270,8 +271,7 @@ class PluginHost {
         await unregisterPlugin(pluginId);
       } catch (e) {
         // Log but continue disposing other plugins
-        // ignore: avoid_print
-        print('Error disposing plugin $pluginId: $e');
+        developer.log('Error disposing plugin $pluginId: $e', name: 'PluginHost', level: 1000);
       }
     }
 

@@ -1,3 +1,5 @@
+// ignore_for_file: unused_field, unused_local_variable
+
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/sequence/sequence_models.dart';
@@ -38,11 +40,11 @@ class AltitudeData {
 
 /// Optimization strategy for target ordering
 enum OptimizationStrategy {
-  transitTime,      // Order by when targets cross meridian
-  currentAltitude,  // Order by current altitude (highest first for setting targets)
-  risingFirst,      // Image rising targets first
-  settingFirst,     // Image setting targets first
-  priority,         // Use user-defined priorities
+  transitTime, // Order by when targets cross meridian
+  currentAltitude, // Order by current altitude (highest first for setting targets)
+  risingFirst, // Image rising targets first
+  settingFirst, // Image setting targets first
+  priority, // Use user-defined priorities
 }
 
 /// Service for intelligent target scheduling
@@ -74,7 +76,7 @@ class SchedulerService {
     // Calculate altitude using spherical formula
     // sin(alt) = sin(dec) * sin(lat) + cos(dec) * cos(lat) * cos(ha)
     final sinAlt = math.sin(dec) * math.sin(lat) +
-                   math.cos(dec) * math.cos(lat) * math.cos(ha);
+        math.cos(dec) * math.cos(lat) * math.cos(ha);
 
     final altitude = math.asin(sinAlt.clamp(-1.0, 1.0)) * 180.0 / math.pi;
     return altitude;
@@ -90,9 +92,9 @@ class SchedulerService {
 
     // Greenwich Mean Sidereal Time at 0h UT1
     double gmst = 280.46061837 +
-                  360.98564736629 * (jd - 2451545.0) +
-                  0.000387933 * t * t -
-                  t * t * t / 38710000.0;
+        360.98564736629 * (jd - 2451545.0) +
+        0.000387933 * t * t -
+        t * t * t / 38710000.0;
 
     // Normalize to 0-360
     gmst = gmst % 360.0;
@@ -113,10 +115,8 @@ class SchedulerService {
     final utc = dt.toUtc();
     int y = utc.year;
     int m = utc.month;
-    final d = utc.day +
-              utc.hour / 24.0 +
-              utc.minute / 1440.0 +
-              utc.second / 86400.0;
+    final d =
+        utc.day + utc.hour / 24.0 + utc.minute / 1440.0 + utc.second / 86400.0;
 
     if (m <= 2) {
       y -= 1;
@@ -127,8 +127,10 @@ class SchedulerService {
     final b = 2 - a + (a / 4).floor();
 
     return (365.25 * (y + 4716)).floor() +
-           (30.6001 * (m + 1)).floor() +
-           d + b - 1524.5;
+        (30.6001 * (m + 1)).floor() +
+        d +
+        b -
+        1524.5;
   }
 
   /// Calculate transit time for a target
@@ -241,7 +243,7 @@ class SchedulerService {
 
     // cos(H) = (sin(alt) - sin(dec) * sin(lat)) / (cos(dec) * cos(lat))
     final cosH = (math.sin(alt) - math.sin(dec) * math.sin(lat)) /
-                 (math.cos(dec) * math.cos(lat));
+        (math.cos(dec) * math.cos(lat));
 
     if (cosH <= -1.0) {
       // Circumpolar - always visible
@@ -252,7 +254,8 @@ class SchedulerService {
     }
 
     // Hour angle at rise/set
-    final hourAngle = math.acos(cosH) * 180.0 / math.pi / 15.0; // Convert to hours
+    final hourAngle =
+        math.acos(cosH) * 180.0 / math.pi / 15.0; // Convert to hours
     return hourAngle * 2.0; // Total hours above horizon
   }
 
@@ -352,7 +355,8 @@ class SchedulerService {
   }
 
   /// Calculate moon position (simplified)
-  ({double raHours, double decDegrees, double illumination}) calculateMoonPosition(DateTime time) {
+  ({double raHours, double decDegrees, double illumination})
+      calculateMoonPosition(DateTime time) {
     // Simplified lunar ephemeris
     final jd = _julianDate(time);
     final t = (jd - 2451545.0) / 36525.0;
@@ -388,11 +392,13 @@ class SchedulerService {
 
     // Convert to equatorial coordinates
     final ra = math.atan2(
-      math.sin(lambdaRad) * math.cos(epsRad) - math.tan(betaRad) * math.sin(epsRad),
+      math.sin(lambdaRad) * math.cos(epsRad) -
+          math.tan(betaRad) * math.sin(epsRad),
       math.cos(lambdaRad),
     );
     final dec = math.asin(
-      math.sin(betaRad) * math.cos(epsRad) + math.cos(betaRad) * math.sin(epsRad) * math.sin(lambdaRad),
+      math.sin(betaRad) * math.cos(epsRad) +
+          math.cos(betaRad) * math.sin(epsRad) * math.sin(lambdaRad),
     );
 
     // Convert RA to hours (0-24)
@@ -423,7 +429,7 @@ class SchedulerService {
 
     // Haversine formula
     final cosSep = math.sin(dec1) * math.sin(dec2) +
-                   math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
+        math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
 
     return math.acos(cosSep.clamp(-1.0, 1.0)) * 180.0 / math.pi;
   }

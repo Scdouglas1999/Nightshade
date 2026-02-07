@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:drift/drift.dart';
 
 import '../database.dart';
@@ -40,7 +42,8 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
   /// Search targets by name
   Future<List<Target>> searchTargets(String query) {
     return (select(targets)
-          ..where((t) => t.name.like('%$query%') | t.catalogId.like('%$query%')))
+          ..where(
+              (t) => t.name.like('%$query%') | t.catalogId.like('%$query%')))
         .get();
   }
 
@@ -76,19 +79,20 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   /// Update imaging progress
-  Future<void> updateProgress(int id, {
+  Future<void> updateProgress(
+    int id, {
     int? capturedSubs,
     double? totalIntegrationSecs,
     String? filterProgress,
   }) async {
     final updates = TargetsCompanion(
-      capturedSubs: capturedSubs != null ? Value(capturedSubs) : const Value.absent(),
+      capturedSubs:
+          capturedSubs != null ? Value(capturedSubs) : const Value.absent(),
       totalIntegrationSecs: totalIntegrationSecs != null
           ? Value(totalIntegrationSecs)
           : const Value.absent(),
-      filterProgress: filterProgress != null
-          ? Value(filterProgress)
-          : const Value.absent(),
+      filterProgress:
+          filterProgress != null ? Value(filterProgress) : const Value.absent(),
       updatedAt: Value(DateTime.now()),
     );
 
@@ -97,21 +101,100 @@ class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get targets ordered by priority
   Future<List<Target>> getTargetsByPriority() {
-    return (select(targets)
-          ..orderBy([(t) => OrderingTerm.desc(t.priority)]))
+    return (select(targets)..orderBy([(t) => OrderingTerm.desc(t.priority)]))
         .get();
   }
 
   /// Get targets that are observable tonight
-  /// This is a simplified check - real implementation would calculate altitude
-  Future<List<Target>> getObservableTargets(double latitude, double longitude) {
-    // For now, return all targets
-    // Real implementation would calculate current altitude and filter
-    return getAllTargets();
+  Future<List<Target>> getObservableTargets(
+      double latitude, double longitude) async {
+    final allTargets = await getAllTargets();
+    final nowUtc = DateTime.now().toUtc();
+
+    final observable = allTargets.where((target) {
+      final altitudeDeg = _calculateAltitudeDegrees(
+        latitudeDeg: latitude,
+        longitudeDeg: longitude,
+        raHours: target.ra,
+        decDeg: target.dec,
+        atUtc: nowUtc,
+      );
+      return altitudeDeg >= target.minAltitude;
+    }).toList();
+
+    observable.sort((a, b) => b.priority.compareTo(a.priority));
+    return observable;
+  }
+
+  double _calculateAltitudeDegrees({
+    required double latitudeDeg,
+    required double longitudeDeg,
+    required double raHours,
+    required double decDeg,
+    required DateTime atUtc,
+  }) {
+    final lstDeg =
+        _localSiderealTimeDegrees(atUtc: atUtc, longitudeDeg: longitudeDeg);
+    final raDeg = raHours * 15.0;
+    final hourAngleDeg = _normalizeDegrees(lstDeg - raDeg);
+
+    final latRad = latitudeDeg * math.pi / 180.0;
+    final decRad = decDeg * math.pi / 180.0;
+    final haRad = hourAngleDeg * math.pi / 180.0;
+
+    final sinAlt = math.sin(decRad) * math.sin(latRad) +
+        math.cos(decRad) * math.cos(latRad) * math.cos(haRad);
+    final clamped = sinAlt.clamp(-1.0, 1.0);
+    return math.asin(clamped) * 180.0 / math.pi;
+  }
+
+  double _localSiderealTimeDegrees({
+    required DateTime atUtc,
+    required double longitudeDeg,
+  }) {
+    final gmstDeg = _greenwichMeanSiderealTimeDegrees(atUtc);
+    return _normalizeDegrees(gmstDeg + longitudeDeg);
+  }
+
+  double _greenwichMeanSiderealTimeDegrees(DateTime atUtc) {
+    final jd = _julianDate(atUtc);
+    final t = (jd - 2451545.0) / 36525.0;
+    final gmst = 280.46061837 +
+        360.98564736629 * (jd - 2451545.0) +
+        0.000387933 * t * t -
+        (t * t * t) / 38710000.0;
+    return _normalizeDegrees(gmst);
+  }
+
+  double _julianDate(DateTime atUtc) {
+    final utc = atUtc.toUtc();
+    var year = utc.year;
+    var month = utc.month;
+    final dayFraction = utc.day +
+        (utc.hour / 24.0) +
+        (utc.minute / 1440.0) +
+        (utc.second / 86400.0) +
+        (utc.millisecond / 86400000.0);
+
+    if (month <= 2) {
+      year -= 1;
+      month += 12;
+    }
+
+    final a = (year / 100).floor();
+    final b = 2 - a + (a / 4).floor();
+
+    return (365.25 * (year + 4716)).floorToDouble() +
+        (30.6001 * (month + 1)).floorToDouble() +
+        dayFraction +
+        b -
+        1524.5;
+  }
+
+  double _normalizeDegrees(double value) {
+    var normalized = value % 360.0;
+    if (normalized < -180.0) normalized += 360.0;
+    if (normalized > 180.0) normalized -= 360.0;
+    return normalized;
   }
 }
-
-
-
-
-

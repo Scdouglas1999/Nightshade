@@ -350,6 +350,6 @@ mod tests {
     #[test]
     fn test_thumbnail_max_dimension() {
         // Test would require actual image files
-        // This is a placeholder for integration tests
+        // This path exists for integration tests
     }
 }

@@ -14,6 +14,9 @@ import 'headless_api/handlers.dart';
 
 /// Headless API server using Shelf router with modular handlers
 class HeadlessApiServer {
+  static const _requestIdContextKey = 'requestId';
+  static const _requestIdHeader = 'x-request-id';
+
   final int port;
   final ProviderContainer container;
 
@@ -30,9 +33,29 @@ class HeadlessApiServer {
 
   HttpServer? _server;
   final List<WebSocketChannel> _sockets = [];
+  int _requestCounter = 0;
 
   /// The effective auth token (either provided or generated)
   late final String? _effectiveAuthToken;
+
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  String _nextRequestId() {
+    _requestCounter = (_requestCounter + 1) % 0xFFFFF;
+    final ts = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final seq = _requestCounter.toRadixString(36);
+    return '$ts-$seq';
+  }
+
+  String _requestIdFrom(Request request) =>
+      request.context[_requestIdContextKey] as String? ?? 'unknown';
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'HeadlessApiServer');
+  void _logWarning(String message) =>
+      _logger.warning(message, source: 'HeadlessApiServer');
+  void _logError(String message) =>
+      _logger.error(message, source: 'HeadlessApiServer');
 
   // Handler instances
   late final DeviceHandlers _deviceHandlers;
@@ -79,8 +102,10 @@ class HeadlessApiServer {
     } else if (requireAuth) {
       // Generate a random token
       _effectiveAuthToken = _generateRandomToken();
-      print('[AUTH] Generated authentication token: $_effectiveAuthToken');
-      print('[AUTH] Use this token in the Authorization header: Bearer $_effectiveAuthToken');
+      _logWarning(
+          '[AUTH] Generated authentication token: $_effectiveAuthToken');
+      _logWarning(
+          '[AUTH] Use this token in the Authorization header: Bearer $_effectiveAuthToken');
     } else {
       _effectiveAuthToken = null;
     }
@@ -134,7 +159,8 @@ class HeadlessApiServer {
     // Camera Control
     router.post('/api/camera/expose', _deviceHandlers.handleCameraExpose);
     router.post('/api/camera/abort', _deviceHandlers.handleCameraAbort);
-    router.get('/api/camera/last-image', _deviceHandlers.handleCameraGetLastImage);
+    router.get(
+        '/api/camera/last-image', _deviceHandlers.handleCameraGetLastImage);
     router.post('/api/camera/cooling', _deviceHandlers.handleCameraSetCooling);
     router.post('/api/camera/gain', _deviceHandlers.handleCameraSetGain);
     router.post('/api/camera/offset', _deviceHandlers.handleCameraSetOffset);
@@ -145,50 +171,69 @@ class HeadlessApiServer {
     router.post('/api/mount/park', _deviceHandlers.handleMountPark);
     router.post('/api/mount/unpark', _deviceHandlers.handleMountUnpark);
     router.post('/api/mount/tracking', _deviceHandlers.handleMountSetTracking);
-    router.post('/api/mount/pulse-guide', _deviceHandlers.handleMountPulseGuide);
+    router.post(
+        '/api/mount/pulse-guide', _deviceHandlers.handleMountPulseGuide);
     router.post('/api/mount/abort', _deviceHandlers.handleMountAbort);
     router.get('/api/mount/status', _deviceHandlers.handleMountGetStatus);
-    router.post('/api/mount/set-tracking-rate', _deviceHandlers.handleMountSetTrackingRate);
+    router.post('/api/mount/set-tracking-rate',
+        _deviceHandlers.handleMountSetTrackingRate);
     router.post('/api/mount/move-axis', _deviceHandlers.handleMountMoveAxis);
 
     // Focuser Control
     router.post('/api/focuser/move-to', _deviceHandlers.handleFocuserMoveTo);
-    router.post('/api/focuser/move-relative', _deviceHandlers.handleFocuserMoveRelative);
+    router.post('/api/focuser/move-relative',
+        _deviceHandlers.handleFocuserMoveRelative);
     router.post('/api/focuser/halt', _deviceHandlers.handleFocuserHalt);
-    router.post('/api/focuser/autofocus/start', _deviceHandlers.handleAutofocusStart);
-    router.post('/api/focuser/autofocus/cancel', _deviceHandlers.handleAutofocusCancel);
+    router.post(
+        '/api/focuser/autofocus/start', _deviceHandlers.handleAutofocusStart);
+    router.post(
+        '/api/focuser/autofocus/cancel', _deviceHandlers.handleAutofocusCancel);
 
     // Filter Wheel Control
-    router.post('/api/filter-wheel/position', _deviceHandlers.handleFilterWheelSetPosition);
-    router.get('/api/filter-wheel/names', _deviceHandlers.handleFilterWheelGetNames);
-    router.post('/api/filter-wheel/set-by-name', _deviceHandlers.handleFilterWheelSetByName);
+    router.post('/api/filter-wheel/position',
+        _deviceHandlers.handleFilterWheelSetPosition);
+    router.get(
+        '/api/filter-wheel/names', _deviceHandlers.handleFilterWheelGetNames);
+    router.post('/api/filter-wheel/set-by-name',
+        _deviceHandlers.handleFilterWheelSetByName);
 
     // Rotator Control
     router.post('/api/rotator/move-to', _deviceHandlers.handleRotatorMoveTo);
-    router.post('/api/rotator/move-relative', _deviceHandlers.handleRotatorMoveRelative);
+    router.post('/api/rotator/move-relative',
+        _deviceHandlers.handleRotatorMoveRelative);
     router.get('/api/rotator/status', _deviceHandlers.handleRotatorGetStatus);
     router.post('/api/rotator/halt', _deviceHandlers.handleRotatorHalt);
 
     // PHD2 Guiding
     router.post('/api/phd2/connect', _guidingHandlers.handlePhd2Connect);
     router.post('/api/phd2/disconnect', _guidingHandlers.handlePhd2Disconnect);
-    router.post('/api/phd2/start-guiding', _guidingHandlers.handlePhd2StartGuiding);
-    router.post('/api/phd2/stop-guiding', _guidingHandlers.handlePhd2StopGuiding);
+    router.post(
+        '/api/phd2/start-guiding', _guidingHandlers.handlePhd2StartGuiding);
+    router.post(
+        '/api/phd2/stop-guiding', _guidingHandlers.handlePhd2StopGuiding);
     router.post('/api/phd2/dither', _guidingHandlers.handlePhd2Dither);
     router.get('/api/phd2/status', _guidingHandlers.handlePhd2GetStatus);
     router.post('/api/phd2/pause', _guidingHandlers.handlePhd2SetPaused);
-    router.post('/api/phd2/clear-calibration', _guidingHandlers.handlePhd2ClearCalibration);
-    router.post('/api/phd2/flip-calibration', _guidingHandlers.handlePhd2FlipCalibration);
-    router.post('/api/phd2/get-calibration-data', _guidingHandlers.handlePhd2GetCalibrationData);
+    router.post('/api/phd2/clear-calibration',
+        _guidingHandlers.handlePhd2ClearCalibration);
+    router.post('/api/phd2/flip-calibration',
+        _guidingHandlers.handlePhd2FlipCalibration);
+    router.post('/api/phd2/get-calibration-data',
+        _guidingHandlers.handlePhd2GetCalibrationData);
     router.post('/api/phd2/find-star', _guidingHandlers.handlePhd2FindStar);
-    router.post('/api/phd2/set-lock-position', _guidingHandlers.handlePhd2SetLockPosition);
-    router.get('/api/phd2/lock-position', _guidingHandlers.handlePhd2GetLockPosition);
+    router.post('/api/phd2/set-lock-position',
+        _guidingHandlers.handlePhd2SetLockPosition);
+    router.get(
+        '/api/phd2/lock-position', _guidingHandlers.handlePhd2GetLockPosition);
     router.post('/api/phd2/loop', _guidingHandlers.handlePhd2Loop);
-    router.post('/api/phd2/deselect-star', _guidingHandlers.handlePhd2DeselectStar);
+    router.post(
+        '/api/phd2/deselect-star', _guidingHandlers.handlePhd2DeselectStar);
     router.get('/api/phd2/star-image', _guidingHandlers.handlePhd2GetStarImage);
-    router.get('/api/phd2/algo-params', _guidingHandlers.handlePhd2GetAlgoParamNames);
+    router.get(
+        '/api/phd2/algo-params', _guidingHandlers.handlePhd2GetAlgoParamNames);
     router.get('/api/phd2/algo-param', _guidingHandlers.handlePhd2GetAlgoParam);
-    router.post('/api/phd2/algo-param', _guidingHandlers.handlePhd2SetAlgoParam);
+    router.post(
+        '/api/phd2/algo-param', _guidingHandlers.handlePhd2SetAlgoParam);
 
     // Plate Solving
     router.post('/api/plate-solve', _imagingHandlers.handlePlateSolve);
@@ -199,48 +244,77 @@ class HeadlessApiServer {
     router.post('/api/sequences/stop', _handleSequenceStop);
 
     // Sequencing (extended)
-    router.get('/api/sequencer/status', _sequencerHandlers.handleSequencerStatus);
-    router.post('/api/sequencer/start', _sequencerHandlers.handleSequencerStart);
+    router.get(
+        '/api/sequencer/status', _sequencerHandlers.handleSequencerStatus);
+    router.post(
+        '/api/sequencer/start', _sequencerHandlers.handleSequencerStart);
     router.post('/api/sequencer/stop', _sequencerHandlers.handleSequencerStop);
-    router.post('/api/sequencer/pause', _sequencerHandlers.handleSequencerPause);
-    router.post('/api/sequencer/resume', _sequencerHandlers.handleSequencerResume);
+    router.post(
+        '/api/sequencer/pause', _sequencerHandlers.handleSequencerPause);
+    router.post(
+        '/api/sequencer/resume', _sequencerHandlers.handleSequencerResume);
     router.post('/api/sequencer/skip', _sequencerHandlers.handleSequencerSkip);
-    router.post('/api/sequencer/reset', _sequencerHandlers.handleSequencerReset);
+    router.post(
+        '/api/sequencer/reset', _sequencerHandlers.handleSequencerReset);
     router.post('/api/sequencer/load', _sequencerHandlers.handleSequencerLoad);
-    router.post('/api/sequencer/simulation', _sequencerHandlers.handleSequencerSetSimulationMode);
-    router.post('/api/sequencer/devices', _sequencerHandlers.handleSequencerSetDevices);
-    router.post('/api/sequencer/safety-fail-mode', _sequencerHandlers.handleSequencerSetSafetyFailMode);
-    router.post('/api/sequencer/checkpoint/dir', _sequencerHandlers.handleSequencerSetCheckpointDir);
-    router.get('/api/sequencer/checkpoint/has', _sequencerHandlers.handleSequencerHasCheckpoint);
-    router.get('/api/sequencer/checkpoint/info', _sequencerHandlers.handleSequencerGetCheckpointInfo);
-    router.post('/api/sequencer/checkpoint/resume', _sequencerHandlers.handleSequencerResumeFromCheckpoint);
-    router.post('/api/sequencer/checkpoint/discard', _sequencerHandlers.handleSequencerDiscardCheckpoint);
-    router.post('/api/sequencer/checkpoint/save', _sequencerHandlers.handleSequencerSaveCheckpoint);
+    router.post('/api/sequencer/simulation',
+        _sequencerHandlers.handleSequencerSetSimulationMode);
+    router.post(
+        '/api/sequencer/devices', _sequencerHandlers.handleSequencerSetDevices);
+    router.post('/api/sequencer/safety-fail-mode',
+        _sequencerHandlers.handleSequencerSetSafetyFailMode);
+    router.post('/api/sequencer/checkpoint/dir',
+        _sequencerHandlers.handleSequencerSetCheckpointDir);
+    router.get('/api/sequencer/checkpoint/has',
+        _sequencerHandlers.handleSequencerHasCheckpoint);
+    router.get('/api/sequencer/checkpoint/info',
+        _sequencerHandlers.handleSequencerGetCheckpointInfo);
+    router.post('/api/sequencer/checkpoint/resume',
+        _sequencerHandlers.handleSequencerResumeFromCheckpoint);
+    router.post('/api/sequencer/checkpoint/discard',
+        _sequencerHandlers.handleSequencerDiscardCheckpoint);
+    router.post('/api/sequencer/checkpoint/save',
+        _sequencerHandlers.handleSequencerSaveCheckpoint);
 
     // Equipment Status
-    router.get('/api/equipment/camera/status', _equipmentHandlers.handleCameraStatus);
-    router.get('/api/equipment/mount/status', _equipmentHandlers.handleMountStatus);
-    router.get('/api/equipment/focuser/status', _equipmentHandlers.handleFocuserStatus);
-    router.get('/api/equipment/filter-wheel/status', _equipmentHandlers.handleFilterWheelStatus);
-    router.get('/api/equipment/rotator/status', _equipmentHandlers.handleRotatorStatus);
+    router.get(
+        '/api/equipment/camera/status', _equipmentHandlers.handleCameraStatus);
+    router.get(
+        '/api/equipment/mount/status', _equipmentHandlers.handleMountStatus);
+    router.get('/api/equipment/focuser/status',
+        _equipmentHandlers.handleFocuserStatus);
+    router.get('/api/equipment/filter-wheel/status',
+        _equipmentHandlers.handleFilterWheelStatus);
+    router.get('/api/equipment/rotator/status',
+        _equipmentHandlers.handleRotatorStatus);
 
     // Equipment Capabilities
-    router.get('/api/equipment/camera/capabilities', _equipmentHandlers.handleCameraCapabilities);
-    router.get('/api/equipment/mount/capabilities', _equipmentHandlers.handleMountCapabilities);
-    router.get('/api/equipment/focuser/capabilities', _equipmentHandlers.handleFocuserCapabilities);
-    router.get('/api/equipment/filter-wheel/capabilities', _equipmentHandlers.handleFilterWheelCapabilities);
-    router.get('/api/equipment/rotator/capabilities', _equipmentHandlers.handleRotatorCapabilities);
+    router.get('/api/equipment/camera/capabilities',
+        _equipmentHandlers.handleCameraCapabilities);
+    router.get('/api/equipment/mount/capabilities',
+        _equipmentHandlers.handleMountCapabilities);
+    router.get('/api/equipment/focuser/capabilities',
+        _equipmentHandlers.handleFocuserCapabilities);
+    router.get('/api/equipment/filter-wheel/capabilities',
+        _equipmentHandlers.handleFilterWheelCapabilities);
+    router.get('/api/equipment/rotator/capabilities',
+        _equipmentHandlers.handleRotatorCapabilities);
 
     // Device Health
-    router.post('/api/device/heartbeat/start', _equipmentHandlers.handleStartDeviceHeartbeat);
-    router.post('/api/device/heartbeat/stop', _equipmentHandlers.handleStopDeviceHeartbeat);
-    router.get('/api/device/health/<deviceId>', _equipmentHandlers.handleGetDeviceHealth);
+    router.post('/api/device/heartbeat/start',
+        _equipmentHandlers.handleStartDeviceHeartbeat);
+    router.post('/api/device/heartbeat/stop',
+        _equipmentHandlers.handleStopDeviceHeartbeat);
+    router.get('/api/device/health/<deviceId>',
+        _equipmentHandlers.handleGetDeviceHealth);
 
     // Profiles
     router.get('/api/profiles', _profileHandlers.handleGetProfiles);
     router.post('/api/profiles', _profileHandlers.handleSaveProfile);
-    router.delete('/api/profiles/<profileId>', _profileHandlers.handleDeleteProfile);
-    router.post('/api/profiles/<profileId>/load', _profileHandlers.handleLoadProfile);
+    router.delete(
+        '/api/profiles/<profileId>', _profileHandlers.handleDeleteProfile);
+    router.post(
+        '/api/profiles/<profileId>/load', _profileHandlers.handleLoadProfile);
     router.get('/api/profiles/active', _profileHandlers.handleGetActiveProfile);
 
     // Settings
@@ -252,88 +326,130 @@ class HeadlessApiServer {
 
     // Imaging
     router.post('/api/imaging/stats', _imagingHandlers.handleGetImageStats);
-    router.post('/api/imaging/stretch', _imagingHandlers.handleAutoStretchImage);
+    router.post(
+        '/api/imaging/stretch', _imagingHandlers.handleAutoStretchImage);
     router.post('/api/imaging/debayer', _imagingHandlers.handleDebayerImage);
-    router.get('/api/imaging/raw-data', _imagingHandlers.handleGetLastRawImageData);
+    router.get(
+        '/api/imaging/raw-data', _imagingHandlers.handleGetLastRawImageData);
     router.post('/api/imaging/save-fits', _imagingHandlers.handleSaveFitsFile);
-    router.post('/api/imaging/save-fits-from-capture', _imagingHandlers.handleSaveFitsFromLastCapture);
-    router.delete('/api/imaging/device-image/<deviceId>', _imagingHandlers.handleClearDeviceImage);
+    router.post('/api/imaging/save-fits-from-capture',
+        _imagingHandlers.handleSaveFitsFromLastCapture);
+    router.delete('/api/imaging/device-image/<deviceId>',
+        _imagingHandlers.handleClearDeviceImage);
 
     // Polar Alignment
-    router.post('/api/polar-alignment/start', _sessionHandlers.handleStartPolarAlignment);
-    router.post('/api/polar-alignment/stop', _sessionHandlers.handleStopPolarAlignment);
+    router.post('/api/polar-alignment/start',
+        _sessionHandlers.handleStartPolarAlignment);
+    router.post(
+        '/api/polar-alignment/stop', _sessionHandlers.handleStopPolarAlignment);
 
     // Session Images
-    router.get('/api/sessions/<sessionId>/images', _sessionHandlers.handleGetSessionImages);
-    router.get('/api/images/<imageId>/thumbnail', _sessionHandlers.handleGetImageThumbnail);
-    router.get('/api/images/<imageId>/download', _sessionHandlers.handleDownloadImage);
+    router.get('/api/sessions/<sessionId>/images',
+        _sessionHandlers.handleGetSessionImages);
+    router.get('/api/images/<imageId>/thumbnail',
+        _sessionHandlers.handleGetImageThumbnail);
+    router.get(
+        '/api/images/<imageId>/download', _sessionHandlers.handleDownloadImage);
 
     // ===========================================================================
     // Target Management
     // ===========================================================================
     router.get('/api/targets', _targetHandlers.handleGetAllTargets);
-    router.get('/api/targets/favorites', _targetHandlers.handleGetFavoriteTargets);
+    router.get(
+        '/api/targets/favorites', _targetHandlers.handleGetFavoriteTargets);
     router.get('/api/targets/search', _targetHandlers.handleSearchTargets);
     router.get('/api/targets/by-type', _targetHandlers.handleGetTargetsByType);
-    router.get('/api/targets/by-priority', _targetHandlers.handleGetTargetsByPriority);
+    router.get(
+        '/api/targets/by-priority', _targetHandlers.handleGetTargetsByPriority);
     router.get('/api/targets/<id>', _targetHandlers.handleGetTargetById);
     router.post('/api/targets', _targetHandlers.handleCreateTarget);
     router.put('/api/targets/<id>', _targetHandlers.handleUpdateTarget);
     router.delete('/api/targets/<id>', _targetHandlers.handleDeleteTarget);
-    router.post('/api/targets/<id>/favorite', _targetHandlers.handleToggleFavorite);
-    router.put('/api/targets/<id>/progress', _targetHandlers.handleUpdateProgress);
+    router.post(
+        '/api/targets/<id>/favorite', _targetHandlers.handleToggleFavorite);
+    router.put(
+        '/api/targets/<id>/progress', _targetHandlers.handleUpdateProgress);
 
     // ===========================================================================
     // Sequence Management (CRUD - separate from sequencer execution)
     // ===========================================================================
-    router.get('/api/sequence-management/list', _sequenceManagementHandlers.handleGetAllSequences);
-    router.get('/api/sequence-management/templates', _sequenceManagementHandlers.handleGetAllTemplates);
-    router.get('/api/sequence-management/<id>', _sequenceManagementHandlers.handleGetSequenceById);
-    router.get('/api/sequence-management/<id>/nodes', _sequenceManagementHandlers.handleGetNodesForSequence);
-    router.get('/api/sequence-management/<id>/children', _sequenceManagementHandlers.handleGetChildNodes);
-    router.post('/api/sequence-management', _sequenceManagementHandlers.handleCreateSequence);
-    router.put('/api/sequence-management/<id>', _sequenceManagementHandlers.handleUpdateSequence);
-    router.delete('/api/sequence-management/<id>', _sequenceManagementHandlers.handleDeleteSequence);
-    router.post('/api/sequence-management/<id>/duplicate', _sequenceManagementHandlers.handleDuplicateSequence);
-    router.post('/api/sequence-management/<id>/nodes', _sequenceManagementHandlers.handleCreateNode);
-    router.put('/api/sequence-management/nodes/<nodeId>', _sequenceManagementHandlers.handleUpdateNode);
-    router.delete('/api/sequence-management/nodes/<nodeId>', _sequenceManagementHandlers.handleDeleteNode);
-    router.post('/api/sequence-management/<id>/reorder', _sequenceManagementHandlers.handleReorderNodes);
-    router.post('/api/sequence-management/nodes/<nodeId>/enabled', _sequenceManagementHandlers.handleSetNodeEnabled);
+    router.get('/api/sequence-management/list',
+        _sequenceManagementHandlers.handleGetAllSequences);
+    router.get('/api/sequence-management/templates',
+        _sequenceManagementHandlers.handleGetAllTemplates);
+    router.get('/api/sequence-management/<id>',
+        _sequenceManagementHandlers.handleGetSequenceById);
+    router.get('/api/sequence-management/<id>/nodes',
+        _sequenceManagementHandlers.handleGetNodesForSequence);
+    router.get('/api/sequence-management/<id>/children',
+        _sequenceManagementHandlers.handleGetChildNodes);
+    router.post('/api/sequence-management',
+        _sequenceManagementHandlers.handleCreateSequence);
+    router.put('/api/sequence-management/<id>',
+        _sequenceManagementHandlers.handleUpdateSequence);
+    router.delete('/api/sequence-management/<id>',
+        _sequenceManagementHandlers.handleDeleteSequence);
+    router.post('/api/sequence-management/<id>/duplicate',
+        _sequenceManagementHandlers.handleDuplicateSequence);
+    router.post('/api/sequence-management/<id>/nodes',
+        _sequenceManagementHandlers.handleCreateNode);
+    router.put('/api/sequence-management/nodes/<nodeId>',
+        _sequenceManagementHandlers.handleUpdateNode);
+    router.delete('/api/sequence-management/nodes/<nodeId>',
+        _sequenceManagementHandlers.handleDeleteNode);
+    router.post('/api/sequence-management/<id>/reorder',
+        _sequenceManagementHandlers.handleReorderNodes);
+    router.post('/api/sequence-management/nodes/<nodeId>/enabled',
+        _sequenceManagementHandlers.handleSetNodeEnabled);
 
     // ===========================================================================
     // Flat Wizard
     // ===========================================================================
-    router.post('/api/flat-wizard/calibrate', _flatWizardHandlers.handleCalibrateFilter);
-    router.post('/api/flat-wizard/calibrate-multi', _flatWizardHandlers.handleCalibrateMultipleFilters);
-    router.post('/api/flat-wizard/generate-sequence', _flatWizardHandlers.handleGenerateSequence);
-    router.post('/api/flat-wizard/quick-calibrate', _flatWizardHandlers.handleQuickCalibrate);
+    router.post('/api/flat-wizard/calibrate',
+        _flatWizardHandlers.handleCalibrateFilter);
+    router.post('/api/flat-wizard/calibrate-multi',
+        _flatWizardHandlers.handleCalibrateMultipleFilters);
+    router.post('/api/flat-wizard/generate-sequence',
+        _flatWizardHandlers.handleGenerateSequence);
+    router.post('/api/flat-wizard/quick-calibrate',
+        _flatWizardHandlers.handleQuickCalibrate);
 
     // ===========================================================================
     // Mosaic Planning
     // ===========================================================================
-    router.post('/api/mosaic/generate-panels', _mosaicHandlers.handleGeneratePanels);
-    router.post('/api/mosaic/generate-sequence', _mosaicHandlers.handleGenerateSequence);
-    router.post('/api/mosaic/calculate-area', _mosaicHandlers.handleCalculateArea);
+    router.post(
+        '/api/mosaic/generate-panels', _mosaicHandlers.handleGeneratePanels);
+    router.post('/api/mosaic/generate-sequence',
+        _mosaicHandlers.handleGenerateSequence);
+    router.post(
+        '/api/mosaic/calculate-area', _mosaicHandlers.handleCalculateArea);
     router.post('/api/mosaic/validate', _mosaicHandlers.handleValidateMosaic);
-    router.post('/api/mosaic/estimate-time', _mosaicHandlers.handleEstimateTime);
+    router.post(
+        '/api/mosaic/estimate-time', _mosaicHandlers.handleEstimateTime);
 
     // ===========================================================================
     // Sessions & Analytics
     // ===========================================================================
     router.get('/api/sessions', _analyticsHandlers.handleGetAllSessions);
-    router.get('/api/sessions/active', _analyticsHandlers.handleGetActiveSession);
-    router.get('/api/sessions/recent', _analyticsHandlers.handleGetRecentSessions);
+    router.get(
+        '/api/sessions/active', _analyticsHandlers.handleGetActiveSession);
+    router.get(
+        '/api/sessions/recent', _analyticsHandlers.handleGetRecentSessions);
     router.get('/api/sessions/<id>', _analyticsHandlers.handleGetSessionById);
-    router.get('/api/sessions/<id>/stats', _analyticsHandlers.handleGetSessionStats);
-    router.get('/api/sessions/target/<targetId>', _analyticsHandlers.handleGetSessionsForTarget);
+    router.get(
+        '/api/sessions/<id>/stats', _analyticsHandlers.handleGetSessionStats);
+    router.get('/api/sessions/target/<targetId>',
+        _analyticsHandlers.handleGetSessionsForTarget);
     router.post('/api/sessions', _analyticsHandlers.handleCreateSession);
     router.put('/api/sessions/<id>', _analyticsHandlers.handleUpdateSession);
     router.post('/api/sessions/<id>/end', _analyticsHandlers.handleEndSession);
     router.delete('/api/sessions/<id>', _analyticsHandlers.handleDeleteSession);
-    router.get('/api/analytics/summary', _analyticsHandlers.handleGetAnalyticsSummary);
-    router.get('/api/analytics/integration-time', _analyticsHandlers.handleGetTotalIntegrationTime);
-    router.get('/api/analytics/target-statistics', _analyticsHandlers.handleGetTargetStatistics);
+    router.get(
+        '/api/analytics/summary', _analyticsHandlers.handleGetAnalyticsSummary);
+    router.get('/api/analytics/integration-time',
+        _analyticsHandlers.handleGetTotalIntegrationTime);
+    router.get('/api/analytics/target-statistics',
+        _analyticsHandlers.handleGetTargetStatistics);
 
     // ===========================================================================
     // Weather & Radar
@@ -341,29 +457,38 @@ class HeadlessApiServer {
     router.get('/api/weather/radar', _weatherHandlers.handleGetRadarData);
     router.get('/api/weather/forecast', _weatherHandlers.handleGetForecast);
     router.get('/api/weather/alerts', _weatherHandlers.handleGetAlerts);
-    router.get('/api/weather/cloud-cover', _weatherHandlers.handleGetCloudCover);
+    router.get(
+        '/api/weather/cloud-cover', _weatherHandlers.handleGetCloudCover);
     router.get('/api/weather/settings', _weatherHandlers.handleGetSettings);
     router.post('/api/weather/settings', _weatherHandlers.handleUpdateSettings);
-    router.get('/api/weather/safe-imaging', _weatherHandlers.handleCheckSafeImaging);
+    router.get(
+        '/api/weather/safe-imaging', _weatherHandlers.handleCheckSafeImaging);
     router.post('/api/weather/clear-cache', _weatherHandlers.handleClearCache);
 
     // ===========================================================================
     // Target Suggestions
     // ===========================================================================
-    router.get('/api/suggestions/tonight', _suggestionHandlers.handleGetSuggestionsForTonight);
+    router.get('/api/suggestions/tonight',
+        _suggestionHandlers.handleGetSuggestionsForTonight);
     router.get('/api/suggestions/config', _suggestionHandlers.handleGetConfig);
-    router.get('/api/suggestions/score/<targetId>', _suggestionHandlers.handleGetTargetScore);
+    router.get('/api/suggestions/score/<targetId>',
+        _suggestionHandlers.handleGetTargetScore);
 
     // ===========================================================================
     // Transient Alerts
     // ===========================================================================
     router.get('/api/transients', _transientHandlers.handleGetActiveTransients);
-    router.get('/api/transients/settings', _transientHandlers.handleGetSettings);
-    router.post('/api/transients/settings', _transientHandlers.handleUpdateSettings);
+    router.get(
+        '/api/transients/settings', _transientHandlers.handleGetSettings);
+    router.post(
+        '/api/transients/settings', _transientHandlers.handleUpdateSettings);
     router.get('/api/transients/queued', _transientHandlers.handleGetQueued);
-    router.post('/api/transients/<id>/queue', _transientHandlers.handleQueueTransient);
-    router.post('/api/transients/<id>/dismiss', _transientHandlers.handleDismissTransient);
-    router.post('/api/transients/refresh', _transientHandlers.handleRefreshAlerts);
+    router.post(
+        '/api/transients/<id>/queue', _transientHandlers.handleQueueTransient);
+    router.post('/api/transients/<id>/dismiss',
+        _transientHandlers.handleDismissTransient);
+    router.post(
+        '/api/transients/refresh', _transientHandlers.handleRefreshAlerts);
 
     // ===========================================================================
     // Backup & Restore
@@ -372,17 +497,22 @@ class HeadlessApiServer {
     router.post('/api/backup/create', _backupHandlers.handleCreateBackup);
     router.post('/api/backup/restore', _backupHandlers.handleRestoreBackup);
     router.post('/api/backup/auto-save', _backupHandlers.handleAutoSaveBackup);
-    router.get('/api/backup/<id>/metadata', _backupHandlers.handleGetBackupMetadata);
-    router.get('/api/backup/<id>/download', _backupHandlers.handleDownloadBackup);
+    router.get(
+        '/api/backup/<id>/metadata', _backupHandlers.handleGetBackupMetadata);
+    router.get(
+        '/api/backup/<id>/download', _backupHandlers.handleDownloadBackup);
     router.delete('/api/backup/<id>', _backupHandlers.handleDeleteBackup);
 
     // ===========================================================================
     // Framing & Centering
     // ===========================================================================
-    router.post('/api/framing/slew-to-target', _framingHandlers.handleSlewToTarget);
-    router.post('/api/framing/center-on-target', _framingHandlers.handleCenterOnTarget);
+    router.post(
+        '/api/framing/slew-to-target', _framingHandlers.handleSlewToTarget);
+    router.post(
+        '/api/framing/center-on-target', _framingHandlers.handleCenterOnTarget);
     router.post('/api/framing/sync', _framingHandlers.handleSyncMount);
-    router.get('/api/framing/current-position', _framingHandlers.handleGetCurrentPosition);
+    router.get('/api/framing/current-position',
+        _framingHandlers.handleGetCurrentPosition);
     router.post('/api/framing/rotate-to', _framingHandlers.handleRotateTo);
     router.post('/api/framing/abort-slew', _framingHandlers.handleAbortSlew);
     router.post('/api/framing/park', _framingHandlers.handleParkMount);
@@ -391,16 +521,24 @@ class HeadlessApiServer {
     // ===========================================================================
     // Planetarium (remote client support)
     // ===========================================================================
-    router.get('/api/planetarium/mount-position', _planetariumHandlers.handleGetMountPosition);
-    router.get('/api/planetarium/fov-config', _planetariumHandlers.handleGetFovConfig);
+    router.get('/api/planetarium/mount-position',
+        _planetariumHandlers.handleGetMountPosition);
+    router.get(
+        '/api/planetarium/fov-config', _planetariumHandlers.handleGetFovConfig);
     router.post('/api/planetarium/slew-to', _planetariumHandlers.handleSlewTo);
-    router.post('/api/planetarium/center-on', _planetariumHandlers.handleCenterOn);
+    router.post(
+        '/api/planetarium/center-on', _planetariumHandlers.handleCenterOn);
     router.post('/api/planetarium/sync-to', _planetariumHandlers.handleSyncTo);
-    router.get('/api/planetarium/catalog/search', _planetariumHandlers.handleCatalogSearch);
-    router.get('/api/planetarium/catalog/region', _planetariumHandlers.handleCatalogRegion);
-    router.get('/api/planetarium/catalog/object/<objectId>', _planetariumHandlers.handleGetCatalogObject);
-    router.get('/api/planetarium/subscribe-info', _planetariumHandlers.handleGetSubscribeInfo);
-    router.get('/api/planetarium/location', _planetariumHandlers.handleGetLocation);
+    router.get('/api/planetarium/catalog/search',
+        _planetariumHandlers.handleCatalogSearch);
+    router.get('/api/planetarium/catalog/region',
+        _planetariumHandlers.handleCatalogRegion);
+    router.get('/api/planetarium/catalog/object/<objectId>',
+        _planetariumHandlers.handleGetCatalogObject);
+    router.get('/api/planetarium/subscribe-info',
+        _planetariumHandlers.handleGetSubscribeInfo);
+    router.get(
+        '/api/planetarium/location', _planetariumHandlers.handleGetLocation);
 
     // ===========================================================================
     // Dome Control
@@ -419,9 +557,12 @@ class HeadlessApiServer {
     // Safety Monitor
     // ===========================================================================
     router.get('/api/safety/status', _safetyMonitorHandlers.handleSafetyStatus);
-    router.get('/api/safety/settings', _safetyMonitorHandlers.handleGetSafetySettings);
-    router.post('/api/safety/settings', _safetyMonitorHandlers.handleUpdateSafetySettings);
-    router.post('/api/safety/acknowledge', _safetyMonitorHandlers.handleAcknowledgeUnsafe);
+    router.get(
+        '/api/safety/settings', _safetyMonitorHandlers.handleGetSafetySettings);
+    router.post('/api/safety/settings',
+        _safetyMonitorHandlers.handleUpdateSafetySettings);
+    router.post('/api/safety/acknowledge',
+        _safetyMonitorHandlers.handleAcknowledgeUnsafe);
 
     // ===========================================================================
     // Auxiliary Devices (Switch & Cover Calibrator)
@@ -431,51 +572,72 @@ class HeadlessApiServer {
     router.get('/api/cover/status', _auxiliaryHandlers.handleCoverStatus);
     router.post('/api/cover/open', _auxiliaryHandlers.handleCoverOpen);
     router.post('/api/cover/close', _auxiliaryHandlers.handleCoverClose);
-    router.post('/api/cover/brightness', _auxiliaryHandlers.handleCoverBrightness);
-    router.post('/api/cover/calibrator-on', _auxiliaryHandlers.handleCalibratorOn);
-    router.post('/api/cover/calibrator-off', _auxiliaryHandlers.handleCalibratorOff);
+    router.post(
+        '/api/cover/brightness', _auxiliaryHandlers.handleCoverBrightness);
+    router.post(
+        '/api/cover/calibrator-on', _auxiliaryHandlers.handleCalibratorOn);
+    router.post(
+        '/api/cover/calibrator-off', _auxiliaryHandlers.handleCalibratorOff);
 
     // ===========================================================================
     // Intelligent Scheduler
     // ===========================================================================
-    router.get('/api/scheduler/altitude', _schedulerHandlers.handleCalculateAltitude);
-    router.get('/api/scheduler/transit-time', _schedulerHandlers.handleCalculateTransitTime);
-    router.get('/api/scheduler/rise-set', _schedulerHandlers.handleCalculateRiseSet);
-    router.get('/api/scheduler/hours-above-horizon', _schedulerHandlers.handleCalculateHoursAbove);
-    router.post('/api/scheduler/optimize-targets', _schedulerHandlers.handleOptimizeTargets);
-    router.get('/api/scheduler/twilight-times', _schedulerHandlers.handleGetTwilightTimes);
-    router.get('/api/scheduler/moon-info', _schedulerHandlers.handleGetMoonInfo);
+    router.get(
+        '/api/scheduler/altitude', _schedulerHandlers.handleCalculateAltitude);
+    router.get('/api/scheduler/transit-time',
+        _schedulerHandlers.handleCalculateTransitTime);
+    router.get(
+        '/api/scheduler/rise-set', _schedulerHandlers.handleCalculateRiseSet);
+    router.get('/api/scheduler/hours-above-horizon',
+        _schedulerHandlers.handleCalculateHoursAbove);
+    router.post('/api/scheduler/optimize-targets',
+        _schedulerHandlers.handleOptimizeTargets);
+    router.get('/api/scheduler/twilight-times',
+        _schedulerHandlers.handleGetTwilightTimes);
+    router.get(
+        '/api/scheduler/moon-info', _schedulerHandlers.handleGetMoonInfo);
 
     // ===========================================================================
     // Focus Model
     // ===========================================================================
     router.get('/api/focus-model/data', _focusModelHandlers.handleGetFocusData);
-    router.post('/api/focus-model/add-point', _focusModelHandlers.handleAddFocusPoint);
-    router.delete('/api/focus-model/clear', _focusModelHandlers.handleClearFocusData);
-    router.get('/api/focus-model/model', _focusModelHandlers.handleGetFocusModel);
-    router.get('/api/focus-model/predict', _focusModelHandlers.handlePredictFocus);
-    router.get('/api/focus-model/filter-offsets', _focusModelHandlers.handleGetFilterOffsets);
-    router.post('/api/focus-model/filter-offsets', _focusModelHandlers.handleSetFilterOffsets);
-    router.get('/api/focus-model/should-refocus', _focusModelHandlers.handleShouldRefocus);
-    router.get('/api/focus-model/export', _focusModelHandlers.handleExportFocusData);
-    router.post('/api/focus-model/import', _focusModelHandlers.handleImportFocusData);
+    router.post(
+        '/api/focus-model/add-point', _focusModelHandlers.handleAddFocusPoint);
+    router.delete(
+        '/api/focus-model/clear', _focusModelHandlers.handleClearFocusData);
+    router.get(
+        '/api/focus-model/model', _focusModelHandlers.handleGetFocusModel);
+    router.get(
+        '/api/focus-model/predict', _focusModelHandlers.handlePredictFocus);
+    router.get('/api/focus-model/filter-offsets',
+        _focusModelHandlers.handleGetFilterOffsets);
+    router.post('/api/focus-model/filter-offsets',
+        _focusModelHandlers.handleSetFilterOffsets);
+    router.get('/api/focus-model/should-refocus',
+        _focusModelHandlers.handleShouldRefocus);
+    router.get(
+        '/api/focus-model/export', _focusModelHandlers.handleExportFocusData);
+    router.post(
+        '/api/focus-model/import', _focusModelHandlers.handleImportFocusData);
 
     // WebSocket - support both paths for NetworkBackend compatibility
     router.get('/api/ws', webSocketHandler(_handleWebSocket));
     router.get('/events', webSocketHandler(_handleWebSocket));
 
     final handler = const Pipeline()
-        .addMiddleware(logRequests())
+        .addMiddleware(_requestTrackingMiddleware())
         .addMiddleware(_corsMiddleware())
         .addMiddleware(_authMiddleware())
         .addHandler(router.call);
 
     _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
-    print('Headless API server running on http://${_server!.address.host}:${_server!.port}');
+    _logInfo(
+        'Headless API server running on http://${_server!.address.host}:${_server!.port}');
     if (_effectiveAuthToken != null) {
-      print('[AUTH] Authentication is ENABLED. All requests require Bearer token.');
+      _logInfo(
+          '[AUTH] Authentication is ENABLED. All requests require Bearer token.');
     } else {
-      print('[AUTH] Authentication is DISABLED. All requests are allowed.');
+      _logInfo('[AUTH] Authentication is DISABLED. All requests are allowed.');
     }
 
     // Subscribe to backend events and broadcast to WebSocket clients
@@ -489,7 +651,7 @@ class HeadlessApiServer {
         broadcastEvent(event);
       });
     } catch (e) {
-      print('[API] Failed to subscribe to backend events: $e');
+      _logError('[API] Failed to subscribe to backend events: $e');
     }
   }
 
@@ -524,7 +686,7 @@ class HeadlessApiServer {
         jsonEvent = jsonEncode(event);
       }
     } catch (e) {
-      print('Error encoding event for broadcast: $e');
+      _logError('Error encoding event for broadcast: $e');
       return;
     }
 
@@ -532,7 +694,7 @@ class HeadlessApiServer {
       try {
         socket.sink.add(jsonEvent);
       } catch (e) {
-        print('Error broadcasting to socket: $e');
+        _logWarning('Error broadcasting to socket: $e');
       }
     }
   }
@@ -799,7 +961,8 @@ class HeadlessApiServer {
   }
 
   Future<Response> _handleStatus(Request request) async {
-    print('[API] GET /api/status');
+    final requestId = _requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/status');
     try {
       final backend = container.read(backendProvider);
       final status = await backend.sequencerGetStatus();
@@ -816,7 +979,7 @@ class HeadlessApiServer {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Status error: $e');
+      _logError('[API][$requestId] Status error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -825,7 +988,8 @@ class HeadlessApiServer {
   }
 
   Future<Response> _handleGetDevices(Request request) async {
-    print('[API] GET /api/devices');
+    final requestId = _requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/devices');
     try {
       final deviceTypeStr = request.url.queryParameters['deviceType'];
       final backend = container.read(backendProvider);
@@ -851,18 +1015,20 @@ class HeadlessApiServer {
 
       return Response.ok(
         jsonEncode({
-          "devices": allDevices.map((d) => {
-            'id': d.id,
-            'name': d.name,
-            'deviceType': d.deviceType.name,
-            'driverType': d.driverType.name,
-            'description': d.description,
-          }).toList(),
+          "devices": allDevices
+              .map((d) => {
+                    'id': d.id,
+                    'name': d.name,
+                    'deviceType': d.deviceType.name,
+                    'driverType': d.driverType.name,
+                    'description': d.description,
+                  })
+              .toList(),
         }),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get devices error: $e');
+      _logError('[API][$requestId] Get devices error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -871,24 +1037,27 @@ class HeadlessApiServer {
   }
 
   Future<Response> _handleGetConnectedDevices(Request request) async {
-    print('[API] GET /api/devices/connected');
+    final requestId = _requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/devices/connected');
     try {
       final backend = container.read(backendProvider);
       final devices = await backend.getConnectedDevices();
       return Response.ok(
         jsonEncode({
-          "devices": devices.map((d) => {
-            'id': d.id,
-            'name': d.name,
-            'deviceType': d.deviceType.name,
-            'driverType': d.driverType.name,
-            'description': d.description,
-          }).toList(),
+          "devices": devices
+              .map((d) => {
+                    'id': d.id,
+                    'name': d.name,
+                    'deviceType': d.deviceType.name,
+                    'driverType': d.driverType.name,
+                    'description': d.description,
+                  })
+              .toList(),
         }),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get connected devices error: $e');
+      _logError('[API][$requestId] Get connected devices error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -897,7 +1066,8 @@ class HeadlessApiServer {
   }
 
   Future<Response> _handleConnectDevice(Request request) async {
-    print('[API] POST /api/devices/connect');
+    final requestId = _requestIdFrom(request);
+    _logInfo('[API][$requestId] POST /api/devices/connect');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -923,7 +1093,7 @@ class HeadlessApiServer {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Connect device error: $e');
+      _logError('[API][$requestId] Connect device error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -932,7 +1102,8 @@ class HeadlessApiServer {
   }
 
   Future<Response> _handleDisconnectDevice(Request request) async {
-    print('[API] POST /api/devices/disconnect');
+    final requestId = _requestIdFrom(request);
+    _logInfo('[API][$requestId] POST /api/devices/disconnect');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -958,7 +1129,7 @@ class HeadlessApiServer {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Disconnect device error: $e');
+      _logError('[API][$requestId] Disconnect device error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -997,7 +1168,7 @@ class HeadlessApiServer {
 
   void _handleWebSocket(WebSocketChannel socket, String? protocol) {
     _sockets.add(socket);
-    print('New WebSocket connection');
+    _logInfo('New WebSocket connection');
 
     socket.stream.listen(
       (message) {
@@ -1011,11 +1182,11 @@ class HeadlessApiServer {
       },
       onDone: () {
         _sockets.remove(socket);
-        print('WebSocket disconnected');
+        _logInfo('WebSocket disconnected');
       },
       onError: (error) {
         _sockets.remove(socket);
-        print('WebSocket error: $error');
+        _logWarning('WebSocket error: $error');
       },
     );
   }
@@ -1023,6 +1194,37 @@ class HeadlessApiServer {
   // ===========================================================================
   // Middleware
   // ===========================================================================
+
+  Middleware _requestTrackingMiddleware() {
+    return (innerHandler) {
+      return (request) async {
+        final requestId = request.headers[_requestIdHeader] ?? _nextRequestId();
+        final path = '/${request.url.path}';
+        final startedAt = DateTime.now();
+        final scopedRequest = request.change(context: {
+          ...request.context,
+          _requestIdContextKey: requestId,
+        });
+
+        _logInfo('[REQ][$requestId] ${request.method} $path started');
+        try {
+          final response = await innerHandler(scopedRequest);
+          final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
+          _logInfo(
+              '[REQ][$requestId] ${request.method} $path completed status=${response.statusCode} ms=$elapsedMs');
+          return response.change(headers: {
+            ...response.headers,
+            _requestIdHeader: requestId,
+          });
+        } catch (e, stackTrace) {
+          final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
+          _logError(
+              '[REQ][$requestId] ${request.method} $path failed ms=$elapsedMs error=$e\n$stackTrace');
+          rethrow;
+        }
+      };
+    };
+  }
 
   Middleware _corsMiddleware() {
     return createMiddleware(
@@ -1065,6 +1267,7 @@ class HeadlessApiServer {
         }
 
         // Skip auth for public endpoints
+        final requestId = _requestIdFrom(request);
         final path = '/${request.url.path}';
         if (publicPaths.contains(path)) {
           return null;
@@ -1073,38 +1276,51 @@ class HeadlessApiServer {
         // Check for Authorization header
         final authHeader = request.headers['authorization'];
         if (authHeader == null) {
-          print('[AUTH] Rejected request to $path - no Authorization header');
+          _logWarning(
+              '[AUTH][$requestId] Rejected request to $path - no Authorization header');
           return Response.unauthorized(
             jsonEncode({
               'error': 'Authentication required',
               'message': 'Missing Authorization header',
             }),
-            headers: {'content-type': 'application/json'},
+            headers: {
+              'content-type': 'application/json',
+              _requestIdHeader: requestId,
+            },
           );
         }
 
         // Validate Bearer token format
         if (!authHeader.startsWith('Bearer ')) {
-          print('[AUTH] Rejected request to $path - invalid auth format');
+          _logWarning(
+              '[AUTH][$requestId] Rejected request to $path - invalid auth format');
           return Response.unauthorized(
             jsonEncode({
               'error': 'Authentication required',
-              'message': 'Invalid Authorization header format. Expected: Bearer <token>',
+              'message':
+                  'Invalid Authorization header format. Expected: Bearer <token>',
             }),
-            headers: {'content-type': 'application/json'},
+            headers: {
+              'content-type': 'application/json',
+              _requestIdHeader: requestId,
+            },
           );
         }
 
         // Extract and validate token
         final token = authHeader.substring(7); // Remove 'Bearer ' prefix
         if (token != _effectiveAuthToken) {
-          print('[AUTH] Rejected request to $path - invalid token');
+          _logWarning(
+              '[AUTH][$requestId] Rejected request to $path - invalid token');
           return Response.forbidden(
             jsonEncode({
               'error': 'Access denied',
               'message': 'Invalid authentication token',
             }),
-            headers: {'content-type': 'application/json'},
+            headers: {
+              'content-type': 'application/json',
+              _requestIdHeader: requestId,
+            },
           );
         }
 
@@ -1116,7 +1332,8 @@ class HeadlessApiServer {
 
   /// Generates a cryptographically secure random token.
   static String _generateRandomToken({int length = 32}) {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const chars =
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = DateTime.now().millisecondsSinceEpoch;
     final buffer = StringBuffer();
 

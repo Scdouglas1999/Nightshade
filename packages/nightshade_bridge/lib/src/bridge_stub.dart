@@ -1,3 +1,5 @@
+// ignore_for_file: unused_field
+
 /// Nightshade Bridge - Dart FFI bindings to Rust native code
 ///
 /// This file provides the bridge to the Rust native library.
@@ -10,7 +12,7 @@
 /// When the native library is not available, this bridge will NOT fall back
 /// to simulator implementations. Instead, it will return empty device lists
 /// and throw errors for hardware operations. Use INDI/ASCOM/Alpaca external
-/// simulators for testing instead of built-in stubs.
+/// simulators for testing instead of built-in fallback adapters.
 
 import 'dart:async';
 import 'dart:convert';
@@ -32,25 +34,25 @@ import 'storage.dart' as gen_storage;
 import 'frb_generated.dart' as frb;
 
 // ============================================================================
-// Error Messages for Stub Mode
+// Error Messages for Fallback Mode
 // ============================================================================
 
-/// Error message thrown when stub operations are called in production
-const _stubErrorMessage = '''
-Native bridge not available. This is the Dart fallback stub.
+/// Error message thrown when fallback operations are called in production
+const _fallbackErrorMessage = '''
+Native bridge not available. This is the Dart fallback bridge.
 
 Possible causes:
 1. Native library failed to load - check build output
 2. Running on unsupported platform (web)
 3. DLL/dylib not found in expected location
 
-For development: Use INDI/ASCOM/Alpaca simulators instead of built-in stubs.
+For development: Use INDI/ASCOM/Alpaca simulators instead of built-in fallback adapters.
 Simulators are disabled to prevent silent failures with fake data.
 ''';
 
 Never _nativeBridgeRequired(String operation) {
   throw UnsupportedError(
-    'Operation "$operation" requires the native bridge.\n$_stubErrorMessage',
+    'Operation "$operation" requires the native bridge.\n$_fallbackErrorMessage',
   );
 }
 
@@ -129,7 +131,7 @@ extension DeviceTypeExtension on DeviceType {
 }
 
 // ============================================================================
-// Enums unique to bridge_stub (not in FRB-generated code)
+// Enums unique to bridge fallback layer (not in FRB-generated code)
 // ============================================================================
 
 /// Device connection state
@@ -162,7 +164,7 @@ enum ShutterState {
 // EventSeverity, EventCategory, PolarAlignmentEvent, and NightshadeEvent are now typedefed from event.dart
 
 // ============================================================================
-// Data Classes unique to bridge_stub (not in FRB-generated code)
+// Data Classes unique to bridge fallback layer (not in FRB-generated code)
 // ============================================================================
 
 /// Session state from native
@@ -196,16 +198,16 @@ class NativeSessionState {
   });
 }
 
-/// Internal stub event - used for simulator mode
+/// Internal fallback event - used for simulator mode
 /// This is different from gen_event.NightshadeEvent which uses EventPayload
-class _StubNightshadeEvent {
+class _FallbackNightshadeEvent {
   final int timestamp;
   final gen_event.EventSeverity severity;
   final gen_event.EventCategory category;
   final String eventType;
   final Map<String, dynamic> data;
 
-  _StubNightshadeEvent({
+  _FallbackNightshadeEvent({
     required this.timestamp,
     required this.severity,
     required this.category,
@@ -214,7 +216,7 @@ class _StubNightshadeEvent {
   });
 }
 
-/// Image statistics (unique to bridge_stub - different from ImageStatsResult)
+/// Image statistics (unique to bridge fallback layer - different from ImageStatsResult)
 class ImageStats {
   final double min;
   final double max;
@@ -233,7 +235,7 @@ class ImageStats {
   });
 }
 
-/// Sequencer status (unique to bridge_stub - different from SequencerState)
+/// Sequencer status (unique to bridge fallback layer - different from SequencerState)
 class SequencerStatus {
   final String state;
   final String? currentNodeId;
@@ -288,16 +290,17 @@ enum SequencerState {
 ///
 /// This bridge attempts to load the native Rust library and use it for
 /// real device discovery and control. When the native library is not
-/// available, it falls back to simulator implementations.
+/// available, native-only operations fail closed.
 class NativeBridge {
   static bool _initialized = false;
   static bool _nativeAvailable = false;
   static DynamicLibrary? _nativeLib;
   static final _eventController =
-      StreamController<_StubNightshadeEvent>.broadcast();
+      StreamController<_FallbackNightshadeEvent>.broadcast();
 
   // Simulated device states
   static final Map<String, bool> _connectedDevices = {};
+  static final Map<String, DeviceInfo> _connectedDeviceInfo = {};
   static CameraStatus? _cameraStatus;
   static MountStatus? _mountStatus;
   static FocuserStatus? _focuserStatus;
@@ -327,7 +330,7 @@ class NativeBridge {
   static Future<void> init({String? logDirectory}) async {
     if (_initialized) return;
 
-    // Try to load native library manually (for stub fallback)
+    // Try to load native library manually (for fallback path)
     _nativeAvailable = await _tryLoadNativeLibrary();
 
     // Try to initialize RustLib (it will try to auto-load the library)
@@ -361,7 +364,7 @@ class NativeBridge {
       _nativeAvailable = true;
     } catch (e) {
       debugPrint('[Bridge] RustLib initialization failed: $e');
-      debugPrint('[Bridge] Will fall back to stub discovery methods');
+      debugPrint('[Bridge] Will fall back to fallback discovery methods');
       // Mark as unavailable since RustLib couldn't initialize
       _nativeAvailable = false;
     }
@@ -372,7 +375,7 @@ class NativeBridge {
     _initialized = true;
 
     // Emit initialization event
-    _eventController.add(_StubNightshadeEvent(
+    _eventController.add(_FallbackNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: EventSeverity.info,
       category: EventCategory.system,
@@ -383,7 +386,8 @@ class NativeBridge {
     if (_nativeAvailable) {
       debugPrint('[Bridge] Loaded native library');
     } else {
-      debugPrint('[Bridge] Using simulator mode');
+      debugPrint(
+          '[Bridge] Native bridge unavailable; running in fail-closed fallback mode');
     }
   }
 
@@ -446,42 +450,6 @@ class NativeBridge {
       moving: false,
       filterCount: 7,
       filterNames: ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
-    );
-  }
-
-  static void _updateMountStatus({
-    bool? connected,
-    bool? tracking,
-    bool? slewing,
-    bool? parked,
-    bool? atHome,
-    PierSide? sideOfPier,
-    double? rightAscension,
-    double? declination,
-    double? altitude,
-    double? azimuth,
-    double? siderealTime,
-    TrackingRate? trackingRate,
-  }) {
-    final current = _mountStatus!;
-    _mountStatus = MountStatus(
-      connected: connected ?? current.connected,
-      tracking: tracking ?? current.tracking,
-      slewing: slewing ?? current.slewing,
-      parked: parked ?? current.parked,
-      atHome: atHome ?? current.atHome,
-      sideOfPier: sideOfPier ?? current.sideOfPier,
-      rightAscension: rightAscension ?? current.rightAscension,
-      declination: declination ?? current.declination,
-      altitude: altitude ?? current.altitude,
-      azimuth: azimuth ?? current.azimuth,
-      siderealTime: siderealTime ?? current.siderealTime,
-      trackingRate: trackingRate ?? current.trackingRate,
-      canPark: current.canPark,
-      canSlew: current.canSlew,
-      canSync: current.canSync,
-      canPulseGuide: current.canPulseGuide,
-      canSetTrackingRate: current.canSetTrackingRate,
     );
   }
 
@@ -589,7 +557,7 @@ class NativeBridge {
             _nativeLib = DynamicLibrary.open(libPath);
 
             // Verify the library loaded by checking for a known symbol
-            // For now, just check if it loaded successfully
+            // Validate library load succeeded
             debugPrint(
                 '[Bridge] Successfully loaded native library from: $libPath');
             return true;
@@ -617,7 +585,7 @@ class NativeBridge {
       }
 
       debugPrint(
-          '[Bridge] Native library not found. Falling back to simulator mode.');
+          '[Bridge] Native library not found. Native-only operations will fail closed.');
       debugPrint('');
       debugPrint('To enable native device discovery:');
       debugPrint(
@@ -660,9 +628,9 @@ class NativeBridge {
       }
       return '0.1.0';
     }
-    // Native library not loaded - return stub version
+    // Native library not loaded - return fallback version
     // Note: Hardware operations will fail without native library
-    return '0.1.0-stub (native library not loaded)';
+    return '0.1.0-fallback (native library not loaded)';
   }
 
   /// Get the loaded native library (if available)
@@ -685,20 +653,20 @@ class NativeBridge {
     }
 
     // Fallback to local event controller for simulator mode
-    // Convert internal stub events to proper NightshadeEvent format
-    var stubEventId = BigInt.zero;
-    return _eventController.stream.map((stubEvent) {
-      stubEventId += BigInt.one;
+    // Convert internal fallback events to proper NightshadeEvent format
+    var fallbackEventId = BigInt.zero;
+    return _eventController.stream.map((fallbackEvent) {
+      fallbackEventId += BigInt.one;
       return gen_event.NightshadeEvent(
-        eventId: stubEventId,
-        timestamp: stubEvent.timestamp,
-        severity: stubEvent.severity,
-        category: stubEvent.category,
+        eventId: fallbackEventId,
+        timestamp: fallbackEvent.timestamp,
+        severity: fallbackEvent.severity,
+        category: fallbackEvent.category,
         payload: gen_event.EventPayload.system(
           gen_event.SystemEvent.notification(
-            title: stubEvent.eventType,
-            message: stubEvent.data.toString(),
-            level: stubEvent.severity.name,
+            title: fallbackEvent.eventType,
+            message: fallbackEvent.data.toString(),
+            level: fallbackEvent.severity.name,
           ),
         ),
       );
@@ -747,10 +715,10 @@ class NativeBridge {
               }
             }
           },
-          onError: (error) {
+          onError: (Object error) {
             timeoutTimer?.cancel();
             if (!completer.isCompleted) {
-              completer.completeError(error as Object);
+              completer.completeError(error);
             }
           },
           onDone: () {
@@ -884,16 +852,9 @@ class NativeBridge {
         final deviceName = match.group(1);
         if (deviceName != null && !seenDevices.contains(deviceName)) {
           seenDevices.add(deviceName);
-          // Try to infer type from context or default to camera
-          devices.add(DeviceInfo(
-            id: 'indi:$host:$port:$deviceName',
-            name: deviceName,
-            deviceType: DeviceType.camera, // Default fallback
-            driverType: DriverType.indi,
-            description: 'INDI device on $host:$port',
-            driverVersion: 'INDI',
-            displayName: deviceName,
-          ));
+          debugPrint(
+            '[Bridge] Skipping INDI device "$deviceName" because type could not be determined from malformed XML response.',
+          );
         }
       }
     }
@@ -924,7 +885,7 @@ class NativeBridge {
         final nativeDevices =
             await gen_api.apiDiscoverDevices(deviceType: genDeviceType);
 
-        // Convert generated DeviceInfo to stub DeviceInfo
+        // Convert generated DeviceInfo to local DeviceInfo
         for (final nativeDev in nativeDevices) {
           devices.add(DeviceInfo(
             id: nativeDev.id,
@@ -954,7 +915,7 @@ class NativeBridge {
     // =========================================================================
     // Fallback: ASCOM Discovery (Windows only, direct COM via Registry)
     // =========================================================================
-    // Only do stub ASCOM discovery if native bridge isn't available or didn't find devices
+    // Only do fallback ASCOM discovery if native bridge isn't available or didn't find devices
     // The native bridge already does ASCOM discovery, so this is just a fallback
     if (!_nativeAvailable && Platform.isWindows) {
       try {
@@ -1425,7 +1386,7 @@ class NativeBridge {
     return false;
   }
 
-  /// Convert stub DeviceType to generated DeviceType
+  /// Convert local DeviceType to generated DeviceType
   static gen_device.DeviceType _toGenDeviceType(DeviceType deviceType) {
     switch (deviceType) {
       case DeviceType.camera:
@@ -1453,7 +1414,7 @@ class NativeBridge {
     }
   }
 
-  /// Convert generated DeviceType to stub DeviceType
+  /// Convert generated DeviceType to local DeviceType
   static DeviceType _fromGenDeviceType(gen_device.DeviceType deviceType) {
     switch (deviceType) {
       case gen_device.DeviceType.camera:
@@ -1481,7 +1442,7 @@ class NativeBridge {
     }
   }
 
-  /// Convert generated DriverType to stub DriverType
+  /// Convert generated DriverType to local DriverType
   static DriverType _fromGenDriverType(gen_device.DriverType driverType) {
     switch (driverType) {
       case gen_device.DriverType.ascom:
@@ -1494,8 +1455,6 @@ class NativeBridge {
         return DriverType.native;
       case gen_device.DriverType.simulator:
         return DriverType.simulator;
-      default:
-        throw ArgumentError('Unknown DriverType: $driverType');
     }
   }
 
@@ -1531,6 +1490,50 @@ class NativeBridge {
   // Device Connection
   // =========================================================================
 
+  static DriverType? _inferDriverTypeFromDeviceId(String deviceId) {
+    if (deviceId.startsWith('ascom:')) return DriverType.ascom;
+    if (deviceId.startsWith('alpaca:')) return DriverType.alpaca;
+    if (deviceId.startsWith('indi:')) return DriverType.indi;
+    if (deviceId.startsWith('native:')) return DriverType.native;
+    if (deviceId.startsWith('sim:') || deviceId.startsWith('simulator:')) {
+      return DriverType.simulator;
+    }
+    return null;
+  }
+
+  static void _recordConnectedDevice({
+    required DeviceType deviceType,
+    required String deviceId,
+    DriverType? driverType,
+    String? name,
+    String? displayName,
+    String? description,
+    String? driverVersion,
+  }) {
+    _connectedDevices[deviceId] = true;
+
+    final resolvedDriverType =
+        driverType ?? _inferDriverTypeFromDeviceId(deviceId);
+    if (resolvedDriverType == null) {
+      debugPrint(
+        '[Bridge] Connected device "$deviceId" has no inferable driver type; omitting from fallback connected-device metadata.',
+      );
+      _connectedDeviceInfo.remove(deviceId);
+      return;
+    }
+
+    final resolvedName = name ?? deviceId;
+    _connectedDeviceInfo[deviceId] = DeviceInfo(
+      id: deviceId,
+      name: resolvedName,
+      deviceType: deviceType,
+      driverType: resolvedDriverType,
+      description: description ?? 'Connected device',
+      driverVersion: driverVersion ?? 'unknown',
+      displayName: displayName ?? resolvedName,
+    );
+  }
+
   /// Connect to a device
   static Future<void> connectDevice(
       DeviceType deviceType, String deviceId) async {
@@ -1549,7 +1552,15 @@ class NativeBridge {
       }
 
       await phd2Connect(host: host, port: port);
-      _connectedDevices[deviceId] = true;
+      _recordConnectedDevice(
+        deviceType: deviceType,
+        deviceId: deviceId,
+        driverType: DriverType.native,
+        name: 'PHD2',
+        displayName: 'PHD2',
+        description: 'PHD2 Guiding',
+        driverVersion: 'external',
+      );
       return;
     }
 
@@ -1558,7 +1569,7 @@ class NativeBridge {
     // =========================================================================
     // For devices discovered by native bridge (ascom:, native:, indi:),
     // always use native bridge connection. For other devices (alpaca:),
-    // try native bridge first but fall back to stub if needed.
+    // try native bridge first but fall back to the fallback path if needed.
     final shouldUseNativeOnly = deviceId.startsWith('ascom:') ||
         deviceId.startsWith('native:') ||
         deviceId.startsWith('indi:');
@@ -1572,11 +1583,13 @@ class NativeBridge {
         debugPrint(
             '[Bridge] ✓ Successfully connected to $deviceId via native bridge');
 
-        // Mark as connected in stub state
-        _connectedDevices[deviceId] = true;
+        _recordConnectedDevice(
+          deviceType: deviceType,
+          deviceId: deviceId,
+        );
 
         // Emit connection event
-        _eventController.add(_StubNightshadeEvent(
+        _eventController.add(_FallbackNightshadeEvent(
           timestamp: DateTime.now().millisecondsSinceEpoch,
           severity: EventSeverity.info,
           category: EventCategory.equipment,
@@ -1598,8 +1611,8 @@ class NativeBridge {
         }
 
         debugPrint(
-            '[Bridge] Device supports fallback - trying stub methods...');
-        // Continue to fallback stub methods below
+            '[Bridge] Device supports fallback - trying fallback methods...');
+        // Continue to fallback bridge methods below
       }
     } else if (shouldUseNativeOnly) {
       // Native bridge required but not available
@@ -1608,7 +1621,7 @@ class NativeBridge {
     }
 
     // =========================================================================
-    // Fallback: Stub Connection Methods (for when native bridge unavailable)
+    // Fallback Connection Methods (for when native bridge unavailable)
     // =========================================================================
 
     // Check if this is an Alpaca device
@@ -1653,9 +1666,13 @@ class NativeBridge {
       await client.connect();
 
       _ascomClients[deviceId] = client;
-      _connectedDevices[deviceId] = true;
+      _recordConnectedDevice(
+        deviceType: deviceType,
+        deviceId: deviceId,
+        driverType: DriverType.ascom,
+      );
 
-      _eventController.add(_StubNightshadeEvent(
+      _eventController.add(_FallbackNightshadeEvent(
         timestamp: DateTime.now().millisecondsSinceEpoch,
         severity: EventSeverity.info,
         category: EventCategory.equipment,
@@ -1724,9 +1741,15 @@ class NativeBridge {
 
       _alpacaClients[deviceId] = client;
       _alpacaDevices[deviceId] = alpacaDevice;
-      _connectedDevices[deviceId] = true;
+      _recordConnectedDevice(
+        deviceType: deviceType,
+        deviceId: deviceId,
+        driverType: DriverType.alpaca,
+        name: alpacaDevice.deviceName,
+        displayName: alpacaDevice.deviceName,
+      );
 
-      _eventController.add(_StubNightshadeEvent(
+      _eventController.add(_FallbackNightshadeEvent(
         timestamp: DateTime.now().millisecondsSinceEpoch,
         severity: EventSeverity.info,
         category: EventCategory.equipment,
@@ -1779,8 +1802,9 @@ class NativeBridge {
     }
 
     _connectedDevices.remove(deviceId);
+    _connectedDeviceInfo.remove(deviceId);
 
-    _eventController.add(_StubNightshadeEvent(
+    _eventController.add(_FallbackNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: EventSeverity.info,
       category: EventCategory.equipment,
@@ -1814,53 +1838,28 @@ class NativeBridge {
         final nativeDevices = await gen_api.apiGetConnectedDevices();
         // Sync our local tracking with native state
         _connectedDevices.clear();
+        _connectedDeviceInfo.clear();
         for (final device in nativeDevices) {
-          _connectedDevices[device.id] = true;
+          _recordConnectedDevice(
+            deviceType: _fromGenDeviceType(device.deviceType),
+            deviceId: device.id,
+            driverType: _fromGenDriverType(device.driverType),
+            name: device.name,
+            displayName: device.displayName,
+            description: device.description,
+            driverVersion: device.driverVersion,
+          );
         }
         return nativeDevices;
       } catch (e) {
         debugPrint(
             '[Bridge] Warning: Failed to get connected devices from native API: $e');
-        // Fall through to stub implementation
+        // Fall through to fallback implementation
       }
     }
 
-    // Fallback: return devices from local tracking
-    return _connectedDevices.keys.map((id) {
-      final type = _getDeviceTypeFromId(id);
-      final deviceName = 'Connected ${type.displayName}';
-      return DeviceInfo(
-        id: id,
-        name: deviceName,
-        deviceType: type,
-        driverType: _getDriverTypeFromId(id),
-        description: 'Connected device',
-        driverVersion: '1.0.0',
-        displayName: deviceName,
-      );
-    }).toList();
-  }
-
-  static DeviceType _getDeviceTypeFromId(String id) {
-    if (id.contains('camera')) return DeviceType.camera;
-    if (id.contains('mount') || id.contains('telescope'))
-      return DeviceType.mount;
-    if (id.contains('focuser')) return DeviceType.focuser;
-    if (id.contains('filterwheel') || id.contains('filterWheel')) {
-      return DeviceType.filterWheel;
-    }
-    if (id.contains('guider')) return DeviceType.guider;
-    if (id.contains('rotator')) return DeviceType.rotator;
-    if (id.contains('dome')) return DeviceType.dome;
-    if (id.contains('weather')) return DeviceType.weather;
-    return DeviceType.camera;
-  }
-
-  static DriverType _getDriverTypeFromId(String id) {
-    if (id.startsWith('ascom:')) return DriverType.ascom;
-    if (id.startsWith('alpaca:')) return DriverType.alpaca;
-    if (id.startsWith('indi:')) return DriverType.indi;
-    return DriverType.simulator;
+    // Fallback: return only explicitly tracked metadata captured at connection time.
+    return _connectedDeviceInfo.values.toList(growable: false);
   }
 
   // =========================================================================
@@ -1952,7 +1951,7 @@ class NativeBridge {
       _nativeBridgeRequired('startExposure');
     }
     try {
-      await frb.RustLib.instance.api.crateApiApiCameraStartExposure(
+      await gen_api.apiCameraStartExposure(
         deviceId: deviceId,
         durationSecs: durationSecs,
         gain: gain,
@@ -1972,8 +1971,7 @@ class NativeBridge {
       _nativeBridgeRequired('cancelExposure');
     }
     try {
-      await frb.RustLib.instance.api
-          .crateApiApiCameraCancelExposure(deviceId: deviceId);
+      await gen_api.apiCameraCancelExposure(deviceId: deviceId);
     } catch (e) {
       debugPrint('[Bridge] Error calling native cancelExposure: $e');
       rethrow;
@@ -1990,8 +1988,7 @@ class NativeBridge {
     }
     try {
       debugPrint('[Bridge] Calling crateApiApiGetLastImage...');
-      final rustResult = await frb.RustLib.instance.api
-          .crateApiApiGetLastImage(deviceId: deviceId);
+      final rustResult = await gen_api.apiGetLastImage(deviceId: deviceId);
       debugPrint(
           '[Bridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}');
       return rustResult;
@@ -2297,7 +2294,7 @@ class NativeBridge {
   /// Start a new imaging session
   static Future<void> startSession(
       {String? targetName, double? ra, double? dec}) async {
-    _eventController.add(_StubNightshadeEvent(
+    _eventController.add(_FallbackNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: EventSeverity.info,
       category: EventCategory.sequencer,
@@ -2308,7 +2305,7 @@ class NativeBridge {
 
   /// End the current session
   static Future<void> endSession() async {
-    _eventController.add(_StubNightshadeEvent(
+    _eventController.add(_FallbackNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: EventSeverity.info,
       category: EventCategory.sequencer,
@@ -2385,7 +2382,7 @@ class NativeBridge {
         rethrow;
       }
     }
-    throw UnsupportedError(_stubErrorMessage);
+    throw UnsupportedError(_fallbackErrorMessage);
   }
 
   /// Cancel autofocus
@@ -2399,7 +2396,7 @@ class NativeBridge {
         rethrow;
       }
     }
-    throw UnsupportedError(_stubErrorMessage);
+    throw UnsupportedError(_fallbackErrorMessage);
   }
 
   // =========================================================================
@@ -2451,7 +2448,7 @@ class NativeBridge {
 
             // Wait for PHD2 to start and open its server
             for (int i = 0; i < 30; i++) {
-              await Future.delayed(const Duration(seconds: 1));
+              await Future<void>.delayed(const Duration(seconds: 1));
               if (await phd2.checkPhd2Running(
                   host: targetHost, port: targetPort)) {
                 phd2Running = true;
@@ -2489,7 +2486,7 @@ class NativeBridge {
 
     await _phd2Client!.connect();
 
-    _eventController.add(_StubNightshadeEvent(
+    _eventController.add(_FallbackNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: EventSeverity.info,
       category: EventCategory.guiding,
@@ -2503,7 +2500,7 @@ class NativeBridge {
     _phd2Client?.disconnect();
     _phd2Client = null;
 
-    _eventController.add(_StubNightshadeEvent(
+    _eventController.add(_FallbackNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: EventSeverity.info,
       category: EventCategory.guiding,
@@ -2528,7 +2525,7 @@ class NativeBridge {
       settleTimeout: settleTimeout,
     );
 
-    _eventController.add(_StubNightshadeEvent(
+    _eventController.add(_FallbackNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: EventSeverity.info,
       category: EventCategory.guiding,
@@ -2543,7 +2540,7 @@ class NativeBridge {
       await _phd2Client!.stopGuiding();
     }
 
-    _eventController.add(_StubNightshadeEvent(
+    _eventController.add(_FallbackNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: EventSeverity.info,
       category: EventCategory.guiding,
@@ -2588,7 +2585,7 @@ class NativeBridge {
       settleTimeout: settleTimeout,
     );
 
-    _eventController.add(_StubNightshadeEvent(
+    _eventController.add(_FallbackNightshadeEvent(
       timestamp: DateTime.now().millisecondsSinceEpoch,
       severity: EventSeverity.info,
       category: EventCategory.guiding,
@@ -2824,53 +2821,43 @@ class NativeBridge {
   static SequencerState _sequencerState = SequencerState.idle;
   static String? _loadedSequenceJson;
   static bool _sequencerEventsSubscribed = false;
+  static CameraStatus? get cameraStatus => _cameraStatus;
+  static FocuserStatus? get focuserStatus => _focuserStatus;
+  static FilterWheelStatus? get filterWheelStatus => _filterWheelStatus;
+  static String? get loadedSequenceJson => _loadedSequenceJson;
 
   /// Subscribe to sequencer events (must be called to receive sequencer events)
   /// This sets up the event forwarding from the Rust sequencer to the main event stream
   static Future<void> sequencerSubscribeEvents() async {
     if (_sequencerEventsSubscribed) return; // Already subscribed
 
-    // If native bridge is available, subscribe to native events
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerSubscribeEvents();
-        _sequencerEventsSubscribed = true;
-        debugPrint('[Bridge] Subscribed to sequencer events via native');
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error subscribing to sequencer events: $e');
-        // Continue with stub - events will be local only
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSubscribeEvents');
     }
 
-    // Stub: no-op, stub events are added directly to the controller
-    _sequencerEventsSubscribed = true;
-    debugPrint('[NativeBridge Stub] Sequencer event subscription initialized');
+    try {
+      await gen_api.apiSequencerSubscribeEvents();
+      _sequencerEventsSubscribed = true;
+      debugPrint('[Bridge] Subscribed to sequencer events via native');
+    } catch (e) {
+      debugPrint('[Bridge] Error subscribing to sequencer events: $e');
+      rethrow;
+    }
   }
 
   /// Load a sequence from JSON
   static Future<void> sequencerLoadJson(String json) async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerLoadJson(json: json);
-        _loadedSequenceJson = json;
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error loading sequence via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerLoadJson');
     }
 
-    // Stub fallback
-    _loadedSequenceJson = json;
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.sequencer,
-      eventType: 'SequenceLoaded',
-      data: {},
-    ));
+    try {
+      await gen_api.apiSequencerLoadJson(json: json);
+      _loadedSequenceJson = json;
+    } catch (e) {
+      debugPrint('[Bridge] Error loading sequence via native: $e');
+      rethrow;
+    }
   }
 
   /// Set connected devices for the sequencer
@@ -2882,212 +2869,149 @@ class NativeBridge {
     String? rotatorId,
     List<String>? filterNames,
   }) async {
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerSetDevices(
-          cameraId: cameraId,
-          mountId: mountId,
-          focuserId: focuserId,
-          filterwheelId: filterwheelId,
-          rotatorId: rotatorId,
-          filterNames: filterNames,
-        );
-        debugPrint(
-            '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames');
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting sequencer devices: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSetDevices');
     }
-    debugPrint(
-        '[NativeBridge Stub] Sequencer devices would be set (stub mode)');
+
+    try {
+      await gen_api.apiSequencerSetDevices(
+        cameraId: cameraId,
+        mountId: mountId,
+        focuserId: focuserId,
+        filterwheelId: filterwheelId,
+        rotatorId: rotatorId,
+        filterNames: filterNames,
+      );
+      debugPrint(
+          '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames');
+    } catch (e) {
+      debugPrint('[Bridge] Error setting sequencer devices: $e');
+      rethrow;
+    }
   }
 
   /// Set the safety fail mode for the sequencer
   static Future<void> sequencerSetSafetyFailMode(String mode) async {
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api
-            .crateApiApiSequencerSetSafetyFailMode(mode: mode);
-        debugPrint('[Bridge] Set sequencer safety fail mode: $mode');
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting sequencer safety fail mode: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSetSafetyFailMode');
     }
-    debugPrint(
-        '[NativeBridge Stub] Sequencer safety fail mode would be set to $mode (stub mode)');
+
+    try {
+      await gen_api.apiSequencerSetSafetyFailMode(mode: mode);
+      debugPrint('[Bridge] Set sequencer safety fail mode: $mode');
+    } catch (e) {
+      debugPrint('[Bridge] Error setting sequencer safety fail mode: $e');
+      rethrow;
+    }
   }
 
   /// Set the save path for sequencer images
   static Future<void> sequencerSetSavePath({String? path}) async {
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api
-            .crateApiApiSequencerSetSavePath(path: path);
-        debugPrint('[Bridge] Set sequencer save path: ${path ?? "<none>"}');
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting sequencer save path: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSetSavePath');
     }
-    debugPrint(
-        '[NativeBridge Stub] Sequencer save path would be set to ${path ?? "<none>"} (stub mode)');
+
+    try {
+      await gen_api.apiSequencerSetSavePath(path: path);
+      debugPrint('[Bridge] Set sequencer save path: ${path ?? "<none>"}');
+    } catch (e) {
+      debugPrint('[Bridge] Error setting sequencer save path: $e');
+      rethrow;
+    }
   }
 
   /// Start the loaded sequence
   static Future<void> sequencerStart() async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerStart');
+    }
+
     // Ensure event subscription is set up before starting
     await sequencerSubscribeEvents();
 
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerStart();
-        _sequencerState = SequencerState.running;
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error starting sequence via native: $e');
-        rethrow;
-      }
+    try {
+      await gen_api.apiSequencerStart();
+      _sequencerState = SequencerState.running;
+    } catch (e) {
+      debugPrint('[Bridge] Error starting sequence via native: $e');
+      rethrow;
     }
-
-    // Stub fallback
-    if (_loadedSequenceJson == null) {
-      throw Exception('No sequence loaded');
-    }
-
-    _sequencerState = SequencerState.running;
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.sequencer,
-      eventType: 'SequenceStarted',
-      data: {},
-    ));
   }
 
   /// Pause the running sequence
   static Future<void> sequencerPause() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerPause();
-        _sequencerState = SequencerState.paused;
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error pausing sequence via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerPause');
     }
 
-    // Stub fallback
-    _sequencerState = SequencerState.paused;
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.sequencer,
-      eventType: 'SequencePaused',
-      data: {},
-    ));
+    try {
+      await gen_api.apiSequencerPause();
+      _sequencerState = SequencerState.paused;
+    } catch (e) {
+      debugPrint('[Bridge] Error pausing sequence via native: $e');
+      rethrow;
+    }
   }
 
   /// Resume a paused sequence
   static Future<void> sequencerResume() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerResume();
-        _sequencerState = SequencerState.running;
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error resuming sequence via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerResume');
     }
 
-    // Stub fallback
-    _sequencerState = SequencerState.running;
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.sequencer,
-      eventType: 'SequenceResumed',
-      data: {},
-    ));
+    try {
+      await gen_api.apiSequencerResume();
+      _sequencerState = SequencerState.running;
+    } catch (e) {
+      debugPrint('[Bridge] Error resuming sequence via native: $e');
+      rethrow;
+    }
   }
 
   /// Stop the running sequence
   static Future<void> sequencerStop() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerStop();
-        _sequencerState = SequencerState.idle;
-        _loadedSequenceJson = null;
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error stopping sequence via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerStop');
     }
 
-    // Stub fallback
-    _sequencerState = SequencerState.idle;
-    _loadedSequenceJson = null;
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.sequencer,
-      eventType: 'SequenceStopped',
-      data: {},
-    ));
+    try {
+      await gen_api.apiSequencerStop();
+      _sequencerState = SequencerState.idle;
+      _loadedSequenceJson = null;
+    } catch (e) {
+      debugPrint('[Bridge] Error stopping sequence via native: $e');
+      rethrow;
+    }
   }
 
   /// Skip the current node
   static Future<void> sequencerSkip() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerSkip();
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error skipping node via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSkip');
     }
 
-    // Stub fallback
-    _eventController.add(_StubNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.sequencer,
-      eventType: 'NodeSkipped',
-      data: {},
-    ));
+    try {
+      await gen_api.apiSequencerSkip();
+    } catch (e) {
+      debugPrint('[Bridge] Error skipping node via native: $e');
+      rethrow;
+    }
   }
 
   /// Reset the sequencer
   static Future<void> sequencerReset() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerReset();
-        _sequencerState = SequencerState.idle;
-        _loadedSequenceJson = null;
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error resetting sequencer via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerReset');
     }
 
-    // Stub fallback
-    _sequencerState = SequencerState.idle;
-    _loadedSequenceJson = null;
+    try {
+      await gen_api.apiSequencerReset();
+      _sequencerState = SequencerState.idle;
+      _loadedSequenceJson = null;
+    } catch (e) {
+      debugPrint('[Bridge] Error resetting sequencer via native: $e');
+      rethrow;
+    }
   }
 
   /// Get the current sequencer state
@@ -3096,63 +3020,36 @@ class NativeBridge {
   /// Subscribe to sequencer events
   /// Returns a stream of sequencer events
   static Stream<NightshadeEvent> sequencerEventStream() {
-    // If native is available, use the real event stream from Rust
-    // and filter for sequencer events
-    if (_nativeAvailable) {
-      try {
-        return gen_api.apiEventStream().where(
-            (event) => event.category == gen_event.EventCategory.sequencer);
-      } catch (e) {
-        debugPrint('[Bridge] Failed to get native sequencer event stream: $e');
-        debugPrint('[Bridge] Falling back to local event controller');
-      }
-    }
-
-    // Stub fallback
-    var stubSeqEventId = BigInt.zero;
-    return _eventController.stream
-        .where((event) => event.category == gen_event.EventCategory.sequencer)
-        .map((stubEvent) {
-      stubSeqEventId += BigInt.one;
-      return gen_event.NightshadeEvent(
-        eventId: stubSeqEventId,
-        timestamp: stubEvent.timestamp,
-        severity: stubEvent.severity,
-        category: stubEvent.category,
-        payload: gen_event.EventPayload.system(
-          gen_event.SystemEvent.notification(
-            title: stubEvent.eventType,
-            message: stubEvent.data.toString(),
-            level: stubEvent.severity.name,
-          ),
+    if (!_nativeAvailable) {
+      return Stream<NightshadeEvent>.error(
+        UnsupportedError(
+          'Operation "sequencerEventStream" requires the native bridge.\n$_fallbackErrorMessage',
         ),
       );
-    });
+    }
+
+    return gen_api
+        .apiEventStream()
+        .where((event) => event.category == gen_event.EventCategory.sequencer);
   }
 
   static bool _simulationMode = false;
 
   /// Set simulation mode (use mock devices instead of real hardware)
   static Future<void> sequencerSetSimulationMode(bool enabled) async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api
-            .crateApiApiSequencerSetSimulationMode(enabled: enabled);
-        _simulationMode = enabled;
-        debugPrint(
-            '[Bridge] Simulation mode via native: ${enabled ? "enabled" : "disabled"}');
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting simulation mode via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSetSimulationMode');
     }
 
-    // Stub fallback
-    _simulationMode = enabled;
-    debugPrint(
-        '[NativeBridge Stub] Simulation mode: ${enabled ? "enabled" : "disabled"}');
+    try {
+      await gen_api.apiSequencerSetSimulationMode(enabled: enabled);
+      _simulationMode = enabled;
+      debugPrint(
+          '[Bridge] Simulation mode via native: ${enabled ? "enabled" : "disabled"}');
+    } catch (e) {
+      debugPrint('[Bridge] Error setting simulation mode via native: $e');
+      rethrow;
+    }
   }
 
   /// Check if simulation mode is enabled
@@ -3160,162 +3057,126 @@ class NativeBridge {
 
   /// Get sequencer status
   static Future<SequencerStatus> sequencerGetStatus() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        final nativeState =
-            await frb.RustLib.instance.api.crateApiApiSequencerGetState();
-        // Calculate progress from exposures
-        final progress = nativeState.totalExposures > 0
-            ? nativeState.completedExposures / nativeState.totalExposures
-            : 0.0;
-        return SequencerStatus(
-          state: nativeState.state,
-          currentNodeId: nativeState.currentNodeId,
-          currentNodeName: nativeState.currentNodeName,
-          progress: progress,
-          message: nativeState.message,
-        );
-      } catch (e) {
-        debugPrint('[Bridge] Error getting sequencer status via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerGetStatus');
     }
 
-    // Stub fallback
-    // Convert enum to pascal case string (e.g., idle -> Idle, running -> Running)
-    final stateStr = _sequencerState.name[0].toUpperCase() +
-        _sequencerState.name.substring(1);
-    return SequencerStatus(
-      state: stateStr,
-      currentNodeId: null,
-      currentNodeName: null,
-      progress: 0.0,
-      message: null,
-    );
+    try {
+      final nativeState = await gen_api.apiSequencerGetState();
+      // Calculate progress from exposures
+      final progress = nativeState.totalExposures > 0
+          ? nativeState.completedExposures / nativeState.totalExposures
+          : 0.0;
+      return SequencerStatus(
+        state: nativeState.state,
+        currentNodeId: nativeState.currentNodeId,
+        currentNodeName: nativeState.currentNodeName,
+        progress: progress,
+        message: nativeState.message,
+      );
+    } catch (e) {
+      debugPrint('[Bridge] Error getting sequencer status via native: $e');
+      rethrow;
+    }
   }
 
   // =========================================================================
-  // Checkpoint / Crash Recovery (Stub - No real checkpoint in stub mode)
+  // Checkpoint / Crash Recovery
   // =========================================================================
 
   /// Set the checkpoint directory
   static Future<void> sequencerSetCheckpointDir(String path) async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api
-            .crateApiApiSequencerSetCheckpointDir(path: path);
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error setting checkpoint dir via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSetCheckpointDir');
     }
 
-    // Stub: No-op since stub doesn't support checkpoints
-    debugPrint(
-        '[NativeBridge Stub] sequencerSetCheckpointDir called (no-op in stub mode)');
+    try {
+      await gen_api.apiSequencerSetCheckpointDir(path: path);
+    } catch (e) {
+      debugPrint('[Bridge] Error setting checkpoint dir via native: $e');
+      rethrow;
+    }
   }
 
   /// Check if a checkpoint exists
   static Future<bool> sequencerHasCheckpoint() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        return await frb.RustLib.instance.api
-            .crateApiApiSequencerHasCheckpoint();
-      } catch (e) {
-        debugPrint('[Bridge] Error checking checkpoint via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerHasCheckpoint');
     }
 
-    // Stub: Always return false
-    return false;
+    try {
+      return await gen_api.apiSequencerHasCheckpoint();
+    } catch (e) {
+      debugPrint('[Bridge] Error checking checkpoint via native: $e');
+      rethrow;
+    }
   }
 
   /// Get checkpoint info
   static Future<CheckpointInfoApi?> sequencerGetCheckpointInfo() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        final nativeInfo = await frb.RustLib.instance.api
-            .crateApiApiSequencerGetCheckpointInfo();
-        if (nativeInfo == null) return null;
-        // Map from FRB-generated type to stub type
-        return CheckpointInfoApi(
-          sequenceName: nativeInfo.sequenceName,
-          timestamp: nativeInfo.timestamp,
-          completedExposures: nativeInfo.completedExposures,
-          completedIntegrationSecs: nativeInfo.completedIntegrationSecs,
-          canResume: nativeInfo.canResume,
-          ageSeconds: nativeInfo.ageSeconds.toInt(),
-        );
-      } catch (e) {
-        debugPrint('[Bridge] Error getting checkpoint info via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerGetCheckpointInfo');
     }
 
-    // Stub: Always return null
-    return null;
+    try {
+      final nativeInfo = await gen_api.apiSequencerGetCheckpointInfo();
+      if (nativeInfo == null) return null;
+      // Map from FRB-generated type to local type
+      return CheckpointInfoApi(
+        sequenceName: nativeInfo.sequenceName,
+        timestamp: nativeInfo.timestamp,
+        completedExposures: nativeInfo.completedExposures,
+        completedIntegrationSecs: nativeInfo.completedIntegrationSecs,
+        canResume: nativeInfo.canResume,
+        ageSeconds: nativeInfo.ageSeconds.toInt(),
+      );
+    } catch (e) {
+      debugPrint('[Bridge] Error getting checkpoint info via native: $e');
+      rethrow;
+    }
   }
 
   /// Resume from checkpoint
   static Future<void> sequencerResumeFromCheckpoint() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api
-            .crateApiApiSequencerResumeFromCheckpoint();
-        _sequencerState = SequencerState.running;
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error resuming from checkpoint via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerResumeFromCheckpoint');
     }
 
-    // Stub: No-op
-    debugPrint(
-        '[NativeBridge Stub] sequencerResumeFromCheckpoint called (no-op in stub mode)');
+    try {
+      await gen_api.apiSequencerResumeFromCheckpoint();
+      _sequencerState = SequencerState.running;
+    } catch (e) {
+      debugPrint('[Bridge] Error resuming from checkpoint via native: $e');
+      rethrow;
+    }
   }
 
   /// Discard checkpoint
   static Future<void> sequencerDiscardCheckpoint() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerClearCheckpoint();
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error discarding checkpoint via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerDiscardCheckpoint');
     }
 
-    // Stub: No-op
-    debugPrint(
-        '[NativeBridge Stub] sequencerDiscardCheckpoint called (no-op in stub mode)');
+    try {
+      await gen_api.apiSequencerClearCheckpoint();
+    } catch (e) {
+      debugPrint('[Bridge] Error discarding checkpoint via native: $e');
+      rethrow;
+    }
   }
 
   /// Save checkpoint
   static Future<void> sequencerSaveCheckpoint() async {
-    // If native bridge is available, use real sequencer
-    if (_nativeAvailable) {
-      try {
-        await frb.RustLib.instance.api.crateApiApiSequencerSaveCheckpoint();
-        return;
-      } catch (e) {
-        debugPrint('[Bridge] Error saving checkpoint via native: $e');
-        rethrow;
-      }
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSaveCheckpoint');
     }
 
-    // Stub: No-op
-    debugPrint(
-        '[NativeBridge Stub] sequencerSaveCheckpoint called (no-op in stub mode)');
+    try {
+      await gen_api.apiSequencerSaveCheckpoint();
+    } catch (e) {
+      debugPrint('[Bridge] Error saving checkpoint via native: $e');
+      rethrow;
+    }
   }
 
   // =========================================================================

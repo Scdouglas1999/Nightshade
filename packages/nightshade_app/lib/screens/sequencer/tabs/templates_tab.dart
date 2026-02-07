@@ -11,15 +11,15 @@ import 'package:nightshade_app/utils/snackbar_helper.dart';
 /// Provider for templates list - loads from database with built-in fallbacks
 final sequenceTemplatesProvider = FutureProvider<List<Sequence>>((ref) async {
   final repository = ref.watch(sequenceRepositoryProvider);
-  
+
   // Load templates from database
   final dbTemplates = await repository.loadAllTemplates();
-  
+
   // If no templates exist, return built-in templates
   if (dbTemplates.isEmpty) {
     return _getBuiltInTemplates();
   }
-  
+
   return dbTemplates;
 });
 
@@ -30,7 +30,8 @@ List<Sequence> _getBuiltInTemplates() {
     Sequence(
       id: 'template-first-light',
       name: 'First Light',
-      description: 'Simple sequence for absolute beginners - just point and shoot',
+      description:
+          'Simple sequence for absolute beginners - just point and shoot',
       isTemplate: true,
       createdAt: DateTime.now().subtract(const Duration(days: 35)),
       modifiedAt: DateTime.now().subtract(const Duration(days: 35)),
@@ -60,7 +61,8 @@ List<Sequence> _getBuiltInTemplates() {
     Sequence(
       id: 'template-dso-beginner',
       name: 'DSO Beginner',
-      description: 'Beginner-friendly sequence with comprehensive safety checks',
+      description:
+          'Beginner-friendly sequence with comprehensive safety checks',
       isTemplate: true,
       createdAt: DateTime.now().subtract(const Duration(days: 29)),
       modifiedAt: DateTime.now().subtract(const Duration(days: 29)),
@@ -71,7 +73,8 @@ List<Sequence> _getBuiltInTemplates() {
     Sequence(
       id: 'template-basic-lrgb',
       name: 'Basic LRGB Sequence',
-      description: 'Standard LRGB imaging sequence with autofocus and dithering',
+      description:
+          'Standard LRGB imaging sequence with autofocus and dithering',
       isTemplate: true,
       createdAt: DateTime.now().subtract(const Duration(days: 27)),
       modifiedAt: DateTime.now().subtract(const Duration(days: 27)),
@@ -81,7 +84,8 @@ List<Sequence> _getBuiltInTemplates() {
     Sequence(
       id: 'template-narrowband',
       name: 'Narrowband (SHO)',
-      description: 'Hubble Palette narrowband imaging with SII, Ha, and OIII filters',
+      description:
+          'Hubble Palette narrowband imaging with SII, Ha, and OIII filters',
       isTemplate: true,
       createdAt: DateTime.now().subtract(const Duration(days: 25)),
       modifiedAt: DateTime.now().subtract(const Duration(days: 25)),
@@ -112,7 +116,8 @@ List<Sequence> _getBuiltInTemplates() {
     Sequence(
       id: 'template-sho',
       name: 'SHO Hubble Palette',
-      description: 'Full Hubble Palette narrowband with weather safety conditional',
+      description:
+          'Full Hubble Palette narrowband with weather safety conditional',
       isTemplate: true,
       createdAt: DateTime.now().subtract(const Duration(days: 17)),
       modifiedAt: DateTime.now().subtract(const Duration(days: 17)),
@@ -154,7 +159,8 @@ List<Sequence> _getBuiltInTemplates() {
     Sequence(
       id: 'template-unattended',
       name: 'Unattended All-Night',
-      description: 'Fully automated dusk-to-dawn imaging with weather and HFR recovery',
+      description:
+          'Fully automated dusk-to-dawn imaging with weather and HFR recovery',
       isTemplate: true,
       createdAt: DateTime.now().subtract(const Duration(days: 9)),
       modifiedAt: DateTime.now().subtract(const Duration(days: 9)),
@@ -231,8 +237,13 @@ Map<String, SequenceNode> _createLrgbTemplateNodes() {
       name: 'LRGB Sequence',
       childIds: const [coolId, focusId, loopId, warmId],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: rootId, orderIndex: 1),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: rootId,
+        orderIndex: 1),
     loopId: LoopNode(
       id: loopId,
       name: 'Capture Loop',
@@ -241,11 +252,44 @@ Map<String, SequenceNode> _createLrgbTemplateNodes() {
       orderIndex: 2,
       childIds: const [lId, rId, gId, bId],
     ),
-    lId: ExposureNode(id: lId, name: 'Luminance', durationSecs: 120, count: 1, filter: 'L', binning: BinningMode.one, parentId: loopId, orderIndex: 0),
-    rId: ExposureNode(id: rId, name: 'Red', durationSecs: 120, count: 1, filter: 'R', binning: BinningMode.one, parentId: loopId, orderIndex: 1),
-    gId: ExposureNode(id: gId, name: 'Green', durationSecs: 120, count: 1, filter: 'G', binning: BinningMode.one, parentId: loopId, orderIndex: 2),
-    bId: ExposureNode(id: bId, name: 'Blue', durationSecs: 120, count: 1, filter: 'B', binning: BinningMode.one, parentId: loopId, orderIndex: 3),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 3),
+    lId: ExposureNode(
+        id: lId,
+        name: 'Luminance',
+        durationSecs: 120,
+        count: 1,
+        filter: 'L',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 0),
+    rId: ExposureNode(
+        id: rId,
+        name: 'Red',
+        durationSecs: 120,
+        count: 1,
+        filter: 'R',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 1),
+    gId: ExposureNode(
+        id: gId,
+        name: 'Green',
+        durationSecs: 120,
+        count: 1,
+        filter: 'G',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 2),
+    bId: ExposureNode(
+        id: bId,
+        name: 'Blue',
+        durationSecs: 120,
+        count: 1,
+        filter: 'B',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 3),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 3),
   };
 }
 
@@ -265,8 +309,13 @@ Map<String, SequenceNode> _createNarrowbandTemplateNodes() {
       name: 'Narrowband Sequence',
       childIds: const [coolId, focusId, loopId, warmId],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -15, parentId: rootId, orderIndex: 0),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: rootId, orderIndex: 1),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -15, parentId: rootId, orderIndex: 0),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: rootId,
+        orderIndex: 1),
     loopId: LoopNode(
       id: loopId,
       name: 'Narrowband Loop',
@@ -275,10 +324,35 @@ Map<String, SequenceNode> _createNarrowbandTemplateNodes() {
       orderIndex: 2,
       childIds: const [haId, oiiiId, siiId],
     ),
-    haId: ExposureNode(id: haId, name: 'H-alpha', durationSecs: 180, count: 1, filter: 'Ha', binning: BinningMode.one, parentId: loopId, orderIndex: 0),
-    oiiiId: ExposureNode(id: oiiiId, name: 'OIII', durationSecs: 180, count: 1, filter: 'OIII', binning: BinningMode.one, parentId: loopId, orderIndex: 1),
-    siiId: ExposureNode(id: siiId, name: 'SII', durationSecs: 180, count: 1, filter: 'SII', binning: BinningMode.one, parentId: loopId, orderIndex: 2),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 3),
+    haId: ExposureNode(
+        id: haId,
+        name: 'H-alpha',
+        durationSecs: 180,
+        count: 1,
+        filter: 'Ha',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 0),
+    oiiiId: ExposureNode(
+        id: oiiiId,
+        name: 'OIII',
+        durationSecs: 180,
+        count: 1,
+        filter: 'OIII',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 1),
+    siiId: ExposureNode(
+        id: siiId,
+        name: 'SII',
+        durationSecs: 180,
+        count: 1,
+        filter: 'SII',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 2),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 3),
   };
 }
 
@@ -297,9 +371,18 @@ Map<String, SequenceNode> _createMosaicTemplateNodes() {
       name: 'Mosaic Panel',
       childIds: const [slewId, centerId, focusId, loopId],
     ),
-    slewId: SlewNode(id: slewId, name: 'Slew to Panel', parentId: rootId, orderIndex: 0),
-    centerId: CenterNode(id: centerId, name: 'Plate Solve & Center', parentId: rootId, orderIndex: 1),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: rootId, orderIndex: 2),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Panel', parentId: rootId, orderIndex: 0),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Plate Solve & Center',
+        parentId: rootId,
+        orderIndex: 1),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: rootId,
+        orderIndex: 2),
     loopId: LoopNode(
       id: loopId,
       name: 'Panel Capture',
@@ -309,8 +392,24 @@ Map<String, SequenceNode> _createMosaicTemplateNodes() {
       orderIndex: 3,
       childIds: const [lId, haId],
     ),
-    lId: ExposureNode(id: lId, name: 'Luminance', durationSecs: 300, count: 1, filter: 'L', binning: BinningMode.one, parentId: loopId, orderIndex: 0),
-    haId: ExposureNode(id: haId, name: 'H-alpha', durationSecs: 300, count: 1, filter: 'Ha', binning: BinningMode.one, parentId: loopId, orderIndex: 1),
+    lId: ExposureNode(
+        id: lId,
+        name: 'Luminance',
+        durationSecs: 300,
+        count: 1,
+        filter: 'L',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 0),
+    haId: ExposureNode(
+        id: haId,
+        name: 'H-alpha',
+        durationSecs: 300,
+        count: 1,
+        filter: 'Ha',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 1),
   };
 }
 
@@ -324,7 +423,15 @@ Map<String, SequenceNode> _createQuickCaptureNodes() {
       name: 'Quick Capture',
       childIds: const [expId],
     ),
-    expId: ExposureNode(id: expId, name: 'Test Shot', durationSecs: 10, count: 5, filter: 'L', binning: BinningMode.one, parentId: rootId, orderIndex: 0),
+    expId: ExposureNode(
+        id: expId,
+        name: 'Test Shot',
+        durationSecs: 10,
+        count: 5,
+        filter: 'L',
+        binning: BinningMode.one,
+        parentId: rootId,
+        orderIndex: 0),
   };
 }
 
@@ -344,12 +451,30 @@ Map<String, SequenceNode> _createBeginnerTemplateNodes() {
     rootId: InstructionSetNode(
       id: rootId,
       name: 'Beginner DSO Sequence',
-      childIds: const [coolId, slewId, centerId, focusId, loopId, warmId, parkId],
+      childIds: const [
+        coolId,
+        slewId,
+        centerId,
+        focusId,
+        loopId,
+        warmId,
+        parkId
+      ],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
-    centerId: CenterNode(id: centerId, name: 'Plate Solve & Center', parentId: rootId, orderIndex: 2),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: rootId, orderIndex: 3),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Plate Solve & Center',
+        parentId: rootId,
+        orderIndex: 2),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: rootId,
+        orderIndex: 3),
     loopId: LoopNode(
       id: loopId,
       name: 'Capture Loop',
@@ -359,10 +484,26 @@ Map<String, SequenceNode> _createBeginnerTemplateNodes() {
       orderIndex: 4,
       childIds: const [lId, ditherAfter],
     ),
-    lId: ExposureNode(id: lId, name: 'Luminance', durationSecs: 120, count: 1, filter: 'L', binning: BinningMode.one, parentId: loopId, orderIndex: 0),
-    ditherAfter: DitherNode(id: ditherAfter, name: 'Dither', pixels: 5.0, settleTime: 30, parentId: loopId, orderIndex: 1),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 5),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 6),
+    lId: ExposureNode(
+        id: lId,
+        name: 'Luminance',
+        durationSecs: 120,
+        count: 1,
+        filter: 'L',
+        binning: BinningMode.one,
+        parentId: loopId,
+        orderIndex: 0),
+    ditherAfter: DitherNode(
+        id: ditherAfter,
+        name: 'Dither',
+        pixels: 5.0,
+        settleTime: 30,
+        parentId: loopId,
+        orderIndex: 1),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 5),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 6),
   };
 }
 
@@ -390,8 +531,10 @@ Map<String, SequenceNode> _createFirstLightNodes() {
       name: 'First Light Sequence',
       childIds: const [coolId, slewId, loopId, warmId, parkId],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
     loopId: LoopNode(
       id: loopId,
       name: 'Capture Loop',
@@ -410,8 +553,10 @@ Map<String, SequenceNode> _createFirstLightNodes() {
       parentId: loopId,
       orderIndex: 0,
     ),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 3),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 4),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 3),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 4),
   };
 }
 
@@ -447,12 +592,32 @@ Map<String, SequenceNode> _createOscNodes() {
     rootId: InstructionSetNode(
       id: rootId,
       name: 'OSC Sequence',
-      childIds: const [coolId, slewId, centerId, focusId, startGuideId, loopId, stopGuideId, warmId, parkId],
+      childIds: const [
+        coolId,
+        slewId,
+        centerId,
+        focusId,
+        startGuideId,
+        loopId,
+        stopGuideId,
+        warmId,
+        parkId
+      ],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
-    centerId: CenterNode(id: centerId, name: 'Plate Solve & Center', parentId: rootId, orderIndex: 2),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: rootId, orderIndex: 3),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Plate Solve & Center',
+        parentId: rootId,
+        orderIndex: 2),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: rootId,
+        orderIndex: 3),
     startGuideId: StartGuidingNode(
       id: startGuideId,
       name: 'Start Guiding',
@@ -488,9 +653,12 @@ Map<String, SequenceNode> _createOscNodes() {
       parentId: loopId,
       orderIndex: 1,
     ),
-    stopGuideId: StopGuidingNode(id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 6),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 7),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 8),
+    stopGuideId: StopGuidingNode(
+        id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 6),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 7),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 8),
   };
 }
 
@@ -528,12 +696,32 @@ Map<String, SequenceNode> _createHaOiiiNodes() {
     rootId: InstructionSetNode(
       id: rootId,
       name: 'Ha-OIII Bicolor Sequence',
-      childIds: const [coolId, slewId, centerId, focusId, startGuideId, loopId, stopGuideId, warmId, parkId],
+      childIds: const [
+        coolId,
+        slewId,
+        centerId,
+        focusId,
+        startGuideId,
+        loopId,
+        stopGuideId,
+        warmId,
+        parkId
+      ],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -15, parentId: rootId, orderIndex: 0),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
-    centerId: CenterNode(id: centerId, name: 'Plate Solve & Center', parentId: rootId, orderIndex: 2),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: rootId, orderIndex: 3),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -15, parentId: rootId, orderIndex: 0),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Plate Solve & Center',
+        parentId: rootId,
+        orderIndex: 2),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: rootId,
+        orderIndex: 3),
     startGuideId: StartGuidingNode(
       id: startGuideId,
       name: 'Start Guiding',
@@ -580,9 +768,12 @@ Map<String, SequenceNode> _createHaOiiiNodes() {
       parentId: loopId,
       orderIndex: 2,
     ),
-    stopGuideId: StopGuidingNode(id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 6),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 7),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 8),
+    stopGuideId: StopGuidingNode(
+        id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 6),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 7),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 8),
   };
 }
 
@@ -643,12 +834,32 @@ Map<String, SequenceNode> _createShoNodes() {
       name: 'SHO Imaging',
       parentId: weatherCondId,
       orderIndex: 0,
-      childIds: const [coolId, slewId, centerId, focusId, startGuideId, loopId, stopGuideId, warmId, parkId],
+      childIds: const [
+        coolId,
+        slewId,
+        centerId,
+        focusId,
+        startGuideId,
+        loopId,
+        stopGuideId,
+        warmId,
+        parkId
+      ],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -15, parentId: mainSeqId, orderIndex: 0),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: mainSeqId, orderIndex: 1),
-    centerId: CenterNode(id: centerId, name: 'Plate Solve & Center', parentId: mainSeqId, orderIndex: 2),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: mainSeqId, orderIndex: 3),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -15, parentId: mainSeqId, orderIndex: 0),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: mainSeqId, orderIndex: 1),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Plate Solve & Center',
+        parentId: mainSeqId,
+        orderIndex: 2),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: mainSeqId,
+        orderIndex: 3),
     startGuideId: StartGuidingNode(
       id: startGuideId,
       name: 'Start Guiding',
@@ -705,10 +916,20 @@ Map<String, SequenceNode> _createShoNodes() {
       parentId: loopId,
       orderIndex: 3,
     ),
-    stopGuideId: StopGuidingNode(id: stopGuideId, name: 'Stop Guiding', parentId: mainSeqId, orderIndex: 6),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: mainSeqId, orderIndex: 7),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: mainSeqId, orderIndex: 8),
-    fallbackParkId: ParkNode(id: fallbackParkId, name: 'Weather Unsafe - Park', parentId: rootId, orderIndex: 1),
+    stopGuideId: StopGuidingNode(
+        id: stopGuideId,
+        name: 'Stop Guiding',
+        parentId: mainSeqId,
+        orderIndex: 6),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: mainSeqId, orderIndex: 7),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: mainSeqId, orderIndex: 8),
+    fallbackParkId: ParkNode(
+        id: fallbackParkId,
+        name: 'Weather Unsafe - Park',
+        parentId: rootId,
+        orderIndex: 1),
   };
 }
 
@@ -752,12 +973,32 @@ Map<String, SequenceNode> _createLrgbHaNodes() {
     rootId: InstructionSetNode(
       id: rootId,
       name: 'LRGB + Ha Enhanced Sequence',
-      childIds: const [coolId, slewId, centerId, focusId, startGuideId, loopId, stopGuideId, warmId, parkId],
+      childIds: const [
+        coolId,
+        slewId,
+        centerId,
+        focusId,
+        startGuideId,
+        loopId,
+        stopGuideId,
+        warmId,
+        parkId
+      ],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
-    centerId: CenterNode(id: centerId, name: 'Plate Solve & Center', parentId: rootId, orderIndex: 2),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: rootId, orderIndex: 3),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Plate Solve & Center',
+        parentId: rootId,
+        orderIndex: 2),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: rootId,
+        orderIndex: 3),
     startGuideId: StartGuidingNode(
       id: startGuideId,
       name: 'Start Guiding',
@@ -834,9 +1075,12 @@ Map<String, SequenceNode> _createLrgbHaNodes() {
       parentId: loopId,
       orderIndex: 5,
     ),
-    stopGuideId: StopGuidingNode(id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 6),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 7),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 8),
+    stopGuideId: StopGuidingNode(
+        id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 6),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 7),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 8),
   };
 }
 
@@ -895,7 +1139,8 @@ Map<String, SequenceNode> _createMultiTargetNodes() {
       name: 'Multi-Target Night Sequence',
       childIds: const [coolId, target1CondId, target2CondId, warmId, parkId],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
 
     // Target 1 with altitude conditional
     target1CondId: ConditionalNode(
@@ -912,11 +1157,30 @@ Map<String, SequenceNode> _createMultiTargetNodes() {
       name: 'Target 1 Imaging',
       parentId: target1CondId,
       orderIndex: 0,
-      childIds: const [slew1Id, center1Id, focus1Id, guide1StartId, loop1Id, guide1StopId],
+      childIds: const [
+        slew1Id,
+        center1Id,
+        focus1Id,
+        guide1StartId,
+        loop1Id,
+        guide1StopId
+      ],
     ),
-    slew1Id: SlewNode(id: slew1Id, name: 'Slew to Target 1', parentId: target1SeqId, orderIndex: 0),
-    center1Id: CenterNode(id: center1Id, name: 'Center Target 1', parentId: target1SeqId, orderIndex: 1),
-    focus1Id: AutofocusNode(id: focus1Id, method: AutofocusMethod.vCurve, parentId: target1SeqId, orderIndex: 2),
+    slew1Id: SlewNode(
+        id: slew1Id,
+        name: 'Slew to Target 1',
+        parentId: target1SeqId,
+        orderIndex: 0),
+    center1Id: CenterNode(
+        id: center1Id,
+        name: 'Center Target 1',
+        parentId: target1SeqId,
+        orderIndex: 1),
+    focus1Id: AutofocusNode(
+        id: focus1Id,
+        method: AutofocusMethod.vCurve,
+        parentId: target1SeqId,
+        orderIndex: 2),
     guide1StartId: StartGuidingNode(
       id: guide1StartId,
       name: 'Start Guiding',
@@ -954,7 +1218,11 @@ Map<String, SequenceNode> _createMultiTargetNodes() {
       parentId: loop1Id,
       orderIndex: 1,
     ),
-    guide1StopId: StopGuidingNode(id: guide1StopId, name: 'Stop Guiding', parentId: target1SeqId, orderIndex: 5),
+    guide1StopId: StopGuidingNode(
+        id: guide1StopId,
+        name: 'Stop Guiding',
+        parentId: target1SeqId,
+        orderIndex: 5),
 
     // Target 2 with altitude conditional
     target2CondId: ConditionalNode(
@@ -971,11 +1239,30 @@ Map<String, SequenceNode> _createMultiTargetNodes() {
       name: 'Target 2 Imaging',
       parentId: target2CondId,
       orderIndex: 0,
-      childIds: const [slew2Id, center2Id, focus2Id, guide2StartId, loop2Id, guide2StopId],
+      childIds: const [
+        slew2Id,
+        center2Id,
+        focus2Id,
+        guide2StartId,
+        loop2Id,
+        guide2StopId
+      ],
     ),
-    slew2Id: SlewNode(id: slew2Id, name: 'Slew to Target 2', parentId: target2SeqId, orderIndex: 0),
-    center2Id: CenterNode(id: center2Id, name: 'Center Target 2', parentId: target2SeqId, orderIndex: 1),
-    focus2Id: AutofocusNode(id: focus2Id, method: AutofocusMethod.vCurve, parentId: target2SeqId, orderIndex: 2),
+    slew2Id: SlewNode(
+        id: slew2Id,
+        name: 'Slew to Target 2',
+        parentId: target2SeqId,
+        orderIndex: 0),
+    center2Id: CenterNode(
+        id: center2Id,
+        name: 'Center Target 2',
+        parentId: target2SeqId,
+        orderIndex: 1),
+    focus2Id: AutofocusNode(
+        id: focus2Id,
+        method: AutofocusMethod.vCurve,
+        parentId: target2SeqId,
+        orderIndex: 2),
     guide2StartId: StartGuidingNode(
       id: guide2StartId,
       name: 'Start Guiding',
@@ -1013,10 +1300,16 @@ Map<String, SequenceNode> _createMultiTargetNodes() {
       parentId: loop2Id,
       orderIndex: 1,
     ),
-    guide2StopId: StopGuidingNode(id: guide2StopId, name: 'Stop Guiding', parentId: target2SeqId, orderIndex: 5),
+    guide2StopId: StopGuidingNode(
+        id: guide2StopId,
+        name: 'Stop Guiding',
+        parentId: target2SeqId,
+        orderIndex: 5),
 
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 3),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 4),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 3),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 4),
   };
 }
 
@@ -1042,8 +1335,10 @@ Map<String, SequenceNode> _createPlanetaryNodes() {
       name: 'Planetary Capture',
       childIds: const [slewId, centerId, loopId, parkId],
     ),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 0),
-    centerId: CenterNode(id: centerId, name: 'Center Target', parentId: rootId, orderIndex: 1),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 0),
+    centerId: CenterNode(
+        id: centerId, name: 'Center Target', parentId: rootId, orderIndex: 1),
     loopId: LoopNode(
       id: loopId,
       name: 'Video Capture Loop',
@@ -1063,7 +1358,8 @@ Map<String, SequenceNode> _createPlanetaryNodes() {
       parentId: loopId,
       orderIndex: 0,
     ),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 3),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 3),
   };
 }
 
@@ -1109,12 +1405,32 @@ Map<String, SequenceNode> _createUnattendedNodes() {
     rootId: InstructionSetNode(
       id: rootId,
       name: 'Unattended All-Night Sequence',
-      childIds: const [coolId, slewId, centerId, focusId, startGuideId, loopId, stopGuideId, warmId, parkId],
+      childIds: const [
+        coolId,
+        slewId,
+        centerId,
+        focusId,
+        startGuideId,
+        loopId,
+        stopGuideId,
+        warmId,
+        parkId
+      ],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
-    centerId: CenterNode(id: centerId, name: 'Plate Solve & Center', parentId: rootId, orderIndex: 2),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: rootId, orderIndex: 3),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Plate Solve & Center',
+        parentId: rootId,
+        orderIndex: 2),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: rootId,
+        orderIndex: 3),
     startGuideId: StartGuidingNode(
       id: startGuideId,
       name: 'Start Guiding',
@@ -1199,9 +1515,12 @@ Map<String, SequenceNode> _createUnattendedNodes() {
       parentId: loopId,
       orderIndex: 5,
     ),
-    stopGuideId: StopGuidingNode(id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 6),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 7),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 8),
+    stopGuideId: StopGuidingNode(
+        id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 6),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 7),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 8),
   };
 }
 
@@ -1280,8 +1599,13 @@ Map<String, SequenceNode> _createMosaicMultiPanelNodes() {
       orderIndex: 0,
       childIds: const [coolId, focusId],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: setupId, orderIndex: 0),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: setupId, orderIndex: 1),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: setupId, orderIndex: 0),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: setupId,
+        orderIndex: 1),
 
     // Panel 1
     panel1Id: InstructionSetNode(
@@ -1289,10 +1613,25 @@ Map<String, SequenceNode> _createMosaicMultiPanelNodes() {
       name: 'Panel 1',
       parentId: rootId,
       orderIndex: 1,
-      childIds: const [slew1Id, center1Id, guide1StartId, loop1Id, guide1StopId],
+      childIds: const [
+        slew1Id,
+        center1Id,
+        guide1StartId,
+        loop1Id,
+        guide1StopId
+      ],
     ),
-    slew1Id: SlewNode(id: slew1Id, name: 'Slew to Panel 1', parentId: panel1Id, orderIndex: 0),
-    center1Id: CenterNode(id: center1Id, name: 'Center Panel 1', accuracyArcsec: 5.0, parentId: panel1Id, orderIndex: 1),
+    slew1Id: SlewNode(
+        id: slew1Id,
+        name: 'Slew to Panel 1',
+        parentId: panel1Id,
+        orderIndex: 0),
+    center1Id: CenterNode(
+        id: center1Id,
+        name: 'Center Panel 1',
+        accuracyArcsec: 5.0,
+        parentId: panel1Id,
+        orderIndex: 1),
     guide1StartId: StartGuidingNode(
       id: guide1StartId,
       name: 'Start Guiding',
@@ -1322,7 +1661,11 @@ Map<String, SequenceNode> _createMosaicMultiPanelNodes() {
       parentId: loop1Id,
       orderIndex: 0,
     ),
-    guide1StopId: StopGuidingNode(id: guide1StopId, name: 'Stop Guiding', parentId: panel1Id, orderIndex: 4),
+    guide1StopId: StopGuidingNode(
+        id: guide1StopId,
+        name: 'Stop Guiding',
+        parentId: panel1Id,
+        orderIndex: 4),
 
     // Panel 2
     panel2Id: InstructionSetNode(
@@ -1330,10 +1673,25 @@ Map<String, SequenceNode> _createMosaicMultiPanelNodes() {
       name: 'Panel 2',
       parentId: rootId,
       orderIndex: 2,
-      childIds: const [slew2Id, center2Id, guide2StartId, loop2Id, guide2StopId],
+      childIds: const [
+        slew2Id,
+        center2Id,
+        guide2StartId,
+        loop2Id,
+        guide2StopId
+      ],
     ),
-    slew2Id: SlewNode(id: slew2Id, name: 'Slew to Panel 2', parentId: panel2Id, orderIndex: 0),
-    center2Id: CenterNode(id: center2Id, name: 'Center Panel 2', accuracyArcsec: 5.0, parentId: panel2Id, orderIndex: 1),
+    slew2Id: SlewNode(
+        id: slew2Id,
+        name: 'Slew to Panel 2',
+        parentId: panel2Id,
+        orderIndex: 0),
+    center2Id: CenterNode(
+        id: center2Id,
+        name: 'Center Panel 2',
+        accuracyArcsec: 5.0,
+        parentId: panel2Id,
+        orderIndex: 1),
     guide2StartId: StartGuidingNode(
       id: guide2StartId,
       name: 'Start Guiding',
@@ -1363,7 +1721,11 @@ Map<String, SequenceNode> _createMosaicMultiPanelNodes() {
       parentId: loop2Id,
       orderIndex: 0,
     ),
-    guide2StopId: StopGuidingNode(id: guide2StopId, name: 'Stop Guiding', parentId: panel2Id, orderIndex: 4),
+    guide2StopId: StopGuidingNode(
+        id: guide2StopId,
+        name: 'Stop Guiding',
+        parentId: panel2Id,
+        orderIndex: 4),
 
     // Panel 3
     panel3Id: InstructionSetNode(
@@ -1371,10 +1733,25 @@ Map<String, SequenceNode> _createMosaicMultiPanelNodes() {
       name: 'Panel 3',
       parentId: rootId,
       orderIndex: 3,
-      childIds: const [slew3Id, center3Id, guide3StartId, loop3Id, guide3StopId],
+      childIds: const [
+        slew3Id,
+        center3Id,
+        guide3StartId,
+        loop3Id,
+        guide3StopId
+      ],
     ),
-    slew3Id: SlewNode(id: slew3Id, name: 'Slew to Panel 3', parentId: panel3Id, orderIndex: 0),
-    center3Id: CenterNode(id: center3Id, name: 'Center Panel 3', accuracyArcsec: 5.0, parentId: panel3Id, orderIndex: 1),
+    slew3Id: SlewNode(
+        id: slew3Id,
+        name: 'Slew to Panel 3',
+        parentId: panel3Id,
+        orderIndex: 0),
+    center3Id: CenterNode(
+        id: center3Id,
+        name: 'Center Panel 3',
+        accuracyArcsec: 5.0,
+        parentId: panel3Id,
+        orderIndex: 1),
     guide3StartId: StartGuidingNode(
       id: guide3StartId,
       name: 'Start Guiding',
@@ -1404,7 +1781,11 @@ Map<String, SequenceNode> _createMosaicMultiPanelNodes() {
       parentId: loop3Id,
       orderIndex: 0,
     ),
-    guide3StopId: StopGuidingNode(id: guide3StopId, name: 'Stop Guiding', parentId: panel3Id, orderIndex: 4),
+    guide3StopId: StopGuidingNode(
+        id: guide3StopId,
+        name: 'Stop Guiding',
+        parentId: panel3Id,
+        orderIndex: 4),
 
     // Shutdown section
     shutdownId: InstructionSetNode(
@@ -1414,8 +1795,10 @@ Map<String, SequenceNode> _createMosaicMultiPanelNodes() {
       orderIndex: 4,
       childIds: const [warmId, parkId],
     ),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: shutdownId, orderIndex: 0),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: shutdownId, orderIndex: 1),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: shutdownId, orderIndex: 0),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: shutdownId, orderIndex: 1),
   };
 }
 
@@ -1451,11 +1834,26 @@ Map<String, SequenceNode> _createCometNodes() {
     rootId: InstructionSetNode(
       id: rootId,
       name: 'Comet/Asteroid Tracking Sequence',
-      childIds: const [coolId, slewId, centerId, startGuideId, outerLoopId, stopGuideId, warmId, parkId],
+      childIds: const [
+        coolId,
+        slewId,
+        centerId,
+        startGuideId,
+        outerLoopId,
+        stopGuideId,
+        warmId,
+        parkId
+      ],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
-    centerId: CenterNode(id: centerId, name: 'Initial Center on Target', parentId: rootId, orderIndex: 2),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: rootId, orderIndex: 0),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: rootId, orderIndex: 1),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Initial Center on Target',
+        parentId: rootId,
+        orderIndex: 2),
     startGuideId: StartGuidingNode(
       id: startGuideId,
       name: 'Start Guiding',
@@ -1501,9 +1899,12 @@ Map<String, SequenceNode> _createCometNodes() {
       parentId: outerLoopId,
       orderIndex: 1,
     ),
-    stopGuideId: StopGuidingNode(id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 5),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 6),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 7),
+    stopGuideId: StopGuidingNode(
+        id: stopGuideId, name: 'Stop Guiding', parentId: rootId, orderIndex: 5),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: rootId, orderIndex: 6),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: rootId, orderIndex: 7),
   };
 }
 
@@ -1560,7 +1961,8 @@ Map<String, SequenceNode> _createSolarNodes() {
       recoveryAction: RecoveryActionType.autofocus,
       maxRetries: 1,
       triggerType: TriggerType.temperatureShift,
-      triggerThreshold: 0.5, // Trigger on small temp changes as proxy for periodic focus
+      triggerThreshold:
+          0.5, // Trigger on small temp changes as proxy for periodic focus
       parentId: loopId,
       orderIndex: 1,
       childIds: const [recoveryFocusId],
@@ -1607,8 +2009,16 @@ Map<String, SequenceNode> _createLunarNodes() {
       name: 'Lunar Surface Sequence',
       childIds: const [slewId, centerId, loopId, notifyId],
     ),
-    slewId: SlewNode(id: slewId, name: 'Slew to Lunar Target', parentId: rootId, orderIndex: 0),
-    centerId: CenterNode(id: centerId, name: 'Center on Lunar Feature', parentId: rootId, orderIndex: 1),
+    slewId: SlewNode(
+        id: slewId,
+        name: 'Slew to Lunar Target',
+        parentId: rootId,
+        orderIndex: 0),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Center on Lunar Feature',
+        parentId: rootId,
+        orderIndex: 1),
     loopId: LoopNode(
       id: loopId,
       name: 'Video Burst Loop',
@@ -1639,7 +2049,8 @@ Map<String, SequenceNode> _createLunarNodes() {
       id: notifyId,
       name: 'Capture Complete',
       title: 'Lunar Capture Complete',
-      message: 'Lunar surface imaging session has finished with 5 video bursts.',
+      message:
+          'Lunar surface imaging session has finished with 5 video bursts.',
       level: NotificationLevel.success,
       parentId: rootId,
       orderIndex: 3,
@@ -1720,12 +2131,32 @@ Map<String, SequenceNode> _createRemoteObservatoryNodes() {
       name: 'Main Imaging Sequence',
       parentId: weatherCondId,
       orderIndex: 0,
-      childIds: const [coolId, slewId, centerId, focusId, startGuideId, loopId, stopGuideId, warmId, parkId],
+      childIds: const [
+        coolId,
+        slewId,
+        centerId,
+        focusId,
+        startGuideId,
+        loopId,
+        stopGuideId,
+        warmId,
+        parkId
+      ],
     ),
-    coolId: CoolCameraNode(id: coolId, targetTemp: -10, parentId: mainSeqId, orderIndex: 0),
-    slewId: SlewNode(id: slewId, name: 'Slew to Target', parentId: mainSeqId, orderIndex: 1),
-    centerId: CenterNode(id: centerId, name: 'Plate Solve & Center', parentId: mainSeqId, orderIndex: 2),
-    focusId: AutofocusNode(id: focusId, method: AutofocusMethod.vCurve, parentId: mainSeqId, orderIndex: 3),
+    coolId: CoolCameraNode(
+        id: coolId, targetTemp: -10, parentId: mainSeqId, orderIndex: 0),
+    slewId: SlewNode(
+        id: slewId, name: 'Slew to Target', parentId: mainSeqId, orderIndex: 1),
+    centerId: CenterNode(
+        id: centerId,
+        name: 'Plate Solve & Center',
+        parentId: mainSeqId,
+        orderIndex: 2),
+    focusId: AutofocusNode(
+        id: focusId,
+        method: AutofocusMethod.vCurve,
+        parentId: mainSeqId,
+        orderIndex: 3),
     startGuideId: StartGuidingNode(
       id: startGuideId,
       name: 'Start Guiding',
@@ -1792,9 +2223,15 @@ Map<String, SequenceNode> _createRemoteObservatoryNodes() {
       parentId: loopId,
       orderIndex: 4,
     ),
-    stopGuideId: StopGuidingNode(id: stopGuideId, name: 'Stop Guiding', parentId: mainSeqId, orderIndex: 6),
-    warmId: WarmCameraNode(id: warmId, ratePerMin: 5, parentId: mainSeqId, orderIndex: 7),
-    parkId: ParkNode(id: parkId, name: 'Park Mount', parentId: mainSeqId, orderIndex: 8),
+    stopGuideId: StopGuidingNode(
+        id: stopGuideId,
+        name: 'Stop Guiding',
+        parentId: mainSeqId,
+        orderIndex: 6),
+    warmId: WarmCameraNode(
+        id: warmId, ratePerMin: 5, parentId: mainSeqId, orderIndex: 7),
+    parkId: ParkNode(
+        id: parkId, name: 'Park Mount', parentId: mainSeqId, orderIndex: 8),
 
     // Emergency fallback sequence (executed when weather is NOT safe)
     // This runs as a parallel branch when the conditional fails
@@ -1815,7 +2252,8 @@ Map<String, SequenceNode> _createRemoteObservatoryNodes() {
       id: emergencyNotifyId,
       name: 'Weather Alert',
       title: 'Weather Unsafe - Observatory Parked',
-      message: 'Weather conditions are unsafe. The mount has been parked and the session was not started.',
+      message:
+          'Weather conditions are unsafe. The mount has been parked and the session was not started.',
       level: NotificationLevel.warning,
       parentId: emergencyId,
       orderIndex: 1,
@@ -1828,6 +2266,43 @@ final templateSearchProvider = StateProvider<String>((ref) => '');
 
 /// Selected template category
 final templateCategoryProvider = StateProvider<String?>((ref) => null);
+
+const _templateCategoryOptions = <MapEntry<String?, String>>[
+  MapEntry<String?, String>(null, 'All'),
+  MapEntry<String?, String>('beginner', 'Beginner'),
+  MapEntry<String?, String>('intermediate', 'Intermediate'),
+  MapEntry<String?, String>('advanced', 'Advanced'),
+  MapEntry<String?, String>('specialized', 'Specialized'),
+];
+
+String _inferTemplateCategory(Sequence template) {
+  final name = template.name.toLowerCase();
+
+  if (name.contains('first light') ||
+      name.contains('one-shot') ||
+      name.contains('osc') ||
+      name.contains('quick') ||
+      name.contains('beginner')) {
+    return 'beginner';
+  }
+
+  if (name.contains('unattended') ||
+      name.contains('all-night') ||
+      name.contains('remote observatory') ||
+      name.contains('mosaic multi-panel')) {
+    return 'advanced';
+  }
+
+  if (name.contains('planetary') ||
+      name.contains('solar') ||
+      name.contains('lunar') ||
+      name.contains('comet') ||
+      name.contains('asteroid')) {
+    return 'specialized';
+  }
+
+  return 'intermediate';
+}
 
 class TemplatesTab extends ConsumerWidget {
   const TemplatesTab({super.key});
@@ -1854,31 +2329,38 @@ class TemplatesTab extends ConsumerWidget {
           if (!isMobile && snippets.isNotEmpty)
             _SnippetSummaryCard(colors: colors, snippetCount: snippets.length),
 
-          if (!isMobile && snippets.isNotEmpty)
-            const SizedBox(height: 16),
+          if (!isMobile && snippets.isNotEmpty) const SizedBox(height: 16),
 
           // Content
           Expanded(
             child: templatesAsync.when(
               data: (templates) {
                 var filtered = templates;
-                
+
                 // Apply search filter
                 if (searchQuery.isNotEmpty) {
-                  filtered = filtered.where((t) =>
-                    t.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
-                    t.description.toLowerCase().contains(searchQuery.toLowerCase())
-                  ).toList();
+                  filtered = filtered
+                      .where((t) =>
+                          t.name
+                              .toLowerCase()
+                              .contains(searchQuery.toLowerCase()) ||
+                          t.description
+                              .toLowerCase()
+                              .contains(searchQuery.toLowerCase()))
+                      .toList();
                 }
 
                 // Apply category filter
                 if (category != null && category.isNotEmpty) {
-                  // For now, no real category filtering since we don't have categories
-                  // This would filter by template category in a real implementation
+                  filtered = filtered
+                      .where((template) =>
+                          _inferTemplateCategory(template) == category)
+                      .toList();
                 }
 
                 if (filtered.isEmpty) {
-                  return _EmptyState(colors: colors, hasSearch: searchQuery.isNotEmpty);
+                  return _EmptyState(
+                      colors: colors, hasSearch: searchQuery.isNotEmpty);
                 }
 
                 // Adapt grid for different screen sizes
@@ -1908,7 +2390,8 @@ class TemplatesTab extends ConsumerWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(LucideIcons.alertTriangle, size: 48, color: colors.error),
+                    Icon(LucideIcons.alertTriangle,
+                        size: 48, color: colors.error),
                     const SizedBox(height: 16),
                     Text(
                       'Failed to load templates',
@@ -2072,7 +2555,8 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
           ),
           child: Row(
             children: [
-              Icon(LucideIcons.search, size: 16, color: widget.colors.textMuted),
+              Icon(LucideIcons.search,
+                  size: 16, color: widget.colors.textMuted),
               const SizedBox(width: 10),
               Expanded(
                 child: TextField(
@@ -2101,107 +2585,122 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                     _searchController.clear();
                     ref.read(templateSearchProvider.notifier).state = '';
                   },
-                  child: Icon(LucideIcons.x, size: 16, color: widget.colors.textMuted),
+                  child: Icon(LucideIcons.x,
+                      size: 16, color: widget.colors.textMuted),
                 ),
             ],
           ),
         ),
+        const SizedBox(height: 10),
+        _CategoryFilterChips(colors: widget.colors),
       ],
     );
   }
 
   Widget _buildDesktopHeader() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Title
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Sequence Templates',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: widget.colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Start with a template or save your sequences for reuse',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: widget.colors.textMuted,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(width: 16),
-
-        // Search - flexible width based on available space
-        Flexible(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 150, maxWidth: 250),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: widget.colors.border),
-              ),
-              child: Row(
+        Row(
+          children: [
+            // Title
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(LucideIcons.search, size: 16, color: widget.colors.textMuted),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (value) {
-                        ref.read(templateSearchProvider.notifier).state = value;
-                      },
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: widget.colors.textPrimary,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Search...',
-                        hintStyle: TextStyle(
-                          fontSize: 13,
-                          color: widget.colors.textMuted,
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
+                  Text(
+                    'Sequence Templates',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: widget.colors.textPrimary,
                     ),
                   ),
-                  if (_searchController.text.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _searchController.clear();
-                        ref.read(templateSearchProvider.notifier).state = '';
-                      },
-                      child: Icon(LucideIcons.x, size: 16, color: widget.colors.textMuted),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Start with a template or save your sequences for reuse',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: widget.colors.textMuted,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
-          ),
-        ),
 
-        const SizedBox(width: 16),
+            const SizedBox(width: 16),
 
-        // Save current as template button
-        _ActionButton(
-          colors: widget.colors,
-          icon: LucideIcons.save,
-          label: 'Save as Template',
-          isPrimary: true,
-          onPressed: () => _showSaveTemplateDialog(context),
+            // Search - flexible width based on available space
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 150, maxWidth: 250),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: widget.colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: widget.colors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.search,
+                          size: 16, color: widget.colors.textMuted),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (value) {
+                            ref.read(templateSearchProvider.notifier).state =
+                                value;
+                          },
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: widget.colors.textPrimary,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Search...',
+                            hintStyle: TextStyle(
+                              fontSize: 13,
+                              color: widget.colors.textMuted,
+                            ),
+                            border: InputBorder.none,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      if (_searchController.text.isNotEmpty)
+                        GestureDetector(
+                          onTap: () {
+                            _searchController.clear();
+                            ref.read(templateSearchProvider.notifier).state =
+                                '';
+                          },
+                          child: Icon(LucideIcons.x,
+                              size: 16, color: widget.colors.textMuted),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 16),
+
+            // Save current as template button
+            _ActionButton(
+              colors: widget.colors,
+              icon: LucideIcons.save,
+              label: 'Save as Template',
+              isPrimary: true,
+              onPressed: () => _showSaveTemplateDialog(context),
+            ),
+          ],
         ),
+        const SizedBox(height: 12),
+        _CategoryFilterChips(colors: widget.colors),
       ],
     );
   }
@@ -2218,6 +2717,53 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
       builder: (context) => _SaveTemplateDialog(
         colors: widget.colors,
         sequence: currentSequence,
+      ),
+    );
+  }
+}
+
+class _CategoryFilterChips extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _CategoryFilterChips({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedCategory = ref.watch(templateCategoryProvider);
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _templateCategoryOptions.map((option) {
+          final value = option.key;
+          final label = option.value;
+          final selected = value == null
+              ? selectedCategory == null
+              : selectedCategory == value;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterChip(
+              selected: selected,
+              label: Text(label),
+              onSelected: (_) {
+                ref.read(templateCategoryProvider.notifier).state = value;
+              },
+              selectedColor: colors.primary.withValues(alpha: 0.16),
+              backgroundColor: colors.surfaceAlt,
+              side: BorderSide(
+                color: selected ? colors.primary : colors.border,
+              ),
+              labelStyle: TextStyle(
+                color: selected ? colors.primary : colors.textSecondary,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+              checkmarkColor: colors.primary,
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -2338,23 +2884,29 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     final name = widget.template.name.toLowerCase();
     // Beginner templates
     if (name.contains('first light')) return LucideIcons.sparkles;
-    if (name.contains('osc') || name.contains('one-shot')) return LucideIcons.camera;
+    if (name.contains('osc') || name.contains('one-shot'))
+      return LucideIcons.camera;
     if (name.contains('quick')) return LucideIcons.zap;
     if (name.contains('beginner')) return LucideIcons.graduationCap;
     // Intermediate templates
-    if (name.contains('ha-oiii') || name.contains('bicolor')) return LucideIcons.contrast;
-    if (name.contains('sho') || name.contains('hubble')) return LucideIcons.waves;
+    if (name.contains('ha-oiii') || name.contains('bicolor'))
+      return LucideIcons.contrast;
+    if (name.contains('sho') || name.contains('hubble'))
+      return LucideIcons.waves;
     if (name.contains('lrgb')) return LucideIcons.palette;
     if (name.contains('narrowband')) return LucideIcons.waves;
     if (name.contains('multi-target')) return LucideIcons.list;
     if (name.contains('mosaic')) return LucideIcons.layoutGrid;
     // Specialized templates
     if (name.contains('planetary')) return LucideIcons.orbit;
-    if (name.contains('unattended') || name.contains('all-night')) return LucideIcons.moon;
-    if (name.contains('comet') || name.contains('asteroid')) return LucideIcons.move;
+    if (name.contains('unattended') || name.contains('all-night'))
+      return LucideIcons.moon;
+    if (name.contains('comet') || name.contains('asteroid'))
+      return LucideIcons.move;
     if (name.contains('solar')) return LucideIcons.sun;
     if (name.contains('lunar')) return LucideIcons.moonStar;
-    if (name.contains('remote') || name.contains('observatory')) return LucideIcons.radio;
+    if (name.contains('remote') || name.contains('observatory'))
+      return LucideIcons.radio;
     return LucideIcons.fileStack;
   }
 
@@ -2362,23 +2914,29 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     final name = widget.template.name.toLowerCase();
     // Beginner templates - green/info
     if (name.contains('first light')) return widget.colors.success;
-    if (name.contains('osc') || name.contains('one-shot')) return widget.colors.info;
+    if (name.contains('osc') || name.contains('one-shot'))
+      return widget.colors.info;
     if (name.contains('quick')) return widget.colors.success;
     if (name.contains('beginner')) return widget.colors.info;
     // Intermediate templates - primary/accent
-    if (name.contains('ha-oiii') || name.contains('bicolor')) return widget.colors.accent;
-    if (name.contains('sho') || name.contains('hubble')) return widget.colors.accent;
+    if (name.contains('ha-oiii') || name.contains('bicolor'))
+      return widget.colors.accent;
+    if (name.contains('sho') || name.contains('hubble'))
+      return widget.colors.accent;
     if (name.contains('lrgb')) return widget.colors.primary;
     if (name.contains('narrowband')) return widget.colors.accent;
     if (name.contains('multi-target')) return widget.colors.primary;
     if (name.contains('mosaic')) return widget.colors.warning;
     // Specialized templates - warning
     if (name.contains('planetary')) return widget.colors.warning;
-    if (name.contains('unattended') || name.contains('all-night')) return widget.colors.warning;
-    if (name.contains('comet') || name.contains('asteroid')) return widget.colors.warning;
+    if (name.contains('unattended') || name.contains('all-night'))
+      return widget.colors.warning;
+    if (name.contains('comet') || name.contains('asteroid'))
+      return widget.colors.warning;
     if (name.contains('solar')) return widget.colors.warning;
     if (name.contains('lunar')) return widget.colors.warning;
-    if (name.contains('remote') || name.contains('observatory')) return widget.colors.warning;
+    if (name.contains('remote') || name.contains('observatory'))
+      return widget.colors.warning;
     return widget.colors.textMuted;
   }
 
@@ -2403,7 +2961,9 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
             color: widget.colors.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: _isHovered ? templateColor.withValues(alpha: 0.6) : widget.colors.border,
+              color: _isHovered
+                  ? templateColor.withValues(alpha: 0.6)
+                  : widget.colors.border,
               width: _isHovered ? 2 : 1,
             ),
             boxShadow: _isHovered
@@ -2486,7 +3046,9 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                   // Description
                   Expanded(
                     child: Text(
-                      widget.template.description.isEmpty ? 'No description' : widget.template.description,
+                      widget.template.description.isEmpty
+                          ? 'No description'
+                          : widget.template.description,
                       style: TextStyle(
                         fontSize: 12,
                         color: widget.colors.textSecondary,
@@ -2505,7 +3067,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                       // Stats
                       Row(
                         children: [
-                          Icon(LucideIcons.layoutList, size: 12, color: widget.colors.textMuted),
+                          Icon(LucideIcons.layoutList,
+                              size: 12, color: widget.colors.textMuted),
                           const SizedBox(width: 4),
                           Text(
                             '${widget.template.nodes.length} nodes',
@@ -2519,7 +3082,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                       const SizedBox(width: 16),
                       Row(
                         children: [
-                          Icon(LucideIcons.calendar, size: 12, color: widget.colors.textMuted),
+                          Icon(LucideIcons.calendar,
+                              size: 12, color: widget.colors.textMuted),
                           const SizedBox(width: 4),
                           Text(
                             DateFormat.yMd().format(widget.template.createdAt),
@@ -2538,7 +3102,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                         opacity: _isHovered ? 1.0 : 0.0,
                         duration: const Duration(milliseconds: 150),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: templateColor,
                             borderRadius: BorderRadius.circular(6),
@@ -2546,7 +3111,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(LucideIcons.play, size: 12, color: Colors.white),
+                              Icon(LucideIcons.play,
+                                  size: 12, color: Colors.white),
                               SizedBox(width: 6),
                               Text(
                                 'Use',
@@ -2589,7 +3155,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     }
   }
 
-  void _showTargetSelectionDialog(BuildContext context, List<TargetHeaderNode> targets) {
+  void _showTargetSelectionDialog(
+      BuildContext context, List<TargetHeaderNode> targets) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -2615,13 +3182,13 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
             ),
             const SizedBox(height: 16),
             ...targets.map((target) => _TargetOption(
-              colors: widget.colors,
-              target: target,
-              onTap: () {
-                Navigator.of(dialogContext).pop();
-                _applyTemplateToTarget(context, target);
-              },
-            )),
+                  colors: widget.colors,
+                  target: target,
+                  onTap: () {
+                    Navigator.of(dialogContext).pop();
+                    _applyTemplateToTarget(context, target);
+                  },
+                )),
           ],
         ),
         actions: [
@@ -2648,7 +3215,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     // Switch to the Builder tab so user can see the result
     ref.read(sequencerTabProvider.notifier).state = 0;
 
-context.showSuccessSnackBar('Added "${widget.template.name}" to ${target.targetName}');
+    context.showSuccessSnackBar(
+        'Added "${widget.template.name}" to ${target.targetName}');
   }
 
   void _createNewSequenceFromTemplate(BuildContext context) {
@@ -2666,8 +3234,10 @@ context.showSuccessSnackBar('Added "${widget.template.name}" to ${target.targetN
     for (final entry in widget.template.nodes.entries) {
       final oldNode = entry.value;
       final newId = idMapping[entry.key]!;
-      final newParentId = oldNode.parentId != null ? idMapping[oldNode.parentId] : null;
-      final newChildIds = oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
+      final newParentId =
+          oldNode.parentId != null ? idMapping[oldNode.parentId] : null;
+      final newChildIds =
+          oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
 
       newNodes[newId] = oldNode.copyWith(
         id: newId,
@@ -2695,7 +3265,8 @@ context.showSuccessSnackBar('Added "${widget.template.name}" to ${target.targetN
     // Switch to the Builder tab so user can see the loaded sequence
     ref.read(sequencerTabProvider.notifier).state = 0;
 
-context.showSuccessSnackBar('Created sequence from "${widget.template.name}"');
+    context
+        .showSuccessSnackBar('Created sequence from "${widget.template.name}"');
   }
 
   void _editTemplate(BuildContext context) {
@@ -2703,29 +3274,31 @@ context.showSuccessSnackBar('Created sequence from "${widget.template.name}"');
     // Create a copy so we don't modify the original template
     final newNodes = <String, SequenceNode>{};
     final idMapping = <String, String>{};
-    
+
     for (final entry in widget.template.nodes.entries) {
       final newId = const Uuid().v4();
       idMapping[entry.key] = newId;
     }
-    
+
     for (final entry in widget.template.nodes.entries) {
       final oldNode = entry.value;
       final newId = idMapping[entry.key]!;
-      final newParentId = oldNode.parentId != null ? idMapping[oldNode.parentId] : null;
-      final newChildIds = oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
-      
+      final newParentId =
+          oldNode.parentId != null ? idMapping[oldNode.parentId] : null;
+      final newChildIds =
+          oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
+
       newNodes[newId] = oldNode.copyWith(
         id: newId,
         parentId: newParentId,
         childIds: newChildIds,
       );
     }
-    
-    final newRootId = widget.template.rootNodeId != null 
-        ? idMapping[widget.template.rootNodeId] 
+
+    final newRootId = widget.template.rootNodeId != null
+        ? idMapping[widget.template.rootNodeId]
         : null;
-    
+
     final editableSequence = Sequence(
       name: widget.template.name,
       description: widget.template.description,
@@ -2746,8 +3319,9 @@ context.showSuccessSnackBar('Created sequence from "${widget.template.name}"');
     if (dbId != null) {
       try {
         final repository = ref.read(sequenceRepositoryProvider);
-        await repository.duplicateSequence(dbId, '${widget.template.name} (Copy)');
-        
+        await repository.duplicateSequence(
+            dbId, '${widget.template.name} (Copy)');
+
         // Refresh the templates list
         ref.invalidate(sequenceTemplatesProvider);
 
@@ -2771,7 +3345,7 @@ context.showSuccessSnackBar('Created sequence from "${widget.template.name}"');
           isTemplate: true,
         );
         await repository.saveSequence(newTemplate, isTemplate: true);
-        
+
         // Refresh the templates list
         ref.invalidate(sequenceTemplatesProvider);
 
@@ -2827,7 +3401,8 @@ context.showSuccessSnackBar('Created sequence from "${widget.template.name}"');
                 ref.invalidate(sequenceTemplatesProvider);
 
                 if (context.mounted) {
-                  context.showSuccessSnackBar('Deleted "${widget.template.name}"');
+                  context
+                      .showSuccessSnackBar('Deleted "${widget.template.name}"');
                 }
               } catch (e) {
                 if (context.mounted) {
@@ -2883,7 +3458,9 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: _isHovered ? color.withValues(alpha: 0.1) : Colors.transparent,
+              color: _isHovered
+                  ? color.withValues(alpha: 0.1)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(
@@ -2961,7 +3538,8 @@ class _SaveTemplateDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_SaveTemplateDialog> createState() => _SaveTemplateDialogState();
+  ConsumerState<_SaveTemplateDialog> createState() =>
+      _SaveTemplateDialogState();
 }
 
 class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
@@ -2973,7 +3551,8 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.sequence.name);
-    _descriptionController = TextEditingController(text: widget.sequence.description);
+    _descriptionController =
+        TextEditingController(text: widget.sequence.description);
   }
 
   @override
@@ -3012,7 +3591,8 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
       if (mounted) {
         Navigator.pop(context);
 
-        context.showSuccessSnackBar('Template "${_nameController.text}" saved!');
+        context
+            .showSuccessSnackBar('Template "${_nameController.text}" saved!');
       }
     } catch (e) {
       if (mounted) {
@@ -3043,170 +3623,170 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
         child: Padding(
           padding: EdgeInsets.all(isMobile ? 16 : 24),
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: widget.colors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: widget.colors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      LucideIcons.save,
+                      size: 20,
+                      color: widget.colors.primary,
+                    ),
                   ),
-                  child: Icon(
-                    LucideIcons.save,
-                    size: 20,
-                    color: widget.colors.primary,
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Save as Template',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: widget.colors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Save this sequence for later reuse',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: widget.colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // Name field
+              Text(
+                'Template Name',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: widget.colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: widget.colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: widget.colors.border),
+                ),
+                child: TextField(
+                  controller: _nameController,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: widget.colors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Enter template name',
+                    hintStyle: TextStyle(
+                      color: widget.colors.textMuted,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Save as Template',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: widget.colors.textPrimary,
-                      ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Description field
+              Text(
+                'Description',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: widget.colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: BoxDecoration(
+                  color: widget.colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: widget.colors.border),
+                ),
+                child: TextField(
+                  controller: _descriptionController,
+                  maxLines: 3,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: widget.colors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Describe what this template is for...',
+                    hintStyle: TextStyle(
+                      color: widget.colors.textMuted,
                     ),
-                    Text(
-                      'Save this sequence for later reuse',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: widget.colors.textMuted,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Info about current sequence
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: widget.colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.info, size: 16, color: widget.colors.info),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'This will save ${widget.sequence.nodes.length} nodes from the current sequence.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: widget.colors.textSecondary,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Name field
-            Text(
-              'Template Name',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: widget.colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: widget.colors.border),
-              ),
-              child: TextField(
-                controller: _nameController,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: widget.colors.textPrimary,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Enter template name',
-                  hintStyle: TextStyle(
-                    color: widget.colors.textMuted,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Description field
-            Text(
-              'Description',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: widget.colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: widget.colors.border),
-              ),
-              child: TextField(
-                controller: _descriptionController,
-                maxLines: 3,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: widget.colors.textPrimary,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Describe what this template is for...',
-                  hintStyle: TextStyle(
-                    color: widget.colors.textMuted,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Info about current sequence
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
+              // Actions
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Icon(LucideIcons.info, size: 16, color: widget.colors.info),
+                  NightshadeButton(
+                    onPressed: _isSaving ? null : () => Navigator.pop(context),
+                    label: 'Cancel',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'This will save ${widget.sequence.nodes.length} nodes from the current sequence.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: widget.colors.textSecondary,
-                      ),
-                    ),
+                  NightshadeButton(
+                    label: _isSaving ? 'Saving...' : 'Save Template',
+                    icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
+                    onPressed: _isSaving ? null : _saveTemplate,
+                    size: ButtonSize.small,
                   ),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Actions
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                NightshadeButton(
-                  onPressed: _isSaving ? null : () => Navigator.pop(context),
-                  label: 'Cancel',
-                  variant: ButtonVariant.ghost,
-                  size: ButtonSize.small,
-                ),
-                const SizedBox(width: 12),
-                NightshadeButton(
-                  label: _isSaving ? 'Saving...' : 'Save Template',
-                  icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
-                  onPressed: _isSaving ? null : _saveTemplate,
-                  size: ButtonSize.small,
-                ),
-              ],
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
@@ -3249,9 +3829,7 @@ class _TargetOptionState extends State<_TargetOption> {
                 : widget.colors.surfaceAlt,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: _isHovered
-                  ? widget.colors.warning
-                  : widget.colors.border,
+              color: _isHovered ? widget.colors.warning : widget.colors.border,
               width: _isHovered ? 1.5 : 1,
             ),
           ),
@@ -3296,7 +3874,9 @@ class _TargetOptionState extends State<_TargetOption> {
               Icon(
                 LucideIcons.chevronRight,
                 size: 16,
-                color: _isHovered ? widget.colors.warning : widget.colors.textMuted,
+                color: _isHovered
+                    ? widget.colors.warning
+                    : widget.colors.textMuted,
               ),
             ],
           ),

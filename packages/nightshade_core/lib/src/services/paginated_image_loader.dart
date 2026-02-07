@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database.dart';
 import '../database/daos/images_dao.dart';
@@ -234,9 +236,7 @@ class PaginatedImageNotifier extends StateNotifier<PaginatedImageState> {
 
 /// Provider for paginated session images
 final paginatedSessionImagesProvider = StateNotifierProvider.family<
-    PaginatedImageNotifier,
-    PaginatedImageState,
-    int?>((ref, sessionId) {
+    PaginatedImageNotifier, PaginatedImageState, int?>((ref, sessionId) {
   final database = ref.watch(databaseProvider);
   final loader = PaginatedImageLoader(
     imagesDao: database.imagesDao,

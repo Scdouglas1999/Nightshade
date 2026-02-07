@@ -153,7 +153,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     if (!mounted) return;
     final weatherSettings = _ref.read(weatherSettingsProvider);
     final appSettings = _ref.read(appSettingsProvider).valueOrNull;
-    final failMode = appSettings?.safetyFailMode ?? SafetyFailMode.failOpen;
+    final failMode = appSettings?.safetyFailMode ?? SafetyFailMode.failClosed;
 
     // Get hardware weather device state
     final weatherDeviceState = _ref.read(weatherStateProvider);
@@ -221,11 +221,15 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       finalStatus = WeatherSafetyStatus.safe;
       finalActions = WeatherSafetyActions.safe;
     } else if (useFailMode) {
-      // Apply fail mode
+      // Strict fail-closed: unavailable safety data is always unsafe.
       switch (failMode) {
         case SafetyFailMode.failOpen:
-          finalStatus = WeatherSafetyStatus.safe;
-          finalActions = WeatherSafetyActions.safe;
+          finalStatus = WeatherSafetyStatus.unsafe;
+          finalActions = WeatherSafetyActions(
+            shouldPause: true,
+            shouldPark: weatherSettings.autoParkEnabled,
+            reason: failModeWarning,
+          );
           break;
         case SafetyFailMode.failClosed:
           finalStatus = WeatherSafetyStatus.unsafe;
@@ -236,9 +240,12 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
           );
           break;
         case SafetyFailMode.warnOnly:
-          finalStatus = WeatherSafetyStatus.safe;
-          finalActions = WeatherSafetyActions.safe;
-          // Warning is set via failModeWarning
+          finalStatus = WeatherSafetyStatus.unsafe;
+          finalActions = WeatherSafetyActions(
+            shouldPause: true,
+            shouldPark: weatherSettings.autoParkEnabled,
+            reason: failModeWarning,
+          );
           break;
       }
     } else if (allSourcesSafe) {

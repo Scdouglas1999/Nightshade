@@ -7,15 +7,21 @@ import 'package:shelf/shelf.dart';
 /// Handlers for backup and restore operations
 class BackupHandlers {
   final ProviderContainer container;
-
   BackupHandlers(this.container);
+
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'BackupHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'BackupHandlers');
 
   // ===========================================================================
   // List Backups
   // ===========================================================================
 
   Future<Response> handleListBackups(Request request) async {
-    print('[API] GET /api/backup/list');
+    _logInfo('[API] GET /api/backup/list');
     try {
       final service = container.read(backupServiceProvider);
       final backupFiles = await service.listBackups();
@@ -29,17 +35,20 @@ class BackupHandlers {
           'id': file.path.hashCode.toString(),
           'filePath': file.path,
           'fileName': file.uri.pathSegments.last,
-          'createdAt': metadata?.createdAt.millisecondsSinceEpoch ?? stat.modified.millisecondsSinceEpoch,
+          'createdAt': metadata?.createdAt.millisecondsSinceEpoch ??
+              stat.modified.millisecondsSinceEpoch,
           'fileSize': stat.size,
-          'metadata': metadata != null ? {
-            'version': metadata.version,
-            'appVersion': metadata.appVersion,
-            'platform': metadata.platform,
-            'settingsCount': metadata.settingsCount,
-            'profilesCount': metadata.profilesCount,
-            'sequencesCount': metadata.sequencesCount,
-            'targetsCount': metadata.targetsCount,
-          } : null,
+          'metadata': metadata != null
+              ? {
+                  'version': metadata.version,
+                  'appVersion': metadata.appVersion,
+                  'platform': metadata.platform,
+                  'settingsCount': metadata.settingsCount,
+                  'profilesCount': metadata.profilesCount,
+                  'sequencesCount': metadata.sequencesCount,
+                  'targetsCount': metadata.targetsCount,
+                }
+              : null,
         });
       }
 
@@ -48,7 +57,7 @@ class BackupHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] List backups error: $e');
+      _logError('[API] List backups error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -61,7 +70,7 @@ class BackupHandlers {
   // ===========================================================================
 
   Future<Response> handleCreateBackup(Request request) async {
-    print('[API] POST /api/backup/create');
+    _logInfo('[API] POST /api/backup/create');
     try {
       final payload = jsonDecode(await request.readAsString());
       final customPath = payload['customPath'] as String?;
@@ -96,7 +105,7 @@ class BackupHandlers {
         );
       }
     } catch (e) {
-      print('[API] Create backup error: $e');
+      _logError('[API] Create backup error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -109,7 +118,7 @@ class BackupHandlers {
   // ===========================================================================
 
   Future<Response> handleRestoreBackup(Request request) async {
-    print('[API] POST /api/backup/restore');
+    _logInfo('[API] POST /api/backup/restore');
     try {
       final payload = jsonDecode(await request.readAsString());
       final filePath = payload['filePath'] as String;
@@ -141,7 +150,7 @@ class BackupHandlers {
         );
       }
     } catch (e) {
-      print('[API] Restore backup error: $e');
+      _logError('[API] Restore backup error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -154,15 +163,15 @@ class BackupHandlers {
   // ===========================================================================
 
   Future<Response> handleDeleteBackup(Request request, String id) async {
-    print('[API] DELETE /api/backup/$id');
+    _logInfo('[API] DELETE /api/backup/$id');
     try {
       final service = container.read(backupServiceProvider);
       final backupFiles = await service.listBackups();
 
       // Find backup by ID (hash of path)
-      final file = backupFiles.where(
-        (f) => f.path.hashCode.toString() == id
-      ).firstOrNull;
+      final file = backupFiles
+          .where((f) => f.path.hashCode.toString() == id)
+          .firstOrNull;
 
       if (file == null) {
         return Response.notFound(
@@ -178,7 +187,7 @@ class BackupHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Delete backup error: $e');
+      _logError('[API] Delete backup error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -191,15 +200,15 @@ class BackupHandlers {
   // ===========================================================================
 
   Future<Response> handleDownloadBackup(Request request, String id) async {
-    print('[API] GET /api/backup/$id/download');
+    _logInfo('[API] GET /api/backup/$id/download');
     try {
       final service = container.read(backupServiceProvider);
       final backupFiles = await service.listBackups();
 
       // Find backup by ID (hash of path)
-      final file = backupFiles.where(
-        (f) => f.path.hashCode.toString() == id
-      ).firstOrNull;
+      final file = backupFiles
+          .where((f) => f.path.hashCode.toString() == id)
+          .firstOrNull;
 
       if (file == null) {
         return Response.notFound(
@@ -215,11 +224,12 @@ class BackupHandlers {
         headers: {
           'content-type': 'application/json',
           'content-length': fileLength.toString(),
-          'content-disposition': 'attachment; filename="${file.uri.pathSegments.last}"',
+          'content-disposition':
+              'attachment; filename="${file.uri.pathSegments.last}"',
         },
       );
     } catch (e) {
-      print('[API] Download backup error: $e');
+      _logError('[API] Download backup error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -232,15 +242,15 @@ class BackupHandlers {
   // ===========================================================================
 
   Future<Response> handleGetBackupMetadata(Request request, String id) async {
-    print('[API] GET /api/backup/$id/metadata');
+    _logInfo('[API] GET /api/backup/$id/metadata');
     try {
       final service = container.read(backupServiceProvider);
       final backupFiles = await service.listBackups();
 
       // Find backup by ID (hash of path)
-      final file = backupFiles.where(
-        (f) => f.path.hashCode.toString() == id
-      ).firstOrNull;
+      final file = backupFiles
+          .where((f) => f.path.hashCode.toString() == id)
+          .firstOrNull;
 
       if (file == null) {
         return Response.notFound(
@@ -264,7 +274,7 @@ class BackupHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get backup metadata error: $e');
+      _logError('[API] Get backup metadata error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -277,7 +287,7 @@ class BackupHandlers {
   // ===========================================================================
 
   Future<Response> handleAutoSaveBackup(Request request) async {
-    print('[API] POST /api/backup/auto-save');
+    _logInfo('[API] POST /api/backup/auto-save');
     try {
       final service = container.read(backupServiceProvider);
       final result = await service.autoSaveBackup();
@@ -302,7 +312,7 @@ class BackupHandlers {
         );
       }
     } catch (e) {
-      print('[API] Auto save backup error: $e');
+      _logError('[API] Auto save backup error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

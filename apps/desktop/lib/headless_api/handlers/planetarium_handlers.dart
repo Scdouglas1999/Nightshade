@@ -15,6 +15,13 @@ class PlanetariumHandlers {
 
   PlanetariumHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'PlanetariumHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'PlanetariumHandlers');
+
   // ===========================================================================
   // Mount Position (for FOV overlay on remote planetarium)
   // ===========================================================================
@@ -22,7 +29,7 @@ class PlanetariumHandlers {
   /// GET /api/planetarium/mount-position
   /// Returns current mount RA/Dec/rotation for FOV display on client planetarium.
   Future<Response> handleGetMountPosition(Request request) async {
-    print('[API] GET /api/planetarium/mount-position');
+    _logInfo('[API] GET /api/planetarium/mount-position');
     try {
       final backend = container.read(backendProvider);
 
@@ -82,7 +89,7 @@ class PlanetariumHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount position error: $e');
+      _logError('[API] Mount position error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -97,7 +104,7 @@ class PlanetariumHandlers {
   /// GET /api/planetarium/fov-config
   /// Returns camera sensor size, pixel size, focal length, reducer for FOV calculation.
   Future<Response> handleGetFovConfig(Request request) async {
-    print('[API] GET /api/planetarium/fov-config');
+    _logInfo('[API] GET /api/planetarium/fov-config');
     try {
       final backend = container.read(backendProvider);
 
@@ -125,16 +132,20 @@ class PlanetariumHandlers {
 
       if (focalLength > 0 && cameraCapabilities != null) {
         final sensorWidthMm = (cameraCapabilities.maxWidth *
-            (cameraCapabilities.pixelSizeX ?? 0)) / 1000.0;
+                (cameraCapabilities.pixelSizeX ?? 0)) /
+            1000.0;
         final sensorHeightMm = (cameraCapabilities.maxHeight *
-            (cameraCapabilities.pixelSizeY ?? cameraCapabilities.pixelSizeX ?? 0)) / 1000.0;
+                (cameraCapabilities.pixelSizeY ??
+                    cameraCapabilities.pixelSizeX ??
+                    0)) /
+            1000.0;
 
         if (sensorWidthMm > 0 && sensorHeightMm > 0) {
           // FOV = 2 * atan(sensor_size / (2 * focal_length)) * (180/pi)
-          fovWidthDegrees = 2 * 57.2957795 *
-              _atan(sensorWidthMm / (2 * focalLength));
-          fovHeightDegrees = 2 * 57.2957795 *
-              _atan(sensorHeightMm / (2 * focalLength));
+          fovWidthDegrees =
+              2 * 57.2957795 * _atan(sensorWidthMm / (2 * focalLength));
+          fovHeightDegrees =
+              2 * 57.2957795 * _atan(sensorHeightMm / (2 * focalLength));
         }
 
         if (pixelSize != null && pixelSize > 0) {
@@ -158,7 +169,8 @@ class PlanetariumHandlers {
               : null,
           "sensorHeightMm": cameraCapabilities != null && pixelSize != null
               ? (cameraCapabilities.maxHeight *
-                  (cameraCapabilities.pixelSizeY ?? pixelSize)) / 1000.0
+                      (cameraCapabilities.pixelSizeY ?? pixelSize)) /
+                  1000.0
               : null,
           "fovWidthDegrees": fovWidthDegrees,
           "fovHeightDegrees": fovHeightDegrees,
@@ -169,7 +181,7 @@ class PlanetariumHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] FOV config error: $e');
+      _logError('[API] FOV config error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -184,7 +196,7 @@ class PlanetariumHandlers {
   /// POST /api/planetarium/slew-to
   /// Slew mount to RA/Dec coordinates.
   Future<Response> handleSlewTo(Request request) async {
-    print('[API] POST /api/planetarium/slew-to');
+    _logInfo('[API] POST /api/planetarium/slew-to');
     try {
       final payload = jsonDecode(await request.readAsString());
       final ra = (payload['ra'] as num).toDouble();
@@ -216,7 +228,7 @@ class PlanetariumHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Slew to error: $e');
+      _logError('[API] Slew to error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -227,13 +239,14 @@ class PlanetariumHandlers {
   /// POST /api/planetarium/center-on
   /// Center on RA/Dec with plate solving (iterative centering).
   Future<Response> handleCenterOn(Request request) async {
-    print('[API] POST /api/planetarium/center-on');
+    _logInfo('[API] POST /api/planetarium/center-on');
     try {
       final payload = jsonDecode(await request.readAsString());
       final ra = (payload['ra'] as num).toDouble();
       final dec = (payload['dec'] as num).toDouble();
       final maxIterations = payload['maxIterations'] as int? ?? 5;
-      final toleranceArcsec = (payload['toleranceArcsec'] as num?)?.toDouble() ?? 30.0;
+      final toleranceArcsec =
+          (payload['toleranceArcsec'] as num?)?.toDouble() ?? 30.0;
       final exposureTime = (payload['exposureTime'] as num?)?.toDouble() ?? 3.0;
       final binning = payload['binning'] as int? ?? 2;
       final gain = payload['gain'] as int? ?? 100;
@@ -253,9 +266,13 @@ class PlanetariumHandlers {
 
       // Get plate solver config from settings
       final database = container.read(databaseProvider);
-      final solverName = await database.settingsDao.getSetting('plate_solve_solver') ?? 'ASTAP';
-      final solverPath = await database.settingsDao.getSetting('plate_solve_path') ?? '';
-      final timeoutStr = await database.settingsDao.getSetting('plate_solve_timeout') ?? '60';
+      final solverName =
+          await database.settingsDao.getSetting('plate_solve_solver') ??
+              'ASTAP';
+      final solverPath =
+          await database.settingsDao.getSetting('plate_solve_path') ?? '';
+      final timeoutStr =
+          await database.settingsDao.getSetting('plate_solve_timeout') ?? '60';
       final solverType = PlateSolverType.values.firstWhere(
         (t) => t.name.toLowerCase() == solverName.toLowerCase(),
         orElse: () => PlateSolverType.astap,
@@ -280,23 +297,25 @@ class PlanetariumHandlers {
           "iterations": result.iterations,
           "finalOffsetArcsec": result.finalOffsetArcsec,
           "errorMessage": result.errorMessage,
-          "iterationHistory": result.iterationHistory.map((i) => {
-            'iterationNumber': i.iterationNumber,
-            'solvedRa': i.solvedRa,
-            'solvedDec': i.solvedDec,
-            'targetRa': i.targetRa,
-            'targetDec': i.targetDec,
-            'offsetArcsec': i.offsetArcsec,
-            'offsetArcmin': i.offsetArcmin,
-            'plateSolveSuccess': i.plateSolveSuccess,
-            'errorMessage': i.errorMessage,
-            'timestamp': i.timestamp.millisecondsSinceEpoch,
-          }).toList(),
+          "iterationHistory": result.iterationHistory
+              .map((i) => {
+                    'iterationNumber': i.iterationNumber,
+                    'solvedRa': i.solvedRa,
+                    'solvedDec': i.solvedDec,
+                    'targetRa': i.targetRa,
+                    'targetDec': i.targetDec,
+                    'offsetArcsec': i.offsetArcsec,
+                    'offsetArcmin': i.offsetArcmin,
+                    'plateSolveSuccess': i.plateSolveSuccess,
+                    'errorMessage': i.errorMessage,
+                    'timestamp': i.timestamp.millisecondsSinceEpoch,
+                  })
+              .toList(),
         }),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Center on error: $e');
+      _logError('[API] Center on error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -307,7 +326,7 @@ class PlanetariumHandlers {
   /// POST /api/planetarium/sync-to
   /// Sync mount to RA/Dec coordinates.
   Future<Response> handleSyncTo(Request request) async {
-    print('[API] POST /api/planetarium/sync-to');
+    _logInfo('[API] POST /api/planetarium/sync-to');
     try {
       final payload = jsonDecode(await request.readAsString());
       final ra = (payload['ra'] as num).toDouble();
@@ -339,7 +358,7 @@ class PlanetariumHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Sync to error: $e');
+      _logError('[API] Sync to error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -354,7 +373,7 @@ class PlanetariumHandlers {
   /// GET /api/planetarium/catalog/search?query=M31
   /// Search objects by name across star and DSO catalogs.
   Future<Response> handleCatalogSearch(Request request) async {
-    print('[API] GET /api/planetarium/catalog/search');
+    _logInfo('[API] GET /api/planetarium/catalog/search');
     try {
       final query = request.url.queryParameters['query'] ?? '';
       final limitStr = request.url.queryParameters['limit'] ?? '50';
@@ -371,23 +390,26 @@ class PlanetariumHandlers {
       final results = await CatalogManager.instance.search(query);
 
       // Convert to response format
-      final responseResults = results.take(limit).map((r) => {
-        'name': r.name,
-        'catalogId': r.catalogId,
-        'ra': r.ra,
-        'dec': r.dec,
-        'type': r.type,
-        'magnitude': r.magnitude,
-        'constellation': r.constellation,
-        'size': r.size,
-      }).toList();
+      final responseResults = results
+          .take(limit)
+          .map((r) => {
+                'name': r.name,
+                'catalogId': r.catalogId,
+                'ra': r.ra,
+                'dec': r.dec,
+                'type': r.type,
+                'magnitude': r.magnitude,
+                'constellation': r.constellation,
+                'size': r.size,
+              })
+          .toList();
 
       return Response.ok(
         jsonEncode({"results": responseResults}),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Catalog search error: $e');
+      _logError('[API] Catalog search error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -398,7 +420,7 @@ class PlanetariumHandlers {
   /// GET /api/planetarium/catalog/region?ra=X&dec=Y&radius=Z
   /// Get objects in a region (cone search).
   Future<Response> handleCatalogRegion(Request request) async {
-    print('[API] GET /api/planetarium/catalog/region');
+    _logInfo('[API] GET /api/planetarium/catalog/region');
     try {
       final raStr = request.url.queryParameters['ra'];
       final decStr = request.url.queryParameters['dec'];
@@ -418,7 +440,8 @@ class PlanetariumHandlers {
       final ra = double.tryParse(raStr);
       final dec = double.tryParse(decStr);
       final radius = double.tryParse(radiusStr);
-      final maxMagnitude = maxMagStr != null ? double.tryParse(maxMagStr) : null;
+      final maxMagnitude =
+          maxMagStr != null ? double.tryParse(maxMagStr) : null;
 
       if (ra == null || dec == null || radius == null) {
         return Response.badRequest(
@@ -478,8 +501,8 @@ class PlanetariumHandlers {
       }
 
       // Sort by magnitude (brightest first)
-      results.sort((a, b) =>
-        ((a['magnitude'] as num?) ?? 99).compareTo((b['magnitude'] as num?) ?? 99));
+      results.sort((a, b) => ((a['magnitude'] as num?) ?? 99)
+          .compareTo((b['magnitude'] as num?) ?? 99));
 
       return Response.ok(
         jsonEncode({
@@ -492,7 +515,7 @@ class PlanetariumHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Catalog region error: $e');
+      _logError('[API] Catalog region error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -502,17 +525,19 @@ class PlanetariumHandlers {
 
   /// GET /api/planetarium/catalog/object/:id
   /// Get detailed object info by catalog ID.
-  Future<Response> handleGetCatalogObject(Request request, String objectId) async {
-    print('[API] GET /api/planetarium/catalog/object/$objectId');
+  Future<Response> handleGetCatalogObject(
+      Request request, String objectId) async {
+    _logInfo('[API] GET /api/planetarium/catalog/object/$objectId');
     try {
       // Search for the object by ID
       final results = await CatalogManager.instance.search(objectId);
 
       // Find exact match
-      final exactMatch = results.where((r) =>
-        r.catalogId.toLowerCase() == objectId.toLowerCase() ||
-        r.name.toLowerCase() == objectId.toLowerCase()
-      ).firstOrNull;
+      final exactMatch = results
+          .where((r) =>
+              r.catalogId.toLowerCase() == objectId.toLowerCase() ||
+              r.name.toLowerCase() == objectId.toLowerCase())
+          .firstOrNull;
 
       if (exactMatch == null) {
         return Response.notFound(
@@ -533,11 +558,7 @@ class PlanetariumHandlers {
         final lst = _localSiderealTime(now, location.longitude);
         final hourAngle = lst - (exactMatch.ra / 15.0); // RA in hours
         final (alt, az) = _equatorialToHorizontal(
-          exactMatch.ra,
-          exactMatch.dec,
-          location.latitude,
-          hourAngle * 15
-        );
+            exactMatch.ra, exactMatch.dec, location.latitude, hourAngle * 15);
 
         visibility = {
           'altitude': alt,
@@ -566,7 +587,7 @@ class PlanetariumHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get catalog object error: $e');
+      _logError('[API] Get catalog object error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -581,7 +602,7 @@ class PlanetariumHandlers {
   /// GET /api/planetarium/subscribe-info
   /// Returns WebSocket URL and event types for real-time mount updates.
   Future<Response> handleGetSubscribeInfo(Request request) async {
-    print('[API] GET /api/planetarium/subscribe-info');
+    _logInfo('[API] GET /api/planetarium/subscribe-info');
     try {
       // Get the host from the request
       final host = request.requestedUri.host;
@@ -603,16 +624,13 @@ class PlanetariumHandlers {
             "sequence_status",
           ],
           "subscriptionFormat": {
-            "description": "Connect to WebSocket URL. Events are pushed automatically.",
+            "description":
+                "Connect to WebSocket URL. Events are pushed automatically.",
             "example": {
               "type": "event",
               "category": "equipment",
               "event": "mount_position",
-              "data": {
-                "ra": 12.5,
-                "dec": 45.0,
-                "tracking": true
-              }
+              "data": {"ra": 12.5, "dec": 45.0, "tracking": true}
             }
           },
           "pingPongSupport": true,
@@ -622,7 +640,7 @@ class PlanetariumHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Subscribe info error: $e');
+      _logError('[API] Subscribe info error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -637,7 +655,7 @@ class PlanetariumHandlers {
   /// GET /api/planetarium/location
   /// Get current observer location for astronomical calculations.
   Future<Response> handleGetLocation(Request request) async {
-    print('[API] GET /api/planetarium/location');
+    _logInfo('[API] GET /api/planetarium/location');
     try {
       final backend = container.read(backendProvider);
       final location = await backend.getLocation();
@@ -664,7 +682,7 @@ class PlanetariumHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get location error: $e');
+      _logError('[API] Get location error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -699,12 +717,19 @@ class PlanetariumHandlers {
     final y2 = y + 4800 - a;
     final m2 = m + 12 * a - 3;
 
-    final jd = d + ((153 * m2 + 2) / 5).floor() + 365 * y2 +
-        (y2 / 4).floor() - (y2 / 100).floor() + (y2 / 400).floor() - 32045;
+    final jd = d +
+        ((153 * m2 + 2) / 5).floor() +
+        365 * y2 +
+        (y2 / 4).floor() -
+        (y2 / 100).floor() +
+        (y2 / 400).floor() -
+        32045;
 
     final t = (jd - 2451545.0) / 36525;
-    var lst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t - t * t * t / 38710000;
+    var lst = 280.46061837 +
+        360.98564736629 * (jd - 2451545.0) +
+        0.000387933 * t * t -
+        t * t * t / 38710000;
     lst = lst + longitude;
     lst = lst % 360;
     if (lst < 0) lst += 360;
@@ -718,17 +743,17 @@ class PlanetariumHandlers {
     double latDeg,
     double hourAngleDeg,
   ) {
-    final pi = 3.14159265358979;
+    const pi = 3.14159265358979;
     final latRad = latDeg * pi / 180;
     final decRad = decDeg * pi / 180;
     final haRad = hourAngleDeg * pi / 180;
 
-    final sinAlt = _sin(decRad) * _sin(latRad) +
-                   _cos(decRad) * _cos(latRad) * _cos(haRad);
+    final sinAlt =
+        _sin(decRad) * _sin(latRad) + _cos(decRad) * _cos(latRad) * _cos(haRad);
     final alt = _asin(sinAlt) * 180 / pi;
 
     final cosAz = (_sin(decRad) - _sin(alt * pi / 180) * _sin(latRad)) /
-                  (_cos(alt * pi / 180) * _cos(latRad));
+        (_cos(alt * pi / 180) * _cos(latRad));
     var az = _acos(cosAz.clamp(-1.0, 1.0)) * 180 / pi;
 
     if (_sin(haRad) > 0) {
@@ -746,9 +771,13 @@ class PlanetariumHandlers {
 
   double _taylorSin(double x) {
     // Normalize to -pi to pi
-    final pi = 3.14159265358979;
-    while (x > pi) x -= 2 * pi;
-    while (x < -pi) x += 2 * pi;
+    const pi = 3.14159265358979;
+    while (x > pi) {
+      x -= 2 * pi;
+    }
+    while (x < -pi) {
+      x += 2 * pi;
+    }
 
     // Taylor series for sin
     final x2 = x * x;
@@ -763,8 +792,10 @@ class PlanetariumHandlers {
     if (x.abs() > 0.9) {
       // For values near +/-1, use different approximation
       final sign = x >= 0 ? 1.0 : -1.0;
-      final pi = 3.14159265358979;
-      return sign * (pi / 2 - _sqrt(1 - x.abs()) * (1.5707963267948966 - 0.2146018 * x.abs()));
+      const pi = 3.14159265358979;
+      return sign *
+          (pi / 2 -
+              _sqrt(1 - x.abs()) * (1.5707963267948966 - 0.2146018 * x.abs()));
     }
     final x2 = x * x;
     final x3 = x2 * x;

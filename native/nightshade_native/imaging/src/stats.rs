@@ -336,7 +336,7 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
 
         // Parallel retain is not available directly on Vec, but we can filter and collect
         // However, retain is in-place and might be faster than allocating new vec
-        // For now, keep sequential retain as it iterates already reduced set
+        // Keep sequential retain as it iterates an already reduced set.
         samples.retain(|&v| v >= lower && v <= upper);
 
         if samples.is_empty() {

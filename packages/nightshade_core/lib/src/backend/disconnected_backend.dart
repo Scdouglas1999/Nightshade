@@ -174,7 +174,9 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<void> focuserHalt(String deviceId) async {}
+  Future<void> focuserHalt(String deviceId) async {
+    _throwNotConnected();
+  }
 
   @override
   Future<AutofocusResult> autofocusStart({
@@ -190,7 +192,9 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
-  Future<void> autofocusCancel() async {}
+  Future<void> autofocusCancel() async {
+    _throwNotConnected();
+  }
 
   // =========================================================================
   // Filter Wheel Control

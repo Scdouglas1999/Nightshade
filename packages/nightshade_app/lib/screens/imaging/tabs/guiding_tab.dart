@@ -33,8 +33,10 @@ class GuidingTab extends ConsumerWidget {
     return Padding(
       padding: EdgeInsets.all(isMobile ? 12 : 24),
       child: isMobile
-          ? _buildMobileLayout(context, ref, colors, isConnected, phd2State, statsAsync)
-          : _buildDesktopLayout(context, ref, colors, isConnected, phd2State, statsAsync),
+          ? _buildMobileLayout(
+              context, ref, colors, isConnected, phd2State, statsAsync)
+          : _buildDesktopLayout(
+              context, ref, colors, isConnected, phd2State, statsAsync),
     );
   }
 
@@ -52,7 +54,8 @@ class GuidingTab extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Compact header with connection status
-          _buildConnectionHeader(context, ref, colors, isConnected, phd2State, isMobile: true),
+          _buildConnectionHeader(context, ref, colors, isConnected, phd2State,
+              isMobile: true),
           const SizedBox(height: 12),
 
           // Guide star view and stats in a row on mobile
@@ -89,13 +92,13 @@ class GuidingTab extends ConsumerWidget {
                                   starX: image.starX,
                                   starY: image.starY,
                                   snr: ref.watch(guideStatsProvider).snr,
-                                  placeholderMessage: 'No star',
+                                  statusMessage: 'No star',
                                 ),
                                 loading: () => const GuideStarView(
-                                  placeholderMessage: 'Waiting...',
+                                  statusMessage: 'Waiting...',
                                 ),
                                 error: (_, __) => const GuideStarView(
-                                  placeholderMessage: 'No star',
+                                  statusMessage: 'No star',
                                 ),
                               );
                             },
@@ -124,14 +127,21 @@ class GuidingTab extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        _buildStatRow('SNR:', statsAsync.snr.toStringAsFixed(1), colors),
+                        _buildStatRow(
+                            'SNR:', statsAsync.snr.toStringAsFixed(1), colors),
                         const SizedBox(height: 4),
-                        _buildStatRow('RA RMS:', '${statsAsync.rmsRa.toStringAsFixed(2)}"', colors),
+                        _buildStatRow('RA RMS:',
+                            '${statsAsync.rmsRa.toStringAsFixed(2)}"', colors),
                         const SizedBox(height: 4),
-                        _buildStatRow('Dec RMS:', '${statsAsync.rmsDec.toStringAsFixed(2)}"', colors),
+                        _buildStatRow('Dec RMS:',
+                            '${statsAsync.rmsDec.toStringAsFixed(2)}"', colors),
                         const SizedBox(height: 4),
                         Divider(color: colors.border, height: 8),
-                        _buildStatRow('Total:', '${statsAsync.rmsTotal.toStringAsFixed(2)}"', colors, isHighlight: true),
+                        _buildStatRow(
+                            'Total:',
+                            '${statsAsync.rmsTotal.toStringAsFixed(2)}"',
+                            colors,
+                            isHighlight: true),
                       ],
                     ),
                   ),
@@ -170,13 +180,17 @@ class GuidingTab extends ConsumerWidget {
                             child: Icon(
                               LucideIcons.grid,
                               size: 16,
-                              color: ref.watch(showGridProvider) ? colors.primary : colors.textMuted,
+                              color: ref.watch(showGridProvider)
+                                  ? colors.primary
+                                  : colors.textMuted,
                             ),
                           ),
                           const SizedBox(width: 12),
                           GestureDetector(
-                            onTap: () => ref.read(guideGraphProvider.notifier).clear(),
-                            child: Icon(LucideIcons.trash2, size: 16, color: colors.textMuted),
+                            onTap: () =>
+                                ref.read(guideGraphProvider.notifier).clear(),
+                            child: Icon(LucideIcons.trash2,
+                                size: 16, color: colors.textMuted),
                           ),
                         ],
                       ),
@@ -201,14 +215,20 @@ class GuidingTab extends ConsumerWidget {
           ui.GuideControlsPanel(
             state: _mapPhd2State(phd2State, isConnected),
             isConnected: isConnected,
-            onStartGuiding: () => ref.read(phd2ControllerProvider).startGuiding(),
+            onStartGuiding: () =>
+                ref.read(phd2ControllerProvider).startGuiding(),
             onStopGuiding: () => ref.read(phd2ControllerProvider).stopGuiding(),
             onLoop: () => ref.read(phd2ControllerProvider).loop(),
-            onFindStar: () => ref.read(lockPositionProvider.notifier).findStar(),
-            onDeselectStar: () => ref.read(lockPositionProvider.notifier).deselectStar(),
+            onFindStar: () =>
+                ref.read(lockPositionProvider.notifier).findStar(),
+            onDeselectStar: () =>
+                ref.read(lockPositionProvider.notifier).deselectStar(),
             ditherAmount: ref.watch(ditherAmountProvider),
-            onDitherAmountChanged: (amount) => ref.read(ditherAmountProvider.notifier).state = amount,
-            onDither: () => ref.read(phd2ControllerProvider).dither(amount: ref.read(ditherAmountProvider)),
+            onDitherAmountChanged: (amount) =>
+                ref.read(ditherAmountProvider.notifier).state = amount,
+            onDither: () => ref
+                .read(phd2ControllerProvider)
+                .dither(amount: ref.read(ditherAmountProvider)),
           ),
         ],
       ),
@@ -227,7 +247,8 @@ class GuidingTab extends ConsumerWidget {
     return Column(
       children: [
         // Header with connection status
-        _buildConnectionHeader(context, ref, colors, isConnected, phd2State, isMobile: false),
+        _buildConnectionHeader(context, ref, colors, isConnected, phd2State,
+            isMobile: false),
         const SizedBox(height: 16),
 
         // Main Content
@@ -260,7 +281,8 @@ class GuidingTab extends ConsumerWidget {
                               aspectRatio: 1,
                               child: Consumer(
                                 builder: (context, ref, _) {
-                                  final starImage = ref.watch(starImageProvider);
+                                  final starImage =
+                                      ref.watch(starImageProvider);
                                   return starImage.when(
                                     data: (image) => GuideStarView(
                                       pixels: image.pixels,
@@ -269,22 +291,24 @@ class GuidingTab extends ConsumerWidget {
                                       starX: image.starX,
                                       starY: image.starY,
                                       snr: ref.watch(guideStatsProvider).snr,
-                                      placeholderMessage: 'No star selected',
+                                      statusMessage: 'No star selected',
                                     ),
                                     loading: () => const GuideStarView(
-                                      placeholderMessage: 'Waiting for image...',
+                                      statusMessage: 'Waiting for image...',
                                     ),
                                     error: (_, __) => const GuideStarView(
-                                      placeholderMessage: 'No star selected',
+                                      statusMessage: 'No star selected',
                                     ),
                                   );
                                 },
                               ),
                             ),
                             const SizedBox(height: 12),
-                            _buildStatRow('Star SNR:', statsAsync.snr.toStringAsFixed(1), colors),
+                            _buildStatRow('Star SNR:',
+                                statsAsync.snr.toStringAsFixed(1), colors),
                             const SizedBox(height: 4),
-                            _buildStatRow('Star Mass:', statsAsync.starMass.toStringAsFixed(0), colors),
+                            _buildStatRow('Star Mass:',
+                                statsAsync.starMass.toStringAsFixed(0), colors),
                           ],
                         ),
                       ),
@@ -307,13 +331,23 @@ class GuidingTab extends ConsumerWidget {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            _buildStatRow('RA RMS:', '${statsAsync.rmsRa.toStringAsFixed(2)}"', colors),
+                            _buildStatRow(
+                                'RA RMS:',
+                                '${statsAsync.rmsRa.toStringAsFixed(2)}"',
+                                colors),
                             const SizedBox(height: 8),
-                            _buildStatRow('Dec RMS:', '${statsAsync.rmsDec.toStringAsFixed(2)}"', colors),
+                            _buildStatRow(
+                                'Dec RMS:',
+                                '${statsAsync.rmsDec.toStringAsFixed(2)}"',
+                                colors),
                             const SizedBox(height: 8),
                             Divider(color: colors.border),
                             const SizedBox(height: 8),
-                            _buildStatRow('Total RMS:', '${statsAsync.rmsTotal.toStringAsFixed(2)}"', colors, isHighlight: true),
+                            _buildStatRow(
+                                'Total RMS:',
+                                '${statsAsync.rmsTotal.toStringAsFixed(2)}"',
+                                colors,
+                                isHighlight: true),
                           ],
                         ),
                       ),
@@ -337,7 +371,8 @@ class GuidingTab extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Guiding Graph',
@@ -350,12 +385,16 @@ class GuidingTab extends ConsumerWidget {
                                   Row(
                                     children: [
                                       NightshadeButton(
-                                        label: ref.watch(showGridProvider) ? 'Hide Grid' : 'Show Grid',
+                                        label: ref.watch(showGridProvider)
+                                            ? 'Hide Grid'
+                                            : 'Show Grid',
                                         icon: LucideIcons.grid,
                                         size: ButtonSize.small,
                                         variant: ButtonVariant.ghost,
                                         onPressed: () {
-                                          ref.read(showGridProvider.notifier).state =
+                                          ref
+                                                  .read(showGridProvider.notifier)
+                                                  .state =
                                               !ref.read(showGridProvider);
                                         },
                                       ),
@@ -365,7 +404,9 @@ class GuidingTab extends ConsumerWidget {
                                         size: ButtonSize.small,
                                         variant: ButtonVariant.ghost,
                                         onPressed: () {
-                                          ref.read(guideGraphProvider.notifier).clear();
+                                          ref
+                                              .read(guideGraphProvider.notifier)
+                                              .clear();
                                         },
                                       ),
                                     ],
@@ -394,14 +435,23 @@ class GuidingTab extends ConsumerWidget {
                       child: ui.GuideControlsPanel(
                         state: _mapPhd2State(phd2State, isConnected),
                         isConnected: isConnected,
-                        onStartGuiding: () => ref.read(phd2ControllerProvider).startGuiding(),
-                        onStopGuiding: () => ref.read(phd2ControllerProvider).stopGuiding(),
+                        onStartGuiding: () =>
+                            ref.read(phd2ControllerProvider).startGuiding(),
+                        onStopGuiding: () =>
+                            ref.read(phd2ControllerProvider).stopGuiding(),
                         onLoop: () => ref.read(phd2ControllerProvider).loop(),
-                        onFindStar: () => ref.read(lockPositionProvider.notifier).findStar(),
-                        onDeselectStar: () => ref.read(lockPositionProvider.notifier).deselectStar(),
+                        onFindStar: () =>
+                            ref.read(lockPositionProvider.notifier).findStar(),
+                        onDeselectStar: () => ref
+                            .read(lockPositionProvider.notifier)
+                            .deselectStar(),
                         ditherAmount: ref.watch(ditherAmountProvider),
-                        onDitherAmountChanged: (amount) => ref.read(ditherAmountProvider.notifier).state = amount,
-                        onDither: () => ref.read(phd2ControllerProvider).dither(amount: ref.read(ditherAmountProvider)),
+                        onDitherAmountChanged: (amount) => ref
+                            .read(ditherAmountProvider.notifier)
+                            .state = amount,
+                        onDither: () => ref
+                            .read(phd2ControllerProvider)
+                            .dither(amount: ref.read(ditherAmountProvider)),
                       ),
                     ),
                   ],
@@ -463,7 +513,8 @@ class GuidingTab extends ConsumerWidget {
             ),
           const SizedBox(width: 4),
           IconButton(
-            icon: Icon(LucideIcons.settings, size: 18, color: colors.textSecondary),
+            icon: Icon(LucideIcons.settings,
+                size: 18, color: colors.textSecondary),
             onPressed: () => _showSettingsDialog(context, ref),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -526,7 +577,8 @@ class GuidingTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatRow(String label, String value, NightshadeColors colors, {bool isHighlight = false}) {
+  Widget _buildStatRow(String label, String value, NightshadeColors colors,
+      {bool isHighlight = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -636,16 +688,21 @@ class _GraphPainter extends CustomPainter {
       ..strokeWidth = 1.0;
 
     final centerY = size.height / 2;
+    final range = _computeDisplayRange();
+    final scaleY = size.height / (range * 2);
 
     // Draw grid overlay if enabled
     if (showGrid) {
-      // Horizontal grid lines (every 1 arcsec)
-      const range = 4.0;
-      final scaleY = size.height / (range * 2);
+      final gridStep = _selectGridStep(range);
+      final maxGridIndex = (range / gridStep).ceil();
 
-      for (int i = -4; i <= 4; i++) {
+      for (int i = -maxGridIndex; i <= maxGridIndex; i++) {
         if (i == 0) continue; // Skip zero line, drawn separately
-        final y = centerY - (i * scaleY);
+        final value = i * gridStep;
+        if (value.abs() > range + 1e-6) {
+          continue;
+        }
+        final y = centerY - (value * scaleY);
         if (y >= 0 && y <= size.height) {
           canvas.drawLine(Offset(0, y), Offset(size.width, y), paintGrid);
         }
@@ -677,10 +734,7 @@ class _GraphPainter extends CustomPainter {
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
-    // Scale
-    // Assuming +/- 4 arcsec range for now
-    const range = 4.0; 
-    final scaleY = size.height / (range * 2);
+    // Scale to the observed guide-error envelope for the currently visible data.
     final stepX = size.width / 100; // Show last 100 points
 
     // Draw paths
@@ -690,14 +744,15 @@ class _GraphPainter extends CustomPainter {
     for (int i = 0; i < data.length; i++) {
       final point = data[i];
       final x = size.width - ((data.length - 1 - i) * stepX);
-      
+
       if (x < 0) continue;
 
       // Clamp values to range
       final raY = centerY - (point.ra.clamp(-range, range) * scaleY);
       final decY = centerY - (point.dec.clamp(-range, range) * scaleY);
 
-      if (i == 0 || x < stepX) { // Start of visible path
+      if (i == 0 || x < stepX) {
+        // Start of visible path
         pathRa.moveTo(x, raY);
         pathDec.moveTo(x, decY);
       } else {
@@ -710,9 +765,46 @@ class _GraphPainter extends CustomPainter {
     canvas.drawPath(pathDec, paintDec);
   }
 
+  double _computeDisplayRange() {
+    if (data.isEmpty) {
+      return 1.0;
+    }
+
+    final visibleStart = data.length > 100 ? data.length - 100 : 0;
+    double maxAbs = 0.0;
+    for (int i = visibleStart; i < data.length; i++) {
+      final point = data[i];
+      final absRa = point.ra.abs();
+      final absDec = point.dec.abs();
+      if (absRa > maxAbs) {
+        maxAbs = absRa;
+      }
+      if (absDec > maxAbs) {
+        maxAbs = absDec;
+      }
+    }
+
+    if (maxAbs <= 0) {
+      return 1.0;
+    }
+
+    // Add headroom so traces don't hug the chart edge.
+    return (maxAbs * 1.2).clamp(0.5, 30.0);
+  }
+
+  double _selectGridStep(double range) {
+    const candidateSteps = <double>[0.1, 0.2, 0.5, 1, 2, 5, 10];
+    final target = range / 4;
+    for (final step in candidateSteps) {
+      if (step >= target) {
+        return step;
+      }
+    }
+    return 10.0;
+  }
+
   @override
   bool shouldRepaint(covariant _GraphPainter oldDelegate) {
     return oldDelegate.data != data || oldDelegate.showGrid != showGrid;
   }
 }
-

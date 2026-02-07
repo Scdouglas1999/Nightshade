@@ -140,7 +140,7 @@ class AppSettings {
     this.autoFocusEveryMinutes = 60,
     this.ditherEnabled = true,
     this.ditherEveryFrames = 3,
-    this.safetyFailMode = SafetyFailMode.failOpen,
+    this.safetyFailMode = SafetyFailMode.failClosed,
 
     // Plate Solving
     this.plateSolver = 'ASTAP',
@@ -465,12 +465,12 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
   }
 
   SafetyFailMode _parseSafetyFailMode(String? value) {
-    if (value == null) return SafetyFailMode.failOpen;
+    if (value == null) return SafetyFailMode.failClosed;
     return switch (value) {
-      'failOpen' => SafetyFailMode.failOpen,
+      'failOpen' => SafetyFailMode.failClosed,
       'failClosed' => SafetyFailMode.failClosed,
-      'warnOnly' => SafetyFailMode.warnOnly,
-      _ => SafetyFailMode.failOpen,
+      'warnOnly' => SafetyFailMode.failClosed,
+      _ => SafetyFailMode.failClosed,
     };
   }
 
@@ -614,9 +614,11 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettings> {
     state = AsyncData(state.value!.copyWith(parkBeforeDawn: value));
   }
 
-  Future<void> setSafetyFailMode(SafetyFailMode value) async {
-    await _saveSetting('safety_fail_mode', value.name);
-    state = AsyncData(state.value!.copyWith(safetyFailMode: value));
+  Future<void> setSafetyFailMode(SafetyFailMode _) async {
+    // Strict fail-closed: retain enum compatibility but persist failClosed.
+    await _saveSetting('safety_fail_mode', SafetyFailMode.failClosed.name);
+    state =
+        AsyncData(state.value!.copyWith(safetyFailMode: SafetyFailMode.failClosed));
   }
 
   Future<void> setMeridianFlipMinutes(int value) async {

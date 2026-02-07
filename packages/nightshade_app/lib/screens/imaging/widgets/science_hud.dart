@@ -179,6 +179,50 @@ class ScienceHudPanel extends ConsumerWidget {
                     );
                   },
                 ),
+                _OverlayChip(
+                  colors: colors,
+                  label: 'Uniformity',
+                  active: overlayState.showUniformityMap,
+                  onTap: () {
+                    ref.read(scienceOverlayStateProvider.notifier).state =
+                        overlayState.copyWith(
+                      showUniformityMap: !overlayState.showUniformityMap,
+                    );
+                  },
+                ),
+                _OverlayChip(
+                  colors: colors,
+                  label: 'Clip High',
+                  active: overlayState.showClipHighMap,
+                  onTap: () {
+                    ref.read(scienceOverlayStateProvider.notifier).state =
+                        overlayState.copyWith(
+                      showClipHighMap: !overlayState.showClipHighMap,
+                    );
+                  },
+                ),
+                _OverlayChip(
+                  colors: colors,
+                  label: 'Clip Low',
+                  active: overlayState.showClipLowMap,
+                  onTap: () {
+                    ref.read(scienceOverlayStateProvider.notifier).state =
+                        overlayState.copyWith(
+                      showClipLowMap: !overlayState.showClipLowMap,
+                    );
+                  },
+                ),
+                _OverlayChip(
+                  colors: colors,
+                  label: 'FWHM Surface',
+                  active: overlayState.showFwhmSurface,
+                  onTap: () {
+                    ref.read(scienceOverlayStateProvider.notifier).state =
+                        overlayState.copyWith(
+                      showFwhmSurface: !overlayState.showFwhmSurface,
+                    );
+                  },
+                ),
               ],
             ),
             const Divider(height: 18),

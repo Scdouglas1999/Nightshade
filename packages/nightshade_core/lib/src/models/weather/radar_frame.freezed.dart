@@ -24,7 +24,7 @@ mixin _$RadarFrame {
   DateTime get timestamp => throw _privateConstructorUsedError;
 
   /// URL template for map tiles
-  /// - For XYZ: template with {z}/{x}/{y} placeholders
+  /// - For XYZ: template with {z}/{x}/{y} tokens
   /// - For WMS: base URL (without bbox parameter)
   String get tileUrlTemplate => throw _privateConstructorUsedError;
 
@@ -275,7 +275,7 @@ class _$RadarFrameImpl implements _RadarFrame {
   final DateTime timestamp;
 
   /// URL template for map tiles
-  /// - For XYZ: template with {z}/{x}/{y} placeholders
+  /// - For XYZ: template with {z}/{x}/{y} tokens
   /// - For WMS: base URL (without bbox parameter)
   @override
   final String tileUrlTemplate;
@@ -412,7 +412,7 @@ abstract class _RadarFrame implements RadarFrame {
   @override
 
   /// URL template for map tiles
-  /// - For XYZ: template with {z}/{x}/{y} placeholders
+  /// - For XYZ: template with {z}/{x}/{y} tokens
   /// - For WMS: base URL (without bbox parameter)
   String get tileUrlTemplate;
   @override

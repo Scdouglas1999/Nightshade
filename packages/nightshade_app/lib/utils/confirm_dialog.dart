@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -37,7 +39,9 @@ class ConfirmDialog {
           ),
           NightshadeButton(
             label: confirmLabel,
-            variant: isDestructive ? ButtonVariant.destructive : ButtonVariant.primary,
+            variant: isDestructive
+                ? ButtonVariant.destructive
+                : ButtonVariant.primary,
             size: ButtonSize.small,
             onPressed: () => Navigator.pop(ctx, true),
           ),
@@ -54,13 +58,14 @@ class ConfirmDialog {
   static Future<bool> delete({
     required BuildContext context,
     required String itemName,
-  }) => show(
-    context: context,
-    title: 'Delete $itemName?',
-    message: 'This action cannot be undone.',
-    confirmLabel: 'Delete',
-    isDestructive: true,
-  );
+  }) =>
+      show(
+        context: context,
+        title: 'Delete $itemName?',
+        message: 'This action cannot be undone.',
+        confirmLabel: 'Delete',
+        isDestructive: true,
+      );
 
   /// Convenience method for discard/cancel confirmations.
   ///
@@ -68,13 +73,14 @@ class ConfirmDialog {
   static Future<bool> discard({
     required BuildContext context,
     String itemName = 'changes',
-  }) => show(
-    context: context,
-    title: 'Discard $itemName?',
-    message: 'Any unsaved $itemName will be lost.',
-    confirmLabel: 'Discard',
-    isDestructive: true,
-  );
+  }) =>
+      show(
+        context: context,
+        title: 'Discard $itemName?',
+        message: 'Any unsaved $itemName will be lost.',
+        confirmLabel: 'Discard',
+        isDestructive: true,
+      );
 
   /// Convenience method for restore confirmations.
   ///
@@ -82,11 +88,13 @@ class ConfirmDialog {
   static Future<bool> restore({
     required BuildContext context,
     required String backupName,
-  }) => show(
-    context: context,
-    title: 'Restore Backup?',
-    message: 'This will replace your current data with the backup "$backupName". This action cannot be undone.',
-    confirmLabel: 'Restore',
-    isDestructive: true,
-  );
+  }) =>
+      show(
+        context: context,
+        title: 'Restore Backup?',
+        message:
+            'This will replace your current data with the backup "$backupName". This action cannot be undone.',
+        confirmLabel: 'Restore',
+        isDestructive: true,
+      );
 }

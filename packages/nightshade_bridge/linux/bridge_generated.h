@@ -869,6 +869,23 @@ typedef struct wire_cst_list_prim_u_32_strict {
   int32_t len;
 } wire_cst_list_prim_u_32_strict;
 
+typedef struct wire_cst_quality_tile_metric_api {
+  struct wire_cst_list_prim_u_8_strict *layer_type;
+  uint32_t tile_row;
+  uint32_t tile_col;
+  uint32_t sample_count;
+  double value;
+  double p05;
+  double p50;
+  double p95;
+  double aux_value;
+} wire_cst_quality_tile_metric_api;
+
+typedef struct wire_cst_list_quality_tile_metric_api {
+  struct wire_cst_quality_tile_metric_api *ptr;
+  int32_t len;
+} wire_cst_list_quality_tile_metric_api;
+
 typedef struct wire_cst_quirk_info {
   struct wire_cst_list_prim_u_8_strict *category;
   struct wire_cst_list_prim_u_8_strict *description;
@@ -1436,6 +1453,29 @@ typedef struct wire_cst_qhy_discovery_status {
   uint64_t timeout_ms;
 } wire_cst_qhy_discovery_status;
 
+typedef struct wire_cst_quality_frame_metrics_api {
+  double median;
+  double mean;
+  double std_dev;
+  double mad;
+  double background;
+  double noise;
+  double snr;
+  double dynamic_range_p1_p99;
+  double low_clip_percent;
+  double high_clip_percent;
+  double uniformity_cv;
+  double gradient_x;
+  double gradient_y;
+  struct wire_cst_list_prim_u_8_strict *processing_tier;
+  uint32_t processing_ms;
+} wire_cst_quality_frame_metrics_api;
+
+typedef struct wire_cst_quality_maps_result_api {
+  struct wire_cst_quality_frame_metrics_api frame;
+  struct wire_cst_list_quality_tile_metric_api *tiles;
+} wire_cst_quality_maps_result_api;
+
 typedef struct wire_cst_record_f_64_f_64 {
   double field0;
   double field1;
@@ -1601,6 +1641,20 @@ void frbgen_nightshade_bridge_wire__crate__api__api_cancel_autofocus(int64_t por
 
 void frbgen_nightshade_bridge_wire__crate__api__api_clear_device_image(int64_t port_,
                                                                        struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_compute_fits_quality_maps(int64_t port_,
+                                                                              struct wire_cst_list_prim_u_8_strict *file_path,
+                                                                              uint32_t grid_rows,
+                                                                              uint32_t grid_cols,
+                                                                              uint32_t low_clip_adu,
+                                                                              uint32_t high_clip_adu);
+
+void frbgen_nightshade_bridge_wire__crate__api__api_compute_last_capture_quality_maps(int64_t port_,
+                                                                                      struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                                      uint32_t grid_rows,
+                                                                                      uint32_t grid_cols,
+                                                                                      uint32_t low_clip_adu,
+                                                                                      uint32_t high_clip_adu);
 
 void frbgen_nightshade_bridge_wire__crate__api__api_connect_device(int64_t port_,
                                                                    int32_t device_type,
@@ -2630,6 +2684,8 @@ struct wire_cst_list_prim_u_32_strict *frbgen_nightshade_bridge_cst_new_list_pri
 
 struct wire_cst_list_prim_u_8_strict *frbgen_nightshade_bridge_cst_new_list_prim_u_8_strict(int32_t len);
 
+struct wire_cst_list_quality_tile_metric_api *frbgen_nightshade_bridge_cst_new_list_quality_tile_metric_api(int32_t len);
+
 struct wire_cst_list_quirk_info *frbgen_nightshade_bridge_cst_new_list_quirk_info(int32_t len);
 
 struct wire_cst_list_record_string_string *frbgen_nightshade_bridge_cst_new_list_record_string_string(int32_t len);
@@ -2698,6 +2754,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_16_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_32_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_8_strict);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quality_tile_metric_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quirk_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_string);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_star_crop_api);
@@ -2722,6 +2779,8 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_camera_start_exposure);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_cancel_autofocus);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_clear_device_image);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_compute_fits_quality_maps);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_compute_last_capture_quality_maps);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_connect_device);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_cover_calibrator_calibrator_off);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_cover_calibrator_calibrator_on);

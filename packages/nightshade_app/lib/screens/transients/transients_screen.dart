@@ -59,9 +59,11 @@ class TransientsScreen extends ConsumerWidget {
           // Main content area
           Expanded(
             child: alertsAsync.when(
-              data: (alerts) => _buildDataState(context, ref, colors, alerts, currentFilter),
+              data: (alerts) =>
+                  _buildDataState(context, ref, colors, alerts, currentFilter),
               loading: () => _buildLoadingState(colors),
-              error: (error, stackTrace) => _buildErrorState(context, ref, colors, error),
+              error: (error, stackTrace) =>
+                  _buildErrorState(context, ref, colors, error),
             ),
           ),
         ],
@@ -87,7 +89,8 @@ class TransientsScreen extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < NightshadeTokens.breakpointTablet;
+        final isMobile =
+            constraints.maxWidth < NightshadeTokens.breakpointTablet;
 
         return ListView.builder(
           padding: isMobile
@@ -255,7 +258,8 @@ class TransientsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _queueAlert(BuildContext context, WidgetRef ref, TransientAlert alert) async {
+  Future<void> _queueAlert(
+      BuildContext context, WidgetRef ref, TransientAlert alert) async {
     await queueTransientForTonight(ref, alert);
   }
 
@@ -325,14 +329,16 @@ class _TransientsHeader extends StatelessWidget {
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(LucideIcons.refreshCw, size: NightshadeTokens.iconMd),
+            icon: const Icon(LucideIcons.refreshCw,
+                size: NightshadeTokens.iconMd),
             onPressed: onRefresh,
             tooltip: 'Refresh alerts',
             color: colors.textSecondary,
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           IconButton(
-            icon: const Icon(LucideIcons.settings, size: NightshadeTokens.iconMd),
+            icon:
+                const Icon(LucideIcons.settings, size: NightshadeTokens.iconMd),
             onPressed: onSettingsTap,
             tooltip: 'Alert settings',
             color: colors.textSecondary,
@@ -425,7 +431,7 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-/// Skeleton placeholder for transient cards during loading.
+/// Skeleton loading cards for transient items.
 class _TransientCardSkeleton extends StatelessWidget {
   final NightshadeColors colors;
 
@@ -445,7 +451,10 @@ class _TransientCardSkeleton extends StatelessWidget {
         children: [
           Row(
             children: [
-              SkeletonBox(width: 32, height: 32, borderRadius: NightshadeTokens.radiusMd),
+              SkeletonBox(
+                  width: 32,
+                  height: 32,
+                  borderRadius: NightshadeTokens.radiusMd),
               SizedBox(width: NightshadeTokens.spaceMd),
               Expanded(
                 child: Column(
@@ -457,7 +466,10 @@ class _TransientCardSkeleton extends StatelessWidget {
                   ],
                 ),
               ),
-              SkeletonBox(width: 60, height: 24, borderRadius: NightshadeTokens.radiusFull),
+              SkeletonBox(
+                  width: 60,
+                  height: 24,
+                  borderRadius: NightshadeTokens.radiusFull),
             ],
           ),
           SizedBox(height: NightshadeTokens.spaceMd),
@@ -467,11 +479,20 @@ class _TransientCardSkeleton extends StatelessWidget {
           SizedBox(height: NightshadeTokens.spaceMd),
           Row(
             children: [
-              SkeletonBox(width: 80, height: 32, borderRadius: NightshadeTokens.radiusSm),
+              SkeletonBox(
+                  width: 80,
+                  height: 32,
+                  borderRadius: NightshadeTokens.radiusSm),
               SizedBox(width: NightshadeTokens.spaceSm),
-              SkeletonBox(width: 100, height: 32, borderRadius: NightshadeTokens.radiusSm),
+              SkeletonBox(
+                  width: 100,
+                  height: 32,
+                  borderRadius: NightshadeTokens.radiusSm),
               SizedBox(width: NightshadeTokens.spaceSm),
-              SkeletonBox(width: 70, height: 32, borderRadius: NightshadeTokens.radiusSm),
+              SkeletonBox(
+                  width: 70,
+                  height: 32,
+                  borderRadius: NightshadeTokens.radiusSm),
             ],
           ),
         ],
@@ -522,7 +543,8 @@ class _TransientSettingsDialog extends ConsumerWidget {
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(LucideIcons.x, size: NightshadeTokens.iconMd),
+                  icon:
+                      const Icon(LucideIcons.x, size: NightshadeTokens.iconMd),
                   onPressed: () => Navigator.of(context).pop(),
                   color: colors.textSecondary,
                 ),
@@ -617,7 +639,8 @@ class _TransientSettingsDialog extends ConsumerWidget {
                       min: 5.0,
                       max: 20.0,
                       divisions: 30,
-                      onChanged: (value) => notifier.setMagnitudeThreshold(value),
+                      onChanged: (value) =>
+                          notifier.setMagnitudeThreshold(value),
                     ),
                   ),
                 ),

@@ -51,7 +51,19 @@ void main() {
         weightSum += 0.3;
       }
 
-      return weightSum > 0.0 ? (score / weightSum).clamp(0.0, 100.0) : 0.0;
+      if (weightSum <= 0.0) {
+        return 0.0;
+      }
+
+      var normalizedScore = (score / weightSum).clamp(0.0, 100.0);
+
+      if (hfr != null && hfr > 5.0) {
+        final hfrExcess = math.min(15.0, hfr - 5.0);
+        final penaltyFactor = 1.0 - (hfrExcess / 15.0) * 0.25;
+        normalizedScore *= penaltyFactor;
+      }
+
+      return normalizedScore.clamp(0.0, 100.0);
     }
 
     test('Quality score for excellent image', () {

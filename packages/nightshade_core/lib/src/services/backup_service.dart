@@ -166,8 +166,8 @@ class BackupService {
       final jsonString = const JsonEncoder.withIndent('  ').convert(backup);
       await file.writeAsString(jsonString);
 
-      final totalItems = settings.length + profiles.length +
-                        sequences.length + targets.length;
+      final totalItems =
+          settings.length + profiles.length + sequences.length + targets.length;
 
       _logger.info(
         'Backup completed successfully\n'
@@ -281,7 +281,8 @@ class BackupService {
         _logger.debug('Restored $count targets');
       }
 
-      final totalItems = categoryCounts.values.fold<int>(0, (sum, count) => sum + count);
+      final totalItems =
+          categoryCounts.values.fold<int>(0, (sum, count) => sum + count);
 
       _logger.info(
         'Restore completed successfully\n'
@@ -332,15 +333,14 @@ class BackupService {
       final files = await backupDir
           .list()
           .where((entity) =>
-              entity is File &&
-              entity.path.endsWith('.nsbackup') ||
+              entity is File && entity.path.endsWith('.nsbackup') ||
               entity.path.endsWith('.json'))
           .map((entity) => entity as File)
           .toList();
 
       // Sort by modification time (newest first)
-      files.sort((a, b) =>
-          b.statSync().modified.compareTo(a.statSync().modified));
+      files.sort(
+          (a, b) => b.statSync().modified.compareTo(a.statSync().modified));
 
       return files;
     } catch (e) {
@@ -439,7 +439,8 @@ class BackupService {
       'description': sequence.description,
       'rootNodeId': sequence.rootNodeId,
       'isTemplate': sequence.isTemplate,
-      'nodes': sequence.nodes.map((id, node) => MapEntry(id, _nodeToJson(node))),
+      'nodes':
+          sequence.nodes.map((id, node) => MapEntry(id, _nodeToJson(node))),
       'createdAt': sequence.createdAt.toIso8601String(),
       'modifiedAt': sequence.modifiedAt.toIso8601String(),
     };
@@ -496,10 +497,8 @@ class BackupService {
   // Private import methods
   // =========================================================================
 
-  Future<int> _importSettings(
-    Map<String, dynamic> settingsMap,
-    {bool replace = false}
-  ) async {
+  Future<int> _importSettings(Map<String, dynamic> settingsMap,
+      {bool replace = false}) async {
     final settingsDao = SettingsDao(database);
     int count = 0;
 
@@ -511,51 +510,49 @@ class BackupService {
     return count;
   }
 
-  Future<int> _importProfiles(
-    List<dynamic> profilesList,
-    {bool replace = false}
-  ) async {
+  Future<int> _importProfiles(List<dynamic> profilesList,
+      {bool replace = false}) async {
     int count = 0;
 
     for (final profileJson in profilesList) {
       final profile = profileJson as Map<String, dynamic>;
 
       await database.into(database.equipmentProfiles).insert(
-        EquipmentProfilesCompanion.insert(
-          name: profile['name'] as String,
-          description: Value(profile['description'] as String?),
-          isActive: Value(profile['isActive'] as bool? ?? false),
-          cameraId: Value(profile['cameraId'] as String?),
-          mountId: Value(profile['mountId'] as String?),
-          focuserId: Value(profile['focuserId'] as String?),
-          filterWheelId: Value(profile['filterWheelId'] as String?),
-          guiderId: Value(profile['guiderId'] as String?),
-          rotatorId: Value(profile['rotatorId'] as String?),
-          domeId: Value(profile['domeId'] as String?),
-          weatherId: Value(profile['weatherId'] as String?),
-          focalLength: Value(profile['focalLength'] as double? ?? 0.0),
-          aperture: Value(profile['aperture'] as double? ?? 0.0),
-          focalRatio: Value(profile['focalRatio'] as double?),
-          defaultGain: Value(profile['defaultGain'] as int?),
-          defaultOffset: Value(profile['defaultOffset'] as int?),
-          defaultBinX: Value(profile['defaultBinX'] as int? ?? 1),
-          defaultBinY: Value(profile['defaultBinY'] as int? ?? 1),
-          defaultCoolingTemp: Value(profile['defaultCoolingTemp'] as double?),
-          filterNames: Value(profile['filterNames'] as String?),
-          filterFocusOffsets: Value(profile['filterFocusOffsets'] as String?),
-        ),
-        mode: replace ? InsertMode.replace : InsertMode.insertOrIgnore,
-      );
+            EquipmentProfilesCompanion.insert(
+              name: profile['name'] as String,
+              description: Value(profile['description'] as String?),
+              isActive: Value(profile['isActive'] as bool? ?? false),
+              cameraId: Value(profile['cameraId'] as String?),
+              mountId: Value(profile['mountId'] as String?),
+              focuserId: Value(profile['focuserId'] as String?),
+              filterWheelId: Value(profile['filterWheelId'] as String?),
+              guiderId: Value(profile['guiderId'] as String?),
+              rotatorId: Value(profile['rotatorId'] as String?),
+              domeId: Value(profile['domeId'] as String?),
+              weatherId: Value(profile['weatherId'] as String?),
+              focalLength: Value(profile['focalLength'] as double? ?? 0.0),
+              aperture: Value(profile['aperture'] as double? ?? 0.0),
+              focalRatio: Value(profile['focalRatio'] as double?),
+              defaultGain: Value(profile['defaultGain'] as int?),
+              defaultOffset: Value(profile['defaultOffset'] as int?),
+              defaultBinX: Value(profile['defaultBinX'] as int? ?? 1),
+              defaultBinY: Value(profile['defaultBinY'] as int? ?? 1),
+              defaultCoolingTemp:
+                  Value(profile['defaultCoolingTemp'] as double?),
+              filterNames: Value(profile['filterNames'] as String?),
+              filterFocusOffsets:
+                  Value(profile['filterFocusOffsets'] as String?),
+            ),
+            mode: replace ? InsertMode.replace : InsertMode.insertOrIgnore,
+          );
       count++;
     }
 
     return count;
   }
 
-  Future<int> _importSequences(
-    List<dynamic> sequencesList,
-    {bool replace = false}
-  ) async {
+  Future<int> _importSequences(List<dynamic> sequencesList,
+      {bool replace = false}) async {
     int count = 0;
 
     for (final sequenceJson in sequencesList) {
@@ -569,31 +566,29 @@ class BackupService {
     return count;
   }
 
-  Future<int> _importTargets(
-    List<dynamic> targetsList,
-    {bool replace = false}
-  ) async {
+  Future<int> _importTargets(List<dynamic> targetsList,
+      {bool replace = false}) async {
     int count = 0;
 
     for (final targetJson in targetsList) {
       final target = targetJson as Map<String, dynamic>;
 
       await database.into(database.targets).insert(
-        TargetsCompanion.insert(
-          name: target['name'] as String,
-          catalogId: Value(target['catalogId'] as String?),
-          ra: target['ra'] as double,
-          dec: target['dec'] as double,
-          constellation: Value(target['constellation'] as String?),
-          objectType: Value(target['objectType'] as String?),
-          magnitude: Value(target['magnitude'] as double?),
-          sizeArcmin: Value(target['sizeArcmin'] as double?),
-          notes: Value(target['notes'] as String?),
-          isFavorite: Value(target['isFavorite'] as bool? ?? false),
-          priority: Value(target['priority'] as int? ?? 0),
-        ),
-        mode: replace ? InsertMode.replace : InsertMode.insertOrIgnore,
-      );
+            TargetsCompanion.insert(
+              name: target['name'] as String,
+              catalogId: Value(target['catalogId'] as String?),
+              ra: target['ra'] as double,
+              dec: target['dec'] as double,
+              constellation: Value(target['constellation'] as String?),
+              objectType: Value(target['objectType'] as String?),
+              magnitude: Value(target['magnitude'] as double?),
+              sizeArcmin: Value(target['sizeArcmin'] as double?),
+              notes: Value(target['notes'] as String?),
+              isFavorite: Value(target['isFavorite'] as bool? ?? false),
+              priority: Value(target['priority'] as int? ?? 0),
+            ),
+            mode: replace ? InsertMode.replace : InsertMode.insertOrIgnore,
+          );
       count++;
     }
 
@@ -657,9 +652,10 @@ class BackupService {
                 : FrameType.light,
             ditherEvery: json['ditherEvery'] as int?,
             parentId: json['parentId'] as String?,
-            childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
+            childIds:
+                (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
             orderIndex: json['orderIndex'] as int,
-            isEnabled: json['isEnabled'] as bool? ?? true,
+            isEnabled: json['isEnabled'] as bool? ?? false,
           );
 
         case 'targetGroup':
@@ -670,9 +666,10 @@ class BackupService {
             raHours: (json['raHours'] as num).toDouble(),
             decDegrees: (json['decDegrees'] as num).toDouble(),
             parentId: json['parentId'] as String?,
-            childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
+            childIds:
+                (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
             orderIndex: json['orderIndex'] as int,
-            isEnabled: json['isEnabled'] as bool? ?? true,
+            isEnabled: json['isEnabled'] as bool? ?? false,
           );
 
         case 'instructionSet':
@@ -680,9 +677,10 @@ class BackupService {
             id: json['id'] as String,
             name: json['name'] as String,
             parentId: json['parentId'] as String?,
-            childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
+            childIds:
+                (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
             orderIndex: json['orderIndex'] as int,
-            isEnabled: json['isEnabled'] as bool? ?? true,
+            isEnabled: json['isEnabled'] as bool? ?? false,
           );
 
         case 'loop':
@@ -697,11 +695,13 @@ class BackupService {
             repeatUntil: json['repeatUntil'] != null
                 ? DateTime.parse(json['repeatUntil'] as String)
                 : null,
-            repeatUntilAltitude: (json['repeatUntilAltitude'] as num?)?.toDouble(),
+            repeatUntilAltitude:
+                (json['repeatUntilAltitude'] as num?)?.toDouble(),
             parentId: json['parentId'] as String?,
-            childIds: (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
+            childIds:
+                (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
             orderIndex: json['orderIndex'] as int,
-            isEnabled: json['isEnabled'] as bool? ?? true,
+            isEnabled: json['isEnabled'] as bool? ?? false,
           );
 
         default:

@@ -116,7 +116,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   }
 }
 
-/// A skeleton placeholder for loading states
+/// A skeleton loading state for loading states
 class SkeletonBox extends StatelessWidget {
   final double? width;
   final double height;
@@ -144,7 +144,7 @@ class SkeletonBox extends StatelessWidget {
   }
 }
 
-/// A circular skeleton placeholder
+/// A circular skeleton loading state
 class SkeletonCircle extends StatelessWidget {
   final double size;
 
@@ -168,7 +168,7 @@ class SkeletonCircle extends StatelessWidget {
   }
 }
 
-/// A text-like skeleton placeholder
+/// A text-like skeleton loading state
 class SkeletonText extends StatelessWidget {
   final double? width;
   final double height;
@@ -202,10 +202,9 @@ class SkeletonText extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: List.generate(lines, (index) {
         // Make last line shorter for a more natural look
-        final lineWidth = index == lines - 1 && width != null
-            ? width! * 0.7
-            : width;
-        
+        final lineWidth =
+            index == lines - 1 && width != null ? width! * 0.7 : width;
+
         return Padding(
           padding: EdgeInsets.only(bottom: index < lines - 1 ? spacing : 0),
           child: Container(
@@ -221,5 +220,3 @@ class SkeletonText extends StatelessWidget {
     );
   }
 }
-
-

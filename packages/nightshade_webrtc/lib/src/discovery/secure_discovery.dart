@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
@@ -80,7 +81,7 @@ class SecureDiscovery {
     DiscoveryMode mode = DiscoveryMode.pairedOnly,
   }) async {
     if (_socket != null) {
-      print('[SecureDiscovery] Server already running');
+      developer.log('Server already running', name: 'SecureDiscovery', level: 900);
       return;
     }
 
@@ -94,7 +95,7 @@ class SecureDiscovery {
 
     _socket!.broadcastEnabled = true;
 
-    print('[SecureDiscovery] Secure discovery server started in ${mode.name} mode');
+    developer.log('Secure discovery server started in ${mode.name} mode', name: 'SecureDiscovery', level: 800);
 
     // Listen for discovery requests
     _socket!.listen((event) {
@@ -163,7 +164,7 @@ class SecureDiscovery {
         _sendResponse(datagram.address, signalingPort);
       }
     } catch (e) {
-      print('[SecureDiscovery] Error handling discovery request: $e');
+      developer.log('Error handling discovery request: $e', name: 'SecureDiscovery', level: 1000);
     }
   }
 
@@ -220,7 +221,7 @@ class SecureDiscovery {
       }
     }
 
-    print('[SecureDiscovery] Mode changed to ${mode.name}');
+    developer.log('Mode changed to ${mode.name}', name: 'SecureDiscovery');
   }
 
   /// Stop the server
@@ -229,7 +230,7 @@ class SecureDiscovery {
     _broadcastTimer = null;
     _socket?.close();
     _socket = null;
-    print('[SecureDiscovery] Server stopped');
+    developer.log('Server stopped', name: 'SecureDiscovery', level: 800);
   }
 
   // ============================================================================
@@ -245,7 +246,7 @@ class SecureDiscovery {
     final seen = <String>{};
 
     try {
-      print('[SecureDiscovery] Starting discovery...');
+      developer.log('Starting discovery...', name: 'SecureDiscovery');
 
       // Create socket for receiving responses
       final socket = await RawDatagramSocket.bind(
@@ -277,11 +278,11 @@ class SecureDiscovery {
                     isPairingMode: data['isPairingMode'] as bool,
                   );
                   servers.add(server);
-                  print('[SecureDiscovery] Found server: $host');
+                  developer.log('Found server: $host', name: 'SecureDiscovery', level: 800);
                 }
               }
             } catch (e) {
-              print('[SecureDiscovery] Error parsing response: $e');
+              developer.log('Error parsing response: $e', name: 'SecureDiscovery', level: 1000);
             }
           }
         }
@@ -298,10 +299,10 @@ class SecureDiscovery {
       await Future.delayed(timeout);
       socket.close();
 
-      print('[SecureDiscovery] Discovery complete, found ${servers.length} servers');
+      developer.log('Discovery complete, found ${servers.length} servers', name: 'SecureDiscovery');
       return servers;
     } catch (e) {
-      print('[SecureDiscovery] Discovery error: $e');
+      developer.log('Discovery error: $e', name: 'SecureDiscovery', level: 1000);
       return servers;
     }
   }
@@ -314,7 +315,7 @@ class SecureDiscovery {
     final seen = <String>{};
 
     try {
-      print('[SecureDiscovery] Looking for servers in pairing mode...');
+      developer.log('Looking for servers in pairing mode...', name: 'SecureDiscovery');
 
       final socket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -347,12 +348,12 @@ class SecureDiscovery {
                       isPairingMode: true,
                     );
                     servers.add(server);
-                    print('[SecureDiscovery] Found pairing server: $host');
+                    developer.log('Found pairing server: $host', name: 'SecureDiscovery', level: 800);
                   }
                 }
               }
             } catch (e) {
-              print('[SecureDiscovery] Error parsing response: $e');
+              developer.log('Error parsing response: $e', name: 'SecureDiscovery', level: 1000);
             }
           }
         }
@@ -366,11 +367,10 @@ class SecureDiscovery {
       await Future.delayed(timeout);
       socket.close();
 
-      print(
-          '[SecureDiscovery] Found ${servers.length} servers in pairing mode');
+      developer.log('Found ${servers.length} servers in pairing mode', name: 'SecureDiscovery');
       return servers;
     } catch (e) {
-      print('[SecureDiscovery] Discovery error: $e');
+      developer.log('Discovery error: $e', name: 'SecureDiscovery', level: 1000);
       return servers;
     }
   }

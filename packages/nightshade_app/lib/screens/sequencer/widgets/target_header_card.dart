@@ -140,7 +140,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 if (node.hasTimeConstraints || node.hasAltitudeConstraints)
                   _buildConstraintsRow(node),
 
-                // Progress row (placeholder for runtime progress)
+                // Runtime progress row
                 _buildProgressRow(),
               ],
             ),
@@ -254,7 +254,9 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
             ),
             onPressed: () =>
                 setState(() => _showAltitudeChart = !_showAltitudeChart),
-            tooltip: _showAltitudeChart ? 'Hide altitude chart' : 'Show altitude chart',
+            tooltip: _showAltitudeChart
+                ? 'Hide altitude chart'
+                : 'Show altitude chart',
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -297,9 +299,11 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 value: 'delete',
                 child: Row(
                   children: [
-                    Icon(LucideIcons.trash2, size: 16, color: widget.colors.error),
+                    Icon(LucideIcons.trash2,
+                        size: 16, color: widget.colors.error),
                     const SizedBox(width: 8),
-                    Text('Delete', style: TextStyle(color: widget.colors.error)),
+                    Text('Delete',
+                        style: TextStyle(color: widget.colors.error)),
                   ],
                 ),
               ),
@@ -315,7 +319,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
+          bottom:
+              BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
         ),
       ),
       child: Row(
@@ -374,7 +379,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
+          bottom:
+              BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
         ),
       ),
       child: AltitudeChart(
@@ -390,7 +396,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
+          bottom:
+              BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
         ),
       ),
       child: Row(
@@ -434,26 +441,82 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
   }
 
   Widget _buildProgressRow() {
-    // This is a placeholder for runtime progress tracking
-    // In a full implementation, this would show exposure counts per filter
+    final sequence = ref.watch(currentSequenceProvider);
+    final progress = ref.watch(sequenceProgressProvider);
+    final plan = _calculateTargetPlan(sequence);
+
+    final currentNodeId = progress.currentNodeId;
+    final currentNodeProgress = currentNodeId != null
+        ? progress.nodeProgressPercent[currentNodeId]
+        : null;
+    final currentNodeDetail = currentNodeId != null
+        ? progress.nodeProgressDetail[currentNodeId]
+        : null;
+
+    final isCurrentTarget = progress.currentTarget != null &&
+        (progress.currentTarget == widget.node.targetName ||
+            progress.currentTarget == widget.node.displayName);
+
+    final statusLabel = switch (widget.nodeStatus) {
+      NodeStatus.running => currentNodeDetail ?? progress.message ?? 'Running',
+      NodeStatus.success => 'Completed',
+      NodeStatus.failure => 'Failed',
+      NodeStatus.skipped => 'Skipped',
+      NodeStatus.cancelled => 'Cancelled',
+      _ => 'Ready',
+    };
+
+    final planLabel = plan.totalExposures > 0
+        ? '${plan.totalExposures} planned exposures • ${_formatDuration(plan.totalIntegrationSecs)}'
+        : 'No exposure nodes under this target';
+
+    final detailLabel = isCurrentTarget && currentNodeProgress != null
+        ? '${currentNodeProgress.toStringAsFixed(0)}% • $statusLabel'
+        : statusLabel;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: [
           Icon(
-            LucideIcons.camera,
+            widget.nodeStatus == NodeStatus.running
+                ? LucideIcons.activity
+                : LucideIcons.camera,
             size: 14,
-            color: widget.colors.textMuted,
+            color: widget.nodeStatus == NodeStatus.running
+                ? widget.colors.info
+                : widget.colors.textMuted,
           ),
           const SizedBox(width: 8),
-          Text(
-            'Ready to image',
-            style: TextStyle(
-              fontSize: 11,
-              color: widget.colors.textMuted,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  detailLabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: widget.nodeStatus == NodeStatus.running
+                        ? widget.colors.info
+                        : widget.colors.textMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  planLabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: widget.colors.textMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
-          const Spacer(),
           Icon(
             LucideIcons.chevronDown,
             size: 14,
@@ -468,6 +531,49 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  ({int totalExposures, double totalIntegrationSecs}) _calculateTargetPlan(
+      Sequence? sequence) {
+    if (sequence == null || !sequence.nodes.containsKey(widget.node.id)) {
+      return (totalExposures: 0, totalIntegrationSecs: 0.0);
+    }
+
+    var totalExposures = 0;
+    var totalIntegrationSecs = 0.0;
+    final visited = <String>{};
+
+    void visit(String nodeId) {
+      if (!visited.add(nodeId)) return;
+      final node = sequence.nodes[nodeId];
+      if (node == null) return;
+
+      if (node is ExposureNode) {
+        totalExposures += node.count;
+        totalIntegrationSecs += node.durationSecs * node.count;
+      }
+
+      for (final childId in node.childIds) {
+        visit(childId);
+      }
+    }
+
+    visit(widget.node.id);
+    return (
+      totalExposures: totalExposures,
+      totalIntegrationSecs: totalIntegrationSecs,
+    );
+  }
+
+  String _formatDuration(double totalSeconds) {
+    final seconds = totalSeconds.round();
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
   }
 }
 

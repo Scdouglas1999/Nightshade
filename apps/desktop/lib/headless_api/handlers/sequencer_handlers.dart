@@ -7,8 +7,12 @@ import 'package:shelf/shelf.dart';
 /// Handlers for sequencer control endpoints
 class SequencerHandlers {
   final ProviderContainer container;
-
   SequencerHandlers(this.container);
+
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'SequencerHandlers');
 
   Future<Response> handleSequencerStatus(Request request) async {
     try {
@@ -34,7 +38,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerStart(Request request) async {
-    print('[API] POST /api/sequencer/start');
+    _logInfo('[API] POST /api/sequencer/start');
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerStart();
@@ -51,7 +55,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerStop(Request request) async {
-    print('[API] POST /api/sequencer/stop');
+    _logInfo('[API] POST /api/sequencer/stop');
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerStop();
@@ -68,7 +72,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerPause(Request request) async {
-    print('[API] POST /api/sequencer/pause');
+    _logInfo('[API] POST /api/sequencer/pause');
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerPause();
@@ -85,7 +89,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerResume(Request request) async {
-    print('[API] POST /api/sequencer/resume');
+    _logInfo('[API] POST /api/sequencer/resume');
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerResume();
@@ -102,7 +106,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerSkip(Request request) async {
-    print('[API] POST /api/sequencer/skip');
+    _logInfo('[API] POST /api/sequencer/skip');
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerSkip();
@@ -119,7 +123,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerReset(Request request) async {
-    print('[API] POST /api/sequencer/reset');
+    _logInfo('[API] POST /api/sequencer/reset');
     try {
       final backend = container.read(backendProvider);
       await backend.sequencerReset();
@@ -136,7 +140,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerLoad(Request request) async {
-    print('[API] POST /api/sequencer/load');
+    _logInfo('[API] POST /api/sequencer/load');
     try {
       final payload = jsonDecode(await request.readAsString());
       final json = payload['json'] as String;
@@ -156,7 +160,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerSetSimulationMode(Request request) async {
-    print('[API] POST /api/sequencer/simulation');
+    _logInfo('[API] POST /api/sequencer/simulation');
     try {
       final payload = jsonDecode(await request.readAsString());
       final enabled = payload['enabled'] as bool;
@@ -176,7 +180,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerSetDevices(Request request) async {
-    print('[API] POST /api/sequencer/devices');
+    _logInfo('[API] POST /api/sequencer/devices');
     try {
       final payload = jsonDecode(await request.readAsString());
 
@@ -201,7 +205,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerSetSafetyFailMode(Request request) async {
-    print('[API] POST /api/sequencer/safety-fail-mode');
+    _logInfo('[API] POST /api/sequencer/safety-fail-mode');
     try {
       final payload = jsonDecode(await request.readAsString());
       final mode = payload['mode'] as String;
@@ -221,7 +225,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerSetCheckpointDir(Request request) async {
-    print('[API] POST /api/sequencer/checkpoint/dir');
+    _logInfo('[API] POST /api/sequencer/checkpoint/dir');
     try {
       final payload = jsonDecode(await request.readAsString());
       final path = payload['path'] as String;
@@ -273,7 +277,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerResumeFromCheckpoint(Request request) async {
-    print('[API] POST /api/sequencer/checkpoint/resume');
+    _logInfo('[API] POST /api/sequencer/checkpoint/resume');
     try {
       final backend = container.read(backendProvider);
       await backend.resumeFromCheckpoint();
@@ -290,7 +294,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerDiscardCheckpoint(Request request) async {
-    print('[API] POST /api/sequencer/checkpoint/discard');
+    _logInfo('[API] POST /api/sequencer/checkpoint/discard');
     try {
       final backend = container.read(backendProvider);
       await backend.discardCheckpoint();
@@ -307,7 +311,7 @@ class SequencerHandlers {
   }
 
   Future<Response> handleSequencerSaveCheckpoint(Request request) async {
-    print('[API] POST /api/sequencer/checkpoint/save');
+    _logInfo('[API] POST /api/sequencer/checkpoint/save');
     try {
       final backend = container.read(backendProvider);
       await backend.saveCheckpoint();

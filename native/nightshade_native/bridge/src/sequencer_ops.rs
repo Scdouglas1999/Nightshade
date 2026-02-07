@@ -153,13 +153,20 @@ impl DeviceOps for BridgeDeviceOps {
     }
 
     async fn mount_can_flip(&self, mount_id: &str) -> DeviceResult<bool> {
-        // Check if mount supports meridian flip by checking if it's a GEM
         let status = mount_get_status(mount_id.to_string())
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
 
-        // GEM mounts support flipping - assume true if tracking is possible
-        Ok(status.tracking)
+        if !status.can_slew {
+            return Ok(false);
+        }
+        if matches!(status.side_of_pier, crate::device::PierSide::Unknown) {
+            return Err(
+                "Mount does not report side-of-pier state; flip capability cannot be determined"
+                    .to_string(),
+            );
+        }
+        Ok(true)
     }
 
     async fn mount_side_of_pier(
@@ -624,7 +631,7 @@ impl DeviceOps for BridgeDeviceOps {
         let img = nightshade_imaging::ImageData::from_u16(
             image_data.width,
             image_data.height,
-            1, // Assuming mono/bayer raw
+            1, // Raw FITS input is single-plane (mono or Bayer mosaic)
             &image_data.data,
         );
 
@@ -647,9 +654,9 @@ impl DeviceOps for BridgeDeviceOps {
             header.set_float("DEC", dec);
         }
         if let Some(scale) = hint_scale {
-            // Approximate focal length from scale (assuming 3.76um pixels)
-            let focal_len = 206.265 * 3.76 / scale;
-            header.set_float("FOCALLEN", focal_len);
+            // Do not synthesize focal length from an assumed pixel size.
+            // Preserve the caller-provided scale hint without adding inferred metadata.
+            header.set_float("SCALE", scale);
         }
 
         // Save temp FITS
@@ -903,8 +910,8 @@ impl DeviceOps for BridgeDeviceOps {
 
     async fn safety_is_safe(&self, safety_id: Option<&str>) -> DeviceResult<bool> {
         // Resolve safety source from explicit ID or active profile.
-        // We intentionally return errors when no source is configured so the sequencer's
-        // SafetyFailMode policy decides how to proceed (fail-open/fail-closed/warn-only).
+        // We intentionally return errors when no source is configured so the sequencer
+        // enforces fail-closed safety behavior.
         let device_id = match safety_id {
             Some(id) => id.to_string(),
             None => {

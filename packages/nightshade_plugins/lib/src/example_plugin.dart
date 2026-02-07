@@ -160,8 +160,7 @@ class ExampleUiPlugin extends UiPlugin {
           type: UiExtensionPointType.equipmentPanel,
           title: 'Example Equipment Panel',
           widgetBuilder: () {
-            // In a real plugin, return a Flutter widget here
-            // For now, return a placeholder
+            // Example plugin intentionally does not provide a concrete widget.
             return null;
           },
         ),

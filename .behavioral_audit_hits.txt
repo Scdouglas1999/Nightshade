@@ -1,0 +1,11 @@
+native/nightshade_native/sequencer/src/device_ops.rs:347:simulated_runtime_path:pub struct NullDeviceOps;
+native/nightshade_native/sequencer/src/device_ops.rs:350:simulated_runtime_path:impl DeviceOps for NullDeviceOps {
+native/nightshade_native/sequencer/src/device_ops.rs:597:simulated_runtime_path:            .ok_or_else(|| "NullDeviceOps plate_solve requires hint_ra in simulation mode".to_string())?;
+native/nightshade_native/sequencer/src/device_ops.rs:599:simulated_runtime_path:            .ok_or_else(|| "NullDeviceOps plate_solve requires hint_dec in simulation mode".to_string())?;
+packages/nightshade_app/lib/screens/settings/settings_screen.dart:2896:simulated_runtime_path:                    subtitle: 'Use simulated devices instead of real hardware',
+packages/nightshade_app/lib/screens/settings/settings_screen.dart:2898:simulated_runtime_path:                      value: settings.useSimulationMode,
+packages/nightshade_core/lib/src/providers/sequence_provider.dart:1403:simulated_runtime_path:  bool get _useSimulationMode {
+packages/nightshade_core/lib/src/providers/sequence_provider.dart:1409:simulated_runtime_path:      return settings?.useSimulationMode ?? false;
+packages/nightshade_core/lib/src/providers/sequence_provider.dart:1412:simulated_runtime_path:        'Failed to read useSimulationMode setting; defaulting to false: $error\n$stack',
+packages/nightshade_core/lib/src/providers/sequence_provider.dart:2023:simulated_runtime_path:      await backend.sequencerSetSimulationMode(false);
+packages/nightshade_core/lib/src/providers/sequence_provider.dart:2025:simulated_runtime_path:      await backend.sequencerSetSimulationMode(_useSimulationMode);

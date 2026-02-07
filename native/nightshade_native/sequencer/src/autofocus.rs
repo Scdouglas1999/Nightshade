@@ -130,7 +130,7 @@ impl VCurveAutofocus {
             .iter()
             .map(|p| p.hfr)
             .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .unwrap_or(0.0);
+            .ok_or_else(|| "No valid HFR values found".to_string())?;
 
         Ok(AutofocusResult {
             best_position,
@@ -311,8 +311,9 @@ impl VCurveAutofocus {
             .iter()
             .map(|p| p.hfr)
             .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .unwrap_or(1.0);
+            .ok_or_else(|| "No valid HFR values found for hyperbolic fit".to_string())?;
         let b = min_hfr;
+        let mut prev_mean_residual: Option<f64> = None;
 
         // Iterative refinement (Levenberg-Marquardt-like approach, simplified)
         for _iteration in 0..10 {
@@ -338,7 +339,7 @@ impl VCurveAutofocus {
 
                 // Update x0 and b
                 let mut new_x0_sum = 0.0;
-                let mut _new_b_sum = 0.0;
+                let mut residual_sum = 0.0;
                 let mut count = 0.0;
 
                 for point in points {
@@ -356,13 +357,22 @@ impl VCurveAutofocus {
                     }
 
                     let predicted_y = ((dx * a).powi(2) + b * b).sqrt();
-                    _new_b_sum += (y - predicted_y).abs();
+                    residual_sum += (y - predicted_y).abs();
                 }
 
                 if count > 0.0 {
                     let new_x0 = new_x0_sum / count;
                     // Gradually update x0 to avoid oscillation
                     x0 = 0.7 * x0 + 0.3 * new_x0;
+
+                    // Stop iterating when residual improvement is negligible.
+                    let mean_residual = residual_sum / count;
+                    if let Some(prev) = prev_mean_residual {
+                        if (prev - mean_residual).abs() < 1e-4 {
+                            break;
+                        }
+                    }
+                    prev_mean_residual = Some(mean_residual);
                 }
             }
         }

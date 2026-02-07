@@ -10,6 +10,13 @@ class WeatherHandlers {
 
   WeatherHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'WeatherHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'WeatherHandlers');
+
   // ===========================================================================
   // Get Radar Data
   // ===========================================================================
@@ -18,7 +25,7 @@ class WeatherHandlers {
     final lat = double.tryParse(request.url.queryParameters['lat'] ?? '');
     final lon = double.tryParse(request.url.queryParameters['lon'] ?? '');
     final forceRefresh = request.url.queryParameters['refresh'] == 'true';
-    print('[API] GET /api/weather/radar?lat=$lat&lon=$lon');
+    _logInfo('[API] GET /api/weather/radar?lat=$lat&lon=$lon');
 
     if (lat == null || lon == null) {
       return Response.badRequest(
@@ -56,7 +63,7 @@ class WeatherHandlers {
         );
       }
     } catch (e) {
-      print('[API] Get radar data error: $e');
+      _logError('[API] Get radar data error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -71,7 +78,7 @@ class WeatherHandlers {
   Future<Response> handleGetForecast(Request request) async {
     final lat = double.tryParse(request.url.queryParameters['lat'] ?? '');
     final lon = double.tryParse(request.url.queryParameters['lon'] ?? '');
-    print('[API] GET /api/weather/forecast?lat=$lat&lon=$lon');
+    _logInfo('[API] GET /api/weather/forecast?lat=$lat&lon=$lon');
 
     if (lat == null || lon == null) {
       return Response.badRequest(
@@ -101,7 +108,7 @@ class WeatherHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get forecast error: $e');
+      _logError('[API] Get forecast error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -114,7 +121,7 @@ class WeatherHandlers {
   // ===========================================================================
 
   Future<Response> handleGetAlerts(Request request) async {
-    print('[API] GET /api/weather/alerts');
+    _logInfo('[API] GET /api/weather/alerts');
     try {
       final alertService = container.read(weatherAlertServiceProvider);
       final currentAlert = alertService.currentAlert;
@@ -133,7 +140,7 @@ class WeatherHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get alerts error: $e');
+      _logError('[API] Get alerts error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -148,7 +155,7 @@ class WeatherHandlers {
   Future<Response> handleGetCloudCover(Request request) async {
     final lat = double.tryParse(request.url.queryParameters['lat'] ?? '');
     final lon = double.tryParse(request.url.queryParameters['lon'] ?? '');
-    print('[API] GET /api/weather/cloud-cover?lat=$lat&lon=$lon');
+    _logInfo('[API] GET /api/weather/cloud-cover?lat=$lat&lon=$lon');
 
     if (lat == null || lon == null) {
       return Response.badRequest(
@@ -186,7 +193,7 @@ class WeatherHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get cloud cover error: $e');
+      _logError('[API] Get cloud cover error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -199,7 +206,7 @@ class WeatherHandlers {
   // ===========================================================================
 
   Future<Response> handleGetSettings(Request request) async {
-    print('[API] GET /api/weather/settings');
+    _logInfo('[API] GET /api/weather/settings');
     try {
       final database = container.read(databaseProvider);
       final settings = await database.weatherSettingsDao.getOrCreateSettings();
@@ -221,7 +228,7 @@ class WeatherHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get weather settings error: $e');
+      _logError('[API] Get weather settings error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -234,7 +241,7 @@ class WeatherHandlers {
   // ===========================================================================
 
   Future<Response> handleUpdateSettings(Request request) async {
-    print('[API] POST /api/weather/settings');
+    _logInfo('[API] POST /api/weather/settings');
     try {
       final payload = jsonDecode(await request.readAsString());
       final database = container.read(databaseProvider);
@@ -244,7 +251,8 @@ class WeatherHandlers {
         refreshIntervalSeconds: payload['refreshIntervalSeconds'] as int?,
         triggerDistanceKm: (payload['triggerDistanceKm'] as num?)?.toDouble(),
         leadTimeMinutes: payload['leadTimeMinutes'] as int?,
-        cloudDensityThreshold: (payload['cloudDensityThreshold'] as num?)?.toDouble(),
+        cloudDensityThreshold:
+            (payload['cloudDensityThreshold'] as num?)?.toDouble(),
         weatherSafetyEnabled: payload['weatherSafetyEnabled'] as bool?,
         autoParkEnabled: payload['autoParkEnabled'] as bool?,
         autoResumeEnabled: payload['autoResumeEnabled'] as bool?,
@@ -255,7 +263,7 @@ class WeatherHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Update weather settings error: $e');
+      _logError('[API] Update weather settings error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -268,13 +276,14 @@ class WeatherHandlers {
   // ===========================================================================
 
   Future<Response> handleCheckSafeImaging(Request request) async {
-    print('[API] GET /api/weather/safe-imaging');
+    _logInfo('[API] GET /api/weather/safe-imaging');
     try {
       final alertService = container.read(weatherAlertServiceProvider);
       final currentAlert = alertService.currentAlert;
 
       // Safe to image if no alert or alert level is clear
-      final isSafe = currentAlert == null || currentAlert.level == AlertLevel.clear;
+      final isSafe =
+          currentAlert == null || currentAlert.level == AlertLevel.clear;
 
       return Response.ok(
         jsonEncode({
@@ -285,7 +294,7 @@ class WeatherHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Check safe imaging error: $e');
+      _logError('[API] Check safe imaging error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -298,7 +307,7 @@ class WeatherHandlers {
   // ===========================================================================
 
   Future<Response> handleClearCache(Request request) async {
-    print('[API] POST /api/weather/clear-cache');
+    _logInfo('[API] POST /api/weather/clear-cache');
     try {
       final service = container.read(weatherRadarServiceProvider);
       service.clearCache();
@@ -308,7 +317,7 @@ class WeatherHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Clear cache error: $e');
+      _logError('[API] Clear cache error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

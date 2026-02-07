@@ -666,11 +666,26 @@ pub(crate) fn get_image_stats(width: u32, height: u32, data: Vec<u16>) -> ImageS
     calculate_stats_u16(&image)
 }
 
-/// Auto-stretch image for display
+/// Auto-stretch image for display. Returns RGBA (4 bytes per pixel, alpha=255).
 pub fn auto_stretch_image(width: u32, height: u32, data: Vec<u16>) -> Vec<u8> {
+    use rayon::prelude::*;
+
     let image = ImageData::from_u16(width, height, 1, &data);
     let params = auto_stretch_stf(&image);
-    apply_stretch(&image, &params)
+    let grayscale = apply_stretch(&image, &params);
+
+    // Convert grayscale to RGBA
+    let num_pixels = grayscale.len();
+    let mut rgba = vec![0u8; num_pixels * 4];
+    rgba.par_chunks_exact_mut(4)
+        .zip(grayscale.par_iter())
+        .for_each(|(dst, &gray)| {
+            dst[0] = gray; // R
+            dst[1] = gray; // G
+            dst[2] = gray; // B
+            dst[3] = 255; // A
+        });
+    rgba
 }
 
 /// Debayer image to RGBA8

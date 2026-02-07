@@ -69,7 +69,7 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
       skippedUpdateVersion: json['skippedUpdateVersion'] as String? ?? '',
       safetyFailMode: $enumDecodeNullable(
               _$SafetyFailModeEnumMap, json['safetyFailMode']) ??
-          SafetyFailMode.failOpen,
+          SafetyFailMode.failClosed,
     );
 
 Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>

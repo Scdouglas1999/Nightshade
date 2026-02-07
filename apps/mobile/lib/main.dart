@@ -1,11 +1,12 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_app/nightshade_app.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide Column;
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_webrtc/nightshade_webrtc.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -17,21 +18,19 @@ import 'services/network_service.dart';
 import 'widgets/checkpoint_resume_dialog.dart';
 
 void main() async {
-  print('[MAIN] Starting Nightshade...');
+  developer.log('Starting Nightshade...', name: 'Main', level: 800);
   WidgetsFlutterBinding.ensureInitialized();
-  print('[MAIN] Flutter binding initialized');
-  
+
   // Initialize Native Bridge (which handles RustLib initialization)
-  print('[MAIN] About to initialize NativeBridge...');
   try {
     await NativeBridge.init();
-    print('[MAIN] ✓ NativeBridge initialized successfully');
+    developer.log('NativeBridge initialized successfully',
+        name: 'Main', level: 800);
   } catch (e, stackTrace) {
-    print('[MAIN] ✗ Failed to initialize NativeBridge: $e');
-    print('[MAIN] Stack trace: $stackTrace');
+    developer.log('Failed to initialize NativeBridge: $e',
+        name: 'Main', level: 1000, error: e, stackTrace: stackTrace);
   }
-  print('[MAIN] NativeBridge initialization complete');
-  
+
   // Hide Android status bar for fullscreen experience
   if (Platform.isAndroid) {
     SystemChrome.setEnabledSystemUIMode(
@@ -39,30 +38,35 @@ void main() async {
       overlays: [],
     );
   }
-  
+
   // Initialize CatalogManager
   try {
     final appDir = await getApplicationDocumentsDirectory();
     await CatalogManager.instance.initialize(appDir.path);
   } catch (e) {
-    print('Failed to initialize CatalogManager: $e');
+    developer.log('Failed to initialize CatalogManager: $e',
+        name: 'Main', level: 1000);
   }
 
   // Initialize NetworkService for connectivity monitoring
   try {
     await NetworkService().initialize();
-    print('[MAIN] NetworkService initialized');
+    developer.log('NetworkService initialized', name: 'Main');
   } catch (e) {
-    print('[MAIN] Failed to initialize NetworkService: $e');
+    developer.log('Failed to initialize NetworkService: $e',
+        name: 'Main', level: 1000);
   }
-  
+
   // Add error handling
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
-    print('Flutter Error: ${details.exception}');
-    print('Stack trace: ${details.stack}');
+    developer.log('Flutter Error: ${details.exception}',
+        name: 'Main',
+        level: 1000,
+        error: details.exception,
+        stackTrace: details.stack);
   };
-  
+
   runApp(
     const ProviderScope(
       child: NightshadeMobileApp(),
@@ -74,7 +78,8 @@ class NightshadeMobileApp extends ConsumerStatefulWidget {
   const NightshadeMobileApp({super.key});
 
   @override
-  ConsumerState<NightshadeMobileApp> createState() => _NightshadeMobileAppState();
+  ConsumerState<NightshadeMobileApp> createState() =>
+      _NightshadeMobileAppState();
 }
 
 class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
@@ -82,7 +87,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   bool _isDiscovering = false;
   String? _error;
   String _statusMessage = '';
-  final TextEditingController _ipController = TextEditingController(text: '192.168.254.53');
+  final TextEditingController _ipController = TextEditingController(text: '');
   bool _showManualEntry = false;
   bool _skippedConnection = false;
 
@@ -99,31 +104,34 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   void _startConnectionMonitor(String host, int port) {
     _connectionMonitorTimer?.cancel();
     _failedConnectionChecks = 0;
-    
+
     // Check every 5 seconds
-    _connectionMonitorTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+    _connectionMonitorTimer =
+        Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (_connectedServer == null) {
         timer.cancel();
         return;
       }
 
       try {
-        final isReachable = await EnhancedNightshadeDiscovery.testServerConnection(host, port);
+        final isReachable =
+            await EnhancedNightshadeDiscovery.testServerConnection(host, port);
         if (isReachable) {
           _failedConnectionChecks = 0;
         } else {
           _failedConnectionChecks++;
-          print('[CONNECTION] Failed check $_failedConnectionChecks/3');
+          developer.log('Failed connection check $_failedConnectionChecks/3',
+              name: 'Connection', level: 900);
         }
 
         if (_failedConnectionChecks >= 3) {
-          print('[CONNECTION] Connection lost!');
+          developer.log('Connection lost!', name: 'Connection', level: 1000);
           timer.cancel();
-          
+
           if (mounted) {
             // Disconnect backend
             ref.read(backendProvider.notifier).disconnect();
-            
+
             setState(() {
               _connectedServer = null;
               _isDiscovering = false;
@@ -133,7 +141,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           }
         }
       } catch (e) {
-        print('[CONNECTION] Monitor error: $e');
+        developer.log('Monitor error: $e', name: 'Connection', level: 1000);
       }
     });
   }
@@ -146,7 +154,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
     });
 
     try {
-      print('[DISCOVERY] Starting enhanced auto-discovery...');
+      developer.log('Starting enhanced auto-discovery...', name: 'Discovery');
 
       // Use enhanced discovery with cascading fallback
       final server = await EnhancedNightshadeDiscovery.discoverWithFallback(
@@ -158,7 +166,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       );
 
       if (server != null) {
-        print('[DISCOVERY] Found server: ${server.name} at ${server.host}');
+        developer.log('Found server: ${server.name} at ${server.host}',
+            name: 'Discovery', level: 800);
 
         // Save for future reconnects
         await EnhancedNightshadeDiscovery.saveLastServer(server);
@@ -166,19 +175,22 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
         // Connect to server
         await _connectToServer(server);
       } else {
-        print('[DISCOVERY] No server found via any method');
+        developer.log('No server found via any method',
+            name: 'Discovery', level: 900);
         setState(() {
           _isDiscovering = false;
           _statusMessage = '';
-          _error = 'No Nightshade server found.\n\nTry:\n• Scanning QR code from desktop\n• Entering IP address manually\n• Check firewall allows UDP 45679 & HTTP 8080';
+          _error =
+              'No Nightshade server found.\n\nTry:\n• Scanning QR code from desktop\n• Entering IP address manually\n• Check firewall allows UDP 45679 & HTTP 8080';
         });
       }
     } catch (e) {
-      print('[DISCOVERY] Discovery error: $e');
+      developer.log('Discovery error: $e', name: 'Discovery', level: 1000);
       setState(() {
         _isDiscovering = false;
         _statusMessage = '';
-        _error = 'Discovery failed: $e\n\nTry entering the IP address manually or scan QR code.';
+        _error =
+            'Discovery failed: $e\n\nTry entering the IP address manually or scan QR code.';
       });
     }
   }
@@ -190,13 +202,14 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
 
     try {
       // Test connection first
-      final isReachable = await EnhancedNightshadeDiscovery.testServerConnection(
+      final isReachable =
+          await EnhancedNightshadeDiscovery.testServerConnection(
         server.host,
         server.webPort,
       );
 
       if (isReachable) {
-        print('[DISCOVERY] Connection successful!');
+        developer.log('Connection successful!', name: 'Discovery', level: 800);
 
         // Update state
         setState(() {
@@ -207,7 +220,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
 
         // Update global backend state to use NetworkBackend
         ref.read(backendProvider.notifier).connect(server.host, server.webPort);
-        
+
         // Start monitoring connection
         _startConnectionMonitor(server.host, server.webPort);
 
@@ -220,20 +233,24 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           final location = await backend.getLocation();
           if (location != null) {
             ref.read(appSettingsProvider.notifier).updateLocation(
-              latitude: location.latitude,
-              longitude: location.longitude,
-              elevation: location.elevation,
-            );
-            print('Synced location from server: ${location.latitude}, ${location.longitude}');
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                  elevation: location.elevation,
+                );
+            developer.log(
+                'Synced location from server: ${location.latitude}, ${location.longitude}',
+                name: 'Discovery');
           }
         } catch (e) {
-          print('Failed to sync location from server: $e');
+          developer.log('Failed to sync location from server: $e',
+              name: 'Discovery', level: 900);
         }
       } else {
         setState(() {
           _isDiscovering = false;
           _statusMessage = '';
-          _error = 'Could not connect to ${server.host}:${server.webPort}\n\nServer may be offline.';
+          _error =
+              'Could not connect to ${server.host}:${server.webPort}\n\nServer may be offline.';
         });
       }
     } catch (e) {
@@ -264,7 +281,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
         await _connectToServer(server);
       } else {
         setState(() {
-          _error = 'Invalid QR code. Please scan a Nightshade connection QR code.';
+          _error =
+              'Invalid QR code. Please scan a Nightshade connection QR code.';
         });
       }
     }
@@ -364,7 +382,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           }
         }
       } catch (e) {
-        print('Error checking for checkpoint: $e');
+        developer.log('Error checking for checkpoint: $e',
+            name: 'Main', level: 1000);
       }
     });
   }
@@ -383,7 +402,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       final backend = ref.watch(backendProvider);
 
       // Handle disconnection from Settings - if backend becomes disconnected, return to connection screen
-      if (_connectedServer != null && backend is DisconnectedBackend && !_skippedConnection) {
+      if (_connectedServer != null &&
+          backend is DisconnectedBackend &&
+          !_skippedConnection) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             setState(() {
@@ -427,8 +448,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       );
     } catch (e, stackTrace) {
       // Fallback UI if something goes wrong
-      print('Error building app: $e');
-      print('Stack trace: $stackTrace');
+      developer.log('Error building app: $e',
+          name: 'Main', level: 1000, error: e, stackTrace: stackTrace);
       return MaterialApp(
         title: 'Nightshade',
         debugShowCheckedModeBanner: false,
@@ -478,12 +499,16 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       builder: (context) {
         final theme = Theme.of(context);
         final colors = theme.extension<NightshadeColors>();
-        
+
         // If colors extension not available, use default Material colors
         final bgColor = colors?.background ?? theme.scaffoldBackgroundColor;
         final surfaceColor = colors?.surface ?? theme.cardColor;
-        final textColor = colors?.textPrimary ?? theme.textTheme.bodyLarge?.color ?? Colors.black;
-        final textSecondary = colors?.textSecondary ?? theme.textTheme.bodyMedium?.color ?? Colors.grey;
+        final textColor = colors?.textPrimary ??
+            theme.textTheme.bodyLarge?.color ??
+            Colors.black;
+        final textSecondary = colors?.textSecondary ??
+            theme.textTheme.bodyMedium?.color ??
+            Colors.grey;
         final borderColor = colors?.border ?? Colors.grey.shade300;
         final primaryColor = colors?.primary ?? theme.colorScheme.primary;
         final errorColor = colors?.error ?? theme.colorScheme.error;
@@ -567,7 +592,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                           decoration: BoxDecoration(
                             color: errorColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: errorColor.withOpacity(0.3)),
+                            border:
+                                Border.all(color: errorColor.withOpacity(0.3)),
                           ),
                           child: Text(
                             _error!,
@@ -629,7 +655,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                       filled: true,
                       fillColor: surfaceColor,
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                   ),
                   const SizedBox(height: 8),
                   Row(

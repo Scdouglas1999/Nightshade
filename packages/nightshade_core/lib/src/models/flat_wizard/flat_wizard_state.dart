@@ -5,7 +5,18 @@ part 'flat_wizard_state.freezed.dart';
 part 'flat_wizard_state.g.dart';
 
 enum FlatWizardMode { quick, batch, skyFlats }
+
 enum TwilightMode { dawn, dusk }
+
+class RuntimeOnlyValueConverter implements JsonConverter<Object?, Object?> {
+  const RuntimeOnlyValueConverter();
+
+  @override
+  Object? fromJson(Object? json) => null;
+
+  @override
+  Object? toJson(Object? object) => null;
+}
 
 /// ADU measurement for tracking convergence
 @freezed
@@ -41,7 +52,8 @@ class FlatWizardState with _$FlatWizardState {
     @Default(FlatWizardMode.quick) FlatWizardMode mode,
 
     /// Global settings
-    @Default(FlatWizardGlobalSettings()) FlatWizardGlobalSettings globalSettings,
+    @Default(FlatWizardGlobalSettings())
+    FlatWizardGlobalSettings globalSettings,
 
     /// Per-filter settings
     @Default([]) List<FlatFilterSettings> filterSettings,
@@ -83,9 +95,7 @@ class FlatWizardState with _$FlatWizardState {
     String? lastImagePath,
 
     /// Most recent captured image data (for preview, runtime only)
-    @JsonKey(includeToJson: false, includeFromJson: false)
-    @Default(null)
-    dynamic lastImageData,
+    @RuntimeOnlyValueConverter() Object? lastImageData,
 
     /// Error message if any
     String? errorMessage,

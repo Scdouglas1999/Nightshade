@@ -160,7 +160,7 @@ fn process_tile(
             apply_gamma_to_tile(&tile_data, image.pixel_type, *gamma)
         }
         ProcessOperation::Debayer { pattern: _ } => {
-            // Debayering requires access to neighboring tiles - not implemented in tiled mode
+            // Debayering needs neighboring-pixel context across tile boundaries.
             Err("Debayer operation not supported in tiled mode".to_string())
         }
         ProcessOperation::Custom => {
@@ -323,25 +323,28 @@ fn merge_tile_results(
     channels: u32,
     _pixel_type: PixelType,
 ) -> Result<ImageData, String> {
-    // For display output, we're creating U8 RGBA data
-    let output_channels = if channels == 1 { 4 } else { channels }; // Convert mono to RGBA
+    let output_channels = channels.max(1);
     let mut output = vec![0u8; (width * height * output_channels) as usize];
 
     for (tile, tile_data) in tile_results {
-        // Write tile data to output
+        let src_row_stride = (tile.width * output_channels) as usize;
+        let dst_row_stride = (width * output_channels) as usize;
+
         for y in 0..tile.height {
-            let src_offset = (y * tile.width) as usize;
+            let src_offset = (y as usize) * src_row_stride;
             let dst_y = (tile.y + y) as usize;
             let dst_x = tile.x as usize;
-            let dst_offset = dst_y * (width as usize) + dst_x;
+            let dst_offset = dst_y * dst_row_stride + dst_x * (output_channels as usize);
 
             let src_start = src_offset;
-            let src_end = src_start + (tile.width as usize);
+            let src_end = src_start + src_row_stride;
             let dst_start = dst_offset;
-            let dst_end = dst_start + (tile.width as usize);
+            let dst_end = dst_start + src_row_stride;
 
             if src_end <= tile_data.len() && dst_end <= output.len() {
                 output[dst_start..dst_end].copy_from_slice(&tile_data[src_start..src_end]);
+            } else {
+                return Err("Tile merge bounds exceeded".to_string());
             }
         }
     }
@@ -349,7 +352,7 @@ fn merge_tile_results(
     Ok(ImageData {
         width,
         height,
-        channels: 1, // Processed output is grayscale for now
+        channels: output_channels,
         pixel_type: PixelType::U8,
         data: output,
     })

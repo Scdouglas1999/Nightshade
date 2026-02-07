@@ -602,34 +602,8 @@ class QuickStartService {
         throw Exception('Session $sessionId not found');
       }
 
-      // The ImagingSessions table has an equipmentSnapshot text column
-      // We need to update it using raw SQL or by updating the session
-      // Since sessionsDao doesn't have a direct method, we'll use notes as a workaround
-      // or add a method to update the snapshot
-
-      // For now, we'll store it in a way that's compatible with the existing schema
-      // The imaging_sessions table has an equipmentSnapshot column
       final snapshotJson = snapshot.toJsonString();
-
-      // We need to update the session - let's use the database directly
-      // Since we're working within the DAO pattern, we should ideally add
-      // an updateEquipmentSnapshot method to SessionsDao.
-      // For now, we'll work with what we have - storing in notes as a fallback
-      // is NOT acceptable per the CLAUDE.md guidelines about no stubs/placeholders.
-
-      // The proper implementation requires updating the session record.
-      // The ImagingSessions table has equipmentSnapshot column.
-      // We need to use raw update or extend the DAO.
-
-      // Using the database directly through the DAO's database reference
-      final db = sessionsDao.attachedDatabase;
-
-      await db.customStatement(
-        'UPDATE imaging_sessions SET equipment_snapshot = ? WHERE id = ?',
-        [snapshotJson, sessionId],
-      );
-
-      debugPrint('QuickStartService: Equipment snapshot saved successfully');
+      await sessionsDao.updateEquipmentSnapshot(sessionId, snapshotJson);
     } catch (e, stackTrace) {
       debugPrint('QuickStartService: Error saving equipment snapshot: $e');
       debugPrint('QuickStartService: Stack trace: $stackTrace');

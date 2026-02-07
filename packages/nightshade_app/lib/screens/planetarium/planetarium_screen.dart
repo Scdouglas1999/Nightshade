@@ -28,7 +28,7 @@ import '../../widgets/contextual_tour_prompt.dart';
       return (messierNum, 'M');
     }
   }
-  
+
   // For non-Messier objects, use NGC/IC designation as name
   final ngcIc = dso.ngcIcDesignation;
   if (ngcIc != null) {
@@ -38,7 +38,7 @@ import '../../widgets/contextual_tour_prompt.dart';
       return (ngcIc, 'IC');
     }
   }
-  
+
   // Fallback to id and extract catalog prefix
   if (dso.id.startsWith('NGC')) {
     return (dso.id, 'NGC');
@@ -47,7 +47,7 @@ import '../../widgets/contextual_tour_prompt.dart';
   } else if (dso.id.startsWith('M')) {
     return (dso.id, 'M');
   }
-  
+
   // Last resort: use name and id
   return (dso.name, dso.id);
 }
@@ -91,17 +91,17 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
       _performInitialSync();
     });
   }
-  
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
-  
+
   void _performInitialSync() {
     if (_initialSyncDone) return;
     _initialSyncDone = true;
-    
+
     // Initial mount sync
     final mountState = ref.read(mountStateProvider);
     final mountNotifier = ref.read(mountPositionProvider.notifier);
@@ -123,15 +123,19 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
         isConnected: true,
       );
     }
-    
+
     // Initial rotator sync
     final rotatorState = ref.read(rotatorStateProvider);
-    if (rotatorState.connectionState == DeviceConnectionState.connected && rotatorState.position != null) {
-      ref.read(equipmentFOVProvider.notifier).setRotation(rotatorState.position!);
+    if (rotatorState.connectionState == DeviceConnectionState.connected &&
+        rotatorState.position != null) {
+      ref
+          .read(equipmentFOVProvider.notifier)
+          .setRotation(rotatorState.position!);
     }
   }
-  
-  void _handleObjectTapped(CelestialObject? object, CelestialCoordinate coordinates, Offset screenPosition) {
+
+  void _handleObjectTapped(CelestialObject? object,
+      CelestialCoordinate coordinates, Offset screenPosition) {
     // If in slew mode, handle slew instead of normal tap behavior
     if (_slewMode) {
       _handleSlewToCoordinates(coordinates, objectName: object?.name);
@@ -147,7 +151,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
     // Only show popup if an object was found
     if (object != null) {
-      final renderBox = _skyViewKey.currentContext?.findRenderObject() as RenderBox?;
+      final renderBox =
+          _skyViewKey.currentContext?.findRenderObject() as RenderBox?;
       if (renderBox != null) {
         // Convert to global position for proper popup placement
         final globalPosition = renderBox.localToGlobal(screenPosition);
@@ -162,7 +167,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
       _dismissPopup();
     }
   }
-  
+
   void _dismissPopup() {
     if (_showPopup) {
       setState(() {
@@ -172,30 +177,30 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
       });
     }
   }
-  
+
   void _sendToFraming() {
     if (_popupObject == null) return;
-    
+
     final obj = _popupObject!;
     final coords = _popupCoordinates ?? obj.coordinates;
-    
+
     // Set the framing target
     ref.read(framingProvider.notifier).setTargetCoordinates(
-      coords.ra,
-      coords.dec,
-      name: obj.name,
-    );
-    
+          coords.ra,
+          coords.dec,
+          name: obj.name,
+        );
+
     // Navigate to framing screen
     try {
       context.goNamed('framing');
     } catch (e) {
       // Router might not be available, ignore
     }
-    
+
     _dismissPopup();
   }
-  
+
   void _addToSequencer() {
     if (_popupObject == null) return;
 
@@ -204,12 +209,12 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
     // Add to sequencer, adopting any orphan instructions
     ref.read(currentSequenceProvider.notifier).addTargetHeader(
-      TargetHeaderNode(
-        targetName: obj.name,
-        raHours: coords.ra,
-        decDegrees: coords.dec,
-      ),
-    );
+          TargetHeaderNode(
+            targetName: obj.name,
+            raHours: coords.ra,
+            decDegrees: coords.dec,
+          ),
+        );
 
     // Show confirmation
     context.showSuccessSnackBar('Added ${obj.name} to sequence');
@@ -223,17 +228,27 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     final obj = _popupObject!;
     final coords = _popupCoordinates ?? obj.coordinates;
 
-    await ref.read(mountCommandServiceProvider).slewTo(context, coords.ra, coords.dec);
+    final result = await ref
+        .read(mountCommandServiceProvider)
+        .slewTo(coords.ra, coords.dec);
+    if (mounted) {
+      context.showCommandActionResult(result);
+    }
 
     _dismissPopup();
   }
 
-  Future<void> _handleSlewAndCenter(CelestialCoordinate coords, String objectName) async {
+  Future<void> _handleSlewAndCenter(
+      CelestialCoordinate coords, String objectName) async {
     // First slew to approximate position
     final mountService = ref.read(mountCommandServiceProvider);
-    final success = await mountService.slewTo(context, coords.ra, coords.dec, showFeedback: false);
+    final slewResult =
+        await mountService.slewTo(coords.ra, coords.dec, showFeedback: false);
 
-    if (!success) {
+    if (!slewResult.isSuccess) {
+      if (mounted) {
+        context.showCommandActionResult(slewResult);
+      }
       return;
     }
 
@@ -253,12 +268,17 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     }
   }
 
-  Future<void> _handleSlewCenterRotate(CelestialCoordinate coords, String objectName) async {
+  Future<void> _handleSlewCenterRotate(
+      CelestialCoordinate coords, String objectName) async {
     // First slew to approximate position
     final mountService = ref.read(mountCommandServiceProvider);
-    final slewSuccess = await mountService.slewTo(context, coords.ra, coords.dec, showFeedback: false);
+    final slewResult =
+        await mountService.slewTo(coords.ra, coords.dec, showFeedback: false);
 
-    if (!slewSuccess) {
+    if (!slewResult.isSuccess) {
+      if (mounted) {
+        context.showCommandActionResult(slewResult);
+      }
       return;
     }
 
@@ -295,7 +315,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     }
   }
 
-  Future<void> _handleSlewToCoordinates(CelestialCoordinate coords, {String? objectName}) async {
+  Future<void> _handleSlewToCoordinates(CelestialCoordinate coords,
+      {String? objectName}) async {
     // Check if mount is connected (still needed for showing confirmation dialog)
     final mountService = ref.read(mountCommandServiceProvider);
     if (!mountService.isConnected) {
@@ -334,7 +355,10 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
     if (confirmed != true) return;
 
-    await mountService.slewTo(context, coords.ra, coords.dec);
+    final slewResult = await mountService.slewTo(coords.ra, coords.dec);
+    if (mounted) {
+      context.showCommandActionResult(slewResult);
+    }
   }
 
   void _toggleSlewMode() {
@@ -363,7 +387,10 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
       return;
     }
 
-    await ref.read(mountCommandServiceProvider).abortSlew(context);
+    final result = await ref.read(mountCommandServiceProvider).abortSlew();
+    if (mounted) {
+      context.showCommandActionResult(result);
+    }
   }
 
   /// Handle keyboard events for desktop navigation
@@ -391,11 +418,14 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     }
 
     // +/- or =/- for zoom
-    if (key == LogicalKeyboardKey.equal || key == LogicalKeyboardKey.add || key == LogicalKeyboardKey.numpadAdd) {
+    if (key == LogicalKeyboardKey.equal ||
+        key == LogicalKeyboardKey.add ||
+        key == LogicalKeyboardKey.numpadAdd) {
       _zoomIn();
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.minus || key == LogicalKeyboardKey.numpadSubtract) {
+    if (key == LogicalKeyboardKey.minus ||
+        key == LogicalKeyboardKey.numpadSubtract) {
       _zoomOut();
       return KeyEventResult.handled;
     }
@@ -420,7 +450,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
     // M - toggle minimap
     if (key == LogicalKeyboardKey.keyM) {
-      ref.read(showMinimapProvider.notifier).state = !ref.read(showMinimapProvider);
+      ref.read(showMinimapProvider.notifier).state =
+          !ref.read(showMinimapProvider);
       return KeyEventResult.handled;
     }
 
@@ -445,25 +476,26 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     final viewState = ref.read(skyViewStateProvider);
     final panAmount = viewState.fieldOfView / 20; // Pan 5% of FOV
     ref.read(skyViewStateProvider.notifier).setCenter(
-      viewState.centerRA + dx * panAmount / 15, // Convert degrees to hours for RA
-      (viewState.centerDec + dy * panAmount).clamp(-90.0, 90.0),
-    );
+          viewState.centerRA +
+              dx * panAmount / 15, // Convert degrees to hours for RA
+          (viewState.centerDec + dy * panAmount).clamp(-90.0, 90.0),
+        );
   }
 
   /// Zoom in by 20%
   void _zoomIn() {
     final viewState = ref.read(skyViewStateProvider);
     ref.read(skyViewStateProvider.notifier).setFieldOfView(
-      (viewState.fieldOfView * 0.8).clamp(1.0, 120.0),
-    );
+          (viewState.fieldOfView * 0.8).clamp(1.0, 120.0),
+        );
   }
 
   /// Zoom out by 25%
   void _zoomOut() {
     final viewState = ref.read(skyViewStateProvider);
     ref.read(skyViewStateProvider.notifier).setFieldOfView(
-      (viewState.fieldOfView * 1.25).clamp(1.0, 120.0),
-    );
+          (viewState.fieldOfView * 1.25).clamp(1.0, 120.0),
+        );
   }
 
   /// Reset view to default center and FOV
@@ -511,33 +543,42 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                   SwitchListTile(
                     title: const Text('Stars'),
                     value: config.showStars,
-                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleStars(),
+                    onChanged: (_) => ref
+                        .read(skyRenderConfigProvider.notifier)
+                        .toggleStars(),
                   ),
                   SwitchListTile(
                     title: const Text('Planets'),
                     value: config.showPlanets,
-                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).togglePlanets(),
+                    onChanged: (_) => ref
+                        .read(skyRenderConfigProvider.notifier)
+                        .togglePlanets(),
                   ),
                   SwitchListTile(
                     title: const Text('Deep Sky'),
                     value: config.showDSOs,
-                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleDSOs(),
+                    onChanged: (_) =>
+                        ref.read(skyRenderConfigProvider.notifier).toggleDSOs(),
                   ),
                   const Divider(),
                   SwitchListTile(
                     title: const Text('Grid'),
                     value: config.showCoordinateGrid,
-                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleGrid(),
+                    onChanged: (_) =>
+                        ref.read(skyRenderConfigProvider.notifier).toggleGrid(),
                   ),
                   SwitchListTile(
                     title: const Text('Constellations'),
                     value: config.showConstellationLines,
-                    onChanged: (_) => ref.read(skyRenderConfigProvider.notifier).toggleConstellationLines(),
+                    onChanged: (_) => ref
+                        .read(skyRenderConfigProvider.notifier)
+                        .toggleConstellationLines(),
                   ),
                   SwitchListTile(
                     title: const Text('Ground'),
                     value: ref.watch(showGroundPlaneProvider),
-                    onChanged: (v) => ref.read(showGroundPlaneProvider.notifier).state = v,
+                    onChanged: (v) =>
+                        ref.read(showGroundPlaneProvider.notifier).state = v,
                   ),
                 ],
               ),
@@ -550,7 +591,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
   /// Show context menu on right-click (desktop)
   void _showContextMenu(BuildContext context, Offset position) {
-    final RenderBox? overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final RenderBox? overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
 
     showMenu<String>(
@@ -626,7 +668,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
   static const double _mobileBreakpoint = 700;
 
   /// Show object info bottom sheet on mobile
-  void _showObjectInfoBottomSheet(BuildContext context, NightshadeColors colors) {
+  void _showObjectInfoBottomSheet(
+      BuildContext context, NightshadeColors colors) {
     final selectedObject = ref.read(selectedObjectProvider);
     if (selectedObject.object == null) return;
 
@@ -750,7 +793,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
     // Sync rotator position to equipment FOV rotation
     ref.listen<RotatorState>(rotatorStateProvider, (previous, next) {
-      if (next.connectionState == DeviceConnectionState.connected && next.position != null) {
+      if (next.connectionState == DeviceConnectionState.connected &&
+          next.position != null) {
         ref.read(equipmentFOVProvider.notifier).setRotation(next.position!);
       }
     });
@@ -795,7 +839,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
   }
 
   /// Mobile layout with full-screen sky view and floating controls
-  Widget _buildMobileLayout(BuildContext context, NightshadeColors colors, SelectedObjectState selectedObject) {
+  Widget _buildMobileLayout(BuildContext context, NightshadeColors colors,
+      SelectedObjectState selectedObject) {
     final sizing = AdaptiveSizing.of(context);
 
     return Stack(
@@ -804,7 +849,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
         // Full-screen interactive sky view
         Positioned.fill(
           child: GestureDetector(
-            onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
+            onSecondaryTapUp: (details) =>
+                _showContextMenu(context, details.globalPosition),
             child: InteractiveSkyView(
               key: PlanetariumTutorialKeys.skyView,
               showFOV: _showFOV,
@@ -886,16 +932,20 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                 onTap: (tapAz, tapAlt) {
                   final location = ref.read(observerLocationProvider);
                   final time = ref.read(observationTimeProvider);
-                  final lst = AstronomyCalculations.localSiderealTime(time.time, location.longitude);
+                  final lst = AstronomyCalculations.localSiderealTime(
+                      time.time, location.longitude);
 
-                  final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
+                  final (ra, dec) =
+                      AstronomyCalculations.horizontalToEquatorial(
                     altDeg: tapAlt,
                     azDeg: tapAz,
                     latitudeDeg: location.latitude,
                     lstHours: lst,
                   );
 
-                  ref.read(skyViewStateProvider.notifier).setCenter(ra / 15, dec);
+                  ref
+                      .read(skyViewStateProvider.notifier)
+                      .setCenter(ra / 15, dec);
                 },
               );
             },
@@ -935,7 +985,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                 heroTag: 'search_fab',
                 backgroundColor: colors.surface.withValues(alpha: 0.9),
                 onPressed: () => _showMobileSearchDialog(context, colors),
-                child: Icon(LucideIcons.search, size: 20, color: colors.textPrimary),
+                child: Icon(LucideIcons.search,
+                    size: 20, color: colors.textPrimary),
               ),
               const SizedBox(height: 12),
               // Filter FAB
@@ -944,7 +995,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                 heroTag: 'filter_fab',
                 backgroundColor: colors.surface.withValues(alpha: 0.9),
                 onPressed: () => _showFilterBottomSheet(context),
-                child: Icon(LucideIcons.slidersHorizontal, size: 20, color: colors.textPrimary),
+                child: Icon(LucideIcons.slidersHorizontal,
+                    size: 20, color: colors.textPrimary),
               ),
               const SizedBox(height: 12),
               // Object Info FAB (shows when object is selected)
@@ -953,7 +1005,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                   heroTag: 'info_fab',
                   backgroundColor: colors.primary,
                   onPressed: () => _showObjectInfoBottomSheet(context, colors),
-                  child: const Icon(LucideIcons.info, size: 24, color: Colors.white),
+                  child: const Icon(LucideIcons.info,
+                      size: 24, color: Colors.white),
                 ),
             ],
           ),
@@ -1005,7 +1058,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
   }
 
   /// Desktop layout with side panels
-  Widget _buildDesktopLayout(BuildContext context, NightshadeColors colors, SelectedObjectState selectedObject) {
+  Widget _buildDesktopLayout(BuildContext context, NightshadeColors colors,
+      SelectedObjectState selectedObject) {
     return Stack(
       children: [
         Row(
@@ -1017,7 +1071,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                 children: [
                   // Interactive sky view with right-click context menu (desktop)
                   GestureDetector(
-                    onSecondaryTapUp: (details) => _showContextMenu(context, details.globalPosition),
+                    onSecondaryTapUp: (details) =>
+                        _showContextMenu(context, details.globalPosition),
                     child: InteractiveSkyView(
                       key: PlanetariumTutorialKeys.skyView,
                       showFOV: _showFOV,
@@ -1044,9 +1099,11 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                       child: Consumer(
                         builder: (context, ref, _) {
                           final monitor = ref.watch(performanceMonitorProvider);
-                          final refreshRate = ref.watch(displayRefreshRateProvider);
+                          final refreshRate =
+                              ref.watch(displayRefreshRateProvider);
                           final fps = monitor.estimatedFps;
-                          final cappedFps = fps > refreshRate ? refreshRate : fps;
+                          final cappedFps =
+                              fps > refreshRate ? refreshRate : fps;
                           final buildMs = monitor.averageBuildTime;
                           final rasterMs = monitor.averageRasterTime;
 
@@ -1057,7 +1114,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                               border: Border.all(color: colors.border),
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 8),
                               child: DefaultTextStyle(
                                 style: TextStyle(
                                   color: colors.textPrimary,
@@ -1132,10 +1190,16 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                       child: _SelectedObjectHud(
                         colors: colors,
                         onSlew: () async {
-                          final selectedState = ref.read(selectedObjectProvider);
+                          final selectedState =
+                              ref.read(selectedObjectProvider);
                           final coords = selectedState.coordinates;
                           if (coords != null) {
-                            await ref.read(mountCommandServiceProvider).slewTo(context, coords.ra, coords.dec);
+                            final result = await ref
+                                .read(mountCommandServiceProvider)
+                                .slewTo(coords.ra, coords.dec);
+                            if (context.mounted) {
+                              context.showCommandActionResult(result);
+                            }
                           }
                         },
                       ),
@@ -1186,16 +1250,20 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                             // Convert alt/az back to RA/Dec and update view
                             final location = ref.read(observerLocationProvider);
                             final time = ref.read(observationTimeProvider);
-                            final lst = AstronomyCalculations.localSiderealTime(time.time, location.longitude);
+                            final lst = AstronomyCalculations.localSiderealTime(
+                                time.time, location.longitude);
 
-                            final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
+                            final (ra, dec) =
+                                AstronomyCalculations.horizontalToEquatorial(
                               altDeg: tapAlt,
                               azDeg: tapAz,
                               latitudeDeg: location.latitude,
                               lstHours: lst,
                             );
 
-                            ref.read(skyViewStateProvider.notifier).setCenter(ra / 15, dec);
+                            ref
+                                .read(skyViewStateProvider.notifier)
+                                .setCenter(ra / 15, dec);
                           },
                         );
                       },
@@ -1221,7 +1289,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                     bottom: 0,
                     child: FilterSidebar(
                       isExpanded: _filterSidebarExpanded,
-                      onToggle: () => setState(() => _filterSidebarExpanded = !_filterSidebarExpanded),
+                      onToggle: () => setState(() =>
+                          _filterSidebarExpanded = !_filterSidebarExpanded),
                     ),
                   ),
                 ],
@@ -1263,7 +1332,9 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                                   _TonightTab(colors: colors),
                                   _ObjectsTab(colors: colors),
                                   _SearchResultsTab(colors: colors),
-                                  _InfoTab(colors: colors, selectedObject: selectedObject),
+                                  _InfoTab(
+                                      colors: colors,
+                                      selectedObject: selectedObject),
                                 ],
                               ),
                             ),
@@ -1318,17 +1389,19 @@ class _TopOverlay extends ConsumerWidget {
     final lst = ref.watch(localSiderealTimeProvider);
     final renderConfig = ref.watch(skyRenderConfigProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+
     // Get location name from settings if available
     String locationLabel;
     final settings = settingsAsync.valueOrNull;
-    if (settings != null && (settings.latitude != 0.0 || settings.longitude != 0.0)) {
-      locationLabel = '${settings.latitude.toStringAsFixed(2)}°, ${settings.longitude.toStringAsFixed(2)}°';
+    if (settings != null &&
+        (settings.latitude != 0.0 || settings.longitude != 0.0)) {
+      locationLabel =
+          '${settings.latitude.toStringAsFixed(2)}°, ${settings.longitude.toStringAsFixed(2)}°';
     } else {
-      locationLabel = location.locationName ?? 
-        '${location.latitude.toStringAsFixed(2)}°, ${location.longitude.toStringAsFixed(2)}°';
+      locationLabel = location.locationName ??
+          '${location.latitude.toStringAsFixed(2)}°, ${location.longitude.toStringAsFixed(2)}°';
     }
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
@@ -1364,7 +1437,8 @@ class _TopOverlay extends ConsumerWidget {
             const SizedBox(width: 12),
             _TimeControlButton(
               icon: LucideIcons.play,
-              onTap: () => ref.read(observationTimeProvider.notifier).setRealTime(true),
+              onTap: () =>
+                  ref.read(observationTimeProvider.notifier).setRealTime(true),
               colors: colors,
             ),
           ],
@@ -1378,13 +1452,17 @@ class _TopOverlay extends ConsumerWidget {
           _OverlayToggle(
             icon: LucideIcons.activity,
             isActive: renderConfig.showConstellationLines,
-            onTap: ref.read(skyRenderConfigProvider.notifier).toggleConstellationLines,
+            onTap: ref
+                .read(skyRenderConfigProvider.notifier)
+                .toggleConstellationLines,
           ),
           const SizedBox(width: 4),
           _OverlayToggle(
             icon: LucideIcons.tag,
             isActive: renderConfig.showConstellationLabels,
-            onTap: ref.read(skyRenderConfigProvider.notifier).toggleConstellationLabels,
+            onTap: ref
+                .read(skyRenderConfigProvider.notifier)
+                .toggleConstellationLabels,
           ),
           const SizedBox(width: 4),
           _OverlayToggle(
@@ -1396,7 +1474,7 @@ class _TopOverlay extends ConsumerWidget {
       ),
     );
   }
-  
+
   String _formatHours(double hours) {
     final h = hours.floor();
     final m = ((hours - h) * 60).floor();
@@ -1727,7 +1805,8 @@ class _SlewControls extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mountState = ref.watch(mountStateProvider);
-    final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+    final isConnected =
+        mountState.connectionState == DeviceConnectionState.connected;
     final isSlewing = mountState.isSlewing;
 
     return Container(
@@ -1876,7 +1955,9 @@ class _ViewControlButtonState extends State<_ViewControlButton> {
           decoration: BoxDecoration(
             color: widget.isActive
                 ? const Color(0xFF00E676).withValues(alpha: 0.3)
-                : (_isHovered ? Colors.white.withValues(alpha: 0.1) : Colors.transparent),
+                : (_isHovered
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.transparent),
             borderRadius: BorderRadius.circular(4),
             border: widget.isActive
                 ? Border.all(color: const Color(0xFF00E676), width: 1)
@@ -1910,7 +1991,7 @@ class _BottomInfoBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final viewState = ref.watch(skyViewStateProvider);
     final selectedObject = ref.watch(selectedObjectProvider);
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
@@ -1948,8 +2029,8 @@ class _BottomInfoBar extends ConsumerWidget {
               label: 'Selected Alt',
               value: '${selectedObject.currentAltAz!.$1.toStringAsFixed(1)}°',
               colors: colors,
-              valueColor: selectedObject.currentAltAz!.$1 > 0 
-                  ? colors.success 
+              valueColor: selectedObject.currentAltAz!.$1 > 0
+                  ? colors.success
                   : colors.error,
             ),
             const SizedBox(width: 20),
@@ -1963,14 +2044,14 @@ class _BottomInfoBar extends ConsumerWidget {
       ),
     );
   }
-  
+
   String _formatRA(double ra) {
     final h = ra.floor();
     final m = ((ra - h) * 60).floor();
     final s = (((ra - h) * 60 - m) * 60).floor();
     return '${h}h ${m}m ${s}s';
   }
-  
+
   String _formatDec(double dec) {
     final sign = dec >= 0 ? '+' : '-';
     final d = dec.abs().floor();
@@ -1998,7 +2079,8 @@ class _InfoItem extends StatelessWidget {
       children: [
         Text(
           '$label:',
-          style: TextStyle(fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
+          style: TextStyle(
+              fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
         ),
         const SizedBox(width: 4),
         Text(
@@ -2062,7 +2144,9 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
   /// Parse coordinate input like "RA 5h 35m, Dec -5d 23'"
   CelestialCoordinate? _parseCoordinates(String input) {
     // Try pattern like "RA 5h 35m, Dec -5d 23'" or "RA 5h 35m Dec -5 23"
-    final pattern = RegExp(r'RA\s*(\d+)h\s*(\d+)m.*Dec\s*([+-]?\d+)[°d]?\s*(\d+)', caseSensitive: false);
+    final pattern = RegExp(
+        r'RA\s*(\d+)h\s*(\d+)m.*Dec\s*([+-]?\d+)[°d]?\s*(\d+)',
+        caseSensitive: false);
     final match = pattern.firstMatch(input);
 
     if (match != null) {
@@ -2072,7 +2156,8 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
       final decMinutes = double.parse(match.group(4)!);
 
       final ra = raHours + raMinutes / 60;
-      final dec = decDegrees + (decDegrees >= 0 ? decMinutes / 60 : -decMinutes / 60);
+      final dec =
+          decDegrees + (decDegrees >= 0 ? decMinutes / 60 : -decMinutes / 60);
 
       return CelestialCoordinate(ra: ra, dec: dec);
     }
@@ -2095,7 +2180,9 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
       // Debounce search by 250ms for instant results as user types
       _debounceTimer = Timer(const Duration(milliseconds: 250), () {
         if (mounted) {
-          ref.read(objectSearchProvider.notifier).search(widget.controller.text);
+          ref
+              .read(objectSearchProvider.notifier)
+              .search(widget.controller.text);
           _showOverlay();
         }
       });
@@ -2148,7 +2235,9 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
                             behavior: HitTestBehavior.opaque,
                             onTap: () {
                               // Navigate to parsed coordinates
-                              ref.read(skyViewStateProvider.notifier).setCenter(coord.ra, coord.dec);
+                              ref
+                                  .read(skyViewStateProvider.notifier)
+                                  .setCenter(coord.ra, coord.dec);
                               _hideOverlay();
                               _focusNode.unfocus();
                             },
@@ -2159,7 +2248,8 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
                                 height: 32,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: widget.colors.accent.withValues(alpha: 0.2),
+                                  color: widget.colors.accent
+                                      .withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Icon(
@@ -2170,11 +2260,14 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
                               ),
                               title: Text(
                                 'Go to coordinates',
-                                style: TextStyle(color: widget.colors.textPrimary),
+                                style:
+                                    TextStyle(color: widget.colors.textPrimary),
                               ),
                               subtitle: Text(
                                 'RA ${coord.ra.toStringAsFixed(2)}h, Dec ${coord.dec.toStringAsFixed(2)}°',
-                                style: TextStyle(color: widget.colors.textMuted, fontSize: 11),
+                                style: TextStyle(
+                                    color: widget.colors.textMuted,
+                                    fontSize: 11),
                               ),
                             ),
                           ),
@@ -2205,12 +2298,16 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
                   }
 
                   // Group results by category: Stars and DSOs
-                  final stars = searchState.results.whereType<Star>().take(4).toList();
-                  final dsos = searchState.results.whereType<DeepSkyObject>().take(4).toList();
+                  final stars =
+                      searchState.results.whereType<Star>().take(4).toList();
+                  final dsos = searchState.results
+                      .whereType<DeepSkyObject>()
+                      .take(4)
+                      .toList();
 
                   // Calculate total items to show (max 8 results + category headers)
                   final totalItems = (stars.isNotEmpty ? stars.length + 1 : 0) +
-                                    (dsos.isNotEmpty ? dsos.length + 1 : 0);
+                      (dsos.isNotEmpty ? dsos.length + 1 : 0);
 
                   if (totalItems == 0) {
                     return Padding(
@@ -2303,7 +2400,8 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
           trailing: dso.magnitude != null
               ? Text(
                   'mag ${dso.magnitude!.toStringAsFixed(1)}',
-                  style: TextStyle(color: widget.colors.textMuted, fontSize: 11),
+                  style:
+                      TextStyle(color: widget.colors.textMuted, fontSize: 11),
                 )
               : null,
         ),
@@ -2352,7 +2450,8 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
           trailing: star.magnitude != null
               ? Text(
                   'mag ${star.magnitude!.toStringAsFixed(1)}',
-                  style: TextStyle(color: widget.colors.textMuted, fontSize: 11),
+                  style:
+                      TextStyle(color: widget.colors.textMuted, fontSize: 11),
                 )
               : null,
         ),
@@ -2381,7 +2480,8 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
           decoration: InputDecoration(
             hintText: 'Search objects...',
             hintStyle: TextStyle(fontSize: 13, color: widget.colors.textMuted),
-            prefixIcon: Icon(LucideIcons.search, size: 16, color: widget.colors.textMuted),
+            prefixIcon: Icon(LucideIcons.search,
+                size: 16, color: widget.colors.textMuted),
             suffixIcon: Container(
               margin: const EdgeInsets.all(8),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -2408,7 +2508,8 @@ class _SearchHeaderState extends ConsumerState<_SearchHeader> {
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(color: widget.colors.primary),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           ),
           onSubmitted: (value) {
             widget.onSearch(value);
@@ -2438,7 +2539,8 @@ class _SearchCategoryHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surfaceAlt.withValues(alpha: 0.5),
-        border: Border(bottom: BorderSide(color: colors.border.withValues(alpha: 0.5))),
+        border: Border(
+            bottom: BorderSide(color: colors.border.withValues(alpha: 0.5))),
       ),
       child: Row(
         children: [
@@ -2478,7 +2580,8 @@ class _SidebarTabs extends StatelessWidget {
         indicatorColor: colors.primary,
         indicatorSize: TabBarIndicatorSize.tab,
         labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+        unselectedLabelStyle:
+            const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
         tabs: const [
           Tab(text: 'Tonight'),
           Tab(text: 'Catalog'),
@@ -2502,10 +2605,10 @@ class _TonightTab extends ConsumerWidget {
     final bestTargets = ref.watch(bestTargetsProvider);
     final location = ref.watch(observerLocationProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
-    
+
     // Check if using default location (no location set in settings)
     final settings = settingsAsync.valueOrNull;
-    final isDefaultLocation = settings == null || 
+    final isDefaultLocation = settings == null ||
         (settings.latitude == 0.0 && settings.longitude == 0.0);
 
     return SingleChildScrollView(
@@ -2517,12 +2620,12 @@ class _TonightTab extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isDefaultLocation 
+              color: isDefaultLocation
                   ? colors.warning.withValues(alpha: 0.1)
                   : colors.success.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: isDefaultLocation 
+                color: isDefaultLocation
                     ? colors.warning.withValues(alpha: 0.3)
                     : colors.success.withValues(alpha: 0.3),
               ),
@@ -2540,21 +2643,23 @@ class _TonightTab extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isDefaultLocation 
+                        isDefaultLocation
                             ? 'Using default location'
                             : location.locationName ?? 'Custom Location',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: isDefaultLocation ? colors.warning : colors.success,
+                          color: isDefaultLocation
+                              ? colors.warning
+                              : colors.success,
                         ),
                       ),
                       Text(
                         '${location.latitude.toStringAsFixed(2)}°N, ${location.longitude.abs().toStringAsFixed(2)}°${location.longitude >= 0 ? 'E' : 'W'}',
                         style: TextStyle(
                           fontSize: 10,
-                          color: isDefaultLocation 
-                              ? colors.warning.withValues(alpha: 0.8) 
+                          color: isDefaultLocation
+                              ? colors.warning.withValues(alpha: 0.8)
                               : colors.textMuted,
                         ),
                       ),
@@ -2571,7 +2676,8 @@ class _TonightTab extends ConsumerWidget {
                       }
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: colors.warning.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
@@ -2589,7 +2695,7 @@ class _TonightTab extends ConsumerWidget {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
 
           // Twilight card - Evening
@@ -2603,43 +2709,48 @@ class _TonightTab extends ConsumerWidget {
                 if (twilight.sunset != null)
                   _TwilightRow(
                     label: 'Sunset',
-                    time: DateFormat('HH:mm').format(twilight.sunset!.toLocal()),
+                    time:
+                        DateFormat('HH:mm').format(twilight.sunset!.toLocal()),
                     colors: colors,
                   ),
                 if (twilight.civilDusk != null)
                   _TwilightRow(
                     label: 'Civil Dusk',
-                    time: DateFormat('HH:mm').format(twilight.civilDusk!.toLocal()),
+                    time: DateFormat('HH:mm')
+                        .format(twilight.civilDusk!.toLocal()),
                     colors: colors,
                   ),
                 if (twilight.nauticalDusk != null)
                   _TwilightRow(
                     label: 'Nautical Dusk',
-                    time: DateFormat('HH:mm').format(twilight.nauticalDusk!.toLocal()),
+                    time: DateFormat('HH:mm')
+                        .format(twilight.nauticalDusk!.toLocal()),
                     colors: colors,
                   ),
                 if (twilight.astronomicalDusk != null)
                   _TwilightRow(
                     label: 'Astro Dusk',
-                    time: DateFormat('HH:mm').format(twilight.astronomicalDusk!.toLocal()),
+                    time: DateFormat('HH:mm')
+                        .format(twilight.astronomicalDusk!.toLocal()),
                     isPrimary: true,
                     colors: colors,
                   ),
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Darkness duration card
-          if (twilight.astronomicalDusk != null && twilight.astronomicalDawn != null)
+          if (twilight.astronomicalDusk != null &&
+              twilight.astronomicalDawn != null)
             _DarknessCard(
               twilight: twilight,
               colors: colors,
             ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Morning Twilight card
           _InfoCard(
             title: 'Morning Twilight',
@@ -2651,26 +2762,30 @@ class _TonightTab extends ConsumerWidget {
                 if (twilight.astronomicalDawn != null)
                   _TwilightRow(
                     label: 'Astro Dawn',
-                    time: DateFormat('HH:mm').format(twilight.astronomicalDawn!.toLocal()),
+                    time: DateFormat('HH:mm')
+                        .format(twilight.astronomicalDawn!.toLocal()),
                     isPrimary: true,
                     colors: colors,
                   ),
                 if (twilight.nauticalDawn != null)
                   _TwilightRow(
                     label: 'Nautical Dawn',
-                    time: DateFormat('HH:mm').format(twilight.nauticalDawn!.toLocal()),
+                    time: DateFormat('HH:mm')
+                        .format(twilight.nauticalDawn!.toLocal()),
                     colors: colors,
                   ),
                 if (twilight.civilDawn != null)
                   _TwilightRow(
                     label: 'Civil Dawn',
-                    time: DateFormat('HH:mm').format(twilight.civilDawn!.toLocal()),
+                    time: DateFormat('HH:mm')
+                        .format(twilight.civilDawn!.toLocal()),
                     colors: colors,
                   ),
                 if (twilight.sunrise != null)
                   _TwilightRow(
                     label: 'Sunrise',
-                    time: DateFormat('HH:mm').format(twilight.sunrise!.toLocal()),
+                    time:
+                        DateFormat('HH:mm').format(twilight.sunrise!.toLocal()),
                     colors: colors,
                   ),
               ],
@@ -2692,7 +2807,8 @@ class _TonightTab extends ConsumerWidget {
                   children: [
                     Text(
                       'Phase',
-                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                      style:
+                          TextStyle(fontSize: 12, color: colors.textSecondary),
                     ),
                     Text(
                       moonInfo.phaseName,
@@ -2710,17 +2826,18 @@ class _TonightTab extends ConsumerWidget {
                   children: [
                     Text(
                       'Illumination',
-                      style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                      style:
+                          TextStyle(fontSize: 12, color: colors.textSecondary),
                     ),
                     Text(
                       '${moonInfo.illumination.toStringAsFixed(0)}%',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: moonInfo.illumination < 25 
-                            ? colors.success 
-                            : moonInfo.illumination > 75 
-                                ? colors.error 
+                        color: moonInfo.illumination < 25
+                            ? colors.success
+                            : moonInfo.illumination > 75
+                                ? colors.error
                                 : colors.warning,
                       ),
                     ),
@@ -2730,13 +2847,15 @@ class _TonightTab extends ConsumerWidget {
                 if (moonInfo.moonrise != null)
                   _TwilightRow(
                     label: 'Moonrise',
-                    time: DateFormat('HH:mm').format(moonInfo.moonrise!.toLocal()),
+                    time: DateFormat('HH:mm')
+                        .format(moonInfo.moonrise!.toLocal()),
                     colors: colors,
                   ),
                 if (moonInfo.moonset != null)
                   _TwilightRow(
                     label: 'Moonset',
-                    time: DateFormat('HH:mm').format(moonInfo.moonset!.toLocal()),
+                    time:
+                        DateFormat('HH:mm').format(moonInfo.moonset!.toLocal()),
                     colors: colors,
                   ),
               ],
@@ -2781,7 +2900,8 @@ class _TonightTab extends ConsumerWidget {
                   ),
                   child: Column(
                     children: [
-                      Icon(LucideIcons.cloudOff, size: 32, color: colors.textMuted),
+                      Icon(LucideIcons.cloudOff,
+                          size: 32, color: colors.textMuted),
                       const SizedBox(height: 8),
                       Text(
                         'No targets above 30° tonight',
@@ -2812,14 +2932,19 @@ class _TonightTab extends ConsumerWidget {
                     name: displayName,
                     catalog: catalogTag,
                     type: _dsoTypeName(dso.type),
-                    altitude: '${visibility.transitAltitude?.toStringAsFixed(0) ?? '-'}°',
-                    transit: visibility.transitTime != null 
+                    altitude:
+                        '${visibility.transitAltitude?.toStringAsFixed(0) ?? '-'}°',
+                    transit: visibility.transitTime != null
                         ? DateFormat('HH:mm').format(visibility.transitTime!)
                         : '-',
                     colors: colors,
                     onTap: () {
-                      ref.read(selectedObjectProvider.notifier).selectObject(dso);
-                      ref.read(skyViewStateProvider.notifier).lookAt(dso.coordinates);
+                      ref
+                          .read(selectedObjectProvider.notifier)
+                          .selectObject(dso);
+                      ref
+                          .read(skyViewStateProvider.notifier)
+                          .lookAt(dso.coordinates);
                     },
                   );
                 }).toList(),
@@ -2855,7 +2980,7 @@ class _TonightTab extends ConsumerWidget {
       ),
     );
   }
-  
+
   String _dsoTypeName(DsoType type) {
     switch (type) {
       case DsoType.galaxy:
@@ -2874,7 +2999,6 @@ class _TonightTab extends ConsumerWidget {
         return 'DSO';
     }
   }
-  
 }
 
 class _ObjectsTab extends ConsumerWidget {
@@ -2913,7 +3037,7 @@ class _ObjectsTab extends ConsumerWidget {
       ),
     );
   }
-  
+
   String _dsoTypeName(DsoType type) {
     switch (type) {
       case DsoType.galaxy:
@@ -2932,7 +3056,6 @@ class _ObjectsTab extends ConsumerWidget {
         return 'DSO';
     }
   }
-  
 }
 
 class _SearchResultsTab extends ConsumerWidget {
@@ -3032,8 +3155,8 @@ class _SearchResultCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    object is DeepSkyObject 
-                        ? getDsoDisplayInfo(object as DeepSkyObject).$1 
+                    object is DeepSkyObject
+                        ? getDsoDisplayInfo(object as DeepSkyObject).$1
                         : object.name,
                     style: TextStyle(
                       fontSize: 13,
@@ -3042,8 +3165,8 @@ class _SearchResultCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    object is DeepSkyObject 
-                        ? getDsoDisplayInfo(object as DeepSkyObject).$2 
+                    object is DeepSkyObject
+                        ? getDsoDisplayInfo(object as DeepSkyObject).$2
                         : object.id,
                     style: TextStyle(fontSize: 11, color: colors.textMuted),
                   ),
@@ -3109,18 +3232,24 @@ class _InfoTab extends ConsumerWidget {
           onGoTo: () {
             // Slew to object
             final coords = obj.coordinates;
-            ref.read(mountCommandServiceProvider).slewTo(context, coords.ra, coords.dec);
+            ref
+                .read(mountCommandServiceProvider)
+                .slewTo(coords.ra, coords.dec)
+                .then((result) {
+              if (!context.mounted) return;
+              context.showCommandActionResult(result);
+            });
           },
           onAddToTargets: () {
             // Add to sequencer
             final coords = obj.coordinates;
             ref.read(currentSequenceProvider.notifier).addTargetHeader(
-              TargetHeaderNode(
-                targetName: obj.name,
-                raHours: coords.ra,
-                decDegrees: coords.dec,
-              ),
-            );
+                  TargetHeaderNode(
+                    targetName: obj.name,
+                    raHours: coords.ra,
+                    decDegrees: coords.dec,
+                  ),
+                );
             context.showSuccessSnackBar('Added ${obj.name} to sequence');
           },
         ),
@@ -3153,8 +3282,20 @@ class _InfoTab extends ConsumerWidget {
             child: Column(
               children: [
                 if (coords != null) ...[
-                  _InfoRow(label: 'RA', value: coords.toString().split(',')[0].replaceAll('RA: ', ''), colors: colors),
-                  _InfoRow(label: 'Dec', value: coords.toString().split(',')[1].replaceAll(' Dec: ', ''), colors: colors),
+                  _InfoRow(
+                      label: 'RA',
+                      value: coords
+                          .toString()
+                          .split(',')[0]
+                          .replaceAll('RA: ', ''),
+                      colors: colors),
+                  _InfoRow(
+                      label: 'Dec',
+                      value: coords
+                          .toString()
+                          .split(',')[1]
+                          .replaceAll(' Dec: ', ''),
+                      colors: colors),
                 ],
                 if (altAz != null) ...[
                   _InfoRow(
@@ -3167,7 +3308,10 @@ class _InfoTab extends ConsumerWidget {
                             ? colors.warning
                             : colors.error,
                   ),
-                  _InfoRow(label: 'Azimuth', value: '${altAz.$2.toStringAsFixed(1)}°', colors: colors),
+                  _InfoRow(
+                      label: 'Azimuth',
+                      value: '${altAz.$2.toStringAsFixed(1)}°',
+                      colors: colors),
                 ],
               ],
             ),
@@ -3330,10 +3474,10 @@ class _DarknessCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final duration = twilight.darknessDuration;
     if (duration == null) return const SizedBox.shrink();
-    
+
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;
-    
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -3471,10 +3615,14 @@ class _TargetCardState extends State<_TargetCard> {
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _isHovered ? widget.colors.surfaceAlt : widget.colors.background,
+            color: _isHovered
+                ? widget.colors.surfaceAlt
+                : widget.colors.background,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: _isHovered ? widget.colors.primary.withValues(alpha: 0.5) : widget.colors.border,
+              color: _isHovered
+                  ? widget.colors.primary.withValues(alpha: 0.5)
+                  : widget.colors.border,
             ),
           ),
           child: Row(
@@ -3495,9 +3643,11 @@ class _TargetCardState extends State<_TargetCard> {
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: widget.colors.primary.withValues(alpha: 0.15),
+                            color:
+                                widget.colors.primary.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -3631,7 +3781,7 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
     // Clamp to screen bounds with padding
     const padding = 16.0;
     left = left.clamp(padding, screenSize.width - popupWidth - padding);
-    
+
     // If popup would go below screen, show it above the click point
     if (top + popupHeight > screenSize.height - padding) {
       top = widget.position.dy - popupHeight - 20;
@@ -3651,7 +3801,8 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
             opacity: _fadeAnimation.value,
             child: Transform.scale(
               scale: _scaleAnimation.value,
-              alignment: showAbove ? Alignment.bottomCenter : Alignment.topCenter,
+              alignment:
+                  showAbove ? Alignment.bottomCenter : Alignment.topCenter,
               child: child,
             ),
           );
@@ -3694,13 +3845,13 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
                     children: [
                       // Header
                       _buildHeader(),
-                      
+
                       // Divider
                       Container(
                         height: 1,
                         color: widget.colors.border.withValues(alpha: 0.5),
                       ),
-                      
+
                       // Content
                       Flexible(
                         child: SingleChildScrollView(
@@ -3711,7 +3862,8 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
                               _buildObjectDetails(),
                               const SizedBox(height: 16),
                               _buildCoordinates(),
-                              if (widget.selectedObjectState.currentAltAz != null) ...[
+                              if (widget.selectedObjectState.currentAltAz !=
+                                  null) ...[
                                 const SizedBox(height: 12),
                                 _buildAltAz(),
                               ],
@@ -3719,13 +3871,13 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
                           ),
                         ),
                       ),
-                      
+
                       // Divider
                       Container(
                         height: 1,
                         color: widget.colors.border.withValues(alpha: 0.5),
                       ),
-                      
+
                       // Action buttons
                       _buildActions(),
                     ],
@@ -3781,40 +3933,39 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
           ),
           const SizedBox(width: 12),
           Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    obj is DeepSkyObject 
-                        ? getDsoDisplayInfo(obj).$1 
-                        : obj.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  obj is DeepSkyObject ? getDsoDisplayInfo(obj).$1 : obj.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: widget.colors.primary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          obj is DeepSkyObject 
-                              ? getDsoDisplayInfo(obj).$2 
-                              : obj.id,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: widget.colors.primary,
-                          ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: widget.colors.primary.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        obj is DeepSkyObject
+                            ? getDsoDisplayInfo(obj).$2
+                            : obj.id,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: widget.colors.primary,
                         ),
                       ),
+                    ),
                     if (obj.magnitude != null) ...[
                       const SizedBox(width: 8),
                       Text(
@@ -3880,18 +4031,19 @@ class _ObjectInfoPopupState extends State<_ObjectInfoPopup>
 
   Widget _buildCoordinates() {
     final coords = widget.coordinates;
-    
+
     // Format RA
     final raH = coords.ra.floor();
     final raM = ((coords.ra - raH) * 60).floor();
     final raS = (((coords.ra - raH) * 60 - raM) * 60).toStringAsFixed(1);
     final raStr = '${raH}h ${raM}m ${raS}s';
-    
+
     // Format Dec
     final sign = coords.dec >= 0 ? '+' : '-';
     final decD = coords.dec.abs().floor();
     final decM = ((coords.dec.abs() - decD) * 60).floor();
-    final decS = (((coords.dec.abs() - decD) * 60 - decM) * 60).toStringAsFixed(0);
+    final decS =
+        (((coords.dec.abs() - decD) * 60 - decM) * 60).toStringAsFixed(0);
     final decStr = "$sign$decD° $decM' $decS\"";
 
     return Column(
@@ -4112,7 +4264,8 @@ class _SlewPopupMenuButtonState extends State<_SlewPopupMenuButton> {
           value: SlewMode.slew,
           child: Row(
             children: [
-              Icon(LucideIcons.move, size: 16, color: widget.colors.textPrimary),
+              Icon(LucideIcons.move,
+                  size: 16, color: widget.colors.textPrimary),
               const SizedBox(width: 8),
               Text('Slew', style: TextStyle(color: widget.colors.textPrimary)),
             ],
@@ -4122,9 +4275,11 @@ class _SlewPopupMenuButtonState extends State<_SlewPopupMenuButton> {
           value: SlewMode.slewAndCenter,
           child: Row(
             children: [
-              Icon(LucideIcons.target, size: 16, color: widget.colors.textPrimary),
+              Icon(LucideIcons.target,
+                  size: 16, color: widget.colors.textPrimary),
               const SizedBox(width: 8),
-              Text('Slew & Center', style: TextStyle(color: widget.colors.textPrimary)),
+              Text('Slew & Center',
+                  style: TextStyle(color: widget.colors.textPrimary)),
             ],
           ),
         ),
@@ -4133,9 +4288,11 @@ class _SlewPopupMenuButtonState extends State<_SlewPopupMenuButton> {
             value: SlewMode.slewCenterRotate,
             child: Row(
               children: [
-                Icon(LucideIcons.rotateCw, size: 16, color: widget.colors.textPrimary),
+                Icon(LucideIcons.rotateCw,
+                    size: 16, color: widget.colors.textPrimary),
                 const SizedBox(width: 8),
-                Text('Slew, Center & Rotate', style: TextStyle(color: widget.colors.textPrimary)),
+                Text('Slew, Center & Rotate',
+                    style: TextStyle(color: widget.colors.textPrimary)),
               ],
             ),
           ),
@@ -4164,19 +4321,19 @@ class _SlewPopupMenuButtonState extends State<_SlewPopupMenuButton> {
                   ]
                 : null,
           ),
-          child: FittedBox(
+          child: const FittedBox(
             fit: BoxFit.scaleDown,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
-              children: [
+              children: <Widget>[
                 Icon(
                   LucideIcons.crosshair,
                   size: 14,
                   color: Colors.white,
                 ),
-                const SizedBox(width: 6),
-                const Text(
+                SizedBox(width: 6),
+                Text(
                   'Slew',
                   style: TextStyle(
                     fontSize: 12,
@@ -4184,7 +4341,7 @@ class _SlewPopupMenuButtonState extends State<_SlewPopupMenuButton> {
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 Icon(
                   LucideIcons.chevronDown,
                   size: 12,
@@ -4392,7 +4549,9 @@ class _SelectedObjectHud extends ConsumerWidget {
     final selectedState = ref.watch(selectedObjectProvider);
     final selectedObject = selectedState.object;
 
-    if (selectedObject == null || selectedObject is! DeepSkyObject) return const SizedBox.shrink();
+    if (selectedObject == null || selectedObject is! DeepSkyObject) {
+      return const SizedBox.shrink();
+    }
 
     final (displayName, catalogTag) = getDsoDisplayInfo(selectedObject);
     final typeName = selectedObject.type.toString().split('.').last;
@@ -4423,11 +4582,13 @@ class _SelectedObjectHud extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: colors.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
+                      border: Border.all(
+                          color: colors.primary.withValues(alpha: 0.3)),
                     ),
                     child: Text(
                       catalogTag,
@@ -4464,9 +4625,9 @@ class _SelectedObjectHud extends ConsumerWidget {
               ),
             ],
           ),
-          
+
           const SizedBox(width: 24),
-          
+
           // Slew Button
           _PopupActionButton(
             icon: LucideIcons.crosshair,
@@ -4540,7 +4701,8 @@ class _MobileTopOverlay extends ConsumerWidget {
               // LST chip
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(12),
@@ -4566,8 +4728,11 @@ class _MobileTopOverlay extends ConsumerWidget {
             ),
             _MobileToggleButton(
               icon: LucideIcons.activity,
-              isActive: ref.watch(skyRenderConfigProvider).showConstellationLines,
-              onTap: ref.read(skyRenderConfigProvider.notifier).toggleConstellationLines,
+              isActive:
+                  ref.watch(skyRenderConfigProvider).showConstellationLines,
+              onTap: ref
+                  .read(skyRenderConfigProvider.notifier)
+                  .toggleConstellationLines,
             ),
           ],
         ),
@@ -4711,7 +4876,8 @@ class _MobileSlewControls extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mountState = ref.watch(mountStateProvider);
-    final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+    final isConnected =
+        mountState.connectionState == DeviceConnectionState.connected;
     final isSlewing = mountState.isSlewing;
 
     return Container(
@@ -4767,9 +4933,8 @@ class _MobileControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive
-        ? (activeColor ?? const Color(0xFF00E676))
-        : Colors.white70;
+    final color =
+        isActive ? (activeColor ?? const Color(0xFF00E676)) : Colors.white70;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -4782,9 +4947,7 @@ class _MobileControlButton extends StatelessWidget {
           width: 26,
           height: 26,
           decoration: BoxDecoration(
-            color: isActive
-                ? color.withValues(alpha: 0.2)
-                : Colors.transparent,
+            color: isActive ? color.withValues(alpha: 0.2) : Colors.transparent,
             borderRadius: BorderRadius.circular(4),
           ),
           child: Icon(
@@ -5001,7 +5164,8 @@ class _MobileObjectInfoContent extends ConsumerWidget {
     } else if (obj is Star) {
       displayName = obj.name;
       catalogTag = 'STAR';
-      typeName = obj.spectralType != null ? 'Star (${obj.spectralType})' : 'Star';
+      typeName =
+          obj.spectralType != null ? 'Star (${obj.spectralType})' : 'Star';
     } else {
       displayName = obj.name;
       catalogTag = obj.id;
@@ -5130,9 +5294,14 @@ class _MobileObjectInfoContent extends ConsumerWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (altAz.$1 > 30 ? colors.success : altAz.$1 > 0 ? colors.warning : colors.error)
+                    color: (altAz.$1 > 30
+                            ? colors.success
+                            : altAz.$1 > 0
+                                ? colors.warning
+                                : colors.error)
                         .withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -5147,7 +5316,11 @@ class _MobileObjectInfoContent extends ConsumerWidget {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
-                      color: altAz.$1 > 30 ? colors.success : altAz.$1 > 0 ? colors.warning : colors.error,
+                      color: altAz.$1 > 30
+                          ? colors.success
+                          : altAz.$1 > 0
+                              ? colors.warning
+                              : colors.error,
                     ),
                   ),
                 ),
@@ -5342,7 +5515,10 @@ class _MobileActionButton extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: isPrimary
               ? LinearGradient(
-                  colors: [colors.primary, colors.primary.withValues(alpha: 0.8)],
+                  colors: [
+                    colors.primary,
+                    colors.primary.withValues(alpha: 0.8)
+                  ],
                 )
               : null,
           color: isPrimary ? null : colors.surfaceAlt,
@@ -5428,11 +5604,14 @@ class _MobileSearchSheetState extends ConsumerState<_MobileSearchSheet> {
             style: TextStyle(fontSize: 14, color: widget.colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Search objects (M42, Orion, etc.)',
-              hintStyle: TextStyle(fontSize: 14, color: widget.colors.textMuted),
-              prefixIcon: Icon(LucideIcons.search, size: 18, color: widget.colors.textMuted),
+              hintStyle:
+                  TextStyle(fontSize: 14, color: widget.colors.textMuted),
+              prefixIcon: Icon(LucideIcons.search,
+                  size: 18, color: widget.colors.textMuted),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: Icon(LucideIcons.x, size: 18, color: widget.colors.textMuted),
+                      icon: Icon(LucideIcons.x,
+                          size: 18, color: widget.colors.textMuted),
                       onPressed: () {
                         _searchController.clear();
                         ref.read(objectSearchProvider.notifier).clear();
@@ -5453,7 +5632,8 @@ class _MobileSearchSheetState extends ConsumerState<_MobileSearchSheet> {
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: widget.colors.primary),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
             onChanged: _onSearchChanged,
           ),
@@ -5551,7 +5731,8 @@ class _MobileSearchSheetState extends ConsumerState<_MobileSearchSheet> {
           },
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(
-            child: Text('Error: $e', style: TextStyle(color: widget.colors.error)),
+            child:
+                Text('Error: $e', style: TextStyle(color: widget.colors.error)),
           ),
         ),
       ],

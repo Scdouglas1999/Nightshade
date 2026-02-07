@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element_parameter
+
 import 'dart:async';
 import 'dart:io';
 
@@ -87,7 +89,8 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
                   _SkyFlatsControls(),
                 ],
               ),
-              previewPanel: FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
+              previewPanel:
+                  FlatPreviewPanel(key: FlatWizardTutorialKeys.preview),
             ),
           ),
         ],
@@ -142,7 +145,8 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
               decoration: BoxDecoration(
                 color: colors.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colors.success.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: colors.success.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -420,7 +424,9 @@ class _FilterSelector extends ConsumerWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              currentFilter?.filterName ?? fwState.currentFilterName ?? 'No filter',
+              currentFilter?.filterName ??
+                  fwState.currentFilterName ??
+                  'No filter',
               style: TextStyle(
                 fontSize: 14,
                 color: colors.textPrimary,
@@ -494,7 +500,8 @@ class _FilterChecklistItem extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        border: isLast ? null : Border(bottom: BorderSide(color: colors.border)),
+        border:
+            isLast ? null : Border(bottom: BorderSide(color: colors.border)),
       ),
       child: Row(
         children: [
@@ -749,7 +756,9 @@ class _TwilightOption extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt,
+          color: isSelected
+              ? colors.primary.withValues(alpha: 0.1)
+              : colors.surfaceAlt,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
@@ -830,7 +839,6 @@ class _ActionButtons extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
         ],
-
         if (state.isCapturing)
           NightshadeButton(
             label: 'Stop Capture',
@@ -840,7 +848,8 @@ class _ActionButtons extends ConsumerWidget {
         else
           NightshadeButton(
             key: FlatWizardTutorialKeys.startBtn,
-            label: mode == FlatWizardMode.quick ? 'Start Capture' : 'Start Batch',
+            label:
+                mode == FlatWizardMode.quick ? 'Start Capture' : 'Start Batch',
             onPressed: () => _startCapture(context, ref),
           ),
       ],
@@ -852,7 +861,8 @@ class _ActionButtons extends ConsumerWidget {
     final notifier = ref.read(flatWizardProvider.notifier);
 
     // Check if save path is set
-    if (state.globalSettings.savePath == null || state.globalSettings.savePath!.isEmpty) {
+    if (state.globalSettings.savePath == null ||
+        state.globalSettings.savePath!.isEmpty) {
       final result = await SavePathDialog.show(
         context,
         currentPath: state.globalSettings.savePath,
@@ -935,7 +945,8 @@ class _ActionButtons extends ConsumerWidget {
 
       final filterSetting = filtersToProcess[filterIdx];
       notifier.setCurrentFilterIndex(filterIdx);
-      notifier.updateFilterStatus(filterIdx, FilterCalibrationStatus.calibrating);
+      notifier.updateFilterStatus(
+          filterIdx, FilterCalibrationStatus.calibrating);
       notifier.setStatusMessage('Calibrating ${filterSetting.filterName}...');
 
       // Move filter wheel if needed
@@ -943,15 +954,16 @@ class _ActionButtons extends ConsumerWidget {
 
       // Calculate target ADU from histogram percentage
       final targetAdu = FlatExposureCalculator.histogramPercentToAdu(
-        filterSetting.histogramTargetOverride ?? state.globalSettings.histogramTarget,
+        filterSetting.histogramTargetOverride ??
+            state.globalSettings.histogramTarget,
       ).toDouble();
 
       final tolerance = filterSetting.toleranceOverride ??
           state.globalSettings.tolerancePercent;
-      final minExp = filterSetting.minExposureOverride ??
-          state.globalSettings.minExposure;
-      final maxExp = filterSetting.maxExposureOverride ??
-          state.globalSettings.maxExposure;
+      final minExp =
+          filterSetting.minExposureOverride ?? state.globalSettings.minExposure;
+      final maxExp =
+          filterSetting.maxExposureOverride ?? state.globalSettings.maxExposure;
 
       // Calibrate exposure
       FlatResult calibrationResult;
@@ -1018,8 +1030,8 @@ class _ActionButtons extends ConsumerWidget {
       }
 
       // Capture frames
-      final frameCount = filterSetting.frameCountOverride ??
-          state.globalSettings.frameCount;
+      final frameCount =
+          filterSetting.frameCountOverride ?? state.globalSettings.frameCount;
 
       for (int frameNum = 1; frameNum <= frameCount; frameNum++) {
         if (notifier.cancelRequested) {
@@ -1053,7 +1065,9 @@ class _ActionButtons extends ConsumerWidget {
 
           // Wait for exposure to complete
           await Future.delayed(
-            Duration(milliseconds: (calibrationResult.exposure * 1000 + 500).toInt()),
+            Duration(
+                milliseconds:
+                    (calibrationResult.exposure * 1000 + 500).toInt()),
           );
 
           notifier.setExposing(false);
@@ -1061,17 +1075,19 @@ class _ActionButtons extends ConsumerWidget {
           // Get the captured image for preview
           final image = await backend.cameraGetLastImage(cameraId);
           if (image != null) {
-            // Update preview with latest image data
-            notifier.setLastImage(null, image.displayData);
+            // Update preview with full image result (includes pixels, histogram, stats)
+            notifier.setLastImage(null, image);
 
             // Update ADU reading from actual capture
-            notifier.addAduMeasurement(calibrationResult.exposure, image.stats.mean);
+            notifier.addAduMeasurement(
+                calibrationResult.exposure, image.stats.mean);
           }
 
           // Generate filename and save
           final captureTime = DateTime.now();
           final timestamp = DateFormat('yyyyMMdd_HHmmss').format(captureTime);
-          final filename = 'Flat_${filterSetting.filterName}_${timestamp}_$frameNum.fits';
+          final filename =
+              'Flat_${filterSetting.filterName}_${timestamp}_$frameNum.fits';
           final filePath = p.join(filterSavePath, filename);
 
           await backend.saveFitsFromLastCapture(
@@ -1090,8 +1106,7 @@ class _ActionButtons extends ConsumerWidget {
           );
 
           notifier.incrementFilterCapturedCount(filterIdx);
-          notifier.setLastImage(filePath, image?.displayData);
-
+          notifier.setLastImage(filePath, image);
         } catch (e) {
           notifier.setExposing(false);
           notifier.setWarningMessage('Frame $frameNum failed: $e');

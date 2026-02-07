@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element, unused_field
+
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../radar_provider.dart';
@@ -108,7 +110,8 @@ class NoaaRadarProvider extends RadarProvider {
       }).toList();
 
       debugPrint('NoaaRadarProvider: Built ${frames.length} WMS frames');
-      debugPrint('NoaaRadarProvider: First frame time: ${frames.first.wmsAdditionalOptions?['time']}');
+      debugPrint(
+          'NoaaRadarProvider: First frame time: ${frames.first.wmsAdditionalOptions?['time']}');
 
       return RadarFetchResult.success(frames);
     } on http.ClientException catch (e) {
@@ -259,7 +262,7 @@ class NoaaRadarProvider extends RadarProvider {
 
   /// Builds a tile URL template for a specific radar timestamp.
   ///
-  /// The template includes {z}, {x}, {y} placeholders that will be replaced
+  /// The template includes {z}, {x}, {y} tokens that will be replaced
   /// with actual tile coordinates by the map renderer.
   String _buildTileUrlTemplate(DateTime timestamp) {
     // Format timestamp for WMS TIME parameter (ISO 8601)
@@ -278,7 +281,7 @@ class NoaaRadarProvider extends RadarProvider {
       'width': '256',
       'height': '256',
       'time': timeParam,
-      'bbox': '{bbox}', // Placeholder for tile-specific bbox
+      'bbox': '{bbox}', // Token for tile-specific bbox
     });
 
     return baseUrl.toString();
@@ -289,7 +292,7 @@ class NoaaRadarProvider extends RadarProvider {
     // Calculate Web Mercator bounding box for this tile
     final bbox = _tileToBBox(x, y, z);
 
-    // Replace the {bbox} placeholder in the template
+    // Replace the {bbox} token in the template
     return frame.tileUrlTemplate.replaceAll(
       '{bbox}',
       '${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]}',
@@ -300,7 +303,8 @@ class NoaaRadarProvider extends RadarProvider {
   ///
   /// Returns [west, south, east, north] in EPSG:3857 coordinates.
   List<double> _tileToBBox(int x, int y, int z) {
-    const worldSize = 20037508.342789244; // Half circumference of Earth in meters
+    const worldSize =
+        20037508.342789244; // Half circumference of Earth in meters
     final tileSize = (2 * worldSize) / (1 << z);
 
     final west = -worldSize + (x * tileSize);

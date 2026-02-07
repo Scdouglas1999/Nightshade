@@ -402,6 +402,103 @@ pub async fn api_discover_indi_at_address(
         })
 }
 
+async fn query_indi_device_serial_from_client(
+    client: &nightshade_indi::IndiClient,
+    device_name: &str,
+) -> Option<String> {
+    const SERIAL_CANDIDATES: [(&str, &str); 8] = [
+        ("DEVICE_INFO", "DEVICE_SERIAL"),
+        ("DEVICE_INFO", "SERIAL"),
+        ("EQUIPMENT_INFO", "SERIAL"),
+        ("DRIVER_INFO", "SERIAL"),
+        ("INFO", "SERIAL"),
+        ("DEVICE", "SERIAL"),
+        ("DEVICE_INFO", "SN"),
+        ("INFO", "SN"),
+    ];
+
+    for (property, element) in SERIAL_CANDIDATES {
+        if let Some(value) = client
+            .get_property_value(device_name, property, element)
+            .await
+        {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+
+    let properties = client.get_properties(device_name).await;
+    for property in properties {
+        let property_upper = property.name.to_uppercase();
+        if !(property_upper.contains("INFO") || property_upper.contains("DEVICE")) {
+            continue;
+        }
+
+        for element in property.elements {
+            let element_upper = element.to_uppercase();
+            if element_upper.contains("SERIAL") || element_upper == "SN" {
+                if let Some(value) = client
+                    .get_property_value(device_name, &property.name, &element)
+                    .await
+                {
+                    let trimmed = value.trim();
+                    if !trimmed.is_empty() {
+                        return Some(trimmed.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+async fn query_indi_serials_for_server(
+    host: &str,
+    port: u16,
+    device_names: &[String],
+) -> HashMap<String, String> {
+    let mut serials = HashMap::new();
+    let mut client = nightshade_indi::IndiClient::new(host, Some(port));
+
+    let mut timeout_config = client.timeout_config().clone();
+    timeout_config.connection_timeout_secs = 3;
+    timeout_config.property_timeout_secs = 2;
+    timeout_config.message_timeout_secs = 5;
+    client.set_timeout_config(timeout_config);
+
+    if let Err(e) = client.connect().await {
+        tracing::debug!(
+            "Unable to query INDI serials from {}:{} ({}). Continuing without serial metadata.",
+            host,
+            port,
+            e
+        );
+        return serials;
+    }
+
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    for device_name in device_names {
+        if let Some(serial) = query_indi_device_serial_from_client(&client, device_name).await {
+            serials.insert(device_name.clone(), serial);
+        }
+    }
+
+    if let Err(e) = client.disconnect().await {
+        tracing::debug!(
+            "INDI serial query disconnect warning for {}:{}: {}",
+            host,
+            port,
+            e
+        );
+    }
+
+    serials
+}
+
 /// Auto-discover INDI servers on localhost
 pub async fn api_discover_indi_localhost() -> Result<Vec<DeviceInfo>, NightshadeError> {
     use nightshade_indi::{discover_localhost, IndiDeviceType as IndiType};
@@ -417,6 +514,12 @@ pub async fn api_discover_indi_localhost() -> Result<Vec<DeviceInfo>, Nightshade
             server.port,
             server.devices.len()
         );
+        let device_names = server
+            .devices
+            .iter()
+            .map(|d| d.name.clone())
+            .collect::<Vec<_>>();
+        let serials = query_indi_serials_for_server(&server.host, server.port, &device_names).await;
 
         for device in server.devices {
             let device_type = match device.device_type {
@@ -434,8 +537,9 @@ pub async fn api_discover_indi_localhost() -> Result<Vec<DeviceInfo>, Nightshade
             };
 
             let device_id = format!("indi:{}:{}:{}", server.host, server.port, device.name);
+            let serial_number = serials.get(&device.name).cloned();
+            let unique_id = serial_number.clone();
 
-            // TODO: Query DEVICE_INFO property for serial number
             all_devices.push(DeviceInfo {
                 id: device_id,
                 name: device.name.clone(),
@@ -443,8 +547,8 @@ pub async fn api_discover_indi_localhost() -> Result<Vec<DeviceInfo>, Nightshade
                 driver_type: DriverType::Indi,
                 description: format!("INDI device at {}:{}", server.host, server.port),
                 driver_version: "INDI".to_string(),
-                serial_number: None,
-                unique_id: None,
+                serial_number,
+                unique_id,
                 display_name: device.name.clone(),
             });
         }
@@ -466,6 +570,12 @@ pub async fn api_discover_indi_common_hosts() -> Result<Vec<DeviceInfo>, Nightsh
     tracing::info!("Found {} INDI servers on common hosts", servers.len());
 
     for server in servers {
+        let device_names = server
+            .devices
+            .iter()
+            .map(|d| d.name.clone())
+            .collect::<Vec<_>>();
+        let serials = query_indi_serials_for_server(&server.host, server.port, &device_names).await;
         for device in server.devices {
             let device_type = match device.device_type {
                 IndiType::Camera => DeviceType::Camera,
@@ -482,8 +592,9 @@ pub async fn api_discover_indi_common_hosts() -> Result<Vec<DeviceInfo>, Nightsh
             };
 
             let device_id = format!("indi:{}:{}:{}", server.host, server.port, device.name);
+            let serial_number = serials.get(&device.name).cloned();
+            let unique_id = serial_number.clone();
 
-            // TODO: Query DEVICE_INFO property for serial number
             all_devices.push(DeviceInfo {
                 id: device_id,
                 name: device.name.clone(),
@@ -491,8 +602,8 @@ pub async fn api_discover_indi_common_hosts() -> Result<Vec<DeviceInfo>, Nightsh
                 driver_type: DriverType::Indi,
                 description: format!("INDI device at {}:{}", server.host, server.port),
                 driver_version: "INDI".to_string(),
-                serial_number: None,
-                unique_id: None,
+                serial_number,
+                unique_id,
                 display_name: device.name.clone(),
             });
         }
@@ -515,6 +626,12 @@ pub async fn api_discover_indi_network() -> Result<Vec<DeviceInfo>, NightshadeEr
     tracing::info!("Found {} INDI servers on local network", servers.len());
 
     for server in servers {
+        let device_names = server
+            .devices
+            .iter()
+            .map(|d| d.name.clone())
+            .collect::<Vec<_>>();
+        let serials = query_indi_serials_for_server(&server.host, server.port, &device_names).await;
         for device in server.devices {
             let device_type = match device.device_type {
                 IndiType::Camera => DeviceType::Camera,
@@ -531,8 +648,9 @@ pub async fn api_discover_indi_network() -> Result<Vec<DeviceInfo>, NightshadeEr
             };
 
             let device_id = format!("indi:{}:{}:{}", server.host, server.port, device.name);
+            let serial_number = serials.get(&device.name).cloned();
+            let unique_id = serial_number.clone();
 
-            // TODO: Query DEVICE_INFO property for serial number
             all_devices.push(DeviceInfo {
                 id: device_id,
                 name: device.name.clone(),
@@ -540,8 +658,8 @@ pub async fn api_discover_indi_network() -> Result<Vec<DeviceInfo>, NightshadeEr
                 driver_type: DriverType::Indi,
                 description: format!("INDI device at {}:{}", server.host, server.port),
                 driver_version: "INDI".to_string(),
-                serial_number: None,
-                unique_id: None,
+                serial_number,
+                unique_id,
                 display_name: device.name.clone(),
             });
         }
@@ -1274,7 +1392,7 @@ pub async fn api_get_device_api_version(
 ///
 /// This is useful for checking if newer API methods are available before calling them.
 /// Returns true if the device reports an interface version >= the required version,
-/// or true if no version info is available (optimistic fallback).
+/// and false when version information is unavailable.
 pub async fn api_device_supports_version(
     device_id: String,
     required_version: u32,
@@ -1287,7 +1405,7 @@ pub async fn api_device_supports_version(
 /// Check if a device supports a specific action.
 ///
 /// For ASCOM/Alpaca devices, checks the SupportedActions list.
-/// Returns true if the action is supported or if the device doesn't report supported actions.
+/// Returns true only when the action is explicitly reported as supported.
 pub async fn api_device_supports_action(
     device_id: String,
     action: String,
@@ -1298,7 +1416,7 @@ pub async fn api_device_supports_action(
 }
 
 // =============================================================================
-// Camera Control (Simulator implementation for now)
+// Camera Control (Simulator implementation)
 // =============================================================================
 
 /// Simulated camera state
@@ -1756,15 +1874,10 @@ pub async fn api_set_camera_binning(
         tracing::info!("Camera binning set to: {}x{}", bin_x, bin_y);
         Ok(())
     } else {
-        // Real devices - binning is typically set as part of exposure parameters
-        // For now, log and succeed since binning is usually applied at exposure time
-        tracing::info!(
-            "Camera binning request: {}x{} for device {}",
-            bin_x,
-            bin_y,
-            device_id
-        );
-        Ok(())
+        let mgr = get_device_manager();
+        mgr.camera_set_binning(&device_id, bin_x, bin_y)
+            .await
+            .map_err(NightshadeError::OperationFailed)
     }
 }
 
@@ -2050,7 +2163,7 @@ pub async fn api_cover_calibrator_get_status(
 }
 
 // =============================================================================
-// Mount Control (Simulator implementation for now)
+// Mount Control (Simulator implementation)
 // =============================================================================
 
 /// Simulated mount state
@@ -2268,7 +2381,7 @@ pub async fn api_mount_pulse_guide(
 }
 
 // =============================================================================
-// Focuser Control (Simulator implementation for now)
+// Focuser Control (Simulator implementation)
 // =============================================================================
 
 /// Simulated focuser state
@@ -2315,7 +2428,10 @@ pub async fn api_get_focuser_status(device_id: String) -> Result<FocuserStatus, 
             .focuser_get_position(&device_id)
             .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
-        let moving = mgr.focuser_is_moving(&device_id).await.unwrap_or(false);
+        let moving = mgr
+            .focuser_is_moving(&device_id)
+            .await
+            .map_err(|e| NightshadeError::OperationFailed(e))?;
         let temperature = mgr.focuser_get_temp(&device_id).await.unwrap_or(None);
         let (max_position, step_size) = match mgr.focuser_get_details(&device_id).await {
             Ok(details) => details,
@@ -2328,7 +2444,10 @@ pub async fn api_get_focuser_status(device_id: String) -> Result<FocuserStatus, 
                 (0, 0.0)
             }
         };
-        let is_absolute = mgr.focuser_is_absolute(&device_id).await.unwrap_or(false);
+        let is_absolute = mgr
+            .focuser_is_absolute(&device_id)
+            .await
+            .map_err(|e| NightshadeError::OperationFailed(e))?;
 
         Ok(FocuserStatus {
             connected: true,
@@ -2444,7 +2563,7 @@ pub async fn api_focuser_halt(device_id: String) -> Result<(), NightshadeError> 
 }
 
 // =============================================================================
-// Filter Wheel Control (Simulator implementation for now)
+// Filter Wheel Control (Simulator implementation)
 // =============================================================================
 
 /// Simulated filter wheel state
@@ -2498,7 +2617,7 @@ pub async fn api_get_filterwheel_status(
         let is_moving = mgr
             .filter_wheel_is_moving(&device_id)
             .await
-            .unwrap_or(false);
+            .map_err(|e| NightshadeError::OperationFailed(e))?;
         let (filter_count, filter_names) = mgr
             .filter_wheel_get_config(&device_id)
             .await
@@ -2651,7 +2770,7 @@ pub async fn api_filterwheel_set_filter_names(
 }
 
 // =============================================================================
-// Rotator Control (Simulator implementation for now)
+// Rotator Control (Simulator implementation)
 // =============================================================================
 
 /// Simulated rotator state
@@ -2695,7 +2814,21 @@ pub async fn api_get_rotator_status(device_id: String) -> Result<RotatorStatus, 
             .rotator_get_position(&device_id)
             .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
-        let is_moving = mgr.rotator_is_moving(&device_id).await.unwrap_or(false);
+        let is_moving = mgr
+            .rotator_is_moving(&device_id)
+            .await
+            .map_err(|e| NightshadeError::OperationFailed(e))?;
+        let can_reverse = match api_get_rotator_capabilities(device_id.clone()).await {
+            Ok(caps) => caps.can_reverse,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to query rotator capabilities for {}: {:?}. Treating reverse as unsupported.",
+                    device_id,
+                    e
+                );
+                false
+            }
+        };
 
         Ok(RotatorStatus {
             connected: true,
@@ -2703,7 +2836,7 @@ pub async fn api_get_rotator_status(device_id: String) -> Result<RotatorStatus, 
             moving: is_moving,
             mechanical_position: position,
             is_moving,
-            can_reverse: true, // Could query from device if supported
+            can_reverse,
         })
     }
 }
@@ -2794,11 +2927,8 @@ pub async fn api_rotator_halt(device_id: String) -> Result<(), NightshadeError> 
 static AUTOFOCUS_CANCEL_TOKEN: OnceLock<Arc<AtomicBool>> = OnceLock::new();
 
 fn get_autofocus_cancel_token() -> &'static Arc<AtomicBool> {
-    // In a real app, we might want to support multiple concurrent operations,
-    // but for now we use a single global token that we replace on each run.
-    // Note: OnceLock is immutable once set. We need a Mutex or RwLock if we want to swap tokens,
-    // OR we assume the token is persistent and we just reset its value.
-    // Resetting value is safer for OnceLock.
+    // OnceLock is immutable after initialization, so reuse one persistent token
+    // and reset its flag between autofocus runs.
     AUTOFOCUS_CANCEL_TOKEN.get_or_init(|| Arc::new(AtomicBool::new(false)))
 }
 
@@ -3020,12 +3150,44 @@ pub async fn api_cancel_autofocus() -> Result<(), NightshadeError> {
 pub struct CapturedImageResult {
     pub width: u32,
     pub height: u32,
-    pub display_data: Vec<u8>, // RGB (width*height*3) if is_color=true, grayscale (width*height) if is_color=false
-    pub histogram: Vec<u32>,   // 256-bin histogram
+    pub display_data: Vec<u8>, // Always RGBA (width*height*4), alpha=255
+    pub histogram: Vec<u32>,   // 256-bin histogram (computed from pre-RGBA pixel values)
     pub stats: ImageStatsResult,
     pub exposure_time: f64,
     pub timestamp: String,
-    pub is_color: bool, // true if display_data is RGB, false if grayscale
+    pub is_color: bool, // true if source was color (RGB), false if grayscale — retained for stretch/analysis paths
+}
+
+/// Convert grayscale (1 byte/pixel) or RGB (3 bytes/pixel) display data to RGBA (4 bytes/pixel).
+/// Uses rayon for parallel conversion on large images.
+pub(crate) fn display_data_to_rgba(data: &[u8], is_color: bool) -> Vec<u8> {
+    if is_color {
+        // RGB -> RGBA
+        let num_pixels = data.len() / 3;
+        let mut rgba = vec![0u8; num_pixels * 4];
+        rgba.par_chunks_exact_mut(4)
+            .zip(data.par_chunks_exact(3))
+            .for_each(|(dst, src)| {
+                dst[0] = src[0]; // R
+                dst[1] = src[1]; // G
+                dst[2] = src[2]; // B
+                dst[3] = 255; // A
+            });
+        rgba
+    } else {
+        // Grayscale -> RGBA
+        let num_pixels = data.len();
+        let mut rgba = vec![0u8; num_pixels * 4];
+        rgba.par_chunks_exact_mut(4)
+            .zip(data.par_iter())
+            .for_each(|(dst, &gray)| {
+                dst[0] = gray; // R
+                dst[1] = gray; // G
+                dst[2] = gray; // B
+                dst[3] = 255; // A
+            });
+        rgba
+    }
 }
 
 /// Image statistics
@@ -3158,8 +3320,11 @@ pub async fn api_camera_start_exposure(
         let sensor_width = 4144 / bin_x as u32;
         let sensor_height = 2822 / bin_y as u32;
 
-        let (raw_data, display_data, histogram, stats, star_count) =
+        let (raw_data, display_data_raw, histogram, stats, star_count) =
             generate_simulated_image(sensor_width, sensor_height, gain, duration_secs);
+
+        // Convert grayscale display data to RGBA for Flutter rendering
+        let display_data = display_data_to_rgba(&display_data_raw, false);
 
         // Store all image data atomically to prevent race conditions
         // This ensures the UI never sees inconsistent state between raw and display data
@@ -3270,7 +3435,7 @@ pub async fn api_camera_start_exposure(
             BayerPattern::RGGB // Doesn't matter for mono
         };
 
-        let display_data: Vec<u8>;
+        let display_data_raw: Vec<u8>;
 
         if is_color {
             // Color debayering path
@@ -3310,7 +3475,7 @@ pub async fn api_camera_start_exposure(
             };
 
             // 4. Apply stretch to convert RGB u16 -> RGB u8
-            display_data = nightshade_imaging::apply_stretch_rgb(
+            display_data_raw = nightshade_imaging::apply_stretch_rgb(
                 &rgb_data,
                 seq_image.width,
                 seq_image.height,
@@ -3325,13 +3490,13 @@ pub async fn api_camera_start_exposure(
                 stretch_params.highlights,
                 stretch_params.midtones
             );
-            display_data = nightshade_imaging::apply_stretch(&image, &stretch_params);
+            display_data_raw = nightshade_imaging::apply_stretch(&image, &stretch_params);
 
             // Check display data distribution
-            let display_min = display_data.iter().min().copied().unwrap_or(0);
-            let display_max = display_data.iter().max().copied().unwrap_or(0);
-            let display_sum: u64 = display_data.iter().map(|&v| v as u64).sum();
-            let display_mean = display_sum / display_data.len() as u64;
+            let display_min = display_data_raw.iter().min().copied().unwrap_or(0);
+            let display_max = display_data_raw.iter().max().copied().unwrap_or(0);
+            let display_sum: u64 = display_data_raw.iter().map(|&v| v as u64).sum();
+            let display_mean = display_sum / display_data_raw.len() as u64;
             tracing::info!(
                 "[DIAGNOSTIC] Display data after stretch: min={}, max={}, mean={}",
                 display_min,
@@ -3348,11 +3513,14 @@ pub async fn api_camera_start_exposure(
         );
         let star_count = stars.len() as u32;
 
-        // Calculate histogram (256 bins for u8 display data)
+        // Calculate histogram from pre-RGBA display data (256 bins for u8 pixel values)
         let mut histogram = vec![0u32; 256];
-        for &pixel in &display_data {
+        for &pixel in &display_data_raw {
             histogram[pixel as usize] += 1;
         }
+
+        // Convert to RGBA for Flutter rendering (parallel, fast in Rust)
+        let display_data = display_data_to_rgba(&display_data_raw, is_color);
 
         // Store all image data atomically to prevent race conditions
         // This ensures the UI never sees inconsistent state between raw and display data
@@ -3701,7 +3869,7 @@ pub struct FitsReadResult {
     pub width: u32,
     pub height: u32,
     pub bitpix: i32,
-    pub display_data: Vec<u8>,
+    pub display_data: Vec<u8>, // Always RGBA (width*height*4), alpha=255
     pub histogram: Vec<u32>,
     pub stats: ImageStatsResult,
     pub object_name: Option<String>,
@@ -3728,6 +3896,47 @@ pub struct FitsLinearReadResult {
     pub dec: Option<f64>,
     pub date_obs: Option<String>,
     pub bayer_pattern: Option<String>,
+}
+
+/// Frame-level quality metrics for Science visualizations.
+#[derive(Debug, Clone)]
+pub struct QualityFrameMetricsApi {
+    pub median: f64,
+    pub mean: f64,
+    pub std_dev: f64,
+    pub mad: f64,
+    pub background: f64,
+    pub noise: f64,
+    pub snr: f64,
+    pub dynamic_range_p1_p99: f64,
+    pub low_clip_percent: f64,
+    pub high_clip_percent: f64,
+    pub uniformity_cv: f64,
+    pub gradient_x: f64,
+    pub gradient_y: f64,
+    pub processing_tier: String,
+    pub processing_ms: u32,
+}
+
+/// Tile-level quality metrics for Science overlays/surfaces.
+#[derive(Debug, Clone)]
+pub struct QualityTileMetricApi {
+    pub layer_type: String,
+    pub tile_row: u32,
+    pub tile_col: u32,
+    pub sample_count: u32,
+    pub value: f64,
+    pub p05: f64,
+    pub p50: f64,
+    pub p95: f64,
+    pub aux_value: f64,
+}
+
+/// Result container for quality map computation endpoints.
+#[derive(Debug, Clone)]
+pub struct QualityMapsResultApi {
+    pub frame: QualityFrameMetricsApi,
+    pub tiles: Vec<QualityTileMetricApi>,
 }
 
 fn image_data_to_linear_f64(image_data: &ImageData) -> Vec<f64> {
@@ -3797,13 +4006,16 @@ pub async fn api_read_fits_file(file_path: String) -> Result<FitsReadResult, Nig
 
     // Auto stretch for display
     let stretch_params = nightshade_imaging::auto_stretch_stf(&image_data);
-    let display_data = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
+    let display_data_raw = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
 
-    // Calculate histogram
+    // Calculate histogram from pre-RGBA data
     let mut histogram = vec![0u32; 256];
-    for &pixel in &display_data {
+    for &pixel in &display_data_raw {
         histogram[pixel as usize] += 1;
     }
+
+    // Convert grayscale to RGBA for Flutter rendering
+    let display_data = display_data_to_rgba(&display_data_raw, false);
 
     tracing::info!(
         "FITS file loaded: {}x{}, {} pixels",
@@ -3879,6 +4091,475 @@ pub async fn api_read_fits_linear_data(
         date_obs,
         bayer_pattern,
     })
+}
+
+fn percentile_sorted(sorted_values: &[f64], p: f64) -> f64 {
+    if sorted_values.is_empty() {
+        return 0.0;
+    }
+    let q = p.clamp(0.0, 1.0);
+    let pos = ((sorted_values.len() - 1) as f64) * q;
+    let lo = pos.floor() as usize;
+    let hi = pos.ceil() as usize;
+    if lo == hi {
+        return sorted_values[lo];
+    }
+    let t = pos - lo as f64;
+    sorted_values[lo] * (1.0 - t) + sorted_values[hi] * t
+}
+
+fn percentile(values: &[f64], p: f64) -> f64 {
+    let mut sorted = values
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite())
+        .collect::<Vec<_>>();
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    percentile_sorted(&sorted, p)
+}
+
+fn median(values: &[f64]) -> f64 {
+    percentile(values, 0.5)
+}
+
+fn mad(values: &[f64], median_value: f64) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let deviations = values
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite())
+        .map(|value| (value - median_value).abs())
+        .collect::<Vec<_>>();
+    median(&deviations)
+}
+
+fn compute_quality_maps_from_linear_data(
+    width: usize,
+    height: usize,
+    linear_data: &[f64],
+    grid_rows: u32,
+    grid_cols: u32,
+    low_clip_adu: u32,
+    high_clip_adu: u32,
+    processing_tier: &str,
+) -> Result<QualityMapsResultApi, NightshadeError> {
+    if width == 0 || height == 0 {
+        return Err(NightshadeError::InvalidInput(
+            "Image dimensions must be non-zero".to_string(),
+        ));
+    }
+
+    let expected = width.saturating_mul(height);
+    if linear_data.len() < expected {
+        return Err(NightshadeError::InvalidInput(format!(
+            "Linear buffer too small: {} < {}",
+            linear_data.len(),
+            expected
+        )));
+    }
+
+    let rows = grid_rows.clamp(2, 128) as usize;
+    let cols = grid_cols.clamp(2, 128) as usize;
+    let low_clip = low_clip_adu as f64;
+    let high_clip = high_clip_adu as f64;
+
+    let mut tile_metrics = Vec::with_capacity(rows * cols * 5);
+    let mut tile_medians = Vec::with_capacity(rows * cols);
+    let mut tile_noises = Vec::with_capacity(rows * cols);
+    let mut tile_p05 = Vec::with_capacity(rows * cols);
+    let mut tile_p95 = Vec::with_capacity(rows * cols);
+    let mut tile_grad_x = Vec::with_capacity(rows * cols);
+    let mut tile_grad_y = Vec::with_capacity(rows * cols);
+
+    let mut global_count: usize = 0;
+    let mut global_sum = 0.0;
+    let mut global_sum_sq = 0.0;
+    let mut global_low_clip: usize = 0;
+    let mut global_high_clip: usize = 0;
+
+    let image_mid_x = width / 2;
+    let image_mid_y = height / 2;
+
+    for row in 0..rows {
+        let y_start = (row * height) / rows;
+        let mut y_end = ((row + 1) * height) / rows;
+        if y_end <= y_start {
+            y_end = (y_start + 1).min(height);
+        }
+
+        for col in 0..cols {
+            let x_start = (col * width) / cols;
+            let mut x_end = ((col + 1) * width) / cols;
+            if x_end <= x_start {
+                x_end = (x_start + 1).min(width);
+            }
+
+            let mut samples = Vec::new();
+            let mut sum = 0.0;
+            let mut sum_sq = 0.0;
+            let mut tile_low_clip: usize = 0;
+            let mut tile_high_clip: usize = 0;
+            let mut left_sum = 0.0;
+            let mut right_sum = 0.0;
+            let mut top_sum = 0.0;
+            let mut bottom_sum = 0.0;
+            let mut left_count: usize = 0;
+            let mut right_count: usize = 0;
+            let mut top_count: usize = 0;
+            let mut bottom_count: usize = 0;
+
+            for y in y_start..y_end {
+                let is_top = y < image_mid_y;
+                let row_base = y * width;
+                for x in x_start..x_end {
+                    let value = linear_data[row_base + x];
+                    if !value.is_finite() {
+                        continue;
+                    }
+
+                    samples.push(value);
+                    sum += value;
+                    sum_sq += value * value;
+                    global_sum += value;
+                    global_sum_sq += value * value;
+                    global_count += 1;
+
+                    if value <= low_clip {
+                        tile_low_clip += 1;
+                        global_low_clip += 1;
+                    }
+                    if value >= high_clip {
+                        tile_high_clip += 1;
+                        global_high_clip += 1;
+                    }
+
+                    if x < image_mid_x {
+                        left_sum += value;
+                        left_count += 1;
+                    } else {
+                        right_sum += value;
+                        right_count += 1;
+                    }
+
+                    if is_top {
+                        top_sum += value;
+                        top_count += 1;
+                    } else {
+                        bottom_sum += value;
+                        bottom_count += 1;
+                    }
+                }
+            }
+
+            if samples.is_empty() {
+                continue;
+            }
+
+            samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+            let count = samples.len();
+            let count_f64 = count as f64;
+            let mean_value = sum / count_f64;
+            let variance = ((sum_sq / count_f64) - (mean_value * mean_value)).max(0.0);
+            let std_dev = variance.sqrt();
+            let p05 = percentile_sorted(&samples, 0.05);
+            let p50 = percentile_sorted(&samples, 0.50);
+            let p95 = percentile_sorted(&samples, 0.95);
+            let cv = if mean_value.abs() < 1e-6 {
+                0.0
+            } else {
+                std_dev / mean_value.abs()
+            };
+            let low_clip_percent = 100.0 * (tile_low_clip as f64) / count_f64;
+            let high_clip_percent = 100.0 * (tile_high_clip as f64) / count_f64;
+            let snr = if std_dev <= 0.0 {
+                0.0
+            } else {
+                mean_value / std_dev
+            };
+
+            let left_mean = if left_count == 0 {
+                mean_value
+            } else {
+                left_sum / left_count as f64
+            };
+            let right_mean = if right_count == 0 {
+                mean_value
+            } else {
+                right_sum / right_count as f64
+            };
+            let top_mean = if top_count == 0 {
+                mean_value
+            } else {
+                top_sum / top_count as f64
+            };
+            let bottom_mean = if bottom_count == 0 {
+                mean_value
+            } else {
+                bottom_sum / bottom_count as f64
+            };
+            let grad_x = right_mean - left_mean;
+            let grad_y = bottom_mean - top_mean;
+            let grad_mag = (grad_x * grad_x + grad_y * grad_y).sqrt();
+
+            tile_medians.push(p50);
+            tile_noises.push(std_dev);
+            tile_p05.push(p05);
+            tile_p95.push(p95);
+            tile_grad_x.push(grad_x);
+            tile_grad_y.push(grad_y);
+
+            let tile_row = row as u32;
+            let tile_col = col as u32;
+            let sample_count = count.min(u32::MAX as usize) as u32;
+            tile_metrics.push(QualityTileMetricApi {
+                layer_type: "uniformity".to_string(),
+                tile_row,
+                tile_col,
+                sample_count,
+                value: cv,
+                p05,
+                p50,
+                p95,
+                aux_value: grad_mag,
+            });
+            tile_metrics.push(QualityTileMetricApi {
+                layer_type: "clip_low".to_string(),
+                tile_row,
+                tile_col,
+                sample_count,
+                value: low_clip_percent,
+                p05: low_clip_percent,
+                p50: low_clip_percent,
+                p95: low_clip_percent,
+                aux_value: tile_low_clip as f64,
+            });
+            tile_metrics.push(QualityTileMetricApi {
+                layer_type: "clip_high".to_string(),
+                tile_row,
+                tile_col,
+                sample_count,
+                value: high_clip_percent,
+                p05: high_clip_percent,
+                p50: high_clip_percent,
+                p95: high_clip_percent,
+                aux_value: tile_high_clip as f64,
+            });
+            tile_metrics.push(QualityTileMetricApi {
+                layer_type: "background".to_string(),
+                tile_row,
+                tile_col,
+                sample_count,
+                value: p50,
+                p05,
+                p50,
+                p95,
+                aux_value: std_dev,
+            });
+            tile_metrics.push(QualityTileMetricApi {
+                layer_type: "snr".to_string(),
+                tile_row,
+                tile_col,
+                sample_count,
+                value: snr,
+                p05: 0.0,
+                p50: snr,
+                p95: snr,
+                aux_value: std_dev,
+            });
+        }
+    }
+
+    let safe_count = global_count.max(1) as f64;
+    let global_mean = global_sum / safe_count;
+    let global_std_dev = ((global_sum_sq / safe_count) - (global_mean * global_mean))
+        .max(0.0)
+        .sqrt();
+    let median_value = if tile_medians.is_empty() {
+        0.0
+    } else {
+        median(&tile_medians)
+    };
+    let mad_value = if tile_medians.is_empty() {
+        0.0
+    } else {
+        mad(&tile_medians, median_value)
+    };
+    let background = if tile_medians.is_empty() {
+        global_mean
+    } else {
+        median(&tile_medians)
+    };
+    let noise = if tile_noises.is_empty() {
+        global_std_dev
+    } else {
+        median(&tile_noises)
+    };
+    let snr = if noise <= 0.0 {
+        0.0
+    } else {
+        global_mean / noise
+    };
+    let p1 = if tile_p05.is_empty() {
+        0.0
+    } else {
+        percentile(&tile_p05, 0.2)
+    };
+    let p99 = if tile_p95.is_empty() {
+        0.0
+    } else {
+        percentile(&tile_p95, 0.8)
+    };
+    let dynamic_range = (p99 - p1).max(0.0);
+    let gradient_x = if tile_grad_x.is_empty() {
+        0.0
+    } else {
+        tile_grad_x.iter().sum::<f64>() / tile_grad_x.len() as f64
+    };
+    let gradient_y = if tile_grad_y.is_empty() {
+        0.0
+    } else {
+        tile_grad_y.iter().sum::<f64>() / tile_grad_y.len() as f64
+    };
+
+    Ok(QualityMapsResultApi {
+        frame: QualityFrameMetricsApi {
+            median: median_value,
+            mean: global_mean,
+            std_dev: global_std_dev,
+            mad: mad_value,
+            background,
+            noise,
+            snr,
+            dynamic_range_p1_p99: dynamic_range,
+            low_clip_percent: 100.0 * (global_low_clip as f64) / safe_count,
+            high_clip_percent: 100.0 * (global_high_clip as f64) / safe_count,
+            uniformity_cv: if background.abs() < 1e-6 {
+                0.0
+            } else {
+                global_std_dev / background.abs()
+            },
+            gradient_x,
+            gradient_y,
+            processing_tier: processing_tier.to_string(),
+            processing_ms: 0,
+        },
+        tiles: tile_metrics,
+    })
+}
+
+/// Compute quality maps from the last captured image in memory for a device.
+pub async fn api_compute_last_capture_quality_maps(
+    device_id: String,
+    grid_rows: u32,
+    grid_cols: u32,
+    low_clip_adu: u32,
+    high_clip_adu: u32,
+) -> Result<QualityMapsResultApi, NightshadeError> {
+    let started = Instant::now();
+    let raw_info = get_last_raw_image_info(&device_id)
+        .await?
+        .ok_or(NightshadeError::NoImageAvailable)?;
+
+    let width = raw_info.width as usize;
+    let height = raw_info.height as usize;
+    let linear_data = raw_info
+        .data
+        .iter()
+        .map(|value| *value as f64)
+        .collect::<Vec<_>>();
+
+    let mut result = compute_quality_maps_from_linear_data(
+        width,
+        height,
+        &linear_data,
+        grid_rows,
+        grid_cols,
+        low_clip_adu,
+        high_clip_adu,
+        "live",
+    )?;
+    result.frame.processing_ms = started.elapsed().as_millis().min(u32::MAX as u128) as u32;
+    Ok(result)
+}
+
+/// Compute quality maps directly from a FITS file.
+pub async fn api_compute_fits_quality_maps(
+    file_path: String,
+    grid_rows: u32,
+    grid_cols: u32,
+    low_clip_adu: u32,
+    high_clip_adu: u32,
+) -> Result<QualityMapsResultApi, NightshadeError> {
+    use std::path::Path;
+
+    let started = Instant::now();
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        return Err(NightshadeError::IoError(format!(
+            "File not found: {}",
+            file_path
+        )));
+    }
+
+    let (image_data, _header) = nightshade_imaging::read_fits(path)
+        .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
+    let linear_data = image_data_to_linear_f64(&image_data);
+
+    let mut result = compute_quality_maps_from_linear_data(
+        image_data.width as usize,
+        image_data.height as usize,
+        &linear_data,
+        grid_rows,
+        grid_cols,
+        low_clip_adu,
+        high_clip_adu,
+        "deferred",
+    )?;
+    result.frame.processing_ms = started.elapsed().as_millis().min(u32::MAX as u128) as u32;
+    Ok(result)
+}
+
+#[cfg(test)]
+mod quality_map_tests {
+    use super::compute_quality_maps_from_linear_data;
+
+    fn approx_eq(actual: f64, expected: f64, tolerance: f64) {
+        assert!(
+            (actual - expected).abs() <= tolerance,
+            "expected {expected}, got {actual} (tol={tolerance})"
+        );
+    }
+
+    #[test]
+    fn computes_expected_clip_metrics_for_uniform_black_frame() {
+        let data = vec![0.0; 16];
+        let result =
+            compute_quality_maps_from_linear_data(4, 4, &data, 2, 2, 0, 65535, "live").unwrap();
+
+        approx_eq(result.frame.low_clip_percent, 100.0, 1e-9);
+        approx_eq(result.frame.high_clip_percent, 0.0, 1e-9);
+        assert_eq!(result.frame.processing_tier, "live");
+        assert_eq!(result.tiles.len(), 20); // 2x2 tiles * 5 layers
+    }
+
+    #[test]
+    fn computes_expected_clip_metrics_for_ramp_frame() {
+        let data = (0..16).map(|value| value as f64).collect::<Vec<_>>();
+        let result =
+            compute_quality_maps_from_linear_data(4, 4, &data, 2, 2, 0, 15, "deferred").unwrap();
+
+        // One sample clipped low (0), one clipped high (15) out of 16 total.
+        approx_eq(result.frame.low_clip_percent, 6.25, 1e-9);
+        approx_eq(result.frame.high_clip_percent, 6.25, 1e-9);
+        assert_eq!(result.frame.processing_tier, "deferred");
+        assert_eq!(result.tiles.len(), 20);
+    }
 }
 
 /// FITS header for writing
@@ -4157,8 +4838,9 @@ pub async fn api_apply_stretch(
         midtones: params.midtones,
     };
 
-    let display_data = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
-    Ok(display_data)
+    let display_data_raw = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
+    // Convert grayscale to RGBA for Flutter rendering
+    Ok(display_data_to_rgba(&display_data_raw, false))
 }
 
 // =============================================================================
@@ -4230,7 +4912,7 @@ pub struct XisfReadResult {
     pub width: u32,
     pub height: u32,
     pub channels: u32,
-    pub display_data: Vec<u8>,
+    pub display_data: Vec<u8>, // Always RGBA (width*height*4), alpha=255
     pub histogram: Vec<u32>,
     pub stats: ImageStatsResult,
     pub properties: Vec<(String, String)>,
@@ -4258,13 +4940,16 @@ pub async fn api_read_xisf_file(file_path: String) -> Result<XisfReadResult, Nig
 
     // Auto stretch for display
     let stretch_params = nightshade_imaging::auto_stretch_stf(&image_data);
-    let display_data = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
+    let display_data_raw = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
 
-    // Calculate histogram
+    // Calculate histogram from pre-RGBA data
     let mut histogram = vec![0u32; 256];
-    for &pixel in &display_data {
+    for &pixel in &display_data_raw {
         histogram[pixel as usize] += 1;
     }
+
+    // Convert grayscale to RGBA for Flutter rendering
+    let display_data = display_data_to_rgba(&display_data_raw, false);
 
     // Convert properties to strings
     let properties: Vec<(String, String)> = metadata
@@ -5346,7 +6031,17 @@ pub mod alpaca_connections {
     pub async fn is_connected(device_id: &str) -> bool {
         let clients = get_alpaca_clients().read().await;
         if let Some(client) = clients.get(device_id) {
-            client.is_connected().await.unwrap_or(false)
+            match client.is_connected().await {
+                Ok(connected) => connected,
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to query Alpaca connection state for {}: {}",
+                        device_id,
+                        e
+                    );
+                    false
+                }
+            }
         } else {
             false
         }
@@ -5948,6 +6643,14 @@ pub async fn api_sequencer_set_simulation_mode(enabled: bool) -> Result<(), Nigh
     tracing::info!("Setting sequencer simulation mode: {}", enabled);
     let mut executor = get_sequence_executor().write().await;
 
+    // Production/release artifacts must not execute simulated hardware paths.
+    if enabled && !cfg!(debug_assertions) {
+        return Err(NightshadeError::NotSupported {
+            device_id: "sequencer".to_string(),
+            operation: "set_simulation_mode(true)".to_string(),
+        });
+    }
+
     if enabled {
         // Use NullDeviceOps for simulation
         executor.set_device_ops(std::sync::Arc::new(nightshade_sequencer::NullDeviceOps));
@@ -5991,19 +6694,25 @@ pub async fn api_sequencer_set_devices(
 
 /// Set the safety fail mode for the sequencer.
 /// This determines behavior when safety devices fail or are unavailable:
-/// - "fail_open": Assume safe and continue imaging (default)
-/// - "fail_closed": Assume unsafe and pause/park
-/// - "warn_only": Show warning but continue
+/// - "fail_closed": Treat unavailable safety data as unsafe (enforced)
+/// - "fail_open"/"warn_only": accepted for backward compatibility and coerced to fail_closed
 pub async fn api_sequencer_set_safety_fail_mode(mode: String) -> Result<(), NightshadeError> {
     use nightshade_sequencer::SafetyFailMode;
 
-    let fail_mode = match mode.to_lowercase().as_str() {
-        "fail_open" | "failopen" => SafetyFailMode::FailOpen,
+    let mode_lower = mode.to_lowercase();
+    let fail_mode = match mode_lower.as_str() {
         "fail_closed" | "failclosed" => SafetyFailMode::FailClosed,
-        "warn_only" | "warnonly" => SafetyFailMode::WarnOnly,
+        "fail_open" | "failopen" | "warn_only" | "warnonly" => {
+            tracing::warn!(
+                "Safety fail mode '{}' requested, but strict fail-closed is enforced; using fail_closed",
+                mode
+            );
+            SafetyFailMode::FailClosed
+        }
         _ => {
             return Err(NightshadeError::InvalidParameter(format!(
-                "Invalid safety fail mode: '{}'. Must be 'fail_open', 'fail_closed', or 'warn_only'", mode
+                "Invalid safety fail mode: '{}'. Must be 'fail_closed' (legacy aliases: 'fail_open', 'warn_only').",
+                mode
             )));
         }
     };
@@ -6116,6 +6825,8 @@ pub fn api_create_center_node(
 ) -> String {
     let config = CenterConfig {
         use_target_coords: use_target_coords != 0,
+        custom_ra: None,
+        custom_dec: None,
         accuracy_arcsec,
         max_attempts,
         exposure_duration,
@@ -6773,42 +7484,23 @@ fn emit_polar_image(
 ) {
     use image::ImageEncoder;
 
-    // Encode display_data to JPEG
-    let (color_type, jpeg_data) = if image.is_color {
-        // RGB8 data
-        let mut buffer = Vec::new();
-        {
-            let mut cursor = std::io::Cursor::new(&mut buffer);
-            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 85);
-            if let Err(e) = encoder.write_image(
-                &image.display_data,
-                image.width as u32,
-                image.height as u32,
-                image::ColorType::Rgb8,
-            ) {
-                tracing::warn!("Failed to encode polar alignment image: {}", e);
-                return;
-            }
+    // Encode display_data (RGBA) to JPEG
+    let mut buffer = Vec::new();
+    {
+        let mut cursor = std::io::Cursor::new(&mut buffer);
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 85);
+        if let Err(e) = encoder.write_image(
+            &image.display_data,
+            image.width as u32,
+            image.height as u32,
+            image::ColorType::Rgba8,
+        ) {
+            tracing::warn!("Failed to encode polar alignment image: {}", e);
+            return;
         }
-        (image::ColorType::Rgb8, buffer)
-    } else {
-        // Grayscale (L8) data
-        let mut buffer = Vec::new();
-        {
-            let mut cursor = std::io::Cursor::new(&mut buffer);
-            let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 85);
-            if let Err(e) = encoder.write_image(
-                &image.display_data,
-                image.width as u32,
-                image.height as u32,
-                image::ColorType::L8,
-            ) {
-                tracing::warn!("Failed to encode polar alignment image: {}", e);
-                return;
-            }
-        }
-        (image::ColorType::L8, buffer)
-    };
+    }
+    let color_type = image::ColorType::Rgba8;
+    let jpeg_data = buffer;
 
     tracing::debug!(
         "Emitting polar alignment image: {}x{}, {:?}, point={}, phase={}, solved={:?}",
@@ -6901,7 +7593,7 @@ pub async fn api_start_polar_alignment(
     let gain_val = gain.unwrap_or(0);
     let offset_val = offset.unwrap_or(0);
     let solve_timeout_val = solve_timeout.unwrap_or(60.0);
-    let _start_from_current_val = start_from_current.unwrap_or(true);
+    let start_from_current_val = start_from_current.unwrap_or(true);
     let auto_complete_threshold_val = auto_complete_threshold.unwrap_or(1.0); // Default 1 arcminute
 
     tokio::spawn(async move {
@@ -6914,6 +7606,7 @@ pub async fn api_start_polar_alignment(
             is_north,
             manual_rotation,
             rotate_east,
+            start_from_current_val,
             gain_val,
             offset_val,
             solve_timeout_val,
@@ -6942,11 +7635,19 @@ async fn run_polar_alignment(
     is_north: bool,
     manual_rotation: bool,
     rotate_east: bool,
+    start_from_current: bool,
     gain: i32,
     offset: i32,
     solve_timeout_secs: f64,
     auto_complete_threshold: f64,
 ) -> Result<(), String> {
+    if !start_from_current {
+        return Err(
+            "Polar alignment with start_from_current=false is not supported by this workflow"
+                .to_string(),
+        );
+    }
+
     let mut solved_points: Vec<(f64, f64)> = Vec::new();
 
     // Phase 1: Capture and solve 3 points
@@ -7432,25 +8133,25 @@ fn write_temp_fits_for_solve(image: &CapturedImageResult, path: &str) -> Result<
     use nightshade_imaging::{write_fits, FitsHeader, ImageData, PixelType};
     use std::path::Path;
 
-    // Convert display_data to raw bytes for FITS
-    // The display_data is 8-bit, scale to 16-bit for better plate solving
+    // Convert RGBA display_data to grayscale 16-bit for FITS plate solving.
+    // display_data is always RGBA (4 bytes per pixel).
     let raw_bytes: Vec<u8> = if image.is_color {
-        // For color, convert to grayscale (luminance) and scale to 16-bit
+        // For color RGBA, convert to grayscale (luminance) and scale to 16-bit
         image
             .display_data
-            .chunks(3)
-            .flat_map(|rgb| {
-                let lum = ((rgb[0] as u32 + rgb[1] as u32 + rgb[2] as u32) / 3) as u16 * 256;
+            .chunks(4)
+            .flat_map(|rgba| {
+                let lum = ((rgba[0] as u32 + rgba[1] as u32 + rgba[2] as u32) / 3) as u16 * 256;
                 lum.to_le_bytes().to_vec()
             })
             .collect()
     } else {
-        // Scale 8-bit to 16-bit
+        // For grayscale RGBA, take the R channel (all RGB channels are the same) and scale to 16-bit
         image
             .display_data
-            .iter()
-            .flat_map(|&v| {
-                let scaled = (v as u16) * 256;
+            .chunks(4)
+            .flat_map(|rgba| {
+                let scaled = (rgba[0] as u16) * 256;
                 scaled.to_le_bytes().to_vec()
             })
             .collect()
@@ -7637,13 +8338,8 @@ pub fn api_get_location() -> Result<Option<ObserverLocation>, NightshadeError> {
 /// Set observer location
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_set_location(location: Option<ObserverLocation>) -> Result<(), NightshadeError> {
-    // Using eprintln! to ensure we see this in stderr regardless of tracing config
     match &location {
         Some(loc) => {
-            eprintln!(
-                "[RUST-API] api_set_location called with lat={}, lon={}, elev={}",
-                loc.latitude, loc.longitude, loc.elevation
-            );
             tracing::info!(
                 "[API] api_set_location called with lat={}, lon={}, elev={}",
                 loc.latitude,
@@ -7652,18 +8348,15 @@ pub fn api_set_location(location: Option<ObserverLocation>) -> Result<(), Nights
             );
         }
         None => {
-            eprintln!("[RUST-API] api_set_location called with None");
             tracing::info!("[API] api_set_location called with None");
         }
     }
     let result = get_state().set_observer_location(location);
     match &result {
         Ok(_) => {
-            eprintln!("[RUST-API] api_set_location succeeded");
-            tracing::info!("[API] api_set_location succeeded");
+            tracing::debug!("[API] api_set_location succeeded");
         }
         Err(ref e) => {
-            eprintln!("[RUST-API] api_set_location failed: {}", e);
             tracing::error!("[API] api_set_location failed: {}", e);
         }
     }
@@ -7819,9 +8512,7 @@ pub async fn api_save_fits_file(
     }
 
     // Write file
-    // Note: write_fits is blocking, so we should spawn_blocking if possible,
-    // but for now we'll just run it (it's fast enough for small headers, but data writing might take time)
-    // Ideally: tokio::task::spawn_blocking
+    // write_fits is blocking, so execute it in spawn_blocking.
 
     let path = std::path::PathBuf::from(file_path);
 

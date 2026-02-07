@@ -186,11 +186,10 @@ impl IndiSwitchDevice {
     /// Check if a switch property is read-only
     pub async fn is_switch_read_only(&self, property_name: &str) -> bool {
         let client = self.client.read().await;
-        client
-            .get_property(&self.device_name, property_name)
-            .await
-            .map(|p| p.perm == IndiPermission::ReadOnly)
-            .unwrap_or(true)
+        match client.get_property(&self.device_name, property_name).await {
+            Some(property) => property.perm == IndiPermission::ReadOnly,
+            None => true,
+        }
     }
 }
 

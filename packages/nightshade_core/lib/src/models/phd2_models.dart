@@ -73,7 +73,7 @@ class Phd2StarImage with _$Phd2StarImage {
   factory Phd2StarImage.fromJson(Map<String, dynamic> json) =>
       _$Phd2StarImageFromJson(json);
 
-  /// Create an empty/placeholder star image
+  /// Create an empty star image model
   factory Phd2StarImage.empty() => Phd2StarImage(
         frame: 0,
         width: 0,

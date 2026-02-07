@@ -1,10 +1,13 @@
+// ignore_for_file: unused_element
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/models/settings/app_settings.dart' as models;
+import 'package:nightshade_core/src/models/settings/app_settings.dart'
+    as models;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
@@ -33,6 +36,7 @@ class NetworkBackend implements NightshadeBackend {
   final String? authToken;
 
   WebSocketChannel? _wsChannel;
+  StreamSubscription? _wsSubscription;
   final StreamController<NightshadeEvent> _eventController =
       StreamController<NightshadeEvent>.broadcast();
 
@@ -52,7 +56,7 @@ class NetworkBackend implements NightshadeBackend {
   NetworkBackend({
     required this.serverHost,
     this.serverPort = 8080,
-    this.webSocketPort = 8080,  // WebSocket is on same port as HTTP
+    this.webSocketPort = 8080, // WebSocket is on same port as HTTP
     this.authToken,
   }) {
     // Initialize persistent HTTP client with connection pooling
@@ -64,7 +68,8 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   /// Stream of connection state changes
-  Stream<BackendConnectionState> get connectionStateStream => _connectionStateController.stream;
+  Stream<BackendConnectionState> get connectionStateStream =>
+      _connectionStateController.stream;
 
   /// Current connection state
   BackendConnectionState get connectionState => _connectionState;
@@ -82,8 +87,10 @@ class NetworkBackend implements NightshadeBackend {
   Future<bool> testConnection() async {
     try {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/info');
-      final request = await _httpClient.getUrl(uri).timeout(const Duration(seconds: 3));
-      final response = await request.close().timeout(const Duration(seconds: 3));
+      final request =
+          await _httpClient.getUrl(uri).timeout(const Duration(seconds: 3));
+      final response =
+          await request.close().timeout(const Duration(seconds: 3));
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('Connection test failed: $e');
@@ -101,7 +108,9 @@ class NetworkBackend implements NightshadeBackend {
       final wsUri = Uri.parse('ws://$serverHost:$webSocketPort/events');
       _wsChannel = IOWebSocketChannel.connect(wsUri);
 
-      _wsChannel!.stream.listen(
+      // Cancel any existing subscription before creating a new one
+      await _wsSubscription?.cancel();
+      _wsSubscription = _wsChannel!.stream.listen(
         (message) {
           try {
             final json = jsonDecode(message as String) as Map<String, dynamic>;
@@ -143,11 +152,19 @@ class NetworkBackend implements NightshadeBackend {
 
     // Calculate exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
     final delay = Duration(
-      seconds: [1, 2, 4, 8, 16, _maxReconnectDelay][_reconnectAttempt.clamp(0, 5)],
+      seconds: [
+        1,
+        2,
+        4,
+        8,
+        16,
+        _maxReconnectDelay
+      ][_reconnectAttempt.clamp(0, 5)],
     );
 
     _reconnectAttempt++;
-    debugPrint('[NetworkBackend] Reconnecting in ${delay.inSeconds}s (attempt $_reconnectAttempt)');
+    debugPrint(
+        '[NetworkBackend] Reconnecting in ${delay.inSeconds}s (attempt $_reconnectAttempt)');
 
     _reconnectTimer = Timer(delay, () {
       if (_connectionState != BackendConnectionState.connected) {
@@ -161,6 +178,8 @@ class NetworkBackend implements NightshadeBackend {
   Future<void> disconnect() async {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    await _wsSubscription?.cancel();
+    _wsSubscription = null;
     await _wsChannel?.sink.close();
     _wsChannel = null;
     _updateConnectionState(BackendConnectionState.disconnected);
@@ -170,6 +189,7 @@ class NetworkBackend implements NightshadeBackend {
   @override
   void dispose() {
     _reconnectTimer?.cancel();
+    _wsSubscription?.cancel();
     _wsChannel?.sink.close();
     _httpClient.close(force: true);
     _eventController.close();
@@ -228,9 +248,7 @@ class NetworkBackend implements NightshadeBackend {
   bool _isTransientStatusCode(int statusCode) {
     // 408 Request Timeout, 429 Too Many Requests, 500 Internal Server Error,
     // 502 Bad Gateway, 503 Service Unavailable, 504 Gateway Timeout
-    return statusCode == 408 ||
-        statusCode == 429 ||
-        statusCode >= 500;
+    return statusCode == 408 || statusCode == 429 || statusCode >= 500;
   }
 
   /// Parse an error response from the server.
@@ -254,8 +272,11 @@ class NetworkBackend implements NightshadeBackend {
 
         // Check for legacy error format: {error: 'message', message: 'details'}
         if (json.containsKey('error') || json.containsKey('message')) {
-          final errorMsg = json['error'] as String? ?? json['message'] as String? ?? 'Unknown error';
-          final detailMsg = json['message'] as String? ?? json['details'] as String? ?? '';
+          final errorMsg = json['error'] as String? ??
+              json['message'] as String? ??
+              'Unknown error';
+          final detailMsg =
+              json['message'] as String? ?? json['details'] as String? ?? '';
           final fullMessage = detailMsg.isNotEmpty && detailMsg != errorMsg
               ? '$errorMsg: $detailMsg'
               : errorMsg;
@@ -302,19 +323,22 @@ class NetworkBackend implements NightshadeBackend {
 
         // Check if this is the last attempt
         if (attempt >= maxAttempts) {
-          debugPrint('[NetworkBackend] Request failed after $maxAttempts attempts: $e');
+          debugPrint(
+              '[NetworkBackend] Request failed after $maxAttempts attempts: $e');
           rethrow;
         }
 
         // Only retry transient failures
         if (!_isTransientFailure(e)) {
-          debugPrint('[NetworkBackend] Non-transient failure, not retrying: $e');
+          debugPrint(
+              '[NetworkBackend] Non-transient failure, not retrying: $e');
           rethrow;
         }
 
         // Calculate backoff delay: 1s, 2s, 4s
         final delay = Duration(seconds: 1 << (attempt - 1));
-        debugPrint('[NetworkBackend] Transient failure, retrying in ${delay.inSeconds}s (attempt $attempt/$maxAttempts): $e');
+        debugPrint(
+            '[NetworkBackend] Transient failure, retrying in ${delay.inSeconds}s (attempt $attempt/$maxAttempts): $e');
         await Future.delayed(delay);
       }
     }
@@ -323,10 +347,13 @@ class NetworkBackend implements NightshadeBackend {
     throw lastException!;
   }
 
-  Future<Map<String, dynamic>> _get(String endpoint, [Map<String, dynamic>? queryParams]) async {
+  Future<Map<String, dynamic>> _get(String endpoint,
+      [Map<String, dynamic>? queryParams]) async {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint')
-          .replace(queryParameters: queryParams?.map((k, v) => MapEntry(k, v.toString())) ?? {});
+          .replace(
+              queryParameters:
+                  queryParams?.map((k, v) => MapEntry(k, v.toString())) ?? {});
 
       final request = await _httpClient.getUrl(uri);
 
@@ -340,14 +367,16 @@ class NetworkBackend implements NightshadeBackend {
       final responseBody = await response.transform(utf8.decoder).join();
 
       if (response.statusCode != 200) {
-        throw _parseErrorResponse(response.statusCode, responseBody, 'GET', endpoint);
+        throw _parseErrorResponse(
+            response.statusCode, responseBody, 'GET', endpoint);
       }
 
       return jsonDecode(responseBody) as Map<String, dynamic>;
     });
   }
 
-  Future<Map<String, dynamic>> _post(String endpoint, [Map<String, dynamic>? body]) async {
+  Future<Map<String, dynamic>> _post(String endpoint,
+      [Map<String, dynamic>? body]) async {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
 
@@ -368,7 +397,8 @@ class NetworkBackend implements NightshadeBackend {
       final responseBody = await response.transform(utf8.decoder).join();
 
       if (response.statusCode != 200) {
-        throw _parseErrorResponse(response.statusCode, responseBody, 'POST', endpoint);
+        throw _parseErrorResponse(
+            response.statusCode, responseBody, 'POST', endpoint);
       }
 
       return jsonDecode(responseBody) as Map<String, dynamic>;
@@ -391,12 +421,14 @@ class NetworkBackend implements NightshadeBackend {
       final responseBody = await response.transform(utf8.decoder).join();
 
       if (response.statusCode != 200) {
-        throw _parseErrorResponse(response.statusCode, responseBody, 'DELETE', endpoint);
+        throw _parseErrorResponse(
+            response.statusCode, responseBody, 'DELETE', endpoint);
       }
     });
   }
 
-  Future<Map<String, dynamic>> _put(String endpoint, [Map<String, dynamic>? body]) async {
+  Future<Map<String, dynamic>> _put(String endpoint,
+      [Map<String, dynamic>? body]) async {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
 
@@ -417,7 +449,8 @@ class NetworkBackend implements NightshadeBackend {
       final responseBody = await response.transform(utf8.decoder).join();
 
       if (response.statusCode != 200) {
-        throw _parseErrorResponse(response.statusCode, responseBody, 'PUT', endpoint);
+        throw _parseErrorResponse(
+            response.statusCode, responseBody, 'PUT', endpoint);
       }
 
       return jsonDecode(responseBody) as Map<String, dynamic>;
@@ -437,10 +470,11 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<List<DeviceInfo>> discoverDevices(DeviceType deviceType) async {
     // Check if we have a valid cache
-    if (_cachedDevices != null && 
+    if (_cachedDevices != null &&
         _cacheTimestamp != null &&
         DateTime.now().difference(_cacheTimestamp!) < _cacheDuration) {
-      debugPrint('[NetworkBackend] Using cached device list (${_cachedDevices!.length} devices)');
+      debugPrint(
+          '[NetworkBackend] Using cached device list (${_cachedDevices!.length} devices)');
     } else if (_ongoingDiscovery != null) {
       // Another discovery is in progress, wait for it
       debugPrint('[NetworkBackend] Waiting for ongoing discovery...');
@@ -457,9 +491,9 @@ class NetworkBackend implements NightshadeBackend {
         _ongoingDiscovery = null;
       }
     }
-    
+
     final deviceList = _cachedDevices ?? [];
-    
+
     // Filter by requested type and convert
     final filtered = deviceList
         .where((d) {
@@ -472,22 +506,25 @@ class NetworkBackend implements NightshadeBackend {
           return typeStr == requestedTypeStr;
         })
         .map((d) => DeviceInfo(
-          id: d['id'] as String,
-          name: d['name'] as String,
-          deviceType: deviceType,
-          driverType: _parseDriverType(d['driverType'] as String),
-          description: d['description'] as String? ?? '',
-          driverVersion: d['driverVersion'] as String? ?? '',
-        ))
+              id: d['id'] as String,
+              name: d['name'] as String,
+              deviceType: deviceType,
+              driverType: _parseDriverType(d['driverType'] as String),
+              description: d['description'] as String? ?? '',
+              driverVersion: d['driverVersion'] as String? ?? '',
+            ))
         .toList();
-    
-    debugPrint('[NetworkBackend] Returning ${filtered.length} ${deviceType.name} devices');
+
+    debugPrint(
+        '[NetworkBackend] Returning ${filtered.length} ${deviceType.name} devices');
     return filtered;
   }
 
   Future<List<Map<String, dynamic>>> _fetchDevicesFromServer() async {
     final response = await _get('devices');
-    return (response['devices'] as List? ?? response['available'] as List? ?? [])
+    return (response['devices'] as List? ??
+            response['available'] as List? ??
+            [])
         .cast<Map<String, dynamic>>();
   }
 
@@ -506,44 +543,49 @@ class NetworkBackend implements NightshadeBackend {
     });
 
     final devices = response as List<dynamic>? ?? [];
-    return devices.map((d) => DeviceInfo(
-      id: d['id'] as String? ?? '',
-      name: d['name'] as String? ?? '',
-      deviceType: DeviceType.values.firstWhere(
-        (t) => t.name == (d['deviceType'] as String?),
-        orElse: () => DeviceType.camera,
-      ),
-      driverType: DriverType.values.firstWhere(
-        (t) => t.name == (d['driverType'] as String?),
-        orElse: () => DriverType.indi,
-      ),
-      description: d['description'] as String? ?? '',
-      driverVersion: d['driverVersion'] as String? ?? '',
-    )).toList();
+    return devices
+        .map((d) => DeviceInfo(
+              id: d['id'] as String? ?? '',
+              name: d['name'] as String? ?? '',
+              deviceType: DeviceType.values.firstWhere(
+                (t) => t.name == (d['deviceType'] as String?),
+                orElse: () => DeviceType.camera,
+              ),
+              driverType: DriverType.values.firstWhere(
+                (t) => t.name == (d['driverType'] as String?),
+                orElse: () => DriverType.indi,
+              ),
+              description: d['description'] as String? ?? '',
+              driverVersion: d['driverVersion'] as String? ?? '',
+            ))
+        .toList();
   }
 
   @override
-  Future<List<DeviceInfo>> discoverAlpacaAtAddress(String host, int port) async {
+  Future<List<DeviceInfo>> discoverAlpacaAtAddress(
+      String host, int port) async {
     final response = await _get('devices/discover-alpaca', {
       'host': host,
       'port': port.toString(),
     });
 
     final devices = response as List<dynamic>? ?? [];
-    return devices.map((d) => DeviceInfo(
-      id: d['id'] as String? ?? '',
-      name: d['name'] as String? ?? '',
-      deviceType: DeviceType.values.firstWhere(
-        (t) => t.name == (d['deviceType'] as String?),
-        orElse: () => DeviceType.camera,
-      ),
-      driverType: DriverType.values.firstWhere(
-        (t) => t.name == (d['driverType'] as String?),
-        orElse: () => DriverType.alpaca,
-      ),
-      description: d['description'] as String? ?? '',
-      driverVersion: d['driverVersion'] as String? ?? '',
-    )).toList();
+    return devices
+        .map((d) => DeviceInfo(
+              id: d['id'] as String? ?? '',
+              name: d['name'] as String? ?? '',
+              deviceType: DeviceType.values.firstWhere(
+                (t) => t.name == (d['deviceType'] as String?),
+                orElse: () => DeviceType.camera,
+              ),
+              driverType: DriverType.values.firstWhere(
+                (t) => t.name == (d['driverType'] as String?),
+                orElse: () => DriverType.alpaca,
+              ),
+              description: d['description'] as String? ?? '',
+              driverVersion: d['driverVersion'] as String? ?? '',
+            ))
+        .toList();
   }
 
   @override
@@ -566,15 +608,17 @@ class NetworkBackend implements NightshadeBackend {
   Future<List<DeviceInfo>> getConnectedDevices() async {
     final response = await _get('devices/connected');
     final deviceList = response['devices'] as List;
-    
-    return deviceList.map((d) => DeviceInfo(
-      id: d['id'] as String,
-      name: d['name'] as String,
-      deviceType: _parseDeviceType(d['type'] as String),
-      driverType: _parseDriverType(d['driverType'] as String),
-      description: d['description'] as String? ?? '',
-      driverVersion: d['driverVersion'] as String? ?? '',
-    )).toList();
+
+    return deviceList
+        .map((d) => DeviceInfo(
+              id: d['id'] as String,
+              name: d['name'] as String,
+              deviceType: _parseDeviceType(d['type'] as String),
+              driverType: _parseDriverType(d['driverType'] as String),
+              description: d['description'] as String? ?? '',
+              driverVersion: d['driverVersion'] as String? ?? '',
+            ))
+        .toList();
   }
 
   // =========================================================================
@@ -637,7 +681,8 @@ class NetworkBackend implements NightshadeBackend {
       ),
       exposureTime: (img['exposureTime'] as num).toDouble(),
       timestamp: img['timestamp'] as String,
-      isColor: img['isColor'] as bool? ?? false,  // Default to grayscale for backward compatibility
+      isColor: img['isColor'] as bool? ??
+          false, // Default to grayscale for backward compatibility
     );
   }
 
@@ -675,7 +720,8 @@ class NetworkBackend implements NightshadeBackend {
   // =========================================================================
 
   @override
-  Future<void> mountSlewToCoordinates(String deviceId, double ra, double dec) async {
+  Future<void> mountSlewToCoordinates(
+      String deviceId, double ra, double dec) async {
     await _post('mount/slew', {
       'deviceId': deviceId,
       'ra': ra,
@@ -958,7 +1004,8 @@ class NetworkBackend implements NightshadeBackend {
     required String axis,
     required String name,
   }) async {
-    final response = await _get('phd2/algo-param?axis=$axis&name=${Uri.encodeComponent(name)}');
+    final response = await _get(
+        'phd2/algo-param?axis=$axis&name=${Uri.encodeComponent(name)}');
     return (response['value'] as num).toDouble();
   }
 
@@ -968,7 +1015,8 @@ class NetworkBackend implements NightshadeBackend {
     required String name,
     required double value,
   }) async {
-    await _post('phd2/algo-param', {'axis': axis, 'name': name, 'value': value});
+    await _post(
+        'phd2/algo-param', {'axis': axis, 'name': name, 'value': value});
   }
 
   @override
@@ -1055,9 +1103,9 @@ class NetworkBackend implements NightshadeBackend {
         settleTimeout: settleTimeout,
       );
     } else {
-      // Future: Add network endpoint for other guider types
-      throw UnimplementedError(
-        'Guider "$deviceId" is not yet supported for guiding operations over network.',
+      throw UnsupportedError(
+        'Guider "$deviceId" is not supported in the network backend. '
+        'Supported guider: "phd2_guider".',
       );
     }
   }
@@ -1067,8 +1115,9 @@ class NetworkBackend implements NightshadeBackend {
     if (deviceId == 'phd2_guider') {
       await phd2StopGuiding();
     } else {
-      throw UnimplementedError(
-        'Guider "$deviceId" is not yet supported for guiding operations over network.',
+      throw UnsupportedError(
+        'Guider "$deviceId" is not supported in the network backend. '
+        'Supported guider: "phd2_guider".',
       );
     }
   }
@@ -1091,8 +1140,9 @@ class NetworkBackend implements NightshadeBackend {
         settleTimeout: settleTimeout,
       );
     } else {
-      throw UnimplementedError(
-        'Guider "$deviceId" is not yet supported for dithering operations over network.',
+      throw UnsupportedError(
+        'Guider "$deviceId" is not supported for dithering in the network backend. '
+        'Supported guider: "phd2_guider".',
       );
     }
   }
@@ -1284,7 +1334,8 @@ class NetworkBackend implements NightshadeBackend {
 
   @override
   Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
-    final response = await _get('equipment/filter-wheel/status?deviceId=$deviceId');
+    final response =
+        await _get('equipment/filter-wheel/status?deviceId=$deviceId');
     return FilterWheelStatus.fromJson(response);
   }
 
@@ -1301,7 +1352,8 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
     try {
-      final response = await _get('equipment/camera/capabilities?deviceId=$deviceId');
+      final response =
+          await _get('equipment/camera/capabilities?deviceId=$deviceId');
       return CameraCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get camera capabilities: $e');
@@ -1312,7 +1364,8 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<MountCapabilities?> getMountCapabilities(String deviceId) async {
     try {
-      final response = await _get('equipment/mount/capabilities?deviceId=$deviceId');
+      final response =
+          await _get('equipment/mount/capabilities?deviceId=$deviceId');
       return MountCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get mount capabilities: $e');
@@ -1323,7 +1376,8 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<FocuserCapabilities?> getFocuserCapabilities(String deviceId) async {
     try {
-      final response = await _get('equipment/focuser/capabilities?deviceId=$deviceId');
+      final response =
+          await _get('equipment/focuser/capabilities?deviceId=$deviceId');
       return FocuserCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get focuser capabilities: $e');
@@ -1332,9 +1386,11 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
-  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(String deviceId) async {
+  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(
+      String deviceId) async {
     try {
-      final response = await _get('equipment/filter-wheel/capabilities?deviceId=$deviceId');
+      final response =
+          await _get('equipment/filter-wheel/capabilities?deviceId=$deviceId');
       return FilterWheelCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get filter wheel capabilities: $e');
@@ -1345,7 +1401,8 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId) async {
     try {
-      final response = await _get('equipment/rotator/capabilities?deviceId=$deviceId');
+      final response =
+          await _get('equipment/rotator/capabilities?deviceId=$deviceId');
       return RotatorCapabilities.fromJson(response);
     } catch (e) {
       debugPrint('Failed to get rotator capabilities: $e');
@@ -1377,50 +1434,79 @@ class NetworkBackend implements NightshadeBackend {
 
   DeviceType _parseDeviceType(String str) {
     switch (str.toLowerCase()) {
-      case 'camera': return DeviceType.camera;
-      case 'mount': return DeviceType.mount;
-      case 'focuser': return DeviceType.focuser;
-      case 'filterwheel': return DeviceType.filterWheel;
-      case 'guider': return DeviceType.guider;
-      case 'dome': return DeviceType.dome;
-      case 'rotator': return DeviceType.rotator;
-      case 'weather': return DeviceType.weather;
-      case 'safetymonitor': return DeviceType.safetyMonitor;
-      default: throw Exception('Unknown device type: $str');
+      case 'camera':
+        return DeviceType.camera;
+      case 'mount':
+        return DeviceType.mount;
+      case 'focuser':
+        return DeviceType.focuser;
+      case 'filterwheel':
+        return DeviceType.filterWheel;
+      case 'guider':
+        return DeviceType.guider;
+      case 'dome':
+        return DeviceType.dome;
+      case 'rotator':
+        return DeviceType.rotator;
+      case 'weather':
+        return DeviceType.weather;
+      case 'safetymonitor':
+        return DeviceType.safetyMonitor;
+      default:
+        throw Exception('Unknown device type: $str');
     }
   }
 
   DriverType _parseDriverType(String str) {
     switch (str.toLowerCase()) {
-      case 'ascom': return DriverType.ascom;
-      case 'alpaca': return DriverType.alpaca;
-      case 'indi': return DriverType.indi;
-      case 'native': return DriverType.native;
-      case 'simulator': return DriverType.simulator;
-      default: throw Exception('Unknown driver type: $str');
+      case 'ascom':
+        return DriverType.ascom;
+      case 'alpaca':
+        return DriverType.alpaca;
+      case 'indi':
+        return DriverType.indi;
+      case 'native':
+        return DriverType.native;
+      case 'simulator':
+        return DriverType.simulator;
+      default:
+        throw Exception('Unknown driver type: $str');
     }
   }
 
   EventSeverity _parseSeverity(String str) {
     switch (str.toLowerCase()) {
-      case 'info': return EventSeverity.info;
-      case 'warning': return EventSeverity.warning;
-      case 'error': return EventSeverity.error;
-      case 'critical': return EventSeverity.critical;
-      default: return EventSeverity.info;
+      case 'info':
+        return EventSeverity.info;
+      case 'warning':
+        return EventSeverity.warning;
+      case 'error':
+        return EventSeverity.error;
+      case 'critical':
+        return EventSeverity.critical;
+      default:
+        return EventSeverity.info;
     }
   }
 
   EventCategory _parseCategory(String str) {
     switch (str.toLowerCase()) {
-      case 'equipment': return EventCategory.equipment;
-      case 'imaging': return EventCategory.imaging;
-      case 'guiding': return EventCategory.guiding;
-      case 'sequencer': return EventCategory.sequencer;
-      case 'safety': return EventCategory.safety;
-      case 'system': return EventCategory.system;
-      case 'polaralignment': return EventCategory.polarAlignment;
-      default: return EventCategory.system;
+      case 'equipment':
+        return EventCategory.equipment;
+      case 'imaging':
+        return EventCategory.imaging;
+      case 'guiding':
+        return EventCategory.guiding;
+      case 'sequencer':
+        return EventCategory.sequencer;
+      case 'safety':
+        return EventCategory.safety;
+      case 'system':
+        return EventCategory.system;
+      case 'polaralignment':
+        return EventCategory.polarAlignment;
+      default:
+        return EventCategory.system;
     }
   }
 
@@ -1459,7 +1545,8 @@ class NetworkBackend implements NightshadeBackend {
   Future<EquipmentProfile?> getActiveProfile() async {
     final response = await _get('profiles/active');
     if (response['profile'] == null) return null;
-    return EquipmentProfile.fromJson(response['profile'] as Map<String, dynamic>);
+    return EquipmentProfile.fromJson(
+        response['profile'] as Map<String, dynamic>);
   }
 
   // =========================================================================
@@ -1469,7 +1556,8 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<models.AppSettings> getSettings() async {
     final json = await _get('settings');
-    return models.AppSettings.fromJson(json['settings'] as Map<String, dynamic>);
+    return models.AppSettings.fromJson(
+        json['settings'] as Map<String, dynamic>);
   }
 
   @override
@@ -1481,7 +1569,8 @@ class NetworkBackend implements NightshadeBackend {
   Future<models.ObserverLocation?> getLocation() async {
     final json = await _get('settings/location');
     if (json['location'] == null) return null;
-    return models.ObserverLocation.fromJson(json['location'] as Map<String, dynamic>);
+    return models.ObserverLocation.fromJson(
+        json['location'] as Map<String, dynamic>);
   }
 
   @override
@@ -1494,7 +1583,8 @@ class NetworkBackend implements NightshadeBackend {
   // =========================================================================
 
   @override
-  Future<ImageStats> getImageStats(int width, int height, Uint16List data) async {
+  Future<ImageStats> getImageStats(
+      int width, int height, Uint16List data) async {
     final response = await _post('imaging/stats', {
       'width': width,
       'height': height,
@@ -1504,7 +1594,8 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
-  Future<Uint8List> autoStretchImage(int width, int height, Uint16List data) async {
+  Future<Uint8List> autoStretchImage(
+      int width, int height, Uint16List data) async {
     final response = await _post('imaging/stretch', {
       'width': width,
       'height': height,
@@ -1514,10 +1605,14 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
-  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId, {int maxCrops = 5}) async {
-    final response = await _get('imaging/star-crops?deviceId=$deviceId&maxCrops=$maxCrops');
+  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
+      {int maxCrops = 5}) async {
+    final response =
+        await _get('imaging/star-crops?deviceId=$deviceId&maxCrops=$maxCrops');
     final crops = response['crops'] as List<dynamic>;
-    return crops.map((crop) => StarCrop.fromJson(crop as Map<String, dynamic>)).toList();
+    return crops
+        .map((crop) => StarCrop.fromJson(crop as Map<String, dynamic>))
+        .toList();
   }
 
   @override
@@ -1542,10 +1637,12 @@ class NetworkBackend implements NightshadeBackend {
   // Polar Alignment
   // =========================================================================
 
-  final _polarAlignController = StreamController<Map<String, dynamic>>.broadcast();
+  final _polarAlignController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   @override
-  Stream<Map<String, dynamic>> get polarAlignmentEvents => _polarAlignController.stream;
+  Stream<Map<String, dynamic>> get polarAlignmentEvents =>
+      _polarAlignController.stream;
 
   @override
   Future<void> startPolarAlignment({
@@ -1587,12 +1684,13 @@ class NetworkBackend implements NightshadeBackend {
   Future<List<CapturedImage>> getSessionImages(int sessionId) async {
     final response = await _get('sessions/$sessionId/images');
     final imagesList = (response['images'] as List?) ?? [];
-    
+
     return imagesList.map((img) {
       return CapturedImage(
         id: img['image_id'].toString(),
         filePath: img['file_path'] as String,
-        capturedAt: DateTime.fromMillisecondsSinceEpoch((img['captured_at'] as int) * 1000),
+        capturedAt: DateTime.fromMillisecondsSinceEpoch(
+            (img['captured_at'] as int) * 1000),
         settings: ExposureSettings(
           exposureTime: (img['exposure_duration'] as num).toDouble(),
           gain: img['gain'] as int? ?? 0,
@@ -1616,7 +1714,8 @@ class NetworkBackend implements NightshadeBackend {
 
   @override
   Future<Uint8List> getImageThumbnail(int imageId) async {
-    final uri = Uri.parse('http://$serverHost:$serverPort/api/images/$imageId/thumbnail');
+    final uri = Uri.parse(
+        'http://$serverHost:$serverPort/api/images/$imageId/thumbnail');
 
     final request = await _httpClient.getUrl(uri);
     final response = await request.close();
@@ -1630,8 +1729,10 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
-  Future<void> downloadImage(int imageId, String localPath, {void Function(double)? onProgress}) async {
-    final uri = Uri.parse('http://$serverHost:$serverPort/api/images/$imageId/download');
+  Future<void> downloadImage(int imageId, String localPath,
+      {void Function(double)? onProgress}) async {
+    final uri = Uri.parse(
+        'http://$serverHost:$serverPort/api/images/$imageId/download');
 
     final request = await _httpClient.getUrl(uri);
     final response = await request.close();
@@ -1663,29 +1764,42 @@ class NetworkBackend implements NightshadeBackend {
       await sink.close();
     }
 
-    debugPrint('[NetworkBackend] Downloaded image $imageId to $localPath ($bytesReceived bytes)');
+    debugPrint(
+        '[NetworkBackend] Downloaded image $imageId to $localPath ($bytesReceived bytes)');
   }
 
   FrameType _parseFrameType(String str) {
     switch (str.toLowerCase()) {
-      case 'light': return FrameType.light;
-      case 'dark': return FrameType.dark;
-      case 'flat': return FrameType.flat;
-      case 'bias': return FrameType.bias;
-      case 'darkflat': return FrameType.darkFlat;
-      default: return FrameType.light;
+      case 'light':
+        return FrameType.light;
+      case 'dark':
+        return FrameType.dark;
+      case 'flat':
+        return FrameType.flat;
+      case 'bias':
+        return FrameType.bias;
+      case 'darkflat':
+        return FrameType.darkFlat;
+      default:
+        return FrameType.light;
     }
   }
 
   ImageFileFormat _parseImageFormat(String str) {
     switch (str.toLowerCase()) {
-      case 'fits': return ImageFileFormat.fits;
-      case 'xisf': return ImageFileFormat.xisf;
-      case 'tiff': return ImageFileFormat.tiff;
-      case 'png': return ImageFileFormat.png;
+      case 'fits':
+        return ImageFileFormat.fits;
+      case 'xisf':
+        return ImageFileFormat.xisf;
+      case 'tiff':
+        return ImageFileFormat.tiff;
+      case 'png':
+        return ImageFileFormat.png;
       case 'jpeg':
-      case 'jpg': return ImageFileFormat.jpeg;
-      default: return ImageFileFormat.fits;
+      case 'jpg':
+        return ImageFileFormat.jpeg;
+      default:
+        return ImageFileFormat.fits;
     }
   }
 
@@ -1728,7 +1842,8 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<List<int>> getLastRawImageData(String deviceId) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/imaging/raw-data?deviceId=${Uri.encodeComponent(deviceId)}');
+      final uri = Uri.parse(
+          'http://$serverHost:$serverPort/api/imaging/raw-data?deviceId=${Uri.encodeComponent(deviceId)}');
 
       final request = await _httpClient.getUrl(uri);
 
@@ -1742,11 +1857,13 @@ class NetworkBackend implements NightshadeBackend {
 
       // Check for transient status codes
       if (_isTransientStatusCode(response.statusCode)) {
-        throw Exception('HTTP ${response.statusCode}: Transient failure for GET imaging/raw-data');
+        throw Exception(
+            'HTTP ${response.statusCode}: Transient failure for GET imaging/raw-data');
       }
 
       if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}: Failed to GET imaging/raw-data');
+        throw Exception(
+            'HTTP ${response.statusCode}: Failed to GET imaging/raw-data');
       }
 
       // Read binary data
@@ -1764,7 +1881,8 @@ class NetworkBackend implements NightshadeBackend {
     required FitsWriteHeader headerData,
   }) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/imaging/save-fits');
+      final uri =
+          Uri.parse('http://$serverHost:$serverPort/api/imaging/save-fits');
 
       final request = await _httpClient.postUrl(uri);
       request.headers.contentType = ContentType.json;
@@ -1790,11 +1908,13 @@ class NetworkBackend implements NightshadeBackend {
 
       // Check for transient status codes
       if (_isTransientStatusCode(response.statusCode)) {
-        throw Exception('HTTP ${response.statusCode}: Transient failure for POST imaging/save-fits');
+        throw Exception(
+            'HTTP ${response.statusCode}: Transient failure for POST imaging/save-fits');
       }
 
       if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}: Failed to POST imaging/save-fits');
+        throw Exception(
+            'HTTP ${response.statusCode}: Failed to POST imaging/save-fits');
       }
 
       // Consume response body to complete the request
@@ -1811,7 +1931,8 @@ class NetworkBackend implements NightshadeBackend {
     // Use the optimized endpoint that saves from server-side stored image
     // No raw pixel data needs to be transferred
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/imaging/save-fits-from-capture');
+      final uri = Uri.parse(
+          'http://$serverHost:$serverPort/api/imaging/save-fits-from-capture');
 
       final request = await _httpClient.postUrl(uri);
       request.headers.contentType = ContentType.json;
@@ -1836,11 +1957,13 @@ class NetworkBackend implements NightshadeBackend {
 
       // Check for transient status codes
       if (_isTransientStatusCode(response.statusCode)) {
-        throw Exception('HTTP ${response.statusCode}: Transient failure for POST imaging/save-fits-from-capture');
+        throw Exception(
+            'HTTP ${response.statusCode}: Transient failure for POST imaging/save-fits-from-capture');
       }
 
       if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}: Failed to POST imaging/save-fits-from-capture');
+        throw Exception(
+            'HTTP ${response.statusCode}: Failed to POST imaging/save-fits-from-capture');
       }
 
       // Consume response body to complete the request
@@ -1905,10 +2028,12 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   /// Update target progress
-  Future<void> updateTargetProgress(int id, {int? capturedSubs, double? totalIntegrationSecs}) async {
+  Future<void> updateTargetProgress(int id,
+      {int? capturedSubs, double? totalIntegrationSecs}) async {
     await _put('targets/$id/progress', {
       if (capturedSubs != null) 'capturedSubs': capturedSubs,
-      if (totalIntegrationSecs != null) 'totalIntegrationSecs': totalIntegrationSecs,
+      if (totalIntegrationSecs != null)
+        'totalIntegrationSecs': totalIntegrationSecs,
     });
   }
 
@@ -1928,7 +2053,8 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Get targets by priority
   Future<List<Map<String, dynamic>>> getTargetsByPriority(int priority) async {
-    final response = await _get('targets/by-priority', {'priority': priority.toString()});
+    final response =
+        await _get('targets/by-priority', {'priority': priority.toString()});
     final targetsList = response['targets'] as List? ?? [];
     return targetsList.cast<Map<String, dynamic>>();
   }
@@ -1987,17 +2113,20 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Duplicate a sequence
   Future<int> duplicateSequence(int sourceId, String newName) async {
-    final response = await _post('sequence-management/$sourceId/duplicate', {'newName': newName});
+    final response = await _post(
+        'sequence-management/$sourceId/duplicate', {'newName': newName});
     return response['id'] as int;
   }
 
   /// Create a new sequence node
-  Future<void> createSequenceNode(int sequenceId, Map<String, dynamic> node) async {
+  Future<void> createSequenceNode(
+      int sequenceId, Map<String, dynamic> node) async {
     await _post('sequence-management/$sequenceId/nodes', node);
   }
 
   /// Update a sequence node
-  Future<void> updateSequenceNode(String nodeId, Map<String, dynamic> node) async {
+  Future<void> updateSequenceNode(
+      String nodeId, Map<String, dynamic> node) async {
     await _put('sequence-management/nodes/$nodeId', node);
   }
 
@@ -2007,8 +2136,10 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   /// Reorder sequence nodes
-  Future<void> reorderSequenceNodes(int sequenceId, List<String> nodeIds) async {
-    await _post('sequence-management/$sequenceId/reorder', {'nodeIds': nodeIds});
+  Future<void> reorderSequenceNodes(
+      int sequenceId, List<String> nodeIds) async {
+    await _post(
+        'sequence-management/$sequenceId/reorder', {'nodeIds': nodeIds});
   }
 
   // =========================================================================
@@ -2084,7 +2215,8 @@ class NetworkBackend implements NightshadeBackend {
   // =========================================================================
 
   /// Generate mosaic panels
-  Future<Map<String, dynamic>> mosaicGeneratePanels(Map<String, dynamic> config) async {
+  Future<Map<String, dynamic>> mosaicGeneratePanels(
+      Map<String, dynamic> config) async {
     final response = await _post('mosaic/generate-panels', config);
     return response;
   }
@@ -2104,13 +2236,15 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   /// Calculate mosaic area
-  Future<Map<String, dynamic>> mosaicCalculateArea(Map<String, dynamic> config) async {
+  Future<Map<String, dynamic>> mosaicCalculateArea(
+      Map<String, dynamic> config) async {
     final response = await _post('mosaic/calculate-area', config);
     return response;
   }
 
   /// Validate mosaic configuration
-  Future<Map<String, dynamic>> mosaicValidate(Map<String, dynamic> config) async {
+  Future<Map<String, dynamic>> mosaicValidate(
+      Map<String, dynamic> config) async {
     final response = await _post('mosaic/validate', config);
     return response;
   }
@@ -2161,20 +2295,28 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   /// Get analytics summary
-  Future<Map<String, dynamic>> getAnalyticsSummary({DateTime? startDate, DateTime? endDate}) async {
+  Future<Map<String, dynamic>> getAnalyticsSummary(
+      {DateTime? startDate, DateTime? endDate}) async {
     final params = <String, dynamic>{};
-    if (startDate != null) params['startDate'] = startDate.millisecondsSinceEpoch.toString();
-    if (endDate != null) params['endDate'] = endDate.millisecondsSinceEpoch.toString();
-    final response = await _get('analytics/summary', params.isEmpty ? null : params);
+    if (startDate != null)
+      params['startDate'] = startDate.millisecondsSinceEpoch.toString();
+    if (endDate != null)
+      params['endDate'] = endDate.millisecondsSinceEpoch.toString();
+    final response =
+        await _get('analytics/summary', params.isEmpty ? null : params);
     return response;
   }
 
   /// Get total integration time
-  Future<Map<String, dynamic>> getTotalIntegrationTime({DateTime? startDate, DateTime? endDate}) async {
+  Future<Map<String, dynamic>> getTotalIntegrationTime(
+      {DateTime? startDate, DateTime? endDate}) async {
     final params = <String, dynamic>{};
-    if (startDate != null) params['startDate'] = startDate.millisecondsSinceEpoch.toString();
-    if (endDate != null) params['endDate'] = endDate.millisecondsSinceEpoch.toString();
-    final response = await _get('analytics/integration-time', params.isEmpty ? null : params);
+    if (startDate != null)
+      params['startDate'] = startDate.millisecondsSinceEpoch.toString();
+    if (endDate != null)
+      params['endDate'] = endDate.millisecondsSinceEpoch.toString();
+    final response = await _get(
+        'analytics/integration-time', params.isEmpty ? null : params);
     return response;
   }
 
@@ -2183,7 +2325,8 @@ class NetworkBackend implements NightshadeBackend {
   // =========================================================================
 
   /// Get weather radar data
-  Future<Map<String, dynamic>> getWeatherRadar(double lat, double lon, {bool forceRefresh = false}) async {
+  Future<Map<String, dynamic>> getWeatherRadar(double lat, double lon,
+      {bool forceRefresh = false}) async {
     final response = await _get('weather/radar', {
       'lat': lat.toString(),
       'lon': lon.toString(),
@@ -2239,9 +2382,12 @@ class NetworkBackend implements NightshadeBackend {
     if (minScore != null) params['minScore'] = minScore.toString();
     if (maxResults != null) params['maxResults'] = maxResults.toString();
     if (sortMode != null) params['sortMode'] = sortMode;
-    if (prioritizeIncomplete != null) params['prioritizeIncomplete'] = prioritizeIncomplete.toString();
-    if (objectTypes != null && objectTypes.isNotEmpty) params['objectTypes'] = objectTypes.join(',');
-    final response = await _get('suggestions/tonight', params.isEmpty ? null : params);
+    if (prioritizeIncomplete != null)
+      params['prioritizeIncomplete'] = prioritizeIncomplete.toString();
+    if (objectTypes != null && objectTypes.isNotEmpty)
+      params['objectTypes'] = objectTypes.join(',');
+    final response =
+        await _get('suggestions/tonight', params.isEmpty ? null : params);
     return response;
   }
 
@@ -2305,7 +2451,8 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   /// Create a new backup
-  Future<Map<String, dynamic>> createBackup({String? customPath, bool autoSave = false}) async {
+  Future<Map<String, dynamic>> createBackup(
+      {String? customPath, bool autoSave = false}) async {
     final response = await _post('backup/create', {
       if (customPath != null) 'customPath': customPath,
       'autoSave': autoSave,
@@ -2314,7 +2461,8 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   /// Restore from a backup
-  Future<Map<String, dynamic>> restoreBackup(String filePath, {bool replaceExisting = false}) async {
+  Future<Map<String, dynamic>> restoreBackup(String filePath,
+      {bool replaceExisting = false}) async {
     final response = await _post('backup/restore', {
       'filePath': filePath,
       'replaceExisting': replaceExisting,
@@ -2336,7 +2484,8 @@ class NetworkBackend implements NightshadeBackend {
   /// Download backup file bytes
   Future<Uint8List> downloadBackup(String backupId) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/backup/$backupId/download');
+      final uri = Uri.parse(
+          'http://$serverHost:$serverPort/api/backup/$backupId/download');
 
       final request = await _httpClient.getUrl(uri);
 
@@ -2349,7 +2498,8 @@ class NetworkBackend implements NightshadeBackend {
       final response = await request.close();
 
       if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}: Failed to download backup');
+        throw Exception(
+            'HTTP ${response.statusCode}: Failed to download backup');
       }
 
       final bytes = await consolidateHttpClientResponseBytes(response);
@@ -2607,7 +2757,8 @@ class NetworkBackend implements NightshadeBackend {
     required double dec,
     double minAltitude = 30.0,
   }) async {
-    return await _get('scheduler/hours-above-horizon?ra=$ra&dec=$dec&minAltitude=$minAltitude');
+    return await _get(
+        'scheduler/hours-above-horizon?ra=$ra&dec=$dec&minAltitude=$minAltitude');
   }
 
   /// Optimize target order for imaging
@@ -2804,7 +2955,8 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Search catalog for objects
   Future<Map<String, dynamic>> planetariumCatalogSearch(String query) async {
-    return await _get('planetarium/catalog/search?query=${Uri.encodeComponent(query)}');
+    return await _get(
+        'planetarium/catalog/search?query=${Uri.encodeComponent(query)}');
   }
 
   /// Get objects in a region
@@ -2840,16 +2992,17 @@ class NetworkBackend implements NightshadeBackend {
 }
 
 /// Helper function to consolidate HTTP response bytes
-Future<List<int>> consolidateHttpClientResponseBytes(HttpClientResponse response) {
+Future<List<int>> consolidateHttpClientResponseBytes(
+    HttpClientResponse response) {
   final completer = Completer<List<int>>();
   final chunks = <List<int>>[];
-  
+
   response.listen(
     (chunk) => chunks.add(chunk),
     onDone: () => completer.complete(chunks.expand((x) => x).toList()),
     onError: completer.completeError,
     cancelOnError: true,
   );
-  
+
   return completer.future;
 }

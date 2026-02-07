@@ -856,7 +856,7 @@ class DeviceService {
 
       case 'NodeCompleted':
         final nodeId = data['node_id'] as String? ?? '';
-        final success = data['success'] as bool? ?? true;
+        final success = data['success'] as bool? ?? false;
         progressNotifier.updateNodeStatus(
           nodeId,
           success ? NodeStatus.success : NodeStatus.failure,

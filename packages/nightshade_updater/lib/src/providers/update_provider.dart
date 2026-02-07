@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io' show Platform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -85,7 +86,7 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   Future<void> checkForUpdates() async {
     if (state.isBusy) return;
     if (state.updateServerUrl == null || state.updateServerUrl!.isEmpty) {
-      print('[UpdateNotifier] Update server URL not configured, skipping update check');
+      developer.log('Update server URL not configured, skipping update check', name: 'UpdateNotifier');
       state = state.copyWith(
         status: UpdateStatus.upToDate,
         lastCheckTime: DateTime.now(),
@@ -187,29 +188,26 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
 
   /// Apply the staged update (will restart the app)
   Future<void> applyUpdate() async {
-    print('[UpdateNotifier] applyUpdate() called, current status: ${state.status}');
-    print('[UpdateNotifier] Staged path: ${state.stagingPath}');
-    print('[UpdateNotifier] Available update: ${state.availableUpdate?.version}');
+    developer.log('applyUpdate() called, status: ${state.status}, staged: ${state.stagingPath}, version: ${state.availableUpdate?.version}', name: 'UpdateNotifier', level: 800);
 
     if (state.status != UpdateStatus.staged) {
-      print('[UpdateNotifier] Status is not staged, returning early');
+      developer.log('Status is not staged, returning early', name: 'UpdateNotifier', level: 900);
       return;
     }
 
     state = state.copyWith(status: UpdateStatus.applying);
-    print('[UpdateNotifier] Status set to applying, calling service...');
+    developer.log('Status set to applying, calling service...', name: 'UpdateNotifier', level: 800);
 
     try {
       await _updateService.applyUpdate();
       // If we get here, something went wrong (we should have exited)
-      print('[UpdateNotifier] ERROR: applyUpdate returned without exiting!');
+      developer.log('applyUpdate returned without exiting!', name: 'UpdateNotifier', level: 1000);
       state = state.copyWith(
         status: UpdateStatus.error,
         errorMessage: 'Update process did not launch correctly. The app should have restarted.',
       );
     } catch (e, stackTrace) {
-      print('[UpdateNotifier] ERROR applying update: $e');
-      print('[UpdateNotifier] Stack trace: $stackTrace');
+      developer.log('Error applying update: $e', name: 'UpdateNotifier', level: 1000, error: e, stackTrace: stackTrace);
       state = state.copyWith(
         status: UpdateStatus.error,
         errorMessage: e.toString(),
@@ -268,7 +266,7 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   /// Set the state to staged from an external LAN push notification
   /// Called when the LanPushNotifier stream receives an update
   void setStagedFromLanPush(UpdateManifest manifest, String stagingPath) {
-    print('[UpdateNotifier] setStagedFromLanPush: ${manifest.version} at $stagingPath');
+    developer.log('setStagedFromLanPush: ${manifest.version} at $stagingPath', name: 'UpdateNotifier', level: 800);
     state = state.copyWith(
       status: UpdateStatus.staged,
       availableUpdate: manifest,

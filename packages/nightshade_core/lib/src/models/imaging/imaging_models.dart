@@ -488,14 +488,14 @@ extension ImageFileFormatSettingsX on ImageFileFormat {
 class CapturedImageData extends Equatable {
   final int width;
   final int height;
-  final Uint8List displayData;  // RGB (width*height*3) if isColor=true, grayscale (width*height) if isColor=false
+  final Uint8List displayData;  // Always RGBA (width*height*4), alpha=255
   final List<int> histogram;
   final ImageStats stats;
   final DateTime capturedAt;
   final ExposureSettings settings;
   final String? targetName;
   final String? filePath;
-  final bool isColor;  // true if displayData is RGB, false if grayscale
+  final bool isColor;  // true if source was color (RGB), false if grayscale — displayData is always RGBA
 
   const CapturedImageData({
     required this.width,

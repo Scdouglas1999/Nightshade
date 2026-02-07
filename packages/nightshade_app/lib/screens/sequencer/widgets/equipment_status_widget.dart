@@ -146,11 +146,13 @@ class EquipmentStatusWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatusBar(BuildContext context, WidgetRef ref, List<DeviceInfo> devices) {
+  Widget _buildStatusBar(
+      BuildContext context, WidgetRef ref, List<DeviceInfo> devices) {
     final hasCamera = devices.any((d) => d.deviceType == DeviceType.camera);
     final hasMount = devices.any((d) => d.deviceType == DeviceType.mount);
     final hasFocuser = devices.any((d) => d.deviceType == DeviceType.focuser);
-    final hasFilterWheel = devices.any((d) => d.deviceType == DeviceType.filterWheel);
+    final hasFilterWheel =
+        devices.any((d) => d.deviceType == DeviceType.filterWheel);
     final hasGuider = devices.any((d) => d.deviceType == DeviceType.guider);
 
     if (expanded) {
@@ -255,7 +257,8 @@ class EquipmentStatusWidget extends ConsumerWidget {
           colors: colors,
           icon: LucideIcons.filter,
           isConnected: hasFilterWheel,
-          tooltip: hasFilterWheel ? 'Filter Wheel Connected' : 'No Filter Wheel',
+          tooltip:
+              hasFilterWheel ? 'Filter Wheel Connected' : 'No Filter Wheel',
         ),
         const SizedBox(width: 4),
         _CompactStatusIndicator(
@@ -414,7 +417,7 @@ class _ExpandedStatusChip extends StatelessWidget {
 /// - INDI: "indi:DeviceName" or starts with "indi:"
 /// - Native: vendor prefix like "zwo:", "qhy:", "playerone:", etc.
 /// - Simulator: contains "Simulator" or starts with "sim:"
-DriverType _deriveDriverType(String deviceId) {
+DriverType? _deriveDriverType(String deviceId) {
   final lower = deviceId.toLowerCase();
 
   // Check for explicit protocol prefixes
@@ -433,8 +436,18 @@ DriverType _deriveDriverType(String deviceId) {
 
   // Check for native vendor prefixes
   const nativeVendorPrefixes = [
-    'zwo:', 'asi:', 'qhy:', 'playerone:', 'svbony:', 'atik:',
-    'fli:', 'moravian:', 'touptek:', 'skywatcher:', 'ioptron:', 'lx200:',
+    'zwo:',
+    'asi:',
+    'qhy:',
+    'playerone:',
+    'svbony:',
+    'atik:',
+    'fli:',
+    'moravian:',
+    'touptek:',
+    'skywatcher:',
+    'ioptron:',
+    'lx200:',
   ];
   for (final prefix in nativeVendorPrefixes) {
     if (lower.startsWith(prefix)) {
@@ -442,8 +455,7 @@ DriverType _deriveDriverType(String deviceId) {
     }
   }
 
-  // Default to ASCOM for unrecognized patterns (most common on Windows)
-  return DriverType.ascom;
+  return null;
 }
 
 /// Provider for connected devices status - derives from individual device state providers
@@ -461,66 +473,105 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
   // Add camera if connected
   if (cameraState.connectionState == DeviceConnectionState.connected &&
       cameraState.deviceId != null) {
-    devices.add(DeviceInfo(
-      id: cameraState.deviceId!,
-      name: _getDeviceDisplayName(cameraState.deviceName, cameraState.deviceId),
-      deviceType: DeviceType.camera,
-      driverType: _deriveDriverType(cameraState.deviceId!),
-      description: '',
-      driverVersion: '',
-    ));
+    final driverType = _deriveDriverType(cameraState.deviceId!);
+    if (driverType == null) {
+      debugPrint(
+        '[EquipmentStatus] Unknown driver type for connected camera ${cameraState.deviceId}; omitting from status list.',
+      );
+    } else {
+      devices.add(DeviceInfo(
+        id: cameraState.deviceId!,
+        name:
+            _getDeviceDisplayName(cameraState.deviceName, cameraState.deviceId),
+        deviceType: DeviceType.camera,
+        driverType: driverType,
+        description: '',
+        driverVersion: '',
+      ));
+    }
   }
 
   // Add mount if connected
   if (mountState.connectionState == DeviceConnectionState.connected &&
       mountState.deviceId != null) {
-    devices.add(DeviceInfo(
-      id: mountState.deviceId!,
-      name: _getDeviceDisplayName(mountState.deviceName, mountState.deviceId),
-      deviceType: DeviceType.mount,
-      driverType: _deriveDriverType(mountState.deviceId!),
-      description: '',
-      driverVersion: '',
-    ));
+    final driverType = _deriveDriverType(mountState.deviceId!);
+    if (driverType == null) {
+      debugPrint(
+        '[EquipmentStatus] Unknown driver type for connected mount ${mountState.deviceId}; omitting from status list.',
+      );
+    } else {
+      devices.add(DeviceInfo(
+        id: mountState.deviceId!,
+        name: _getDeviceDisplayName(mountState.deviceName, mountState.deviceId),
+        deviceType: DeviceType.mount,
+        driverType: driverType,
+        description: '',
+        driverVersion: '',
+      ));
+    }
   }
 
   // Add focuser if connected
   if (focuserState.connectionState == DeviceConnectionState.connected &&
       focuserState.deviceId != null) {
-    devices.add(DeviceInfo(
-      id: focuserState.deviceId!,
-      name: _getDeviceDisplayName(focuserState.deviceName, focuserState.deviceId),
-      deviceType: DeviceType.focuser,
-      driverType: _deriveDriverType(focuserState.deviceId!),
-      description: '',
-      driverVersion: '',
-    ));
+    final driverType = _deriveDriverType(focuserState.deviceId!);
+    if (driverType == null) {
+      debugPrint(
+        '[EquipmentStatus] Unknown driver type for connected focuser ${focuserState.deviceId}; omitting from status list.',
+      );
+    } else {
+      devices.add(DeviceInfo(
+        id: focuserState.deviceId!,
+        name: _getDeviceDisplayName(
+            focuserState.deviceName, focuserState.deviceId),
+        deviceType: DeviceType.focuser,
+        driverType: driverType,
+        description: '',
+        driverVersion: '',
+      ));
+    }
   }
 
   // Add filter wheel if connected
   if (filterWheelState.connectionState == DeviceConnectionState.connected &&
       filterWheelState.deviceId != null) {
-    devices.add(DeviceInfo(
-      id: filterWheelState.deviceId!,
-      name: _getDeviceDisplayName(filterWheelState.deviceName, filterWheelState.deviceId),
-      deviceType: DeviceType.filterWheel,
-      driverType: _deriveDriverType(filterWheelState.deviceId!),
-      description: '',
-      driverVersion: '',
-    ));
+    final driverType = _deriveDriverType(filterWheelState.deviceId!);
+    if (driverType == null) {
+      debugPrint(
+        '[EquipmentStatus] Unknown driver type for connected filter wheel ${filterWheelState.deviceId}; omitting from status list.',
+      );
+    } else {
+      devices.add(DeviceInfo(
+        id: filterWheelState.deviceId!,
+        name: _getDeviceDisplayName(
+            filterWheelState.deviceName, filterWheelState.deviceId),
+        deviceType: DeviceType.filterWheel,
+        driverType: driverType,
+        description: '',
+        driverVersion: '',
+      ));
+    }
   }
 
   // Add guider if connected
   if (guiderState.connectionState == DeviceConnectionState.connected &&
       guiderState.deviceId != null) {
-    devices.add(DeviceInfo(
-      id: guiderState.deviceId!,
-      name: _getDeviceDisplayName(guiderState.deviceName, guiderState.deviceId),
-      deviceType: DeviceType.guider,
-      driverType: _deriveDriverType(guiderState.deviceId!),
-      description: '',
-      driverVersion: '',
-    ));
+    final driverType = _deriveDriverType(guiderState.deviceId!);
+    if (driverType == null) {
+      debugPrint(
+        '[EquipmentStatus] Unknown driver type for connected guider ${guiderState.deviceId}; omitting from status list.',
+      );
+    } else {
+      devices.add(DeviceInfo(
+        id: guiderState.deviceId!,
+        name:
+            _getDeviceDisplayName(guiderState.deviceName, guiderState.deviceId),
+        deviceType: DeviceType.guider,
+        driverType: driverType,
+        description: '',
+        driverVersion: '',
+      ));
+    }
   }
 
   return AsyncValue.data(devices);

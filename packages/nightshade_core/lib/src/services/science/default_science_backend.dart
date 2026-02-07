@@ -126,19 +126,32 @@ class DefaultScienceBackend implements ScienceBackend {
     ScienceFrameContext? frameContext,
   ) async {
     final context = frameContext;
-    final timestamp = context?.capturedAt ?? DateTime.now();
-    final exposureSeconds = (context?.exposureSeconds ?? 1.0)
-        .clamp(0.001, double.infinity)
-        .toDouble();
+    if (context == null) {
+      _logger.warning(
+        'Photometric calibration skipped for $imagePath: missing frame context (timestamp/exposure metadata unavailable).',
+        source: 'ScienceBackend',
+      );
+      return null;
+    }
+    final timestamp = context.capturedAt;
+    final rawExposureSeconds = context.exposureSeconds;
+    if (!rawExposureSeconds.isFinite || rawExposureSeconds <= 0) {
+      _logger.warning(
+        'Photometric calibration skipped for $imagePath: invalid exposureSeconds=${context.exposureSeconds}.',
+        source: 'ScienceBackend',
+      );
+      return null;
+    }
+    final exposureSeconds = rawExposureSeconds.clamp(0.001, double.infinity);
 
     final stars =
         await measureStars(imagePath, const PhotometryOptions(minSnr: 5.0));
     if (stars.length < 8) {
       return FramePhotometricCalibration(
-        capturedImageId: context?.capturedImageId,
-        sessionId: context?.sessionId,
+        capturedImageId: context.capturedImageId,
+        sessionId: context.sessionId,
         timestamp: timestamp,
-        airmass: context?.airmass,
+        airmass: context.airmass,
         exposureSeconds: exposureSeconds,
         isCalibrated: false,
         matchedStarCount: stars.length,
@@ -157,10 +170,10 @@ class DefaultScienceBackend implements ScienceBackend {
     );
     if (matches.length < 8) {
       return FramePhotometricCalibration(
-        capturedImageId: context?.capturedImageId,
-        sessionId: context?.sessionId,
+        capturedImageId: context.capturedImageId,
+        sessionId: context.sessionId,
         timestamp: timestamp,
-        airmass: context?.airmass,
+        airmass: context.airmass,
         exposureSeconds: exposureSeconds,
         isCalibrated: false,
         matchedStarCount: matches.length,
@@ -181,10 +194,10 @@ class DefaultScienceBackend implements ScienceBackend {
     final clipped = _sigmaClip(zpSamples, sigma: 2.8, iterations: 4);
     if (clipped.length < 6) {
       return FramePhotometricCalibration(
-        capturedImageId: context?.capturedImageId,
-        sessionId: context?.sessionId,
+        capturedImageId: context.capturedImageId,
+        sessionId: context.sessionId,
         timestamp: timestamp,
-        airmass: context?.airmass,
+        airmass: context.airmass,
         exposureSeconds: exposureSeconds,
         isCalibrated: false,
         matchedStarCount: clipped.length,
@@ -217,19 +230,28 @@ class DefaultScienceBackend implements ScienceBackend {
         : 6.0;
     final aperturePixels = math.pi * apertureRadius * apertureRadius;
     final readNoise = await _readNoiseEstimate();
-    final noise = math
-        .sqrt(aperturePixels * (bg + readNoise * readNoise))
-        .clamp(1e-6, double.infinity);
-    final lim5 =
-        zeroPoint - 2.5 * math.log((5.0 * noise) / exposureSeconds) / math.ln10;
-    final lim3 =
-        zeroPoint - 2.5 * math.log((3.0 * noise) / exposureSeconds) / math.ln10;
+    double? lim5;
+    double? lim3;
+    if (readNoise != null) {
+      final noise = math
+          .sqrt(aperturePixels * (bg + readNoise * readNoise))
+          .clamp(1e-6, double.infinity);
+      lim5 =
+          zeroPoint - 2.5 * math.log((5.0 * noise) / exposureSeconds) / math.ln10;
+      lim3 =
+          zeroPoint - 2.5 * math.log((3.0 * noise) / exposureSeconds) / math.ln10;
+    } else {
+      _logger.warning(
+        'Limiting magnitude omitted for $imagePath: camera read noise is not configured.',
+        source: 'ScienceBackend',
+      );
+    }
 
     return FramePhotometricCalibration(
-      capturedImageId: context?.capturedImageId,
-      sessionId: context?.sessionId,
+      capturedImageId: context.capturedImageId,
+      sessionId: context.sessionId,
       timestamp: timestamp,
-      airmass: context?.airmass,
+      airmass: context.airmass,
       exposureSeconds: exposureSeconds,
       isCalibrated: true,
       zeroPoint: zeroPoint,
@@ -262,7 +284,9 @@ class DefaultScienceBackend implements ScienceBackend {
     final withAirmass = window
         .where((c) => c.airmass != null && c.airmass!.isFinite)
         .toList(growable: false);
-    final useAirmassFit = withAirmass.length >= options.minimumSampleCount;
+    // Leave-one-out needs one additional sample beyond the minimum,
+    // because the latest sample is held out from the fit.
+    final useAirmassFit = withAirmass.length >= options.minimumSampleCount + 1;
 
     double transparency = 100.0;
     double extinction = 0.0;
@@ -274,9 +298,6 @@ class DefaultScienceBackend implements ScienceBackend {
       // point.  This avoids the self-inclusion bias that would
       // suppress the residual and hide real transparency changes.
       final fitData = withAirmass.sublist(0, withAirmass.length - 1);
-      if (fitData.length < options.minimumSampleCount) {
-        return null;
-      }
       final x = fitData.map((c) => c.airmass!).toList(growable: false);
       final y = fitData.map((c) => c.zeroPoint!).toList(growable: false);
       final allZps =
@@ -309,7 +330,8 @@ class DefaultScienceBackend implements ScienceBackend {
       final currentAirmass = withAirmass.last.airmass!.clamp(1.0, 5.0);
       final predictedZp = intercept + slope * currentAirmass;
       final actualZp = withAirmass.last.zeroPoint!;
-      final residualMag = predictedZp - actualZp; // positive ⇒ dimmer than expected
+      final residualMag =
+          predictedZp - actualZp; // positive ⇒ dimmer than expected
       transparency = (math.pow(10.0, -0.4 * residualMag) * 100.0)
           .clamp(0.0, 100.0)
           .toDouble();
@@ -504,7 +526,9 @@ class DefaultScienceBackend implements ScienceBackend {
     // motion validation — a candidate must also appear near the
     // interpolated position in this frame.
     final midIndex = imagePaths.length ~/ 2;
-    final bool hasMiddleFrame = imagePaths.length >= 3 && midIndex > 0 && midIndex < imagePaths.length - 1;
+    final bool hasMiddleFrame = imagePaths.length >= 3 &&
+        midIndex > 0 &&
+        midIndex < imagePaths.length - 1;
     List<StarMeasurement>? midStars;
     double midFraction = 0.5; // interpolation factor (0 = first, 1 = last)
     if (hasMiddleFrame) {
@@ -545,6 +569,7 @@ class DefaultScienceBackend implements ScienceBackend {
 
       // 3-frame linear motion validation: predict where the object
       // should be in the middle frame and check for a nearby detection.
+      var passedMiddleValidation = false;
       if (midStars != null && midStars.isNotEmpty) {
         final expectedX = star.x + (matched.x - star.x) * midFraction;
         final expectedY = star.y + (matched.y - star.y) * midFraction;
@@ -558,6 +583,7 @@ class DefaultScienceBackend implements ScienceBackend {
           }
         }
         if (!foundMid) continue;
+        passedMiddleValidation = true;
       }
 
       usedLast.add(bestIndex);
@@ -589,8 +615,8 @@ class DefaultScienceBackend implements ScienceBackend {
               (options.maxMotionPixels - options.minMotionPixels))
           .clamp(0.0, 1.0)
           .toDouble();
-      // Boost confidence when 3-frame validation passed.
-      final validationBonus = hasMiddleFrame ? 0.10 : 0.0;
+      // Boost confidence only when 3-frame validation actually passed.
+      final validationBonus = passedMiddleValidation ? 0.10 : 0.0;
       final confidence =
           (0.65 * snrScore + 0.35 * motionScore + validationBonus)
               .clamp(0.15, 0.98)
@@ -608,6 +634,144 @@ class DefaultScienceBackend implements ScienceBackend {
     }
     matches.sort((a, b) => b.confidence.compareTo(a.confidence));
     return matches.take(40).toList(growable: false);
+  }
+
+  @override
+  Future<(ScienceFrameQualityMetrics, List<ScienceTileMetric>)>
+      computeLastCaptureQualityMaps({
+    required String deviceId,
+    required int gridRows,
+    required int gridCols,
+    required int lowClipAdu,
+    required int highClipAdu,
+    required DateTime timestamp,
+    int? capturedImageId,
+    int? sessionId,
+  }) async {
+    try {
+      final result = await apiComputeLastCaptureQualityMaps(
+        deviceId: deviceId,
+        gridRows: gridRows,
+        gridCols: gridCols,
+        lowClipAdu: lowClipAdu,
+        highClipAdu: highClipAdu,
+      );
+      return _mapBridgeQualityResult(
+        result: result,
+        timestamp: timestamp,
+        capturedImageId: capturedImageId,
+        sessionId: sessionId,
+        fallbackProcessingTier: 'live',
+      );
+    } catch (error, stack) {
+      _logger.warning(
+        'Native last-capture quality map compute failed for $deviceId; '
+        'falling back to Dart path: $error\n$stack',
+        source: 'ScienceBackend',
+      );
+    }
+
+    final stopwatch = Stopwatch()..start();
+    final lastImage = await apiGetLastImage(deviceId: deviceId);
+    final raw = await apiGetLastRawImageData(deviceId: deviceId);
+
+    if (lastImage.width <= 0 || lastImage.height <= 0) {
+      throw StateError('Last capture dimensions are unavailable');
+    }
+    final expected = lastImage.width * lastImage.height;
+    if (raw.length < expected) {
+      throw StateError(
+        'Last raw buffer too small: ${raw.length} < $expected',
+      );
+    }
+
+    final result = _computeQualityMetricsFromBuffer(
+      width: lastImage.width,
+      height: lastImage.height,
+      gridRows: gridRows,
+      gridCols: gridCols,
+      lowClipAdu: lowClipAdu,
+      highClipAdu: highClipAdu,
+      timestamp: timestamp,
+      capturedImageId: capturedImageId,
+      sessionId: sessionId,
+      processingTier: 'live',
+      sampleAt: (index) => raw[index].toDouble(),
+    );
+    final processingMs = stopwatch.elapsedMilliseconds;
+
+    return (
+      result.frame.copyWith(processingMs: processingMs),
+      result.tiles,
+    );
+  }
+
+  @override
+  Future<(ScienceFrameQualityMetrics, List<ScienceTileMetric>)>
+      computeFitsQualityMaps({
+    required String filePath,
+    required int gridRows,
+    required int gridCols,
+    required int lowClipAdu,
+    required int highClipAdu,
+    required DateTime timestamp,
+    int? capturedImageId,
+    int? sessionId,
+  }) async {
+    try {
+      final result = await apiComputeFitsQualityMaps(
+        filePath: filePath,
+        gridRows: gridRows,
+        gridCols: gridCols,
+        lowClipAdu: lowClipAdu,
+        highClipAdu: highClipAdu,
+      );
+      return _mapBridgeQualityResult(
+        result: result,
+        timestamp: timestamp,
+        capturedImageId: capturedImageId,
+        sessionId: sessionId,
+        fallbackProcessingTier: 'deferred',
+      );
+    } catch (error, stack) {
+      _logger.warning(
+        'Native FITS quality map compute failed for $filePath; '
+        'falling back to Dart path: $error\n$stack',
+        source: 'ScienceBackend',
+      );
+    }
+
+    final stopwatch = Stopwatch()..start();
+    final linear = await apiReadFitsLinearData(filePath: filePath);
+    if (linear.width <= 0 || linear.height <= 0) {
+      throw StateError('FITS dimensions are unavailable');
+    }
+    final expected = linear.width * linear.height;
+    if (linear.linearData.length < expected) {
+      throw StateError(
+        'FITS linear buffer too small: ${linear.linearData.length} < $expected',
+      );
+    }
+
+    final result = _computeQualityMetricsFromBuffer(
+      width: linear.width,
+      height: linear.height,
+      gridRows: gridRows,
+      gridCols: gridCols,
+      lowClipAdu: lowClipAdu,
+      highClipAdu: highClipAdu,
+      timestamp: timestamp,
+      capturedImageId: capturedImageId,
+      sessionId: sessionId,
+      processingTier: 'deferred',
+      sampleAt: (index) => linear.linearData[index],
+    );
+    final processingMs = stopwatch.elapsedMilliseconds;
+
+    return (
+      result.frame.copyWith(processingMs: processingMs),
+      result.tiles,
+    );
   }
 
   @override
@@ -674,9 +838,21 @@ class DefaultScienceBackend implements ScienceBackend {
     final siiHa = <double>[];
     final oiiiHa = <double>[];
     final siiOiii = <double>[];
-    final haExp = (ha.exposureTime ?? 1.0).clamp(0.001, double.infinity);
-    final oiiiExp = (oiii.exposureTime ?? 1.0).clamp(0.001, double.infinity);
-    final siiExp = (sii.exposureTime ?? 1.0).clamp(0.001, double.infinity);
+    final haExp = _requireExposureTime(
+      label: 'H-alpha',
+      exposureTime: ha.exposureTime,
+      filePath: set.hAlphaPath,
+    );
+    final oiiiExp = _requireExposureTime(
+      label: 'OIII',
+      exposureTime: oiii.exposureTime,
+      filePath: set.oiiiPath,
+    );
+    final siiExp = _requireExposureTime(
+      label: 'SII',
+      exposureTime: sii.exposureTime,
+      filePath: set.siiPath,
+    );
     final haThreshold = options.snrFloor * haNoise / haExp;
     final oiiiThreshold = options.snrFloor * oiiiNoise / oiiiExp;
     final siiThreshold = options.snrFloor * siiNoise / siiExp;
@@ -1075,15 +1251,354 @@ class DefaultScienceBackend implements ScienceBackend {
     return sorted[lo] * (1 - t) + sorted[hi] * t;
   }
 
+  (ScienceFrameQualityMetrics, List<ScienceTileMetric>) _mapBridgeQualityResult({
+    required QualityMapsResultApi result,
+    required DateTime timestamp,
+    required int? capturedImageId,
+    required int? sessionId,
+    required String fallbackProcessingTier,
+  }) {
+    final frame = result.frame;
+    final mappedFrame = ScienceFrameQualityMetrics(
+      capturedImageId: capturedImageId,
+      sessionId: sessionId,
+      timestamp: timestamp,
+      median: frame.median,
+      mean: frame.mean,
+      stdDev: frame.stdDev,
+      mad: frame.mad,
+      background: frame.background,
+      noise: frame.noise,
+      snr: frame.snr,
+      dynamicRangeP1P99: frame.dynamicRangeP1P99,
+      lowClipPercent: frame.lowClipPercent,
+      highClipPercent: frame.highClipPercent,
+      uniformityCv: frame.uniformityCv,
+      gradientX: frame.gradientX,
+      gradientY: frame.gradientY,
+      processingTier: frame.processingTier.isEmpty
+          ? fallbackProcessingTier
+          : frame.processingTier,
+      processingMs: frame.processingMs,
+    );
+
+    final mappedTiles = result.tiles
+        .map(
+          (tile) => ScienceTileMetric(
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            layerType: ScienceLayerType.fromDbValue(tile.layerType),
+            tileRow: tile.tileRow,
+            tileCol: tile.tileCol,
+            sampleCount: tile.sampleCount,
+            value: tile.value,
+            p05: tile.p05,
+            p50: tile.p50,
+            p95: tile.p95,
+            auxValue: tile.auxValue,
+          ),
+        )
+        .toList(growable: false);
+
+    return (mappedFrame, mappedTiles);
+  }
+
+  _QualityResult _computeQualityMetricsFromBuffer({
+    required int width,
+    required int height,
+    required int gridRows,
+    required int gridCols,
+    required int lowClipAdu,
+    required int highClipAdu,
+    required DateTime timestamp,
+    required int? capturedImageId,
+    required int? sessionId,
+    required String processingTier,
+    required double Function(int index) sampleAt,
+  }) {
+    final rows = gridRows.clamp(2, 128);
+    final cols = gridCols.clamp(2, 128);
+    final tileMetrics = <ScienceTileMetric>[];
+    final tileMedians = <double>[];
+    final tileNoises = <double>[];
+    final tileP05 = <double>[];
+    final tileP95 = <double>[];
+    final tileGradX = <double>[];
+    final tileGradY = <double>[];
+
+    var globalCount = 0;
+    var globalSum = 0.0;
+    var globalSumSq = 0.0;
+    var globalLowClip = 0;
+    var globalHighClip = 0;
+
+    final imageMidX = width ~/ 2;
+    final imageMidY = height ~/ 2;
+
+    for (var row = 0; row < rows; row++) {
+      final yStart = (row * height / rows).floor();
+      final yEnd =
+          ((row + 1) * height / rows).floor().clamp(yStart + 1, height);
+      for (var col = 0; col < cols; col++) {
+        final xStart = (col * width / cols).floor();
+        final xEnd =
+            ((col + 1) * width / cols).floor().clamp(xStart + 1, width);
+
+        final samples = <double>[];
+        var sum = 0.0;
+        var sumSq = 0.0;
+        var lowClip = 0;
+        var highClip = 0;
+        var leftSum = 0.0;
+        var rightSum = 0.0;
+        var topSum = 0.0;
+        var bottomSum = 0.0;
+        var leftCount = 0;
+        var rightCount = 0;
+        var topCount = 0;
+        var bottomCount = 0;
+
+        for (var y = yStart; y < yEnd; y++) {
+          final isTop = y < imageMidY;
+          for (var x = xStart; x < xEnd; x++) {
+            final value = sampleAt(y * width + x);
+            if (!value.isFinite) {
+              continue;
+            }
+            samples.add(value);
+            sum += value;
+            sumSq += value * value;
+            globalSum += value;
+            globalSumSq += value * value;
+            globalCount++;
+
+            if (value <= lowClipAdu) {
+              lowClip++;
+              globalLowClip++;
+            }
+            if (value >= highClipAdu) {
+              highClip++;
+              globalHighClip++;
+            }
+
+            final isLeft = x < imageMidX;
+            if (isLeft) {
+              leftSum += value;
+              leftCount++;
+            } else {
+              rightSum += value;
+              rightCount++;
+            }
+            if (isTop) {
+              topSum += value;
+              topCount++;
+            } else {
+              bottomSum += value;
+              bottomCount++;
+            }
+          }
+        }
+
+        if (samples.isEmpty) {
+          continue;
+        }
+
+        samples.sort();
+        final count = samples.length;
+        final mean = sum / count;
+        final variance = math.max(0.0, (sumSq / count) - (mean * mean));
+        final stdDev = math.sqrt(variance);
+        final p05 = _percentileSorted(samples, 0.05);
+        final p50 = _percentileSorted(samples, 0.50);
+        final p95 = _percentileSorted(samples, 0.95);
+        final cv = mean.abs() < 1e-6 ? 0.0 : stdDev / mean.abs();
+        final lowClipPercent = 100.0 * lowClip / count;
+        final highClipPercent = 100.0 * highClip / count;
+        final snr = stdDev <= 0.0 ? 0.0 : mean / stdDev;
+        final gradX = ((rightCount == 0 ? mean : rightSum / rightCount) -
+                (leftCount == 0 ? mean : leftSum / leftCount))
+            .toDouble();
+        final gradY = ((bottomCount == 0 ? mean : bottomSum / bottomCount) -
+                (topCount == 0 ? mean : topSum / topCount))
+            .toDouble();
+        final gradMag = math.sqrt(gradX * gradX + gradY * gradY);
+
+        tileMedians.add(p50);
+        tileNoises.add(stdDev);
+        tileP05.add(p05);
+        tileP95.add(p95);
+        tileGradX.add(gradX);
+        tileGradY.add(gradY);
+
+        tileMetrics.add(
+          ScienceTileMetric(
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            layerType: ScienceLayerType.uniformity,
+            tileRow: row,
+            tileCol: col,
+            sampleCount: count,
+            value: cv,
+            p05: p05,
+            p50: p50,
+            p95: p95,
+            auxValue: gradMag,
+          ),
+        );
+        tileMetrics.add(
+          ScienceTileMetric(
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            layerType: ScienceLayerType.clipLow,
+            tileRow: row,
+            tileCol: col,
+            sampleCount: count,
+            value: lowClipPercent,
+            p05: lowClipPercent,
+            p50: lowClipPercent,
+            p95: lowClipPercent,
+            auxValue: lowClip.toDouble(),
+          ),
+        );
+        tileMetrics.add(
+          ScienceTileMetric(
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            layerType: ScienceLayerType.clipHigh,
+            tileRow: row,
+            tileCol: col,
+            sampleCount: count,
+            value: highClipPercent,
+            p05: highClipPercent,
+            p50: highClipPercent,
+            p95: highClipPercent,
+            auxValue: highClip.toDouble(),
+          ),
+        );
+        tileMetrics.add(
+          ScienceTileMetric(
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            layerType: ScienceLayerType.background,
+            tileRow: row,
+            tileCol: col,
+            sampleCount: count,
+            value: p50,
+            p05: p05,
+            p50: p50,
+            p95: p95,
+            auxValue: stdDev,
+          ),
+        );
+        tileMetrics.add(
+          ScienceTileMetric(
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            layerType: ScienceLayerType.snr,
+            tileRow: row,
+            tileCol: col,
+            sampleCount: count,
+            value: snr,
+            p05: 0.0,
+            p50: snr,
+            p95: snr,
+            auxValue: stdDev,
+          ),
+        );
+      }
+    }
+
+    final safeCount = math.max(1, globalCount);
+    final globalMean = globalSum / safeCount;
+    final globalStdDev = math.sqrt(
+        math.max(0.0, (globalSumSq / safeCount) - (globalMean * globalMean)));
+    final median = tileMedians.isEmpty ? 0.0 : _median(tileMedians);
+    final mad = tileMedians.isEmpty ? 0.0 : _mad(tileMedians, median);
+    final background = tileMedians.isEmpty ? globalMean : _median(tileMedians);
+    final noise = tileNoises.isEmpty ? globalStdDev : _median(tileNoises);
+    final snr = noise <= 0.0 ? 0.0 : (globalMean / noise);
+    final p1 = tileP05.isEmpty ? 0.0 : _percentile(tileP05, 0.2);
+    final p99 = tileP95.isEmpty ? 0.0 : _percentile(tileP95, 0.8);
+    final dynamicRange = math.max(0.0, p99 - p1);
+    final gradientX = tileGradX.isEmpty
+        ? 0.0
+        : tileGradX.fold<double>(0.0, (sum, value) => sum + value) /
+            tileGradX.length;
+    final gradientY = tileGradY.isEmpty
+        ? 0.0
+        : tileGradY.fold<double>(0.0, (sum, value) => sum + value) /
+            tileGradY.length;
+
+    final frame = ScienceFrameQualityMetrics(
+      capturedImageId: capturedImageId,
+      sessionId: sessionId,
+      timestamp: timestamp,
+      median: median,
+      mean: globalMean,
+      stdDev: globalStdDev,
+      mad: mad,
+      background: background,
+      noise: noise,
+      snr: snr,
+      dynamicRangeP1P99: dynamicRange,
+      lowClipPercent: 100.0 * globalLowClip / safeCount,
+      highClipPercent: 100.0 * globalHighClip / safeCount,
+      uniformityCv:
+          background.abs() < 1e-6 ? 0.0 : globalStdDev / background.abs(),
+      gradientX: gradientX,
+      gradientY: gradientY,
+      processingTier: processingTier,
+      processingMs: 0,
+    );
+    return _QualityResult(frame: frame, tiles: tileMetrics);
+  }
+
+  double _percentileSorted(List<double> sortedValues, double p) {
+    if (sortedValues.isEmpty) {
+      return 0.0;
+    }
+    final q = p.clamp(0.0, 1.0);
+    final pos = (sortedValues.length - 1) * q;
+    final lo = pos.floor();
+    final hi = pos.ceil();
+    if (lo == hi) {
+      return sortedValues[lo];
+    }
+    final t = pos - lo;
+    return sortedValues[lo] * (1 - t) + sortedValues[hi] * t;
+  }
+
   String _resolveSolverId() {
     final settings = _ref.read(appSettingsProvider).valueOrNull;
     return settings?.plateSolver ?? 'ASTAP';
   }
 
-  /// Returns the camera read noise in electrons.  Uses the user-configured
-  /// value from settings when available, otherwise falls back to 3.5 e⁻
-  /// (a reasonable default for modern CMOS astro cameras at unity gain).
-  Future<double> _readNoiseEstimate() async {
+  /// Require valid FITS exposure metadata for physically meaningful
+  /// line-ratio normalization.
+  double _requireExposureTime({
+    required String label,
+    required double? exposureTime,
+    required String filePath,
+  }) {
+    if (exposureTime != null && exposureTime.isFinite && exposureTime > 0) {
+      return exposureTime.clamp(0.001, double.infinity);
+    }
+    throw StateError(
+      'Missing exposure metadata for $label frame: $filePath. '
+      'Line-ratio normalization requires a valid FITS exposure time.',
+    );
+  }
+
+  /// Returns the camera read-noise setting in electrons.
+  /// Null means the value is unavailable/invalid and dependent metrics
+  /// should be omitted instead of guessed.
+  Future<double?> _readNoiseEstimate() async {
     try {
       final dao = _ref.read(settingsDaoProvider);
       final stored = await dao.getSetting('science.camera.read_noise_e');
@@ -1092,9 +1607,23 @@ class DefaultScienceBackend implements ScienceBackend {
         if (parsed != null && parsed.isFinite && parsed > 0) {
           return parsed.clamp(0.5, 30.0);
         }
+        _logger.warning(
+          'Invalid science.camera.read_noise_e setting "$stored"; limiting magnitude will be omitted.',
+          source: 'ScienceBackend',
+        );
+      } else {
+        _logger.warning(
+          'science.camera.read_noise_e is not configured; limiting magnitude will be omitted.',
+          source: 'ScienceBackend',
+        );
       }
-    } catch (_) {}
-    return 3.5;
+    } catch (error, stack) {
+      _logger.warning(
+        'Failed to read science.camera.read_noise_e; limiting magnitude will be omitted: $error\n$stack',
+        source: 'ScienceBackend',
+      );
+    }
+    return null;
   }
 }
 
@@ -1138,6 +1667,17 @@ class _LinearFitResult {
   });
 }
 
+class _QualityResult {
+  final ScienceFrameQualityMetrics frame;
+  final List<ScienceTileMetric> tiles;
+
+  const _QualityResult({
+    required this.frame,
+    required this.tiles,
+  });
+}
+
 final scienceBackendProvider = Provider<ScienceBackend>((ref) {
   return DefaultScienceBackend(ref);
 });
+

@@ -764,7 +764,7 @@ impl NativeDevice for ZwoCamera {
 
     fn name(&self) -> &str {
         // We need to return a &str, but camera_name() returns String
-        // For now, return the device_id - a proper implementation would store the name
+        // Use a stable identifier until an owned display-name field is added.
         &self.device_id
     }
 
@@ -939,14 +939,18 @@ impl NativeCamera for ZwoCamera {
         let temp = self
             .get_control(ASIControlType::ASI_TEMPERATURE)
             .map(|v| v as f64 / 10.0)
-            .unwrap_or(0.0);
+            .ok();
 
-        let cooler_power = if self
-            .camera_info
-            .as_ref()
-            .map(|i| i.is_cooler_cam != 0)
-            .unwrap_or(false)
-        {
+        let supports_cooler = if let Some(info) = self.camera_info.as_ref() {
+            info.is_cooler_cam != 0
+        } else {
+            tracing::warn!(
+                "ZWO camera_info metadata unavailable while reading status; probing cooler capability via control API."
+            );
+            self.get_control(ASIControlType::ASI_COOLER_ON).is_ok()
+        };
+
+        let cooler_power = if supports_cooler {
             self.get_control(ASIControlType::ASI_COOLER_POWER_PERC)
                 .ok()
                 .map(|v| v as f64)
@@ -956,7 +960,7 @@ impl NativeCamera for ZwoCamera {
 
         Ok(CameraStatus {
             state,
-            sensor_temp: Some(temp),
+            sensor_temp: temp,
             target_temp: None, // ZWO doesn't easily provide target temp back
             cooler_on: false,  // ZWO SDK doesn't have a simple "is cooler on" property check
             cooler_power,
@@ -1110,8 +1114,8 @@ impl NativeCamera for ZwoCamera {
 
         // DIAGNOSTIC: Log data statistics to debug mid-gray image issue
         if !data.is_empty() {
-            let min_val = data.iter().min().copied().unwrap_or(0);
-            let max_val = data.iter().max().copied().unwrap_or(0);
+            let min_val = data.iter().min().copied().expect("non-empty data");
+            let max_val = data.iter().max().copied().expect("non-empty data");
             let sum: u64 = data.iter().map(|&x| x as u64).sum();
             let avg_val = sum / data.len() as u64;
             let non_zero_count = data.iter().filter(|&&x| x != 0).count();
@@ -1186,12 +1190,16 @@ impl NativeCamera for ZwoCamera {
             return Err(NativeError::NotConnected);
         }
 
-        if !self
+        let supports_cooler = self
             .camera_info
             .as_ref()
             .map(|i| i.is_cooler_cam != 0)
-            .unwrap_or(false)
-        {
+            .ok_or_else(|| {
+                NativeError::InvalidDevice(
+                    "Camera capability metadata unavailable for cooler operation".to_string(),
+                )
+            })?;
+        if !supports_cooler {
             return Err(NativeError::NotSupported);
         }
 
@@ -1221,12 +1229,16 @@ impl NativeCamera for ZwoCamera {
     }
 
     async fn get_cooler_power(&self) -> Result<f64, NativeError> {
-        if !self
+        let supports_cooler = self
             .camera_info
             .as_ref()
             .map(|i| i.is_cooler_cam != 0)
-            .unwrap_or(false)
-        {
+            .ok_or_else(|| {
+                NativeError::InvalidDevice(
+                    "Camera capability metadata unavailable for cooler power query".to_string(),
+                )
+            })?;
+        if !supports_cooler {
             return Err(NativeError::NotSupported);
         }
         let value = self
@@ -1611,6 +1623,7 @@ struct EafSdk {
 }
 
 static EAF_SDK: OnceLock<Option<EafSdk>> = OnceLock::new();
+static EAF_STEP_SIZE_LOGGED: OnceLock<()> = OnceLock::new();
 
 impl EafSdk {
     /// Try to load the EAF SDK library
@@ -1892,7 +1905,22 @@ impl NativeFocuser for ZwoFocuser {
     }
 
     fn get_step_size(&self) -> f64 {
-        // EAF step size is approximately 8 microns per step
+        if let Ok(raw) = std::env::var("NIGHTSHADE_ZWO_EAF_STEP_SIZE_UM") {
+            if let Ok(parsed) = raw.parse::<f64>() {
+                if parsed.is_finite() && parsed > 0.0 {
+                    return parsed;
+                }
+            }
+        }
+
+        if EAF_STEP_SIZE_LOGGED.get().is_none() {
+            tracing::info!(
+                "ZWO EAF step size is not reported by SDK; using default 8.0um/step. \
+Set NIGHTSHADE_ZWO_EAF_STEP_SIZE_UM to override for calibrated systems."
+            );
+            let _ = EAF_STEP_SIZE_LOGGED.set(());
+        }
+
         8.0
     }
 }

@@ -20,6 +20,13 @@ class SchedulerHandlers {
 
   SchedulerHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'SchedulerHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'SchedulerHandlers');
+
   // ===========================================================================
   // Calculate Altitude
   // ===========================================================================
@@ -27,7 +34,7 @@ class SchedulerHandlers {
   /// GET /api/scheduler/altitude?ra=X&dec=Y&time=Z
   /// Calculate altitude of object at given time (or now if no time)
   Future<Response> handleCalculateAltitude(Request request) async {
-    print('[API] GET /api/scheduler/altitude');
+    _logInfo('[API] GET /api/scheduler/altitude');
     try {
       final database = container.read(databaseProvider);
 
@@ -38,7 +45,8 @@ class SchedulerHandlers {
 
       if (raParam == null || decParam == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "Missing required parameters: ra and dec"}),
+          body:
+              jsonEncode({"error": "Missing required parameters: ra and dec"}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -60,7 +68,10 @@ class SchedulerHandlers {
           final epochMs = int.tryParse(timeParam);
           if (epochMs == null) {
             return Response.badRequest(
-              body: jsonEncode({"error": "Invalid time format. Use ISO8601 or epoch milliseconds."}),
+              body: jsonEncode({
+                "error":
+                    "Invalid time format. Use ISO8601 or epoch milliseconds."
+              }),
               headers: {'content-type': 'application/json'},
             );
           }
@@ -77,7 +88,10 @@ class SchedulerHandlers {
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No observer location configured. Set location in settings first."}),
+          body: jsonEncode({
+            "error":
+                "No observer location configured. Set location in settings first."
+          }),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -93,7 +107,9 @@ class SchedulerHandlers {
       );
 
       // Calculate airmass
-      final airmass = altitude > 0 ? AstronomyCalculations.airmass(altitude) : double.infinity;
+      final airmass = altitude > 0
+          ? AstronomyCalculations.airmass(altitude)
+          : double.infinity;
 
       // Determine if rising or setting
       final futureTime = time.add(const Duration(minutes: 10));
@@ -124,7 +140,7 @@ class SchedulerHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Calculate altitude error: $e');
+      _logError('[API] Calculate altitude error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -139,7 +155,7 @@ class SchedulerHandlers {
   /// GET /api/scheduler/transit-time?ra=X&dec=Y
   /// Get transit time for object tonight
   Future<Response> handleCalculateTransitTime(Request request) async {
-    print('[API] GET /api/scheduler/transit-time');
+    _logInfo('[API] GET /api/scheduler/transit-time');
     try {
       final database = container.read(databaseProvider);
 
@@ -149,7 +165,8 @@ class SchedulerHandlers {
 
       if (raParam == null || decParam == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "Missing required parameters: ra and dec"}),
+          body:
+              jsonEncode({"error": "Missing required parameters: ra and dec"}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -168,7 +185,10 @@ class SchedulerHandlers {
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No observer location configured. Set location in settings first."}),
+          body: jsonEncode({
+            "error":
+                "No observer location configured. Set location in settings first."
+          }),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -215,7 +235,7 @@ class SchedulerHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Calculate transit time error: $e');
+      _logError('[API] Calculate transit time error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -230,7 +250,7 @@ class SchedulerHandlers {
   /// GET /api/scheduler/rise-set?ra=X&dec=Y
   /// Get rise and set times for object
   Future<Response> handleCalculateRiseSet(Request request) async {
-    print('[API] GET /api/scheduler/rise-set');
+    _logInfo('[API] GET /api/scheduler/rise-set');
     try {
       final database = container.read(databaseProvider);
 
@@ -241,7 +261,8 @@ class SchedulerHandlers {
 
       if (raParam == null || decParam == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "Missing required parameters: ra and dec"}),
+          body:
+              jsonEncode({"error": "Missing required parameters: ra and dec"}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -262,7 +283,10 @@ class SchedulerHandlers {
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No observer location configured. Set location in settings first."}),
+          body: jsonEncode({
+            "error":
+                "No observer location configured. Set location in settings first."
+          }),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -293,7 +317,8 @@ class SchedulerHandlers {
           "transitAltitude": visibility.transitAltitude,
           "isCircumpolar": visibility.isCircumpolar,
           "neverRises": visibility.neverRises,
-          "durationAboveHorizonMinutes": visibility.durationAboveHorizon?.inMinutes,
+          "durationAboveHorizonMinutes":
+              visibility.durationAboveHorizon?.inMinutes,
           "location": {
             "latitude": latitude,
             "longitude": longitude,
@@ -302,7 +327,7 @@ class SchedulerHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Calculate rise/set error: $e');
+      _logError('[API] Calculate rise/set error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -317,7 +342,7 @@ class SchedulerHandlers {
   /// GET /api/scheduler/hours-above-horizon?ra=X&dec=Y&minAltitude=30
   /// Get hours object is above altitude
   Future<Response> handleCalculateHoursAbove(Request request) async {
-    print('[API] GET /api/scheduler/hours-above-horizon');
+    _logInfo('[API] GET /api/scheduler/hours-above-horizon');
     try {
       final database = container.read(databaseProvider);
 
@@ -328,7 +353,8 @@ class SchedulerHandlers {
 
       if (raParam == null || decParam == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "Missing required parameters: ra and dec"}),
+          body:
+              jsonEncode({"error": "Missing required parameters: ra and dec"}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -349,7 +375,10 @@ class SchedulerHandlers {
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No observer location configured. Set location in settings first."}),
+          body: jsonEncode({
+            "error":
+                "No observer location configured. Set location in settings first."
+          }),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -394,7 +423,7 @@ class SchedulerHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Calculate hours above horizon error: $e');
+      _logError('[API] Calculate hours above horizon error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -409,7 +438,7 @@ class SchedulerHandlers {
   /// POST /api/scheduler/optimize-targets
   /// Reorder a list of target IDs for optimal imaging tonight
   Future<Response> handleOptimizeTargets(Request request) async {
-    print('[API] POST /api/scheduler/optimize-targets');
+    _logInfo('[API] POST /api/scheduler/optimize-targets');
     try {
       final database = container.read(databaseProvider);
       final payload = jsonDecode(await request.readAsString());
@@ -435,7 +464,10 @@ class SchedulerHandlers {
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No observer location configured. Set location in settings first."}),
+          body: jsonEncode({
+            "error":
+                "No observer location configured. Set location in settings first."
+          }),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -451,7 +483,8 @@ class SchedulerHandlers {
 
       if (targets.isEmpty) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No valid targets found for provided IDs"}),
+          body:
+              jsonEncode({"error": "No valid targets found for provided IDs"}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -507,8 +540,10 @@ class SchedulerHandlers {
         case 'transittime':
           // Sort by transit time (earliest first)
           sortedTargets.sort((a, b) {
-            final aTransit = targetVisibility[a.id]!['transitTime'] as DateTime?;
-            final bTransit = targetVisibility[b.id]!['transitTime'] as DateTime?;
+            final aTransit =
+                targetVisibility[a.id]!['transitTime'] as DateTime?;
+            final bTransit =
+                targetVisibility[b.id]!['transitTime'] as DateTime?;
             if (aTransit == null && bTransit == null) return 0;
             if (aTransit == null) return 1;
             if (bTransit == null) return -1;
@@ -584,7 +619,8 @@ class SchedulerHandlers {
         default:
           return Response.badRequest(
             body: jsonEncode({
-              "error": "Unknown strategy: $strategyStr. Valid options: transitTime, currentAltitude, risingFirst, settingFirst, priority"
+              "error":
+                  "Unknown strategy: $strategyStr. Valid options: transitTime, currentAltitude, risingFirst, settingFirst, priority"
             }),
             headers: {'content-type': 'application/json'},
           );
@@ -622,7 +658,7 @@ class SchedulerHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Optimize targets error: $e');
+      _logError('[API] Optimize targets error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -637,7 +673,7 @@ class SchedulerHandlers {
   /// GET /api/scheduler/twilight-times
   /// Get astronomical, nautical, civil twilight times for tonight
   Future<Response> handleGetTwilightTimes(Request request) async {
-    print('[API] GET /api/scheduler/twilight-times');
+    _logInfo('[API] GET /api/scheduler/twilight-times');
     try {
       final database = container.read(databaseProvider);
 
@@ -646,7 +682,10 @@ class SchedulerHandlers {
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No observer location configured. Set location in settings first."}),
+          body: jsonEncode({
+            "error":
+                "No observer location configured. Set location in settings first."
+          }),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -684,9 +723,11 @@ class SchedulerHandlers {
           "nauticalDusk": twilight.nauticalDusk?.toIso8601String(),
           "nauticalDuskEpoch": twilight.nauticalDusk?.millisecondsSinceEpoch,
           "astronomicalDusk": twilight.astronomicalDusk?.toIso8601String(),
-          "astronomicalDuskEpoch": twilight.astronomicalDusk?.millisecondsSinceEpoch,
+          "astronomicalDuskEpoch":
+              twilight.astronomicalDusk?.millisecondsSinceEpoch,
           "astronomicalDawn": twilight.astronomicalDawn?.toIso8601String(),
-          "astronomicalDawnEpoch": twilight.astronomicalDawn?.millisecondsSinceEpoch,
+          "astronomicalDawnEpoch":
+              twilight.astronomicalDawn?.millisecondsSinceEpoch,
           "nauticalDawn": twilight.nauticalDawn?.toIso8601String(),
           "nauticalDawnEpoch": twilight.nauticalDawn?.millisecondsSinceEpoch,
           "civilDawn": twilight.civilDawn?.toIso8601String(),
@@ -702,7 +743,7 @@ class SchedulerHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get twilight times error: $e');
+      _logError('[API] Get twilight times error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -717,7 +758,7 @@ class SchedulerHandlers {
   /// GET /api/scheduler/moon-info
   /// Get moon phase, rise/set, illumination
   Future<Response> handleGetMoonInfo(Request request) async {
-    print('[API] GET /api/scheduler/moon-info');
+    _logInfo('[API] GET /api/scheduler/moon-info');
     try {
       final database = container.read(databaseProvider);
 
@@ -726,7 +767,10 @@ class SchedulerHandlers {
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No observer location configured. Set location in settings first."}),
+          body: jsonEncode({
+            "error":
+                "No observer location configured. Set location in settings first."
+          }),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -748,7 +792,8 @@ class SchedulerHandlers {
       }
 
       // Calculate moon position and illumination
-      final (moonRaDeg, moonDecDeg, moonDistance) = AstronomyCalculations.moonPosition(date);
+      final (moonRaDeg, moonDecDeg, moonDistance) =
+          AstronomyCalculations.moonPosition(date);
       final moonRaHours = moonRaDeg / 15.0;
       final illumination = AstronomyCalculations.moonIllumination(date);
       final phaseName = AstronomyCalculations.moonPhaseName(date);
@@ -795,7 +840,7 @@ class SchedulerHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get moon info error: $e');
+      _logError('[API] Get moon info error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

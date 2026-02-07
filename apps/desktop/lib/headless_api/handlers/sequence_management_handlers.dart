@@ -2,11 +2,10 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/database_entities.dart'
+    show Sequence, SequenceNode, SequencesCompanion, SequenceNodesCompanion;
 import 'package:nightshade_core/nightshade_core.dart'
     hide Sequence, SequenceNode; // Hide domain models
-// Import DB entity types explicitly
-import 'package:nightshade_core/src/database/database.dart'
-    show Sequence, SequenceNode, SequencesCompanion, SequenceNodesCompanion;
 import 'package:shelf/shelf.dart';
 
 /// Handlers for sequence management (CRUD operations)
@@ -16,12 +15,19 @@ class SequenceManagementHandlers {
 
   SequenceManagementHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'SequenceManagementHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'SequenceManagementHandlers');
+
   // ===========================================================================
   // Get All Sequences
   // ===========================================================================
 
   Future<Response> handleGetAllSequences(Request request) async {
-    print('[API] GET /api/sequence-management/list');
+    _logInfo('[API] GET /api/sequence-management/list');
     try {
       final database = container.read(databaseProvider);
       final sequences = await database.sequencesDao.getAllSequences();
@@ -33,7 +39,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get all sequences error: $e');
+      _logError('[API] Get all sequences error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -46,7 +52,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleGetAllTemplates(Request request) async {
-    print('[API] GET /api/sequence-management/templates');
+    _logInfo('[API] GET /api/sequence-management/templates');
     try {
       final database = container.read(databaseProvider);
       final templates = await database.sequencesDao.getAllTemplates();
@@ -58,7 +64,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get all templates error: $e');
+      _logError('[API] Get all templates error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -71,7 +77,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleGetSequenceById(Request request, String id) async {
-    print('[API] GET /api/sequence-management/$id');
+    _logInfo('[API] GET /api/sequence-management/$id');
     try {
       final sequenceId = int.parse(id);
       final database = container.read(databaseProvider);
@@ -89,7 +95,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get sequence by ID error: $e');
+      _logError('[API] Get sequence by ID error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -102,7 +108,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleGetNodesForSequence(Request request, String id) async {
-    print('[API] GET /api/sequence-management/$id/nodes');
+    _logInfo('[API] GET /api/sequence-management/$id/nodes');
     try {
       final sequenceId = int.parse(id);
       final database = container.read(databaseProvider);
@@ -115,7 +121,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get nodes for sequence error: $e');
+      _logError('[API] Get nodes for sequence error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -128,7 +134,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleCreateSequence(Request request) async {
-    print('[API] POST /api/sequence-management');
+    _logInfo('[API] POST /api/sequence-management');
     try {
       final payload = jsonDecode(await request.readAsString());
       final database = container.read(databaseProvider);
@@ -147,7 +153,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Create sequence error: $e');
+      _logError('[API] Create sequence error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -160,7 +166,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleUpdateSequence(Request request, String id) async {
-    print('[API] PUT /api/sequence-management/$id');
+    _logInfo('[API] PUT /api/sequence-management/$id');
     try {
       final sequenceId = int.parse(id);
       final payload = jsonDecode(await request.readAsString());
@@ -178,8 +184,10 @@ class SequenceManagementHandlers {
       // Build updated sequence
       final updated = existing.copyWith(
         name: payload['name'] as String? ?? existing.name,
-        description: Value(payload['description'] as String? ?? existing.description),
-        rootNodeId: Value(payload['rootNodeId'] as String? ?? existing.rootNodeId),
+        description:
+            Value(payload['description'] as String? ?? existing.description),
+        rootNodeId:
+            Value(payload['rootNodeId'] as String? ?? existing.rootNodeId),
         isTemplate: payload['isTemplate'] as bool? ?? existing.isTemplate,
         updatedAt: DateTime.now(),
       );
@@ -191,7 +199,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Update sequence error: $e');
+      _logError('[API] Update sequence error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -204,7 +212,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleDeleteSequence(Request request, String id) async {
-    print('[API] DELETE /api/sequence-management/$id');
+    _logInfo('[API] DELETE /api/sequence-management/$id');
     try {
       final sequenceId = int.parse(id);
       final database = container.read(databaseProvider);
@@ -216,7 +224,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Delete sequence error: $e');
+      _logError('[API] Delete sequence error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -229,21 +237,22 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleDuplicateSequence(Request request, String id) async {
-    print('[API] POST /api/sequence-management/$id/duplicate');
+    _logInfo('[API] POST /api/sequence-management/$id/duplicate');
     try {
       final sequenceId = int.parse(id);
       final payload = jsonDecode(await request.readAsString());
       final newName = payload['name'] as String? ?? 'Copy';
       final database = container.read(databaseProvider);
 
-      final newId = await database.sequencesDao.duplicateSequence(sequenceId, newName);
+      final newId =
+          await database.sequencesDao.duplicateSequence(sequenceId, newName);
 
       return Response.ok(
         jsonEncode({"status": "duplicated", "id": newId}),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Duplicate sequence error: $e');
+      _logError('[API] Duplicate sequence error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -256,7 +265,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleCreateNode(Request request, String sequenceId) async {
-    print('[API] POST /api/sequence-management/$sequenceId/nodes');
+    _logInfo('[API] POST /api/sequence-management/$sequenceId/nodes');
     try {
       final seqId = int.parse(sequenceId);
       final payload = jsonDecode(await request.readAsString());
@@ -274,7 +283,7 @@ class SequenceManagementHandlers {
         recoveryConfig: Value(payload['recoveryConfig'] as String?),
         parentNodeId: Value(payload['parentNodeId'] as String?),
         orderIndex: Value(payload['orderIndex'] as int? ?? 0),
-        isEnabled: Value(payload['isEnabled'] as bool? ?? true),
+        isEnabled: Value(payload['isEnabled'] as bool? ?? false),
       );
 
       final id = await database.sequencesDao.createNode(companion);
@@ -284,7 +293,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Create node error: $e');
+      _logError('[API] Create node error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -297,7 +306,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleUpdateNode(Request request, String nodeId) async {
-    print('[API] PUT /api/sequence-management/nodes/$nodeId');
+    _logInfo('[API] PUT /api/sequence-management/nodes/$nodeId');
     try {
       final nid = int.parse(nodeId);
       final payload = jsonDecode(await request.readAsString());
@@ -313,14 +322,18 @@ class SequenceManagementHandlers {
       }
 
       // Build updated node
-      final updatedProperties = payload['properties'] as String? ?? existing.properties;
+      final updatedProperties =
+          payload['properties'] as String? ?? existing.properties;
       final updated = existing.copyWith(
         name: payload['name'] as String? ?? existing.name,
         nodeType: payload['nodeType'] as String? ?? existing.nodeType,
-        specificType: payload['specificType'] as String? ?? existing.specificType,
+        specificType:
+            payload['specificType'] as String? ?? existing.specificType,
         properties: updatedProperties,
-        recoveryConfig: Value(payload['recoveryConfig'] as String? ?? existing.recoveryConfig),
-        parentNodeId: Value(payload['parentNodeId'] as String? ?? existing.parentNodeId),
+        recoveryConfig: Value(
+            payload['recoveryConfig'] as String? ?? existing.recoveryConfig),
+        parentNodeId:
+            Value(payload['parentNodeId'] as String? ?? existing.parentNodeId),
         orderIndex: payload['orderIndex'] as int? ?? existing.orderIndex,
         isEnabled: payload['isEnabled'] as bool? ?? existing.isEnabled,
       );
@@ -332,7 +345,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Update node error: $e');
+      _logError('[API] Update node error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -345,7 +358,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleDeleteNode(Request request, String nodeId) async {
-    print('[API] DELETE /api/sequence-management/nodes/$nodeId');
+    _logInfo('[API] DELETE /api/sequence-management/nodes/$nodeId');
     try {
       final nid = int.parse(nodeId);
       final database = container.read(databaseProvider);
@@ -363,7 +376,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Delete node error: $e');
+      _logError('[API] Delete node error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -375,8 +388,9 @@ class SequenceManagementHandlers {
   // Reorder Nodes
   // ===========================================================================
 
-  Future<Response> handleReorderNodes(Request request, String sequenceId) async {
-    print('[API] POST /api/sequence-management/$sequenceId/reorder');
+  Future<Response> handleReorderNodes(
+      Request request, String sequenceId) async {
+    _logInfo('[API] POST /api/sequence-management/$sequenceId/reorder');
     try {
       final seqId = int.parse(sequenceId);
       final payload = jsonDecode(await request.readAsString());
@@ -390,7 +404,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Reorder nodes error: $e');
+      _logError('[API] Reorder nodes error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -403,7 +417,7 @@ class SequenceManagementHandlers {
   // ===========================================================================
 
   Future<Response> handleSetNodeEnabled(Request request, String nodeId) async {
-    print('[API] POST /api/sequence-management/nodes/$nodeId/enabled');
+    _logInfo('[API] POST /api/sequence-management/nodes/$nodeId/enabled');
     try {
       final nid = int.parse(nodeId);
       final payload = jsonDecode(await request.readAsString());
@@ -417,7 +431,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Set node enabled error: $e');
+      _logError('[API] Set node enabled error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -429,12 +443,15 @@ class SequenceManagementHandlers {
   // Get Child Nodes
   // ===========================================================================
 
-  Future<Response> handleGetChildNodes(Request request, String sequenceId, String parentNodeId) async {
-    print('[API] GET /api/sequence-management/$sequenceId/nodes/$parentNodeId/children');
+  Future<Response> handleGetChildNodes(
+      Request request, String sequenceId, String parentNodeId) async {
+    _logInfo(
+        '[API] GET /api/sequence-management/$sequenceId/nodes/$parentNodeId/children');
     try {
       final seqId = int.parse(sequenceId);
       final database = container.read(databaseProvider);
-      final nodes = await database.sequencesDao.getChildNodes(seqId, parentNodeId);
+      final nodes =
+          await database.sequencesDao.getChildNodes(seqId, parentNodeId);
 
       return Response.ok(
         jsonEncode({
@@ -443,7 +460,7 @@ class SequenceManagementHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get child nodes error: $e');
+      _logError('[API] Get child nodes error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

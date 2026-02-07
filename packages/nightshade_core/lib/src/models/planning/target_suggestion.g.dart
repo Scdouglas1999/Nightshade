@@ -31,6 +31,9 @@ _$TargetSuggestionImpl _$$TargetSuggestionImplFromJson(
       magnitude: (json['magnitude'] as num?)?.toDouble(),
       sizeArcmin: (json['sizeArcmin'] as num?)?.toDouble(),
       constellation: json['constellation'] as String?,
+      tags:
+          (json['tags'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+              const <String>[],
     );
 
 Map<String, dynamic> _$$TargetSuggestionImplToJson(
@@ -52,6 +55,7 @@ Map<String, dynamic> _$$TargetSuggestionImplToJson(
       'magnitude': instance.magnitude,
       'sizeArcmin': instance.sizeArcmin,
       'constellation': instance.constellation,
+      'tags': instance.tags,
     };
 
 _$TargetSuggestionConfigImpl _$$TargetSuggestionConfigImplFromJson(

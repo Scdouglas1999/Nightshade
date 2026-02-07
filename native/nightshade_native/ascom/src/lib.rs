@@ -58,7 +58,7 @@ pub fn discover_devices(device_type: AscomDeviceType) -> Vec<AscomDevice> {
     windows_impl::discover_devices(device_type.registry_name())
 }
 
-/// Discover ASCOM devices (non-Windows stub)
+/// Discover ASCOM devices (non-Windows shim)
 #[cfg(not(windows))]
 pub fn discover_devices(_device_type: AscomDeviceType) -> Vec<AscomDevice> {
     Vec::new()

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -117,7 +118,7 @@ class SecureSignalingServer {
   /// Start the secure signaling server
   Future<void> start() async {
     if (_server != null) {
-      print('[SecureSignaling] Server is already running');
+      developer.log('Server is already running', name: 'SecureSignaling', level: 900);
       return;
     }
 
@@ -135,14 +136,14 @@ class SecureSignalingServer {
         // Start heartbeat timer
         _heartbeatTimer = Timer.periodic(_heartbeatInterval, _sendHeartbeats);
 
-        print('[SecureSignaling] Server started on port $_signalingPort');
+        developer.log('Server started on port $_signalingPort', name: 'SecureSignaling', level: 800);
         return;
       } catch (e) {
         if (attempt < 2) {
           await Future.delayed(Duration(seconds: attempt + 1));
           continue;
         }
-        print('[SecureSignaling] Failed to start server after 3 attempts: $e');
+        developer.log('Failed to start server after 3 attempts: $e', name: 'SecureSignaling', level: 1000);
         rethrow;
       }
     }
@@ -162,7 +163,7 @@ class SecureSignalingServer {
     await _server?.close();
     _server = null;
 
-    print('[SecureSignaling] Server stopped');
+    developer.log('Server stopped', name: 'SecureSignaling', level: 800);
   }
 
   // ============================================================================
@@ -171,7 +172,7 @@ class SecureSignalingServer {
 
   void _handleNewConnection(Socket socket) {
     final connectionId = '${socket.remoteAddress.address}:${socket.remotePort}';
-    print('[SecureSignaling] New connection from $connectionId');
+    developer.log('New connection from $connectionId', name: 'SecureSignaling', level: 800);
 
     final client = ClientConnection(socket);
     _clients[connectionId] = client;
@@ -179,7 +180,7 @@ class SecureSignalingServer {
     // Set authentication timeout
     Timer(_authTimeout, () {
       if (!client.isAuthenticated) {
-        print('[SecureSignaling] Authentication timeout for $connectionId');
+        developer.log('Authentication timeout for $connectionId', name: 'SecureSignaling', level: 900);
         _sendError(socket, 'Authentication timeout');
         socket.close();
         _clients.remove(connectionId);
@@ -190,7 +191,7 @@ class SecureSignalingServer {
     socket.listen(
       (data) => _handleData(connectionId, data),
       onError: (error) {
-        print('[SecureSignaling] Error from $connectionId: $error');
+        developer.log('Error from $connectionId: $error', name: 'SecureSignaling', level: 1000);
         _handleDisconnect(connectionId);
       },
       onDone: () => _handleDisconnect(connectionId),
@@ -202,8 +203,7 @@ class SecureSignalingServer {
     final client = _clients[connectionId];
     if (client != null) {
       if (client.isAuthenticated && client.deviceId != null) {
-        print(
-            '[SecureSignaling] Device ${client.deviceName} (${client.deviceId}) disconnected');
+        developer.log('Device ${client.deviceName} (${client.deviceId}) disconnected', name: 'SecureSignaling', level: 800);
         _clientDisconnectedController.add(client.deviceId!);
       }
       client.socket.close();
@@ -237,7 +237,7 @@ class SecureSignalingServer {
         await _handleSignalingMessage(connectionId, message);
       }
     } catch (e) {
-      print('[SecureSignaling] Error handling data from $connectionId: $e');
+      developer.log('Error handling data from $connectionId: $e', name: 'SecureSignaling', level: 1000);
       _sendError(client.socket, 'Invalid message format');
     }
   }
@@ -278,8 +278,7 @@ class SecureSignalingServer {
       client.isAuthenticated = true;
       client.encryption = ChannelEncryption.fromToken(sessionToken);
 
-      print(
-          '[SecureSignaling] Device $deviceName ($deviceId) authenticated successfully');
+      developer.log('Device $deviceName ($deviceId) authenticated successfully', name: 'SecureSignaling', level: 800);
 
       // Send auth response (unencrypted, but now client knows to encrypt)
       _sendAuthResponse(client.socket, success: true);
@@ -288,8 +287,7 @@ class SecureSignalingServer {
       _clientConnectedController.add(deviceId);
     } else {
       // Authentication failed
-      print(
-          '[SecureSignaling] Authentication failed for $deviceId: ${result.name}');
+      developer.log('Authentication failed for $deviceId: ${result.name}', name: 'SecureSignaling', level: 900);
       _sendAuthResponse(client.socket, success: false, reason: result.name);
       client.socket.close();
       _clients.remove(connectionId);
@@ -341,7 +339,7 @@ class SecureSignalingServer {
         break;
 
       default:
-        print('[SecureSignaling] Unknown message type: ${message.type}');
+        developer.log('Unknown message type: ${message.type}', name: 'SecureSignaling', level: 900);
     }
   }
 
@@ -376,7 +374,7 @@ class SecureSignalingServer {
       final encrypted = encryption.encryptString(jsonStr);
       socket.add(encrypted);
     } catch (e) {
-      print('[SecureSignaling] Error sending message: $e');
+      developer.log('Error sending message: $e', name: 'SecureSignaling', level: 1000);
     }
   }
 
@@ -401,8 +399,7 @@ class SecureSignalingServer {
       final client = entry.value;
 
       if (client.isTimedOut) {
-        print(
-            '[SecureSignaling] Client ${entry.key} timed out (no activity for 30s)');
+        developer.log('Client ${entry.key} timed out (no activity for 30s)', name: 'SecureSignaling', level: 900);
         toRemove.add(entry.key);
       } else if (client.isAuthenticated && client.encryption != null) {
         // Send ping to authenticated clients

@@ -384,9 +384,8 @@ abstract class NightshadeBackend {
 
   /// Set the safety fail mode for the sequencer.
   /// Determines behavior when safety devices fail or are unavailable:
-  /// - "fail_open": Assume safe and continue imaging (default)
-  /// - "fail_closed": Assume unsafe and pause/park
-  /// - "warn_only": Show warning but continue
+  /// - "fail_closed": Treat unavailable safety data as unsafe (enforced)
+  /// - legacy aliases ("fail_open", "warn_only") are coerced to fail-closed
   Future<void> sequencerSetSafetyFailMode(String mode);
 
   /// Set the save path for sequencer images.

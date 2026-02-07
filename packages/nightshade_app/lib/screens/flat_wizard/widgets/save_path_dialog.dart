@@ -59,7 +59,8 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
   Future<void> _browsePath() async {
     final result = await getDirectoryPath(
       confirmButtonText: 'Select',
-      initialDirectory: _pathController.text.isNotEmpty ? _pathController.text : null,
+      initialDirectory:
+          _pathController.text.isNotEmpty ? _pathController.text : null,
     );
 
     if (result != null) {
@@ -159,7 +160,11 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
             // Options
             _OptionCheckbox(
               value: _createDateSubfolder,
-              onChanged: (v) => setState(() => _createDateSubfolder = v ?? true),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _createDateSubfolder = v);
+                }
+              },
               label: 'Create date subfolder automatically',
               description: 'e.g., /2026-01-07/',
               colors: colors,
@@ -167,7 +172,11 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
             const SizedBox(height: 12),
             _OptionCheckbox(
               value: _createFilterSubfolders,
-              onChanged: (v) => setState(() => _createFilterSubfolders = v ?? true),
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _createFilterSubfolders = v);
+                }
+              },
               label: 'Create filter subfolders',
               description: 'e.g., /L/, /R/, /G/, /B/',
               colors: colors,

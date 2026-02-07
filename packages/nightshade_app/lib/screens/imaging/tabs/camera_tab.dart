@@ -43,7 +43,8 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final cameraState = ref.watch(cameraStateProvider);
-    final isConnected = cameraState.connectionState == DeviceConnectionState.connected;
+    final isConnected =
+        cameraState.connectionState == DeviceConnectionState.connected;
     // Use target temp from provider (persists across navigation)
     final targetTemp = cameraState.targetTemp;
 
@@ -67,7 +68,8 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
                 // Show cooling status indicator
                 if (cameraState.isCooling)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
                       color: colors.info.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
@@ -105,10 +107,14 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
                       min: -40,
                       max: 20,
                       divisions: 60,
-                      onChanged: isConnected ? (value) {
-                        // Update provider so value persists across navigation
-                        ref.read(cameraStateProvider.notifier).setTargetTemp(value);
-                      } : null,
+                      onChanged: isConnected
+                          ? (value) {
+                              // Update provider so value persists across navigation
+                              ref
+                                  .read(cameraStateProvider.notifier)
+                                  .setTargetTemp(value);
+                            }
+                          : null,
                     ),
                   ),
                 ),
@@ -129,17 +135,15 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _ReadingItem(
-                  label: 'Current',
-                  value: isConnected && cameraState.temperature != null
-                      ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
-                      : '---'
-                ),
+                    label: 'Current',
+                    value: isConnected && cameraState.temperature != null
+                        ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
+                        : '---'),
                 _ReadingItem(
-                  label: 'Power',
-                  value: isConnected && cameraState.coolerPower != null
-                      ? '${cameraState.coolerPower!.toStringAsFixed(0)}%'
-                      : '---'
-                ),
+                    label: 'Power',
+                    value: isConnected && cameraState.coolerPower != null
+                        ? '${cameraState.coolerPower!.toStringAsFixed(0)}%'
+                        : '---'),
               ],
             ),
 
@@ -151,7 +155,9 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
                 Expanded(
                   child: NightshadeButton(
                     label: _isSetting ? 'Setting...' : 'Cooler ON',
-                    onPressed: (isConnected && !_isSetting) ? () => _setCooling(true) : null,
+                    onPressed: (isConnected && !_isSetting)
+                        ? () => _setCooling(true)
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -180,9 +186,9 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
     final targetTemp = ref.read(cameraStateProvider).targetTemp;
     try {
       await ref.read(deviceServiceProvider).setCameraCooling(
-        enabled: enabled,
-        targetTemp: targetTemp,
-      );
+            enabled: enabled,
+            targetTemp: targetTemp,
+          );
       // Update cooling state in provider
       ref.read(cameraStateProvider.notifier).setCooling(enabled);
     } catch (e) {
@@ -273,51 +279,61 @@ class _DebayeringCard extends ConsumerWidget {
               style: TextStyle(fontSize: 11, color: colors.textMuted),
             ),
             const SizedBox(height: 16),
-            
+
             // Algorithm selection
             _SettingRow(
               label: 'Algorithm',
               child: NightshadeDropdown(
                 value: debayerAlgorithm.displayName,
-                items: DebayerAlgorithm.values.map((a) => a.displayName).toList(),
-                onChanged: debayerEnabled ? (value) {
-                  final algorithm = DebayerAlgorithm.values.firstWhere(
-                    (a) => a.displayName == value,
-                    orElse: () => DebayerAlgorithm.bilinear,
-                  );
-                  ref.read(debayerAlgorithmProvider.notifier).state = algorithm;
-                } : null,
+                items:
+                    DebayerAlgorithm.values.map((a) => a.displayName).toList(),
+                onChanged: debayerEnabled
+                    ? (value) {
+                        final algorithm = DebayerAlgorithm.values.firstWhere(
+                          (a) => a.displayName == value,
+                          orElse: () => DebayerAlgorithm.bilinear,
+                        );
+                        ref.read(debayerAlgorithmProvider.notifier).state =
+                            algorithm;
+                      }
+                    : null,
               ),
             ),
             const SizedBox(height: 12),
-            
+
             // Bayer pattern selection
             _SettingRow(
               label: 'Pattern',
               child: NightshadeDropdown(
                 value: bayerPattern.displayName,
                 items: BayerPattern.values.map((p) => p.displayName).toList(),
-                onChanged: (debayerEnabled && !autoDetectBayerPattern) ? (value) {
-                  final pattern = BayerPattern.values.firstWhere(
-                    (p) => p.displayName == value,
-                    orElse: () => BayerPattern.rggb,
-                  );
-                  ref.read(bayerPatternProvider.notifier).state = pattern;
-                } : null,
+                onChanged: (debayerEnabled && !autoDetectBayerPattern)
+                    ? (value) {
+                        final pattern = BayerPattern.values.firstWhere(
+                          (p) => p.displayName == value,
+                          orElse: () => BayerPattern.rggb,
+                        );
+                        ref.read(bayerPatternProvider.notifier).state = pattern;
+                      }
+                    : null,
               ),
             ),
             const SizedBox(height: 12),
-            
+
             // Auto-detect option
             Row(
               children: [
                 NightshadeCheckbox(
                   value: autoDetectBayerPattern,
-                  onChanged: debayerEnabled ? (value) {
-                    if (value != null) {
-                      ref.read(autoDetectBayerPatternProvider.notifier).state = value;
-                    }
-                  } : null,
+                  onChanged: debayerEnabled
+                      ? (value) {
+                          if (value != null) {
+                            ref
+                                .read(autoDetectBayerPatternProvider.notifier)
+                                .state = value;
+                          }
+                        }
+                      : null,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -325,15 +341,17 @@ class _DebayeringCard extends ConsumerWidget {
                     'Auto-detect from FITS header',
                     style: TextStyle(
                       fontSize: 12,
-                      color: debayerEnabled ? colors.textSecondary : colors.textMuted,
+                      color: debayerEnabled
+                          ? colors.textSecondary
+                          : colors.textMuted,
                     ),
                   ),
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Info about algorithms
             Container(
               padding: const EdgeInsets.all(10),
@@ -357,7 +375,8 @@ class _DebayeringCard extends ConsumerWidget {
                     '• Bilinear: Fast, good for previews\n'
                     '• VNG: Better quality, slower\n'
                     '• Super Pixel: 2x2 binning, fastest',
-                    style: TextStyle(fontSize: 10, color: colors.textMuted, height: 1.4),
+                    style: TextStyle(
+                        fontSize: 10, color: colors.textMuted, height: 1.4),
                   ),
                 ],
               ),
@@ -427,7 +446,9 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
                       child: _PresetItem(
                         preset: preset,
                         isSelected: selectedPresetId == preset.id,
-                        onTap: () => ref.read(cameraPresetsProvider.notifier).applyPreset(preset.id),
+                        onTap: () => ref
+                            .read(cameraPresetsProvider.notifier)
+                            .applyPreset(preset.id),
                         onDelete: () => _deletePreset(context, ref, preset),
                       ),
                     );
@@ -503,7 +524,8 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(6),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
               ),
               const SizedBox(height: 16),
@@ -529,7 +551,8 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(6),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
               ),
               const SizedBox(height: 16),
@@ -555,7 +578,8 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(6),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
               ),
             ],
@@ -623,7 +647,8 @@ class _GainOffsetPresetsCard extends ConsumerWidget {
     offsetController.dispose();
   }
 
-  Future<void> _deletePreset(BuildContext context, WidgetRef ref, CameraPreset preset) async {
+  Future<void> _deletePreset(
+      BuildContext context, WidgetRef ref, CameraPreset preset) async {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
 
     final confirmed = await showDialog<bool>(
@@ -685,8 +710,8 @@ class _DownloadSettingsCard extends ConsumerWidget {
     final imageFormat = settings?.imageFormat ?? output?.format ?? 'FITS';
     final bitDepth = settings?.bitDepth ?? output?.bitDepth ?? '16-bit';
     final savePath = settings?.imageOutputPath ?? output?.savePath ?? '';
-    final includeTimestamp = output?.includeTimestamp ?? true;
-    final includeFilter = output?.includeFilter ?? true;
+    final includeTimestamp = output?.includeTimestamp ?? false;
+    final includeFilter = output?.includeFilter ?? false;
 
     return NightshadeCard(
       child: Padding(
@@ -710,7 +735,9 @@ class _DownloadSettingsCard extends ConsumerWidget {
                 items: const ['FITS', 'XISF', 'TIFF'],
                 onChanged: (value) async {
                   if (value != null) {
-                    await ref.read(appSettingsProvider.notifier).setImageFormat(value);
+                    await ref
+                        .read(appSettingsProvider.notifier)
+                        .setImageFormat(value);
                   }
                 },
               ),
@@ -723,7 +750,9 @@ class _DownloadSettingsCard extends ConsumerWidget {
                 items: const ['16-bit', '32-bit'],
                 onChanged: (value) async {
                   if (value != null) {
-                    await ref.read(appSettingsProvider.notifier).setBitDepth(value);
+                    await ref
+                        .read(appSettingsProvider.notifier)
+                        .setBitDepth(value);
                   }
                 },
               ),
@@ -738,7 +767,9 @@ class _DownloadSettingsCard extends ConsumerWidget {
                       savePath.isEmpty ? 'Not set' : savePath,
                       style: TextStyle(
                         fontSize: 12,
-                        color: savePath.isEmpty ? colors.textMuted : colors.textSecondary,
+                        color: savePath.isEmpty
+                            ? colors.textMuted
+                            : colors.textSecondary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -759,9 +790,11 @@ class _DownloadSettingsCard extends ConsumerWidget {
                   value: includeTimestamp,
                   onChanged: (v) async {
                     if (v != null) {
-                      await ref.read(outputSettingsProvider.notifier).updateOutput(
-                        includeTimestamp: v,
-                      );
+                      await ref
+                          .read(outputSettingsProvider.notifier)
+                          .updateOutput(
+                            includeTimestamp: v,
+                          );
                     }
                   },
                 ),
@@ -779,9 +812,11 @@ class _DownloadSettingsCard extends ConsumerWidget {
                   value: includeFilter,
                   onChanged: (v) async {
                     if (v != null) {
-                      await ref.read(outputSettingsProvider.notifier).updateOutput(
-                        includeFilter: v,
-                      );
+                      await ref
+                          .read(outputSettingsProvider.notifier)
+                          .updateOutput(
+                            includeFilter: v,
+                          );
                     }
                   },
                 ),
@@ -805,10 +840,12 @@ class _DownloadSettingsCard extends ConsumerWidget {
       );
 
       if (directoryPath != null) {
-        await ref.read(appSettingsProvider.notifier).setImageOutputPath(directoryPath);
+        await ref
+            .read(appSettingsProvider.notifier)
+            .setImageOutputPath(directoryPath);
         await ref.read(outputSettingsProvider.notifier).updateOutput(
-          savePath: directoryPath,
-        );
+              savePath: directoryPath,
+            );
 
         if (context.mounted) {
           context.showInfoSnackBar('Save path updated: $directoryPath');
@@ -867,7 +904,8 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+          Text(label,
+              style: TextStyle(fontSize: 12, color: colors.textSecondary)),
           Text(
             value,
             style: TextStyle(
@@ -905,7 +943,9 @@ class _PresetItem extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt,
+          color: isSelected
+              ? colors.primary.withValues(alpha: 0.1)
+              : colors.surfaceAlt,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
@@ -960,7 +1000,8 @@ class _PresetItem extends StatelessWidget {
             ),
             if (onDelete != null)
               IconButton(
-                icon: Icon(Icons.delete_outline, size: 16, color: colors.textMuted),
+                icon: Icon(Icons.delete_outline,
+                    size: 16, color: colors.textMuted),
                 onPressed: onDelete,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -1009,7 +1050,7 @@ class _TemperatureGraph extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final history = ref.watch(temperatureHistoryProvider);
-    
+
     return Container(
       height: 100,
       decoration: BoxDecoration(
@@ -1082,7 +1123,7 @@ class _TemperatureGraphPainter extends CustomPainter {
     // Calculate temperature range
     double minTemp = data.first.temperature;
     double maxTemp = data.first.temperature;
-    
+
     for (final point in data) {
       if (point.temperature < minTemp) minTemp = point.temperature;
       if (point.temperature > maxTemp) maxTemp = point.temperature;
@@ -1091,7 +1132,7 @@ class _TemperatureGraphPainter extends CustomPainter {
         if (point.targetTemp! > maxTemp) maxTemp = point.targetTemp!;
       }
     }
-    
+
     // Add padding
     final range = (maxTemp - minTemp).abs();
     final padding = range < 5 ? 5.0 : range * 0.2;
@@ -1101,15 +1142,17 @@ class _TemperatureGraphPainter extends CustomPainter {
     // Draw horizontal grid lines and labels
     final tempRange = maxTemp - minTemp;
     final gridStep = tempRange > 20 ? 10.0 : 5.0;
-    
+
     final textPainter = TextPainter(
       textDirection: TextDirection.ltr,
     );
-    
-    for (double t = (minTemp / gridStep).ceil() * gridStep; t <= maxTemp; t += gridStep) {
+
+    for (double t = (minTemp / gridStep).ceil() * gridStep;
+        t <= maxTemp;
+        t += gridStep) {
       final y = size.height - ((t - minTemp) / tempRange * size.height);
       canvas.drawLine(Offset(30, y), Offset(size.width, y), paintGrid);
-      
+
       textPainter.text = TextSpan(
         text: '${t.toInt()}°',
         style: TextStyle(fontSize: 8, color: colors.textMuted),
@@ -1124,7 +1167,7 @@ class _TemperatureGraphPainter extends CustomPainter {
     final tempPath = Path();
     final targetPath = Path();
     final powerPath = Path();
-    
+
     bool tempFirst = true;
     bool targetFirst = true;
     bool powerFirst = true;
@@ -1132,19 +1175,21 @@ class _TemperatureGraphPainter extends CustomPainter {
     for (int i = 0; i < data.length; i++) {
       final point = data[i];
       final x = 35 + (i * stepX);
-      
+
       // Temperature
-      final tempY = size.height - ((point.temperature - minTemp) / tempRange * size.height);
+      final tempY = size.height -
+          ((point.temperature - minTemp) / tempRange * size.height);
       if (tempFirst) {
         tempPath.moveTo(x, tempY);
         tempFirst = false;
       } else {
         tempPath.lineTo(x, tempY);
       }
-      
+
       // Target temperature
       if (point.targetTemp != null) {
-        final targetY = size.height - ((point.targetTemp! - minTemp) / tempRange * size.height);
+        final targetY = size.height -
+            ((point.targetTemp! - minTemp) / tempRange * size.height);
         if (targetFirst) {
           targetPath.moveTo(x, targetY);
           targetFirst = false;
@@ -1152,7 +1197,7 @@ class _TemperatureGraphPainter extends CustomPainter {
           targetPath.lineTo(x, targetY);
         }
       }
-      
+
       // Cooler power (0-100 mapped to height)
       if (point.coolerPower != null) {
         final powerY = size.height - (point.coolerPower! / 100.0 * size.height);
@@ -1172,16 +1217,20 @@ class _TemperatureGraphPainter extends CustomPainter {
 
     // Draw legend
     const legendY = 8.0;
-    
+
     // Temperature legend
-    canvas.drawLine(Offset(size.width - 80, legendY), Offset(size.width - 68, legendY), paintTemp);
-    textPainter.text = TextSpan(text: 'Temp', style: TextStyle(fontSize: 8, color: colors.textMuted));
+    canvas.drawLine(Offset(size.width - 80, legendY),
+        Offset(size.width - 68, legendY), paintTemp);
+    textPainter.text = TextSpan(
+        text: 'Temp', style: TextStyle(fontSize: 8, color: colors.textMuted));
     textPainter.layout();
     textPainter.paint(canvas, Offset(size.width - 65, legendY - 5));
-    
+
     // Power legend
-    canvas.drawLine(Offset(size.width - 45, legendY), Offset(size.width - 33, legendY), paintPower);
-    textPainter.text = TextSpan(text: 'PWR', style: TextStyle(fontSize: 8, color: colors.textMuted));
+    canvas.drawLine(Offset(size.width - 45, legendY),
+        Offset(size.width - 33, legendY), paintPower);
+    textPainter.text = TextSpan(
+        text: 'PWR', style: TextStyle(fontSize: 8, color: colors.textMuted));
     textPainter.layout();
     textPainter.paint(canvas, Offset(size.width - 30, legendY - 5));
   }
@@ -1191,6 +1240,3 @@ class _TemperatureGraphPainter extends CustomPainter {
     return oldDelegate.data != data;
   }
 }
-
-
-

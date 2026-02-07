@@ -22,7 +22,7 @@ class RadarFrame with _$RadarFrame {
     required DateTime timestamp,
 
     /// URL template for map tiles
-    /// - For XYZ: template with {z}/{x}/{y} placeholders
+    /// - For XYZ: template with {z}/{x}/{y} tokens
     /// - For WMS: base URL (without bbox parameter)
     required String tileUrlTemplate,
 

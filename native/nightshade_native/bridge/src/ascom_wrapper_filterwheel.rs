@@ -226,10 +226,8 @@ impl NativeFilterWheel for AscomFilterWheelWrapper {
 
     async fn is_moving(&self) -> Result<bool, NativeError> {
         // ASCOM Position returns -1 if moving
-        match self.get_position().await {
-            Ok(pos) => Ok(pos == -1),
-            Err(_) => Ok(false), // Or error?
-        }
+        let pos = self.get_position().await?;
+        Ok(pos == -1)
     }
 
     fn get_filter_count(&self) -> i32 {

@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../theme/nightshade_colors.dart';
@@ -5,6 +7,7 @@ import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 
 enum ButtonVariant { primary, outline, ghost, destructive }
+
 enum ButtonSize { small, medium, large }
 
 class NightshadeButton extends StatefulWidget {
@@ -45,7 +48,8 @@ class _NightshadeButtonState extends State<NightshadeButton>
       vsync: this,
     );
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.98).animate(
-      CurvedAnimation(parent: _pressController, curve: NightshadeTokens.curveSnappy),
+      CurvedAnimation(
+          parent: _pressController, curve: NightshadeTokens.curveSnappy),
     );
   }
 
@@ -76,7 +80,8 @@ class _NightshadeButtonState extends State<NightshadeButton>
   void _runAfterSafeUpdate(VoidCallback update) {
     if (!mounted) return;
     final phase = SchedulerBinding.instance.schedulerPhase;
-    if (phase == SchedulerPhase.idle || phase == SchedulerPhase.postFrameCallbacks) {
+    if (phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
       setState(update);
     } else {
       SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -123,7 +128,8 @@ class _NightshadeButtonState extends State<NightshadeButton>
 
   TextStyle get _textStyle {
     return switch (widget.size) {
-      ButtonSize.small => NightshadeTypography.captionSm.copyWith(fontWeight: FontWeight.w500),
+      ButtonSize.small =>
+        NightshadeTypography.captionSm.copyWith(fontWeight: FontWeight.w500),
       ButtonSize.medium => NightshadeTypography.buttonSm,
       ButtonSize.large => NightshadeTypography.button,
     };
@@ -140,13 +146,17 @@ class _NightshadeButtonState extends State<NightshadeButton>
   /// Creates a slightly lighter shade of the given color
   Color _lightenColor(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness + amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness + amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   /// Creates a slightly darker shade of the given color
   Color _darkenColor(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   @override
@@ -164,7 +174,8 @@ class _NightshadeButtonState extends State<NightshadeButton>
     switch (widget.variant) {
       case ButtonVariant.primary:
         baseColor = isDisabled
-            ? colors.primary.withValues(alpha: NightshadeTokens.opacityDisabled + 0.12)
+            ? colors.primary
+                .withValues(alpha: NightshadeTokens.opacityDisabled + 0.12)
             : _isPressed
                 ? _darkenColor(colors.primary, 0.1)
                 : colors.primary;
@@ -174,7 +185,8 @@ class _NightshadeButtonState extends State<NightshadeButton>
         showGlow = _isHovered && !isDisabled && !_isPressed;
       case ButtonVariant.destructive:
         baseColor = isDisabled
-            ? colors.error.withValues(alpha: NightshadeTokens.opacityDisabled + 0.12)
+            ? colors.error
+                .withValues(alpha: NightshadeTokens.opacityDisabled + 0.12)
             : _isPressed
                 ? _darkenColor(colors.error, 0.1)
                 : colors.error;
@@ -202,9 +214,8 @@ class _NightshadeButtonState extends State<NightshadeButton>
 
     // Primary/destructive buttons use a muted, semi-transparent color
     // This creates a translucent effect that lets the dark background show through
-    final Color? flatButtonColor = useGradient
-        ? baseColor.withValues(alpha: 0.65)
-        : null;
+    final Color? flatButtonColor =
+        useGradient ? baseColor.withValues(alpha: 0.65) : null;
 
     // Build glow shadow for hover state
     final List<BoxShadow>? boxShadow = showGlow
@@ -227,7 +238,9 @@ class _NightshadeButtonState extends State<NightshadeButton>
           _setHovered(false);
           _releasePress();
         },
-        cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
+        cursor: isDisabled
+            ? SystemMouseCursors.forbidden
+            : SystemMouseCursors.click,
         child: GestureDetector(
           onTapDown: _handleTapDown,
           onTapUp: _handleTapUp,
@@ -267,7 +280,8 @@ class _NightshadeButtonState extends State<NightshadeButton>
                       ),
                       const SizedBox(width: NightshadeTokens.spaceSm),
                     ] else if (widget.icon != null) ...[
-                      Icon(widget.icon, size: _iconSize, color: foregroundColor),
+                      Icon(widget.icon,
+                          size: _iconSize, color: foregroundColor),
                       const SizedBox(width: NightshadeTokens.spaceSm - 2),
                     ],
                     Flexible(
@@ -288,8 +302,3 @@ class _NightshadeButtonState extends State<NightshadeButton>
     );
   }
 }
-
-
-
-
-

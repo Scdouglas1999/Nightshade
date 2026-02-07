@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,7 +24,8 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
   bool _showGrid = false;
 
   // Zoom control state
-  final GlobalKey<_ImageDisplayState> _imageDisplayKey = GlobalKey<_ImageDisplayState>();
+  final GlobalKey<_ImageDisplayState> _imageDisplayKey =
+      GlobalKey<_ImageDisplayState>();
   double _currentZoomLevel = 1.0;
   ZoomMode _currentZoomMode = ZoomMode.fit;
 
@@ -37,9 +40,11 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
     final cameraState = ref.watch(cameraStateProvider);
     final lastStats = ref.watch(lastImageStatsProvider);
 
-    final isConnected = cameraState.connectionState == DeviceConnectionState.connected;
+    final isConnected =
+        cameraState.connectionState == DeviceConnectionState.connected;
     // Derive capture state from exposureProgress (single source of truth)
-    final isCapturing = exposureProgress.percent > 0 || exposureProgress.isDownloading;
+    final isCapturing =
+        exposureProgress.percent > 0 || exposureProgress.isDownloading;
 
     // Mobile layout: Stack vertically
     if (isMobile) {
@@ -105,9 +110,9 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                isConnected 
-                                  ? 'Take an exposure to see preview here'
-                                  : 'Connect a camera first',
+                                isConnected
+                                    ? 'Take an exposure to see preview here'
+                                    : 'Connect a camera first',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: colors.textMuted,
@@ -121,12 +126,14 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                       if (_showCrosshair)
                         Positioned.fill(
                           child: CustomPaint(
-                            painter: _CrosshairPainter(color: colors.primary.withValues(alpha: 0.3)),
+                            painter: _CrosshairPainter(
+                                color: colors.primary.withValues(alpha: 0.3)),
                           ),
                         ),
 
                       // Exposure progress overlay
-                      if (exposureProgress.percent > 0 || exposureProgress.isDownloading)
+                      if (exposureProgress.percent > 0 ||
+                          exposureProgress.isDownloading)
                         _ExposureProgressOverlay(
                           progress: exposureProgress,
                           colors: colors,
@@ -156,34 +163,41 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                                 _IconButton(
                                   icon: LucideIcons.zoomIn,
                                   tooltip: 'Zoom In',
-                                  onPressed: () => _imageDisplayKey.currentState?.zoomIn(),
+                                  onPressed: () =>
+                                      _imageDisplayKey.currentState?.zoomIn(),
                                 ),
                                 const SizedBox(height: 4),
                                 _IconButton(
                                   icon: LucideIcons.zoomOut,
                                   tooltip: 'Zoom Out',
-                                  onPressed: () => _imageDisplayKey.currentState?.zoomOut(),
+                                  onPressed: () =>
+                                      _imageDisplayKey.currentState?.zoomOut(),
                                 ),
                                 const SizedBox(height: 4),
                                 _IconButton(
                                   icon: LucideIcons.maximize2,
                                   tooltip: 'Fit to Screen',
                                   isActive: _currentZoomMode == ZoomMode.fit,
-                                  onPressed: () => _imageDisplayKey.currentState?.fitToScreen(),
+                                  onPressed: () => _imageDisplayKey.currentState
+                                      ?.fitToScreen(),
                                 ),
                                 const SizedBox(height: 4),
                                 _IconButton(
                                   icon: LucideIcons.square,
                                   tooltip: '1:1 (100%)',
-                                  isActive: _currentZoomMode == ZoomMode.oneToOne,
-                                  onPressed: () => _imageDisplayKey.currentState?.oneToOne(),
+                                  isActive:
+                                      _currentZoomMode == ZoomMode.oneToOne,
+                                  onPressed: () =>
+                                      _imageDisplayKey.currentState?.oneToOne(),
                                 ),
                                 if (_currentZoomLevel != 1.0) ...[
                                   const SizedBox(height: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: colors.primary.withValues(alpha: 0.1),
+                                      color:
+                                          colors.primary.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
@@ -192,7 +206,9 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                                         fontSize: 9,
                                         fontWeight: FontWeight.w600,
                                         color: colors.primary,
-                                        fontFeatures: const [FontFeature.tabularFigures()],
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures()
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -244,23 +260,30 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                               ),
                               const SizedBox(height: 8),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
                                 children: [
                                   _StatItem(
                                     label: 'HFR',
-                                    value: lastStats?.hfr?.toStringAsFixed(2) ?? '---',
+                                    value: lastStats?.hfr?.toStringAsFixed(2) ??
+                                        '---',
                                   ),
                                   _StatItem(
                                     label: 'Stars',
-                                    value: lastStats?.starCount?.toString() ?? '---',
+                                    value: lastStats?.starCount?.toString() ??
+                                        '---',
                                   ),
                                   _StatItem(
                                     label: 'Mean',
-                                    value: lastStats?.mean?.toStringAsFixed(0) ?? '---',
+                                    value:
+                                        lastStats?.mean?.toStringAsFixed(0) ??
+                                            '---',
                                   ),
                                   _StatItem(
                                     label: 'Median',
-                                    value: lastStats?.median?.toStringAsFixed(0) ?? '---',
+                                    value:
+                                        lastStats?.median?.toStringAsFixed(0) ??
+                                            '---',
                                   ),
                                 ],
                               ),
@@ -331,9 +354,13 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                             const SizedBox(height: 8),
                             Consumer(
                               builder: (context, ref, _) {
-                                final annotationSettings = ref.watch(annotationSettingsProvider);
-                                final settings = annotationSettings.valueOrNull ?? const AnnotationSettings();
-                                final showStars = settings.visibleTypes.contains(AnnotationObjectFilter.stars);
+                                final annotationSettings =
+                                    ref.watch(annotationSettingsProvider);
+                                final settings =
+                                    annotationSettings.valueOrNull ??
+                                        const AnnotationSettings();
+                                final showStars = settings.visibleTypes
+                                    .contains(AnnotationObjectFilter.stars);
 
                                 // Use Wrap to prevent overflow on narrow screens
                                 return Wrap(
@@ -342,18 +369,27 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                                   children: [
                                     GestureDetector(
                                       onTap: () {
-                                        ref.read(annotationSettingsProvider.notifier)
-                                            .toggleObjectType(AnnotationObjectFilter.stars);
+                                        ref
+                                            .read(annotationSettingsProvider
+                                                .notifier)
+                                            .toggleObjectType(
+                                                AnnotationObjectFilter.stars);
                                       },
-                                      child: _ToggleChip(label: 'Stars', isActive: showStars),
+                                      child: _ToggleChip(
+                                          label: 'Stars', isActive: showStars),
                                     ),
                                     GestureDetector(
-                                      onTap: () => setState(() => _showGrid = !_showGrid),
-                                      child: _ToggleChip(label: 'Grid', isActive: _showGrid),
+                                      onTap: () => setState(
+                                          () => _showGrid = !_showGrid),
+                                      child: _ToggleChip(
+                                          label: 'Grid', isActive: _showGrid),
                                     ),
                                     GestureDetector(
-                                      onTap: () => setState(() => _showCrosshair = !_showCrosshair),
-                                      child: _ToggleChip(label: 'Crosshair', isActive: _showCrosshair),
+                                      onTap: () => setState(() =>
+                                          _showCrosshair = !_showCrosshair),
+                                      child: _ToggleChip(
+                                          label: 'Crosshair',
+                                          isActive: _showCrosshair),
                                     ),
                                   ],
                                 );
@@ -372,7 +408,8 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
 
         // Right sidebar - Capture controls
         SizedBox(
-          width: Responsive.value(context, mobile: 280.0, tablet: 300.0, desktop: 320.0),
+          width: Responsive.value(context,
+              mobile: 280.0, tablet: 300.0, desktop: 320.0),
           child: Container(
             decoration: BoxDecoration(
               color: colors.surface,
@@ -439,7 +476,9 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          isConnected ? 'No image captured' : 'Connect a camera first',
+                          isConnected
+                              ? 'No image captured'
+                              : 'Connect a camera first',
                           style: TextStyle(
                             fontSize: 13,
                             color: colors.textSecondary,
@@ -453,12 +492,14 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                 if (_showCrosshair)
                   Positioned.fill(
                     child: CustomPaint(
-                      painter: _CrosshairPainter(color: colors.primary.withValues(alpha: 0.3)),
+                      painter: _CrosshairPainter(
+                          color: colors.primary.withValues(alpha: 0.3)),
                     ),
                   ),
 
                 // Exposure progress overlay
-                if (exposureProgress.percent > 0 || exposureProgress.isDownloading)
+                if (exposureProgress.percent > 0 ||
+                    exposureProgress.isDownloading)
                   _ExposureProgressOverlay(
                     progress: exposureProgress,
                     colors: colors,
@@ -475,20 +516,23 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
                         _IconButton(
                           icon: LucideIcons.zoomOut,
                           tooltip: 'Zoom Out',
-                          onPressed: () => _imageDisplayKey.currentState?.zoomOut(),
+                          onPressed: () =>
+                              _imageDisplayKey.currentState?.zoomOut(),
                         ),
                         const SizedBox(width: 4),
                         _IconButton(
                           icon: LucideIcons.zoomIn,
                           tooltip: 'Zoom In',
-                          onPressed: () => _imageDisplayKey.currentState?.zoomIn(),
+                          onPressed: () =>
+                              _imageDisplayKey.currentState?.zoomIn(),
                         ),
                         const SizedBox(width: 4),
                         _IconButton(
                           icon: LucideIcons.maximize2,
                           tooltip: 'Fit to Screen',
                           isActive: _currentZoomMode == ZoomMode.fit,
-                          onPressed: () => _imageDisplayKey.currentState?.fitToScreen(),
+                          onPressed: () =>
+                              _imageDisplayKey.currentState?.fitToScreen(),
                         ),
                       ],
                     ),
@@ -577,7 +621,8 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
   }
 
   /// Shared sidebar content for both mobile and desktop
-  Widget _buildSidebarContent(NightshadeColors colors, CapturedImageData? currentImage) {
+  Widget _buildSidebarContent(
+      NightshadeColors colors, CapturedImageData? currentImage) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -593,7 +638,11 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
           children: [
             NightshadeCheckbox(
               value: _autoStretch,
-              onChanged: (value) => setState(() => _autoStretch = value ?? true),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _autoStretch = value);
+                }
+              },
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -614,7 +663,11 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
           children: [
             NightshadeCheckbox(
               value: _showCrosshair,
-              onChanged: (value) => setState(() => _showCrosshair = value ?? true),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _showCrosshair = value);
+                }
+              },
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -651,13 +704,20 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _InfoRow(label: 'Size', value: '${currentImage.width} × ${currentImage.height}'),
+                _InfoRow(
+                    label: 'Size',
+                    value: '${currentImage.width} × ${currentImage.height}'),
                 const SizedBox(height: 4),
-                _InfoRow(label: 'Exposure', value: '${currentImage.settings.exposureTime}s'),
+                _InfoRow(
+                    label: 'Exposure',
+                    value: '${currentImage.settings.exposureTime}s'),
                 const SizedBox(height: 4),
-                _InfoRow(label: 'Frame', value: currentImage.settings.frameType.displayName),
+                _InfoRow(
+                    label: 'Frame',
+                    value: currentImage.settings.frameType.displayName),
                 const SizedBox(height: 4),
-                _InfoRow(label: 'Time', value: _formatTime(currentImage.capturedAt)),
+                _InfoRow(
+                    label: 'Time', value: _formatTime(currentImage.capturedAt)),
               ],
             ),
           ),
@@ -685,7 +745,8 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
       final mountState = ref.read(mountStateProvider);
 
       // Find ASTAP executable
-      final executablePath = await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
+      final executablePath =
+          await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
 
       final config = PlateSolverConfig(
         type: PlateSolverType.astap,
@@ -693,8 +754,12 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
         timeoutSeconds: 60,
         searchRadius: 30.0,
         // Use mount position as hint if available
-        hintRa: mountState.connectionState == DeviceConnectionState.connected ? mountState.ra : null,
-        hintDec: mountState.connectionState == DeviceConnectionState.connected ? mountState.dec : null,
+        hintRa: mountState.connectionState == DeviceConnectionState.connected
+            ? mountState.ra
+            : null,
+        hintDec: mountState.connectionState == DeviceConnectionState.connected
+            ? mountState.dec
+            : null,
       );
 
       final result = await plateSolveService.solve(image.filePath!, config);
@@ -709,7 +774,8 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
           'Solved: RA ${raText}h, Dec $decText°, Rotation $rotText°',
         );
       } else {
-        context.showErrorSnackBar('Plate solve failed: ${result.errorMessage ?? "Unknown error"}');
+        context.showErrorSnackBar(
+            'Plate solve failed: ${result.errorMessage ?? "Unknown error"}');
       }
     } catch (e) {
       if (mounted) {
@@ -721,9 +787,9 @@ class _CaptureTabState extends ConsumerState<CaptureTab> {
 
 /// Zoom mode enumeration
 enum ZoomMode {
-  fit,       // Fit to screen
-  oneToOne,  // 1:1 pixel mapping
-  custom,    // User-controlled zoom
+  fit, // Fit to screen
+  oneToOne, // 1:1 pixel mapping
+  custom, // User-controlled zoom
 }
 
 /// Image display with zoom/pan support for both color and mono images
@@ -795,7 +861,8 @@ class _ImageDisplayState extends State<_ImageDisplay> {
   }
 
   Size? _getContainerSize() {
-    final renderBox = _containerKey.currentContext?.findRenderObject() as RenderBox?;
+    final renderBox =
+        _containerKey.currentContext?.findRenderObject() as RenderBox?;
     return renderBox?.size;
   }
 
@@ -878,8 +945,12 @@ class _ImageDisplayState extends State<_ImageDisplay> {
     final currentScale = currentMatrix.getMaxScaleOnAxis();
 
     // Calculate current center in image coordinates
-    final centerX = (containerSize.width / 2 - currentMatrix.getTranslation().x) / currentScale;
-    final centerY = (containerSize.height / 2 - currentMatrix.getTranslation().y) / currentScale;
+    final centerX =
+        (containerSize.width / 2 - currentMatrix.getTranslation().x) /
+            currentScale;
+    final centerY =
+        (containerSize.height / 2 - currentMatrix.getTranslation().y) /
+            currentScale;
 
     // Calculate new offset to maintain center point
     final offsetX = containerSize.width / 2 - centerX * scale;
@@ -957,16 +1028,17 @@ class _ControllableImageViewer extends StatelessWidget {
             width: imageData.width,
             height: imageData.height,
             isColor: imageData.isColor,
-            minScale: 1.0,  // Disable internal scaling (we handle it via outer InteractiveViewer)
+            minScale:
+                1.0, // Disable internal scaling (we handle it via outer InteractiveViewer)
             maxScale: 1.0,
-            enableInteraction: false,  // Disable internal interaction (we handle it via outer InteractiveViewer)
+            enableInteraction:
+                false, // Disable internal interaction (we handle it via outer InteractiveViewer)
           ),
         ),
       ),
     );
   }
 }
-
 
 class _ExposureProgressOverlay extends StatelessWidget {
   final ExposureProgress progress;
@@ -979,9 +1051,10 @@ class _ExposureProgressOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusText = progress.isDownloading ? 'Downloading...' : 'Exposing...';
+    final statusText =
+        progress.isDownloading ? 'Downloading...' : 'Exposing...';
     final progressValue = progress.percent / 100.0;
-    
+
     return Positioned.fill(
       child: Container(
         color: Colors.black.withValues(alpha: 0.7),
@@ -1166,7 +1239,9 @@ class _ToggleChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isActive ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt,
+        color: isActive
+            ? colors.primary.withValues(alpha: 0.1)
+            : colors.surfaceAlt,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: isActive ? colors.primary : colors.border,

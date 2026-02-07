@@ -528,11 +528,11 @@ impl CoolingManager {
     pub async fn warmup(&self) -> Result<(), CameraError> {
         let camera_lock = self.camera.lock().await;
         let current_temp = camera_lock.sensor_temp();
+        let warm_target = camera_lock.capabilities().max_cool_temp;
         drop(camera_lock);
 
         // Calculate warmup steps
-        let ambient = 20.0; // Assume 20°C ambient
-        let temp_diff = ambient - current_temp;
+        let temp_diff = warm_target - current_temp;
         let steps = (temp_diff.abs() / 5.0).ceil() as i32; // 5°C steps
 
         for i in 1..=steps {

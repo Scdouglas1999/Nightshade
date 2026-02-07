@@ -1,5 +1,8 @@
+// ignore_for_file: unused_field
+
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:http/http.dart' as http;
@@ -42,7 +45,9 @@ class UpdateService {
 
   /// Configure the update server URL and channel
   void configure({required String serverUrl, String channel = 'stable'}) {
-    _updateServerUrl = serverUrl.endsWith('/') ? serverUrl.substring(0, serverUrl.length - 1) : serverUrl;
+    _updateServerUrl = serverUrl.endsWith('/')
+        ? serverUrl.substring(0, serverUrl.length - 1)
+        : serverUrl;
     _channel = channel;
   }
 
@@ -149,14 +154,19 @@ class UpdateService {
     // Clear cancel token after successful download
     _currentDownloadToken = null;
 
-    // Verify package integrity
-    // For now we just check the size, signature verification can be added later
+    // Verify package integrity: size and SHA-256 hash
     final packageFile = File(packagePath);
-    final actualSize = await packageFile.length();
-    if (actualSize != manifest.compressedSize) {
+    final verified = await _verifier.verifyPackage(
+      packageFile,
+      manifest.compressedSize,
+      manifest.signature,
+    );
+    if (!verified) {
       await packageFile.delete();
       throw UpdateException(
-        'Package size mismatch: expected ${manifest.compressedSize}, got $actualSize',
+        'Package integrity verification failed: '
+        'size or SHA-256 hash does not match manifest. '
+        'The download may be corrupted or tampered with.',
       );
     }
 
@@ -273,13 +283,18 @@ class UpdateService {
       // This handles the case where the current install doesn't have updater.exe
       // but the staged update does
       final stagedUpdaterPath = path.join(staged.extractPath, 'updater.exe');
-      print('[UpdateService] Updater not in install dir, checking staging: $stagedUpdaterPath');
+      developer.log(
+          'Updater not in install dir, checking staging: $stagedUpdaterPath',
+          name: 'UpdateService',
+          level: 900);
 
       if (await File(stagedUpdaterPath).exists()) {
-        print('[UpdateService] Found updater in staging, copying to install directory');
+        developer.log('Found updater in staging, copying to install directory',
+            name: 'UpdateService', level: 800);
         try {
           await File(stagedUpdaterPath).copy(updaterPath);
-          print('[UpdateService] Updater bootstrapped successfully');
+          developer.log('Updater bootstrapped successfully',
+              name: 'UpdateService', level: 800);
         } catch (e) {
           throw UpdateException(
             'Failed to bootstrap updater from staged update: $e\n'
@@ -300,15 +315,19 @@ class UpdateService {
 
     // Launch updater with arguments
     final args = [
-      '--parent-pid', pid.toString(),
-      '--staging-dir', staged.extractPath,
-      '--install-dir', installDir.path,
-      '--backup-dir', backupDir.path,
+      '--parent-pid',
+      pid.toString(),
+      '--staging-dir',
+      staged.extractPath,
+      '--install-dir',
+      installDir.path,
+      '--backup-dir',
+      backupDir.path,
       '--launch-after',
     ];
 
-    print('[UpdateService] Launching updater: $updaterPath');
-    print('[UpdateService] Arguments: $args');
+    developer.log('Launching updater: $updaterPath with args: $args',
+        name: 'UpdateService', level: 800);
 
     await Process.start(updaterPath, args, mode: ProcessStartMode.detached);
 

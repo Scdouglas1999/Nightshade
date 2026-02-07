@@ -157,16 +157,13 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
     return state.offsets[filterName] ?? 0;
   }
 
-  /// Save current offsets to focus model service
+  /// Save current offsets to focus model service and persist to disk
   Future<void> _saveOffsetsToService() async {
     if (_currentProfileId == null) return;
 
     final focusService = _ref.read(focusModelServiceProvider);
-    final focusData = focusService.getProfileData(_currentProfileId!);
 
-    if (focusData == null) return;
-
-    // Update filter offsets in the focus data
+    // Build FilterOffset map from current state
     final updatedOffsets = <String, FilterOffset>{};
     for (final entry in state.offsets.entries) {
       updatedOffsets[entry.key] = FilterOffset(
@@ -178,9 +175,11 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
       );
     }
 
-    // Note: We'd need to add a method to FocusModelService to directly update offsets
-    // For now, this saves the state in memory. The offsets will be properly saved
-    // when adding focus data points through the service.
+    await focusService.updateFilterOffsets(
+      _currentProfileId!,
+      updatedOffsets,
+      referenceFilter: state.referenceFilter,
+    );
   }
 
   /// Reload offsets (call this when profile changes)
@@ -190,12 +189,14 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
 }
 
 /// Provider for filter offsets
-final filterOffsetProvider = StateNotifierProvider<FilterOffsetNotifier, FilterOffsetState>((ref) {
+final filterOffsetProvider =
+    StateNotifierProvider<FilterOffsetNotifier, FilterOffsetState>((ref) {
   return FilterOffsetNotifier(ref);
 });
 
 /// Helper provider to get offset for a specific filter
-final filterOffsetForFilterProvider = Provider.family<int, String>((ref, filterName) {
+final filterOffsetForFilterProvider =
+    Provider.family<int, String>((ref, filterName) {
   final state = ref.watch(filterOffsetProvider);
   return state.offsets[filterName] ?? 0;
 });
@@ -203,5 +204,5 @@ final filterOffsetForFilterProvider = Provider.family<int, String>((ref, filterN
 /// Provider to get available filter names from connected filter wheel
 final availableFiltersProvider = Provider<List<String>>((ref) {
   final filterWheelState = ref.watch(filterWheelStateProvider);
-  return filterWheelState.filterNames ?? [];
+  return filterWheelState.filterNames;
 });

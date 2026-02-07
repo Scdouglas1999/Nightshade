@@ -75,7 +75,8 @@ class NightshadeException implements Exception {
   }
 
   /// Create from a generic exception with error message
-  factory NightshadeException.fromError(Object error, [StackTrace? stackTrace]) {
+  factory NightshadeException.fromError(Object error,
+      [StackTrace? stackTrace]) {
     final message = error.toString();
 
     // Try to parse as JSON first (for structured errors from Rust)
@@ -166,7 +167,8 @@ class NightshadeException implements Exception {
     return NightshadeException(
       category: 'system',
       message: message,
-      userMessage: message.length > 100 ? '${message.substring(0, 100)}...' : message,
+      userMessage:
+          message.length > 100 ? '${message.substring(0, 100)}...' : message,
     );
   }
 
@@ -199,8 +201,8 @@ class ConnectionException extends NightshadeException {
     return ConnectionException(
       message: json['message'] as String? ?? 'Connection error',
       userMessage: json['user_message'] as String? ?? 'Connection error',
-      isRecoverable: json['is_recoverable'] as bool? ?? true,
-      shouldReconnect: json['should_reconnect'] as bool? ?? true,
+      isRecoverable: json['is_recoverable'] as bool? ?? false,
+      shouldReconnect: json['should_reconnect'] as bool? ?? false,
       deviceId: json['device_id'] as String?,
     );
   }
@@ -219,7 +221,8 @@ class ConnectionException extends NightshadeException {
   /// Device disconnected
   factory ConnectionException.disconnected(String deviceId, [String? reason]) {
     return ConnectionException(
-      message: 'Device disconnected: $deviceId${reason != null ? ' - $reason' : ''}',
+      message:
+          'Device disconnected: $deviceId${reason != null ? ' - $reason' : ''}',
       userMessage: '"$deviceId" disconnected unexpectedly',
       deviceId: deviceId,
     );
@@ -240,7 +243,7 @@ class HardwareException extends NightshadeException {
     return HardwareException(
       message: json['message'] as String? ?? 'Hardware error',
       userMessage: json['user_message'] as String? ?? 'Hardware error',
-      isRecoverable: json['is_recoverable'] as bool? ?? true,
+      isRecoverable: json['is_recoverable'] as bool? ?? false,
       deviceId: json['device_id'] as String?,
       errorCode: json['error_code'] as int?,
     );
@@ -305,7 +308,8 @@ class ValidationException extends NightshadeException {
     dynamic max,
   ) {
     return ValidationException(
-      message: 'Parameter out of range: $paramName = $value (valid: $min to $max)',
+      message:
+          'Parameter out of range: $paramName = $value (valid: $min to $max)',
       userMessage: '$paramName value $value is out of range ($min to $max)',
     );
   }

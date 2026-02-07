@@ -17,8 +17,6 @@ use std::thread;
 use std::time::Duration;
 
 #[cfg(windows)]
-use windows::Win32::Foundation::HANDLE;
-#[cfg(windows)]
 use windows::Win32::System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE};
 
 /// Nightshade Update Applier

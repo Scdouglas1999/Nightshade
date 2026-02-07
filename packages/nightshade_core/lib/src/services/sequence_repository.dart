@@ -17,7 +17,7 @@ class SequenceRepository {
   Future<int> saveSequence(Sequence sequence, {bool isTemplate = false}) async {
     // Check if this sequence already exists in database
     final existingId = sequence.databaseId;
-    
+
     if (existingId != null) {
       // Update existing sequence
       await _updateSequence(existingId, sequence, isTemplate);
@@ -48,7 +48,8 @@ class SequenceRepository {
     return sequenceId;
   }
 
-  Future<void> _updateSequence(int sequenceId, Sequence sequence, bool isTemplate) async {
+  Future<void> _updateSequence(
+      int sequenceId, Sequence sequence, bool isTemplate) async {
     // Get existing sequence
     final existing = await _dao.getSequenceById(sequenceId);
     if (existing == null) {
@@ -74,7 +75,8 @@ class SequenceRepository {
     await _createSequence(sequence, isTemplate);
   }
 
-  Future<void> _saveNodes(int sequenceId, Map<String, SequenceNode> nodes) async {
+  Future<void> _saveNodes(
+      int sequenceId, Map<String, SequenceNode> nodes) async {
     for (final node in nodes.values) {
       await _dao.createNode(
         db.SequenceNodesCompanion.insert(
@@ -93,8 +95,10 @@ class SequenceRepository {
   }
 
   String _getNodeCategory(SequenceNode node) {
-    if (node is TargetGroupNode || node is LoopNode || 
-        node is ParallelNode || node is ConditionalNode || 
+    if (node is TargetGroupNode ||
+        node is LoopNode ||
+        node is ParallelNode ||
+        node is ConditionalNode ||
         node is RecoveryNode) {
       return 'logic';
     }
@@ -107,7 +111,7 @@ class SequenceRepository {
     if (dbSequence == null) return null;
 
     final dbNodes = await _dao.getNodesForSequence(sequenceId);
-    
+
     // Convert database nodes to model nodes
     final nodes = <String, SequenceNode>{};
     for (final dbNode in dbNodes) {
@@ -119,7 +123,8 @@ class SequenceRepository {
 
     // Build child relationships
     for (final dbNode in dbNodes) {
-      if (dbNode.parentNodeId != null && nodes.containsKey(dbNode.parentNodeId)) {
+      if (dbNode.parentNodeId != null &&
+          nodes.containsKey(dbNode.parentNodeId)) {
         final parent = nodes[dbNode.parentNodeId!]!;
         final childIds = [...parent.childIds, dbNode.nodeId];
         nodes[dbNode.parentNodeId!] = parent.copyWith(childIds: childIds);
@@ -143,14 +148,14 @@ class SequenceRepository {
   Future<List<Sequence>> loadAllSequences() async {
     final dbSequences = await _dao.getAllSequences();
     final sequences = <Sequence>[];
-    
+
     for (final dbSequence in dbSequences) {
       final sequence = await loadSequence(dbSequence.id);
       if (sequence != null) {
         sequences.add(sequence);
       }
     }
-    
+
     return sequences;
   }
 
@@ -158,14 +163,14 @@ class SequenceRepository {
   Future<List<Sequence>> loadAllTemplates() async {
     final dbTemplates = await _dao.getAllTemplates();
     final templates = <Sequence>[];
-    
+
     for (final dbTemplate in dbTemplates) {
       final template = await loadSequence(dbTemplate.id);
       if (template != null) {
         templates.add(template);
       }
     }
-    
+
     return templates;
   }
 
@@ -182,7 +187,7 @@ class SequenceRepository {
 
   SequenceNode? _dbNodeToModel(db.SequenceNode dbNode) {
     final props = jsonDecode(dbNode.properties) as Map<String, dynamic>;
-    
+
     switch (dbNode.specificType) {
       case 'exposure':
         return ExposureNode(
@@ -200,31 +205,31 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'slew':
         return SlewNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          useTargetCoords: props['useTargetCoords'] as bool? ?? true,
+          useTargetCoords: props['useTargetCoords'] as bool? ?? false,
           customRa: (props['customRa'] as num?)?.toDouble(),
           customDec: (props['customDec'] as num?)?.toDouble(),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'center':
         return CenterNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          useTargetCoords: props['useTargetCoords'] as bool? ?? true,
+          useTargetCoords: props['useTargetCoords'] as bool? ?? false,
           accuracyArcsec: (props['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
           maxAttempts: (props['maxAttempts'] as num?)?.toInt() ?? 5,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'autofocus':
         return AutofocusNode(
           id: dbNode.nodeId,
@@ -232,12 +237,13 @@ class SequenceRepository {
           method: _stringToAutofocusMethod(props['method'] as String?),
           stepSize: (props['stepSize'] as num?)?.toInt() ?? 100,
           stepsOut: (props['stepsOut'] as num?)?.toInt() ?? 7,
-          exposureDuration: (props['exposureDuration'] as num?)?.toDouble() ?? 3.0,
+          exposureDuration:
+              (props['exposureDuration'] as num?)?.toDouble() ?? 3.0,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'dither':
         return DitherNode(
           id: dbNode.nodeId,
@@ -249,7 +255,7 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'filterChange':
         return FilterChangeNode(
           id: dbNode.nodeId,
@@ -260,7 +266,7 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'coolCamera':
         return CoolCameraNode(
           id: dbNode.nodeId,
@@ -271,7 +277,7 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'warmCamera':
         return WarmCameraNode(
           id: dbNode.nodeId,
@@ -281,7 +287,7 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'rotator':
         return RotatorNode(
           id: dbNode.nodeId,
@@ -292,7 +298,7 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'park':
         return ParkNode(
           id: dbNode.nodeId,
@@ -301,7 +307,7 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'unpark':
         return UnparkNode(
           id: dbNode.nodeId,
@@ -310,20 +316,21 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'waitTime':
         return WaitTimeNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          waitUntil: props['waitUntil'] != null 
+          waitUntil: props['waitUntil'] != null
               ? DateTime.fromMillisecondsSinceEpoch(props['waitUntil'] as int)
               : null,
-          waitForTwilight: _stringToTwilight(props['waitForTwilight'] as String?),
+          waitForTwilight:
+              _stringToTwilight(props['waitForTwilight'] as String?),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'delay':
         return DelayNode(
           id: dbNode.nodeId,
@@ -333,7 +340,7 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'notification':
         return NotificationNode(
           id: dbNode.nodeId,
@@ -345,19 +352,20 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'script':
         return ScriptNode(
           id: dbNode.nodeId,
           name: dbNode.name,
           scriptPath: props['scriptPath'] as String? ?? '',
-          arguments: (props['arguments'] as List<dynamic>?)?.cast<String>() ?? [],
+          arguments:
+              (props['arguments'] as List<dynamic>?)?.cast<String>() ?? [],
           timeoutSecs: (props['timeoutSecs'] as num?)?.toInt(),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'targetGroup':
         return TargetGroupNode(
           id: dbNode.nodeId,
@@ -373,22 +381,24 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'loop':
         return LoopNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          conditionType: _stringToLoopCondition(props['conditionType'] as String?),
+          conditionType:
+              _stringToLoopCondition(props['conditionType'] as String?),
           repeatCount: (props['repeatCount'] as num?)?.toInt() ?? 1,
-          repeatUntil: props['repeatUntil'] != null 
+          repeatUntil: props['repeatUntil'] != null
               ? DateTime.fromMillisecondsSinceEpoch(props['repeatUntil'] as int)
               : null,
-          repeatUntilAltitude: (props['repeatUntilAltitude'] as num?)?.toDouble(),
+          repeatUntilAltitude:
+              (props['repeatUntilAltitude'] as num?)?.toDouble(),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'parallel':
         return ParallelNode(
           id: dbNode.nodeId,
@@ -398,32 +408,35 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'conditional':
         return ConditionalNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          conditionType: _stringToConditionalType(props['conditionType'] as String?),
+          conditionType:
+              _stringToConditionalType(props['conditionType'] as String?),
           thresholdValue: (props['thresholdValue'] as num?)?.toDouble(),
-          thresholdTime: props['thresholdTime'] != null 
-              ? DateTime.fromMillisecondsSinceEpoch(props['thresholdTime'] as int)
+          thresholdTime: props['thresholdTime'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(
+                  props['thresholdTime'] as int)
               : null,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       case 'recovery':
         return RecoveryNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          recoveryAction: _stringToRecoveryAction(props['recoveryAction'] as String?),
+          recoveryAction:
+              _stringToRecoveryAction(props['recoveryAction'] as String?),
           maxRetries: (props['maxRetries'] as num?)?.toInt() ?? 3,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
-        
+
       default:
         return null;
     }
@@ -488,8 +501,8 @@ class SequenceRepository {
     } else if (node is WaitTimeNode) {
       return {
         'waitUntil': node.waitUntil?.millisecondsSinceEpoch,
-        'waitForTwilight': node.waitForTwilight != null 
-            ? _twilightToString(node.waitForTwilight!) 
+        'waitForTwilight': node.waitForTwilight != null
+            ? _twilightToString(node.waitForTwilight!)
             : null,
       };
     } else if (node is DelayNode) {
@@ -547,140 +560,209 @@ class SequenceRepository {
   // Helper methods for enum conversion
   String _binningToString(BinningMode mode) {
     switch (mode) {
-      case BinningMode.one: return 'one';
-      case BinningMode.two: return 'two';
-      case BinningMode.three: return 'three';
-      case BinningMode.four: return 'four';
+      case BinningMode.one:
+        return 'one';
+      case BinningMode.two:
+        return 'two';
+      case BinningMode.three:
+        return 'three';
+      case BinningMode.four:
+        return 'four';
     }
   }
 
   BinningMode _stringToBinning(String? s) {
     switch (s) {
-      case 'two': return BinningMode.two;
-      case 'three': return BinningMode.three;
-      case 'four': return BinningMode.four;
-      default: return BinningMode.one;
+      case 'two':
+        return BinningMode.two;
+      case 'three':
+        return BinningMode.three;
+      case 'four':
+        return BinningMode.four;
+      default:
+        return BinningMode.one;
     }
   }
 
   String _autofocusMethodToString(AutofocusMethod method) {
     switch (method) {
-      case AutofocusMethod.vCurve: return 'vCurve';
-      case AutofocusMethod.hyperbolic: return 'hyperbolic';
-      case AutofocusMethod.parabolic: return 'parabolic';
+      case AutofocusMethod.vCurve:
+        return 'vCurve';
+      case AutofocusMethod.hyperbolic:
+        return 'hyperbolic';
+      case AutofocusMethod.parabolic:
+        return 'parabolic';
     }
   }
 
   AutofocusMethod _stringToAutofocusMethod(String? s) {
     switch (s) {
-      case 'hyperbolic': return AutofocusMethod.hyperbolic;
-      case 'parabolic': return AutofocusMethod.parabolic;
-      default: return AutofocusMethod.vCurve;
+      case 'hyperbolic':
+        return AutofocusMethod.hyperbolic;
+      case 'parabolic':
+        return AutofocusMethod.parabolic;
+      default:
+        return AutofocusMethod.vCurve;
     }
   }
 
   String _twilightToString(TwilightType type) {
     switch (type) {
-      case TwilightType.civil: return 'civil';
-      case TwilightType.nautical: return 'nautical';
-      case TwilightType.astronomical: return 'astronomical';
+      case TwilightType.civil:
+        return 'civil';
+      case TwilightType.nautical:
+        return 'nautical';
+      case TwilightType.astronomical:
+        return 'astronomical';
     }
   }
 
   TwilightType? _stringToTwilight(String? s) {
     switch (s) {
-      case 'civil': return TwilightType.civil;
-      case 'nautical': return TwilightType.nautical;
-      case 'astronomical': return TwilightType.astronomical;
-      default: return null;
+      case 'civil':
+        return TwilightType.civil;
+      case 'nautical':
+        return TwilightType.nautical;
+      case 'astronomical':
+        return TwilightType.astronomical;
+      default:
+        return null;
     }
   }
 
   String _notificationLevelToString(NotificationLevel level) {
     switch (level) {
-      case NotificationLevel.info: return 'info';
-      case NotificationLevel.warning: return 'warning';
-      case NotificationLevel.error: return 'error';
-      case NotificationLevel.success: return 'success';
+      case NotificationLevel.info:
+        return 'info';
+      case NotificationLevel.warning:
+        return 'warning';
+      case NotificationLevel.error:
+        return 'error';
+      case NotificationLevel.success:
+        return 'success';
     }
   }
 
   NotificationLevel _stringToNotificationLevel(String? s) {
     switch (s) {
-      case 'warning': return NotificationLevel.warning;
-      case 'error': return NotificationLevel.error;
-      case 'success': return NotificationLevel.success;
-      default: return NotificationLevel.info;
+      case 'warning':
+        return NotificationLevel.warning;
+      case 'error':
+        return NotificationLevel.error;
+      case 'success':
+        return NotificationLevel.success;
+      default:
+        return NotificationLevel.info;
     }
   }
 
   String _loopConditionToString(LoopConditionType type) {
     switch (type) {
-      case LoopConditionType.count: return 'count';
-      case LoopConditionType.untilTime: return 'untilTime';
-      case LoopConditionType.untilAltitude: return 'untilAltitude';
-      case LoopConditionType.forever: return 'forever';
-      case LoopConditionType.whileDark: return 'whileDark';
+      case LoopConditionType.count:
+        return 'count';
+      case LoopConditionType.untilTime:
+        return 'untilTime';
+      case LoopConditionType.untilAltitude:
+        return 'untilAltitude';
+      case LoopConditionType.forever:
+        return 'forever';
+      case LoopConditionType.whileDark:
+        return 'whileDark';
     }
   }
 
   LoopConditionType _stringToLoopCondition(String? s) {
     switch (s) {
-      case 'untilTime': return LoopConditionType.untilTime;
-      case 'untilAltitude': return LoopConditionType.untilAltitude;
-      case 'forever': return LoopConditionType.forever;
-      case 'whileDark': return LoopConditionType.whileDark;
-      default: return LoopConditionType.count;
+      case 'untilTime':
+        return LoopConditionType.untilTime;
+      case 'untilAltitude':
+        return LoopConditionType.untilAltitude;
+      case 'forever':
+        return LoopConditionType.forever;
+      case 'whileDark':
+        return LoopConditionType.whileDark;
+      default:
+        return LoopConditionType.count;
     }
   }
 
   String _conditionalTypeToString(ConditionalType type) {
     switch (type) {
-      case ConditionalType.always: return 'always';
-      case ConditionalType.altitudeAbove: return 'altitudeAbove';
-      case ConditionalType.timeAfter: return 'timeAfter';
-      case ConditionalType.guidingRmsBelow: return 'guidingRmsBelow';
-      case ConditionalType.hfrBelow: return 'hfrBelow';
-      case ConditionalType.weatherSafe: return 'weatherSafe';
-      case ConditionalType.moonSeparationAbove: return 'moonSeparationAbove';
-      case ConditionalType.safetyMonitorSafe: return 'safetyMonitorSafe';
+      case ConditionalType.always:
+        return 'always';
+      case ConditionalType.altitudeAbove:
+        return 'altitudeAbove';
+      case ConditionalType.timeAfter:
+        return 'timeAfter';
+      case ConditionalType.guidingRmsBelow:
+        return 'guidingRmsBelow';
+      case ConditionalType.hfrBelow:
+        return 'hfrBelow';
+      case ConditionalType.weatherSafe:
+        return 'weatherSafe';
+      case ConditionalType.moonSeparationAbove:
+        return 'moonSeparationAbove';
+      case ConditionalType.safetyMonitorSafe:
+        return 'safetyMonitorSafe';
     }
   }
 
   ConditionalType _stringToConditionalType(String? s) {
     switch (s) {
-      case 'altitudeAbove': return ConditionalType.altitudeAbove;
-      case 'timeAfter': return ConditionalType.timeAfter;
-      case 'guidingRmsBelow': return ConditionalType.guidingRmsBelow;
-      case 'hfrBelow': return ConditionalType.hfrBelow;
-      case 'weatherSafe': return ConditionalType.weatherSafe;
-      case 'moonSeparationAbove': return ConditionalType.moonSeparationAbove;
-      case 'safetyMonitorSafe': return ConditionalType.safetyMonitorSafe;
-      default: return ConditionalType.always;
+      case 'altitudeAbove':
+        return ConditionalType.altitudeAbove;
+      case 'timeAfter':
+        return ConditionalType.timeAfter;
+      case 'guidingRmsBelow':
+        return ConditionalType.guidingRmsBelow;
+      case 'hfrBelow':
+        return ConditionalType.hfrBelow;
+      case 'weatherSafe':
+        return ConditionalType.weatherSafe;
+      case 'moonSeparationAbove':
+        return ConditionalType.moonSeparationAbove;
+      case 'safetyMonitorSafe':
+        return ConditionalType.safetyMonitorSafe;
+      default:
+        return ConditionalType.always;
     }
   }
 
   String _recoveryActionToString(RecoveryActionType action) {
     switch (action) {
-      case RecoveryActionType.continueExecution: return 'continue';
-      case RecoveryActionType.pause: return 'pause';
-      case RecoveryActionType.autofocus: return 'autofocus';
-      case RecoveryActionType.nextTarget: return 'nextTarget';
-      case RecoveryActionType.retry: return 'retry';
-      case RecoveryActionType.parkAndAbort: return 'parkAndAbort';
-      case RecoveryActionType.customBranch: return 'customBranch';
+      case RecoveryActionType.continueExecution:
+        return 'continue';
+      case RecoveryActionType.pause:
+        return 'pause';
+      case RecoveryActionType.autofocus:
+        return 'autofocus';
+      case RecoveryActionType.nextTarget:
+        return 'nextTarget';
+      case RecoveryActionType.retry:
+        return 'retry';
+      case RecoveryActionType.parkAndAbort:
+        return 'parkAndAbort';
+      case RecoveryActionType.customBranch:
+        return 'customBranch';
     }
   }
 
   RecoveryActionType _stringToRecoveryAction(String? s) {
     switch (s) {
-      case 'pause': return RecoveryActionType.pause;
-      case 'autofocus': return RecoveryActionType.autofocus;
-      case 'nextTarget': return RecoveryActionType.nextTarget;
-      case 'retry': return RecoveryActionType.retry;
-      case 'parkAndAbort': return RecoveryActionType.parkAndAbort;
-      case 'customBranch': return RecoveryActionType.customBranch;
-      default: return RecoveryActionType.continueExecution;
+      case 'pause':
+        return RecoveryActionType.pause;
+      case 'autofocus':
+        return RecoveryActionType.autofocus;
+      case 'nextTarget':
+        return RecoveryActionType.nextTarget;
+      case 'retry':
+        return RecoveryActionType.retry;
+      case 'parkAndAbort':
+        return RecoveryActionType.parkAndAbort;
+      case 'customBranch':
+        return RecoveryActionType.customBranch;
+      default:
+        return RecoveryActionType.continueExecution;
     }
   }
 }
@@ -689,4 +771,3 @@ class SequenceRepository {
 final sequenceRepositoryProvider = Provider<SequenceRepository>((ref) {
   return SequenceRepository(ref.watch(sequencesDaoProvider));
 });
-

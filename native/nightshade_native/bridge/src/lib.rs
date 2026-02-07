@@ -187,7 +187,7 @@ fn try_create_runtime_with_fallbacks() -> Result<Runtime, String> {
 static PANIC_HANDLER_INSTALLED: AtomicBool = AtomicBool::new(false);
 
 /// Initialize panic handler to catch panics and log them.
-/// This function is idempotent - multiple calls are safe and will be no-ops after the first.
+/// This function is idempotent - repeated calls are ignored after the first.
 fn init_panic_handler() {
     // Use compare_exchange to ensure we only install the handler once
     if PANIC_HANDLER_INSTALLED

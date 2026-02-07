@@ -97,19 +97,12 @@ impl Trigger {
                     }
                     crate::MeridianTriggerMethod::MinutesBeforeLimit => {
                         // Trigger based on time until mount hits its tracking limit
-                        // This requires the mount to report its limit time
+                        // This requires the mount to report its limit time.
+                        // Do not estimate from hour-angle heuristics.
                         if let Some(limit_time) = state.mount_tracking_limit_time {
                             let now = chrono::Utc::now().timestamp();
                             let minutes_to_limit = (limit_time - now) as f64 / 60.0;
                             // Trigger when we're within the threshold of hitting the limit
-                            minutes_to_limit > 0.0
-                                && minutes_to_limit <= config.minutes_before_limit
-                        } else if let Some(ha) = state.current_hour_angle {
-                            // Fallback: estimate limit time from HA if mount doesn't report it
-                            // Assume typical limit is around HA = +6h (6 hours past meridian)
-                            let assumed_limit_ha = 6.0; // hours
-                            let hours_to_limit = assumed_limit_ha - ha;
-                            let minutes_to_limit = hours_to_limit * 60.0;
                             minutes_to_limit > 0.0
                                 && minutes_to_limit <= config.minutes_before_limit
                         } else {
@@ -202,11 +195,11 @@ impl Trigger {
             }
             TriggerType::DomeShutterNotOpen => {
                 state.dome_shutter_open_expected
-                    && state
-                        .dome_shutter_status
-                        .as_ref()
-                        .map(|s| s != "Open")
-                        .unwrap_or(false)
+                    && match state.dome_shutter_status.as_deref() {
+                        Some("Open") => false,
+                        Some(_) => true,
+                        None => true, // Unknown shutter state is treated unsafe (fail-closed).
+                    }
             }
         };
 
@@ -242,8 +235,18 @@ pub fn calculate_dawn_time(latitude: f64, longitude: f64) -> i64 {
     // Calculate hour angle at astronomical twilight
     let cos_h = (alt_rad.sin() - lat_rad.sin() * dec_rad.sin()) / (lat_rad.cos() * dec_rad.cos());
 
-    // Handle polar day/night
-    let cos_h = cos_h.clamp(-1.0, 1.0);
+    // Handle polar day/night explicitly to avoid silently fabricating a time.
+    if cos_h > 1.0 {
+        // Sun never reaches this altitude threshold today (e.g., polar day).
+        // Return a far-future timestamp so dawn trigger remains inactive.
+        return i64::MAX;
+    }
+    if cos_h < -1.0 {
+        // Sun is always below this altitude threshold today (e.g., polar night).
+        // Dawn is effectively "already reached" for scheduling logic.
+        return now.timestamp();
+    }
+
     let hour_angle = cos_h.acos().to_degrees();
 
     // Solar noon in UTC (approximately 12:00 - longitude/15 hours)
@@ -307,6 +310,7 @@ pub struct TriggerState {
     // Temperature
     pub baseline_temperature: Option<f64>,
     pub current_temperature: Option<f64>,
+    pub baseline_focuser_position: Option<i32>,
 
     // Filter
     pub filter_changed: bool,
@@ -381,6 +385,10 @@ impl TriggerState {
 
     pub fn reset_baseline_temperature(&mut self) {
         self.baseline_temperature = self.current_temperature;
+    }
+
+    pub fn reset_baseline_focuser_position(&mut self, current_position: i32) {
+        self.baseline_focuser_position = Some(current_position);
     }
 
     pub fn set_filter(&mut self, filter: String) {

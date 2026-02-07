@@ -2,9 +2,9 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/database_entities.dart'
+    show Target, TargetsCompanion;
 import 'package:nightshade_core/nightshade_core.dart';
-// Import Target and TargetsCompanion explicitly from database
-import 'package:nightshade_core/src/database/database.dart' show Target, TargetsCompanion;
 import 'package:shelf/shelf.dart';
 
 /// Handlers for target CRUD operations
@@ -13,12 +13,19 @@ class TargetHandlers {
 
   TargetHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'TargetHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'TargetHandlers');
+
   // ===========================================================================
   // Get All Targets
   // ===========================================================================
 
   Future<Response> handleGetAllTargets(Request request) async {
-    print('[API] GET /api/targets');
+    _logInfo('[API] GET /api/targets');
     try {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.getAllTargets();
@@ -30,7 +37,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get all targets error: $e');
+      _logError('[API] Get all targets error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -43,7 +50,7 @@ class TargetHandlers {
   // ===========================================================================
 
   Future<Response> handleGetTargetById(Request request, String id) async {
-    print('[API] GET /api/targets/$id');
+    _logInfo('[API] GET /api/targets/$id');
     try {
       final targetId = int.parse(id);
       final database = container.read(databaseProvider);
@@ -61,7 +68,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get target by ID error: $e');
+      _logError('[API] Get target by ID error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -75,7 +82,7 @@ class TargetHandlers {
 
   Future<Response> handleSearchTargets(Request request) async {
     final query = request.url.queryParameters['query'] ?? '';
-    print('[API] GET /api/targets/search?query=$query');
+    _logInfo('[API] GET /api/targets/search?query=$query');
     try {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.searchTargets(query);
@@ -87,7 +94,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Search targets error: $e');
+      _logError('[API] Search targets error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -100,7 +107,7 @@ class TargetHandlers {
   // ===========================================================================
 
   Future<Response> handleGetFavoriteTargets(Request request) async {
-    print('[API] GET /api/targets/favorites');
+    _logInfo('[API] GET /api/targets/favorites');
     try {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.getFavoriteTargets();
@@ -112,7 +119,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get favorite targets error: $e');
+      _logError('[API] Get favorite targets error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -125,7 +132,7 @@ class TargetHandlers {
   // ===========================================================================
 
   Future<Response> handleCreateTarget(Request request) async {
-    print('[API] POST /api/targets');
+    _logInfo('[API] POST /api/targets');
     try {
       final payload = jsonDecode(await request.readAsString());
       final database = container.read(databaseProvider);
@@ -140,13 +147,15 @@ class TargetHandlers {
         magnitude: Value((payload['magnitude'] as num?)?.toDouble()),
         sizeArcmin: Value((payload['sizeArcmin'] as num?)?.toDouble()),
         positionAngle: Value((payload['positionAngle'] as num?)?.toDouble()),
-        minAltitude: Value((payload['minAltitude'] as num?)?.toDouble() ?? 30.0),
+        minAltitude:
+            Value((payload['minAltitude'] as num?)?.toDouble() ?? 30.0),
         notes: Value(payload['notes'] as String?),
         isFavorite: Value(payload['isFavorite'] as bool? ?? false),
         priority: Value(payload['priority'] as int? ?? 0),
         totalPlannedSubs: Value(payload['totalPlannedSubs'] as int? ?? 0),
         capturedSubs: Value(payload['capturedSubs'] as int? ?? 0),
-        totalIntegrationSecs: Value((payload['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0),
+        totalIntegrationSecs:
+            Value((payload['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0),
         filterProgress: Value(payload['filterProgress'] as String?),
       );
 
@@ -157,7 +166,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Create target error: $e');
+      _logError('[API] Create target error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -170,7 +179,7 @@ class TargetHandlers {
   // ===========================================================================
 
   Future<Response> handleUpdateTarget(Request request, String id) async {
-    print('[API] PUT /api/targets/$id');
+    _logInfo('[API] PUT /api/targets/$id');
     try {
       final targetId = int.parse(id);
       final payload = jsonDecode(await request.readAsString());
@@ -191,19 +200,29 @@ class TargetHandlers {
         catalogId: Value(payload['catalogId'] as String? ?? existing.catalogId),
         ra: (payload['ra'] as num?)?.toDouble() ?? existing.ra,
         dec: (payload['dec'] as num?)?.toDouble() ?? existing.dec,
-        objectType: Value(payload['objectType'] as String? ?? existing.objectType),
-        constellation: Value(payload['constellation'] as String? ?? existing.constellation),
-        magnitude: Value((payload['magnitude'] as num?)?.toDouble() ?? existing.magnitude),
-        sizeArcmin: Value((payload['sizeArcmin'] as num?)?.toDouble() ?? existing.sizeArcmin),
-        positionAngle: Value((payload['positionAngle'] as num?)?.toDouble() ?? existing.positionAngle),
-        minAltitude: (payload['minAltitude'] as num?)?.toDouble() ?? existing.minAltitude,
+        objectType:
+            Value(payload['objectType'] as String? ?? existing.objectType),
+        constellation: Value(
+            payload['constellation'] as String? ?? existing.constellation),
+        magnitude: Value(
+            (payload['magnitude'] as num?)?.toDouble() ?? existing.magnitude),
+        sizeArcmin: Value(
+            (payload['sizeArcmin'] as num?)?.toDouble() ?? existing.sizeArcmin),
+        positionAngle: Value((payload['positionAngle'] as num?)?.toDouble() ??
+            existing.positionAngle),
+        minAltitude: (payload['minAltitude'] as num?)?.toDouble() ??
+            existing.minAltitude,
         notes: Value(payload['notes'] as String? ?? existing.notes),
         isFavorite: payload['isFavorite'] as bool? ?? existing.isFavorite,
         priority: payload['priority'] as int? ?? existing.priority,
-        totalPlannedSubs: payload['totalPlannedSubs'] as int? ?? existing.totalPlannedSubs,
+        totalPlannedSubs:
+            payload['totalPlannedSubs'] as int? ?? existing.totalPlannedSubs,
         capturedSubs: payload['capturedSubs'] as int? ?? existing.capturedSubs,
-        totalIntegrationSecs: (payload['totalIntegrationSecs'] as num?)?.toDouble() ?? existing.totalIntegrationSecs,
-        filterProgress: Value(payload['filterProgress'] as String? ?? existing.filterProgress),
+        totalIntegrationSecs:
+            (payload['totalIntegrationSecs'] as num?)?.toDouble() ??
+                existing.totalIntegrationSecs,
+        filterProgress: Value(
+            payload['filterProgress'] as String? ?? existing.filterProgress),
         updatedAt: DateTime.now(),
       );
 
@@ -214,7 +233,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Update target error: $e');
+      _logError('[API] Update target error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -227,7 +246,7 @@ class TargetHandlers {
   // ===========================================================================
 
   Future<Response> handleDeleteTarget(Request request, String id) async {
-    print('[API] DELETE /api/targets/$id');
+    _logInfo('[API] DELETE /api/targets/$id');
     try {
       final targetId = int.parse(id);
       final database = container.read(databaseProvider);
@@ -245,7 +264,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Delete target error: $e');
+      _logError('[API] Delete target error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -258,7 +277,7 @@ class TargetHandlers {
   // ===========================================================================
 
   Future<Response> handleToggleFavorite(Request request, String id) async {
-    print('[API] POST /api/targets/$id/favorite');
+    _logInfo('[API] POST /api/targets/$id/favorite');
     try {
       final targetId = int.parse(id);
       final database = container.read(databaseProvider);
@@ -270,7 +289,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Toggle favorite error: $e');
+      _logError('[API] Toggle favorite error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -283,7 +302,7 @@ class TargetHandlers {
   // ===========================================================================
 
   Future<Response> handleUpdateProgress(Request request, String id) async {
-    print('[API] PUT /api/targets/$id/progress');
+    _logInfo('[API] PUT /api/targets/$id/progress');
     try {
       final targetId = int.parse(id);
       final payload = jsonDecode(await request.readAsString());
@@ -292,7 +311,8 @@ class TargetHandlers {
       await database.targetsDao.updateProgress(
         targetId,
         capturedSubs: payload['capturedSubs'] as int?,
-        totalIntegrationSecs: (payload['totalIntegrationSecs'] as num?)?.toDouble(),
+        totalIntegrationSecs:
+            (payload['totalIntegrationSecs'] as num?)?.toDouble(),
         filterProgress: payload['filterProgress'] as String?,
       );
 
@@ -301,7 +321,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Update progress error: $e');
+      _logError('[API] Update progress error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -315,7 +335,7 @@ class TargetHandlers {
 
   Future<Response> handleGetTargetsByType(Request request) async {
     final objectType = request.url.queryParameters['type'] ?? '';
-    print('[API] GET /api/targets/by-type?type=$objectType');
+    _logInfo('[API] GET /api/targets/by-type?type=$objectType');
     try {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.getTargetsByType(objectType);
@@ -327,7 +347,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get targets by type error: $e');
+      _logError('[API] Get targets by type error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -340,7 +360,7 @@ class TargetHandlers {
   // ===========================================================================
 
   Future<Response> handleGetTargetsByPriority(Request request) async {
-    print('[API] GET /api/targets/by-priority');
+    _logInfo('[API] GET /api/targets/by-priority');
     try {
       final database = container.read(databaseProvider);
       final targets = await database.targetsDao.getTargetsByPriority();
@@ -352,7 +372,7 @@ class TargetHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get targets by priority error: $e');
+      _logError('[API] Get targets by priority error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
