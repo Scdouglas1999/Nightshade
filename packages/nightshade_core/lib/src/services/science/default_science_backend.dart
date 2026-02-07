@@ -8,6 +8,7 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import '../../backend/nightshade_backend.dart';
 import '../../models/science/science_models.dart';
 import '../../providers/backend_provider.dart';
+import '../../providers/database_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/logging_service.dart';
 import 'science_backend.dart';
@@ -215,7 +216,7 @@ class DefaultScienceBackend implements ScienceBackend {
         ? (1.35 * fwhmEstimate).clamp(3.5, 10.0).toDouble()
         : 6.0;
     final aperturePixels = math.pi * apertureRadius * apertureRadius;
-    const readNoise = 3.5;
+    final readNoise = await _readNoiseEstimate();
     final noise = math
         .sqrt(aperturePixels * (bg + readNoise * readNoise))
         .clamp(1e-6, double.infinity);
@@ -268,9 +269,19 @@ class DefaultScienceBackend implements ScienceBackend {
     double confidence = 0.0;
 
     if (useAirmassFit) {
-      final x = withAirmass.map((c) => c.airmass!).toList(growable: false);
-      final y = withAirmass.map((c) => c.zeroPoint!).toList(growable: false);
-      final yScatter = _robustStdDev(y);
+      // Leave-one-out: fit the airmass model on all samples EXCEPT
+      // the latest, then evaluate the residual of the held-out last
+      // point.  This avoids the self-inclusion bias that would
+      // suppress the residual and hide real transparency changes.
+      final fitData = withAirmass.sublist(0, withAirmass.length - 1);
+      if (fitData.length < options.minimumSampleCount) {
+        return null;
+      }
+      final x = fitData.map((c) => c.airmass!).toList(growable: false);
+      final y = fitData.map((c) => c.zeroPoint!).toList(growable: false);
+      final allZps =
+          withAirmass.map((c) => c.zeroPoint!).toList(growable: false);
+      final yScatter = _robustStdDev(allZps);
       final span = (x.reduce(math.max) - x.reduce(math.min)).abs();
       if (span < options.minAirmassSpan) {
         return null;
@@ -279,7 +290,7 @@ class DefaultScienceBackend implements ScienceBackend {
       final fit = _weightedLinearFit(
         x: x,
         y: y,
-        weightBy: withAirmass
+        weightBy: fitData
             .map((c) => 1.0 / math.max(0.03, c.calibrationRms))
             .toList(growable: false),
       );
@@ -290,11 +301,16 @@ class DefaultScienceBackend implements ScienceBackend {
       final slope = fit.slope;
       final intercept = fit.intercept;
       extinction = math.max(0.0, -slope);
+
+      // Transparency = how much the ACTUAL latest ZP deviates from what
+      // the airmass model PREDICTS.  A clear sky gives residual ≈ 0 →
+      // transparency ≈ 100%, regardless of airmass.  Clouds / haze push
+      // the actual ZP below the prediction → transparency < 100%.
       final currentAirmass = withAirmass.last.airmass!.clamp(1.0, 5.0);
-      final zenithZp = intercept - extinction;
-      final currentZp = intercept - extinction * currentAirmass;
-      final deltaMag = zenithZp - currentZp;
-      transparency = (math.pow(10.0, -0.4 * deltaMag) * 100.0)
+      final predictedZp = intercept + slope * currentAirmass;
+      final actualZp = withAirmass.last.zeroPoint!;
+      final residualMag = predictedZp - actualZp; // positive ⇒ dimmer than expected
+      transparency = (math.pow(10.0, -0.4 * residualMag) * 100.0)
           .clamp(0.0, 100.0)
           .toDouble();
 
@@ -484,6 +500,24 @@ class DefaultScienceBackend implements ScienceBackend {
     final dtMin =
         _deltaMinutes(firstFits.dateObs, lastFits.dateObs, imagePaths.length);
 
+    // When 3+ frames are available, measure the middle frame for linear
+    // motion validation — a candidate must also appear near the
+    // interpolated position in this frame.
+    final midIndex = imagePaths.length ~/ 2;
+    final bool hasMiddleFrame = imagePaths.length >= 3 && midIndex > 0 && midIndex < imagePaths.length - 1;
+    List<StarMeasurement>? midStars;
+    double midFraction = 0.5; // interpolation factor (0 = first, 1 = last)
+    if (hasMiddleFrame) {
+      midStars = await measureStars(
+          imagePaths[midIndex], const PhotometryOptions(minSnr: 5.0));
+      midFraction = midIndex / (imagePaths.length - 1);
+    }
+
+    // Maximum deviation from linear interpolation allowed in the middle
+    // frame, in pixels.  Generous enough for slight dithering / guiding
+    // drift but tight enough to reject random coincidences.
+    const midMatchTolerance = 4.0;
+
     final usedLast = <int>{};
     final matches = <MovingObjectMatch>[];
     final firstSorted = first.toList(growable: false)
@@ -508,11 +542,37 @@ class DefaultScienceBackend implements ScienceBackend {
       }
       final matched = last[bestIndex];
       if (!_mutualNearest(star, matched, firstSorted)) continue;
+
+      // 3-frame linear motion validation: predict where the object
+      // should be in the middle frame and check for a nearby detection.
+      if (midStars != null && midStars.isNotEmpty) {
+        final expectedX = star.x + (matched.x - star.x) * midFraction;
+        final expectedY = star.y + (matched.y - star.y) * midFraction;
+        var foundMid = false;
+        for (final midStar in midStars) {
+          final mdx = midStar.x - expectedX;
+          final mdy = midStar.y - expectedY;
+          if (math.sqrt(mdx * mdx + mdy * mdy) <= midMatchTolerance) {
+            foundMid = true;
+            break;
+          }
+        }
+        if (!foundMid) continue;
+      }
+
       usedLast.add(bestIndex);
 
-      final dx = matched.x - star.x;
-      final dy = matched.y - star.y;
-      final pa = (math.atan2(dx, -dy) * 180.0 / math.pi + 360.0) % 360.0;
+      final dxPx = matched.x - star.x;
+      final dyPx = matched.y - star.y;
+      // Convert to sky-up convention (Y increases toward North) then
+      // apply the inverse WCS rotation (R^T) so the position angle is
+      // measured in celestial coordinates (N through E).
+      final dxUp = dxPx;
+      final dyUp = -dyPx; // pixel Y-axis is flipped relative to sky
+      final rotRad = wcs.rotationDegrees * math.pi / 180.0;
+      final dxSky = dxUp * math.cos(rotRad) + dyUp * math.sin(rotRad);
+      final dySky = -dxUp * math.sin(rotRad) + dyUp * math.cos(rotRad);
+      final pa = (math.atan2(dxSky, dySky) * 180.0 / math.pi + 360.0) % 360.0;
       final motion = (bestDist * wcs.pixelScaleArcsecPerPixel) / dtMin;
       final mid = _pixelToSky(
         wcs: wcs,
@@ -529,8 +589,12 @@ class DefaultScienceBackend implements ScienceBackend {
               (options.maxMotionPixels - options.minMotionPixels))
           .clamp(0.0, 1.0)
           .toDouble();
+      // Boost confidence when 3-frame validation passed.
+      final validationBonus = hasMiddleFrame ? 0.10 : 0.0;
       final confidence =
-          (0.65 * snrScore + 0.35 * motionScore).clamp(0.15, 0.98).toDouble();
+          (0.65 * snrScore + 0.35 * motionScore + validationBonus)
+              .clamp(0.15, 0.98)
+              .toDouble();
       matches.add(MovingObjectMatch(
         candidateId:
             'mo_${mid.ra.toStringAsFixed(5)}_${mid.dec.toStringAsFixed(5)}_${matches.length + 1}',
@@ -1014,6 +1078,23 @@ class DefaultScienceBackend implements ScienceBackend {
   String _resolveSolverId() {
     final settings = _ref.read(appSettingsProvider).valueOrNull;
     return settings?.plateSolver ?? 'ASTAP';
+  }
+
+  /// Returns the camera read noise in electrons.  Uses the user-configured
+  /// value from settings when available, otherwise falls back to 3.5 e⁻
+  /// (a reasonable default for modern CMOS astro cameras at unity gain).
+  Future<double> _readNoiseEstimate() async {
+    try {
+      final dao = _ref.read(settingsDaoProvider);
+      final stored = await dao.getSetting('science.camera.read_noise_e');
+      if (stored != null && stored.isNotEmpty) {
+        final parsed = double.tryParse(stored);
+        if (parsed != null && parsed.isFinite && parsed > 0) {
+          return parsed.clamp(0.5, 30.0);
+        }
+      }
+    } catch (_) {}
+    return 3.5;
   }
 }
 
