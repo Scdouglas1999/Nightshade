@@ -99,10 +99,12 @@ pub enum ExecutorEvent {
         frame: u32,
         total: u32,
         filter: Option<String>,
+        duration_secs: f64,
     },
     ExposureCompleted {
         frame: u32,
         total: u32,
+        duration_secs: f64,
     },
     TargetStarted {
         name: String,
@@ -611,6 +613,23 @@ impl SequenceExecutor {
         let save_path = self.save_path.clone();
         let latitude = self.latitude;
         let longitude = self.longitude;
+        let exposure_node_metadata: HashMap<NodeId, (f64, Option<String>)> = self
+            .sequence
+            .as_ref()
+            .map(|sequence| {
+                sequence
+                    .nodes
+                    .iter()
+                    .filter_map(|node| match &node.node_type {
+                        NodeType::TakeExposure(config) => Some((
+                            node.id.clone(),
+                            (config.duration_secs, config.filter.clone()),
+                        )),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         // Clone trigger manager for the async task
         let trigger_manager = self.trigger_manager.clone();
@@ -626,6 +645,7 @@ impl SequenceExecutor {
         let is_paused_clone = is_paused.clone();
         let skip_to_next_target_clone = skip_to_next_target.clone();
         let resume_notify_clone = resume_notify.clone();
+        let exposure_node_metadata = Arc::new(exposure_node_metadata);
         tokio::spawn(async move {
             let start_time = std::time::Instant::now();
 
@@ -665,6 +685,12 @@ impl SequenceExecutor {
                     NodeId,
                     u32,
                 >::new()));
+            let node_pending_exposure_completion =
+                Arc::new(std::sync::RwLock::new(std::collections::HashMap::<
+                    NodeId,
+                    u32,
+                >::new()));
+            let exposure_node_metadata = exposure_node_metadata.clone();
             context.progress_callback = Some(Box::new(move |update: ProgressUpdate| {
                 let mut prog = progress_clone.write().unwrap();
                 prog.current_node_id = Some(update.node_id.clone());
@@ -717,6 +743,9 @@ impl SequenceExecutor {
                     started.remove(&update.node_id);
                     let mut frame_progress = node_frame_progress.write().unwrap();
                     frame_progress.remove(&update.node_id);
+                    let mut pending_completion =
+                        node_pending_exposure_completion.write().unwrap();
+                    pending_completion.remove(&update.node_id);
                     tracing::debug!(
                         "[PROGRESS_CB] Cleared node {} from started set (status={:?})",
                         update.node_id,
@@ -724,13 +753,51 @@ impl SequenceExecutor {
                     );
                 }
 
-                if let (Some(current), Some(_total)) = (update.current_frame, update.total_frames) {
+                if let (Some(current), Some(total)) = (update.current_frame, update.total_frames) {
+                    let mut exposure_started_event: Option<ExecutorEvent> = None;
+                    let mut exposure_completed_event: Option<ExecutorEvent> = None;
+                    let metadata = exposure_node_metadata.get(&update.node_id).cloned();
+
                     let mut frame_progress = node_frame_progress.write().unwrap();
+                    let mut pending_completion = node_pending_exposure_completion.write().unwrap();
                     let last = frame_progress.entry(update.node_id.clone()).or_insert(0);
                     if current > *last {
                         prog.completed_exposures =
                             prog.completed_exposures.saturating_add(current - *last);
                         *last = current;
+
+                        if let Some((duration_secs, filter)) = metadata {
+                            exposure_started_event = Some(ExecutorEvent::ExposureStarted {
+                                frame: current,
+                                total,
+                                filter,
+                                duration_secs,
+                            });
+                            pending_completion.insert(update.node_id.clone(), current);
+                        } else {
+                            pending_completion.remove(&update.node_id);
+                        }
+                    } else if current == *last {
+                        if pending_completion.get(&update.node_id).copied() == Some(current) {
+                            if let Some((duration_secs, _filter)) = metadata {
+                                exposure_completed_event = Some(ExecutorEvent::ExposureCompleted {
+                                    frame: current,
+                                    total,
+                                    duration_secs,
+                                });
+                            }
+                            pending_completion.remove(&update.node_id);
+                        }
+                    }
+
+                    drop(pending_completion);
+                    drop(frame_progress);
+
+                    if let Some(event) = exposure_started_event {
+                        let _ = event_tx_clone.send(event);
+                    }
+                    if let Some(event) = exposure_completed_event {
+                        let _ = event_tx_clone.send(event);
                     }
                 }
 
