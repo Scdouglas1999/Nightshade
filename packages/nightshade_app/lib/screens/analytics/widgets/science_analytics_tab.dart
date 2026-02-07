@@ -3,10 +3,17 @@ import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
 // ignore: implementation_imports
 import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import 'science_insights_panel.dart';
+import 'science_kpi_strip.dart';
+import 'science_overlay_composer.dart';
+import 'science_surface_explorer.dart';
+import 'science_timeline_scrubber.dart';
 
 class ScienceAnalyticsTab extends ConsumerWidget {
   const ScienceAnalyticsTab({super.key});
@@ -16,100 +23,133 @@ class ScienceAnalyticsTab extends ConsumerWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final activeSessionId = _resolveSessionId(ref);
 
-    if (activeSessionId == null) {
-      return Center(
-        child: Text(
-          'No active or recent session available for science analytics.',
-          style: TextStyle(color: colors.textMuted),
-        ),
-      );
+    // When no session is available, render the full layout with empty data
+    // so the user can see the card layout, info buttons, and structure.
+    List<LightCurvePoint> lightCurve = const [];
+    List<TransparencyTrendPoint> transparency = const [];
+    List<TransparencySampleRow> transparencyRows = const [];
+    List<FramePhotometricCalibrationRow> calibrations = const [];
+    List<PsfFieldTileRow> psfTiles = const [];
+    List<AstrometryResidualVectorRow> residuals = const [];
+    List<MovingObjectCandidateRow> moving = const [];
+    List<LineRatioProductRow> lineRatios = const [];
+    List<ScienceFrameQualityMetricsRow> frameMetrics = const [];
+    List<ScienceTileMetricRow> tileMetrics = const [];
+
+    if (activeSessionId != null) {
+      final targetObjectId = ref.watch(activePhotometryTargetObjectIdProvider);
+      lightCurve = ref.watch(
+          sessionLightCurveProvider((activeSessionId, targetObjectId)));
+      transparency =
+          ref.watch(sessionTransparencyTrendProvider(activeSessionId));
+      transparencyRows = ref
+              .watch(sessionTransparencySamplesProvider(activeSessionId))
+              .valueOrNull ??
+          const [];
+      calibrations = ref
+              .watch(sessionFrameCalibrationsProvider(activeSessionId))
+              .valueOrNull ??
+          const [];
+      psfTiles =
+          ref.watch(sessionPsfTilesProvider(activeSessionId)).valueOrNull ??
+              const [];
+      residuals = ref
+              .watch(sessionResidualVectorsProvider(activeSessionId))
+              .valueOrNull ??
+          const [];
+      moving = ref
+              .watch(sessionMovingObjectCandidatesProvider(activeSessionId))
+              .valueOrNull ??
+          const [];
+      lineRatios = ref
+              .watch(sessionLineRatioProductsProvider(activeSessionId))
+              .valueOrNull ??
+          const [];
+      frameMetrics = ref
+              .watch(sessionFrameQualityMetricsProvider(activeSessionId))
+              .valueOrNull ??
+          const [];
+      tileMetrics = ref
+              .watch(sessionTileMetricsProvider(activeSessionId))
+              .valueOrNull ??
+          const [];
     }
 
-    final targetObjectId = ref.watch(activePhotometryTargetObjectIdProvider);
-    final lightCurve =
-        ref.watch(sessionLightCurveProvider((activeSessionId, targetObjectId)));
-    final transparency =
-        ref.watch(sessionTransparencyTrendProvider(activeSessionId));
-    final transparencyRows = ref
-            .watch(sessionTransparencySamplesProvider(activeSessionId))
-            .valueOrNull ??
-        const [];
-    final calibrations = ref
-            .watch(sessionFrameCalibrationsProvider(activeSessionId))
-            .valueOrNull ??
-        const [];
-    final psfTiles =
-        ref.watch(sessionPsfTilesProvider(activeSessionId)).valueOrNull ??
-            const [];
     final latestPsfTiles = _latestPsfSnapshot(psfTiles);
-    final residuals = ref
-            .watch(sessionResidualVectorsProvider(activeSessionId))
-            .valueOrNull ??
-        const [];
     final latestResiduals = _latestResidualSnapshot(residuals);
-    final moving = ref
-            .watch(sessionMovingObjectCandidatesProvider(activeSessionId))
-            .valueOrNull ??
-        const [];
-    final lineRatios = ref
-            .watch(sessionLineRatioProductsProvider(activeSessionId))
-            .valueOrNull ??
-        const [];
+    final latestTileMetrics = _latestTileMetricSnapshot(tileMetrics);
 
     final latestCal = calibrations.isEmpty ? null : calibrations.last;
-    final latestTransparency = transparency.isEmpty ? null : transparency.last;
+    final latestFrameQuality = frameMetrics.isEmpty ? null : frameMetrics.last;
     final latestTransparencyRow =
         transparencyRows.isEmpty ? null : transparencyRows.last;
+    final isNarrow = MediaQuery.sizeOf(context).width < 1080;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _KpiCard(
-                colors: colors,
-                title: 'Calibration',
-                value: latestCal == null
-                    ? 'N/A'
-                    : latestCal.isCalibrated
-                        ? 'Calibrated'
-                        : 'Uncalibrated',
-                subtitle: latestCal?.zeroPoint == null
-                    ? 'ZP unavailable'
-                    : 'ZP ${latestCal!.zeroPoint!.toStringAsFixed(2)}',
-              ),
-              _KpiCard(
-                colors: colors,
-                title: 'Lim Mag (5-sigma)',
-                value:
-                    latestCal?.limitingMag5Sigma?.toStringAsFixed(2) ?? 'N/A',
-                subtitle: latestCal == null
-                    ? 'No photometric fit yet'
-                    : '${latestCal.matchedStarCount} matched stars',
-              ),
-              _KpiCard(
-                colors: colors,
-                title: 'Transparency',
-                value: latestTransparency == null
-                    ? 'N/A'
-                    : '${latestTransparency.transparencyPercent.toStringAsFixed(1)}%',
-                subtitle:
-                    latestTransparencyRow?.qualityBucket ?? 'No trend yet',
-              ),
-              _KpiCard(
-                colors: colors,
-                title: 'Moving Objects',
-                value: moving.length.toString(),
-                subtitle: moving.isEmpty
-                    ? 'No candidates'
-                    : 'Top conf ${(moving.first.confidence * 100).toStringAsFixed(0)}%',
-              ),
-            ],
+          ScienceKpiStrip(
+            colors: colors,
+            latestCalibration: latestCal,
+            latestTransparency: latestTransparencyRow,
+            latestFrameQuality: latestFrameQuality,
+            movingCandidateCount: moving.length,
           ),
+          const SizedBox(height: 16),
+          if (isNarrow) ...[
+            ScienceSurfaceExplorer(
+              colors: colors,
+              tiles: latestTileMetrics,
+            ),
+            const SizedBox(height: 12),
+            ScienceOverlayComposer(colors: colors),
+            const SizedBox(height: 12),
+            ScienceTimelineScrubber(
+              colors: colors,
+              frameMetrics: frameMetrics,
+            ),
+            const SizedBox(height: 12),
+            ScienceInsightsPanel(
+              colors: colors,
+              frameMetrics: latestFrameQuality,
+              latestCalibration: latestCal,
+              latestTransparency: latestTransparencyRow,
+            ),
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: ScienceSurfaceExplorer(
+                    colors: colors,
+                    tiles: latestTileMetrics,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    children: [
+                      ScienceOverlayComposer(colors: colors),
+                      const SizedBox(height: 12),
+                      ScienceTimelineScrubber(
+                        colors: colors,
+                        frameMetrics: frameMetrics,
+                      ),
+                      const SizedBox(height: 12),
+                      ScienceInsightsPanel(
+                        colors: colors,
+                        frameMetrics: latestFrameQuality,
+                        latestCalibration: latestCal,
+                        latestTransparency: latestTransparencyRow,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -233,56 +273,263 @@ List<AstrometryResidualVectorRow> _latestResidualSnapshot(
       .toList(growable: false);
 }
 
-class _KpiCard extends StatelessWidget {
-  final NightshadeColors colors;
-  final String title;
-  final String value;
-  final String subtitle;
+List<ScienceTileMetricRow> _latestTileMetricSnapshot(
+  List<ScienceTileMetricRow> rows,
+) {
+  if (rows.isEmpty) {
+    return const [];
+  }
+  int? latestId;
+  DateTime latestTime = DateTime.fromMillisecondsSinceEpoch(0);
+  for (final row in rows) {
+    if (row.capturedImageId == null) {
+      continue;
+    }
+    if (row.timestamp.isAfter(latestTime)) {
+      latestTime = row.timestamp;
+      latestId = row.capturedImageId;
+    }
+  }
+  if (latestId == null) {
+    return rows;
+  }
+  return rows
+      .where((row) => row.capturedImageId == latestId)
+      .toList(growable: false);
+}
 
-  const _KpiCard({
-    required this.colors,
-    required this.title,
-    required this.value,
-    required this.subtitle,
-  });
+// =============================================================================
+// Science Info Explanations
+// =============================================================================
+
+const _kCalibrationInfo = '''
+Photometric calibration is the process of converting raw pixel values in your images into standardized astronomical magnitudes. This lets you make scientifically meaningful brightness measurements rather than working with arbitrary intensity numbers.
+
+When Nightshade plate-solves a frame, it identifies known stars in the field and compares their measured brightness (in pixel counts) against their cataloged magnitudes. This comparison produces a zero-point (ZP) — a single number that anchors your instrumental magnitudes to the standard magnitude scale.
+
+A "Calibrated" status means Nightshade successfully matched enough catalog stars to compute a reliable zero-point. "Uncalibrated" means either the plate solve failed, too few stars were matched, or the fit residuals were too large to trust.
+
+The zero-point value itself tells you about your system's overall sensitivity for this session. A higher ZP means your system is detecting fainter stars per unit of exposure time. Changes in ZP between sessions can indicate differences in sky conditions, optical cleanliness, or camera performance.
+''';
+
+const _kLimMagInfo = '''
+Limiting magnitude (5-sigma) tells you the faintest star your imaging system can reliably detect in the current conditions, at a 5-sigma confidence level. In other words, a star at this magnitude would produce a signal five times stronger than the background noise — the standard threshold astronomers use to distinguish real detections from noise.
+
+This is one of the most important single numbers for evaluating your imaging setup's performance on a given night. It combines the effects of your telescope's aperture, camera sensitivity, sky brightness, atmospheric transparency, tracking accuracy, and focus quality into a single metric.
+
+A higher limiting magnitude means you're reaching fainter objects. Typical values for amateur setups range from magnitude 16 to 22 depending on equipment and conditions. Comparing this number across sessions helps you identify your best nights and track equipment performance over time.
+
+The "matched stars" count shows how many catalog stars were used to compute this value. More matched stars generally means a more reliable measurement. Fewer than ~20 matched stars may indicate the value is less trustworthy.
+''';
+
+const _kTransparencyInfo = '''
+Atmospheric transparency measures how much starlight makes it through the atmosphere without being absorbed or scattered. It's expressed as a percentage, where 100% would mean perfectly clear skies with zero atmospheric extinction beyond the minimum.
+
+Nightshade estimates transparency by comparing the measured brightness of known stars against their expected catalog magnitudes, after accounting for your system's calibrated zero-point. If stars appear dimmer than expected, the atmosphere is absorbing some of the light.
+
+The quality bucket (Clear, Thin Cloud, etc.) provides a quick human-readable assessment based on the transparency percentage. This helps you decide whether conditions are suitable for photometry, narrowband imaging, or if you should wait for clearer skies.
+
+Transparency is distinct from "seeing" (which measures atmospheric turbulence and affects star sharpness). You can have excellent transparency with poor seeing, or vice versa. Both matter for imaging, but transparency is especially critical for photometric accuracy and reaching faint targets.
+''';
+
+const _kMovingObjectsInfo = '''
+The moving object detector searches for sources that shift position between consecutive frames in your imaging session. This can reveal asteroids, comets, near-Earth objects (NEOs), or even artificial satellites passing through your field of view.
+
+Nightshade compares the positions of detected sources across multiple exposures. Objects that show consistent linear motion (within expected velocity ranges for solar system objects) are flagged as candidates. Each candidate is assigned a confidence score based on how well its apparent motion fits expected trajectories and how clearly it stands out from noise or image artifacts.
+
+The count shown here represents the number of distinct candidate objects found. A high count doesn't necessarily mean many real asteroids — some candidates may be hot pixels, cosmic ray hits, or other artifacts that mimic motion. The confidence percentage of the top candidate helps you gauge how likely the best detection is to be a real object.
+
+If you detect a high-confidence moving object that doesn't match known solar system bodies, it could be a previously undiscovered asteroid — a genuinely exciting find that you can report to the Minor Planet Center (MPC).
+''';
+
+const _kDifferentialPhotometryInfo = '''
+Differential photometry measures how a target object's brightness changes over time relative to stable comparison stars in the same field of view. By measuring the target and comparison stars simultaneously in each frame, most atmospheric and instrumental effects cancel out, enabling very precise brightness measurements.
+
+The Y-axis shows differential magnitude (dMag) — the difference between the target star's magnitude and the comparison ensemble. The axis is inverted so that brighter values appear higher on the chart, following the astronomical convention where lower magnitude numbers mean brighter objects.
+
+The error bars on each data point show the measurement uncertainty. Smaller error bars indicate more precise measurements. Factors that reduce uncertainty include longer exposures, better focus, higher transparency, and more comparison stars.
+
+This chart is essential for detecting variable stars, transiting exoplanets, eclipsing binaries, and other objects that change brightness. An exoplanet transit, for example, would appear as a subtle dip (typically 0.005-0.02 magnitudes) lasting a few hours. Eclipsing binaries show deeper, more regular dips.
+
+For the most accurate results, ensure your comparison stars are non-variable, similar in color to your target, and well-exposed without saturation.
+''';
+
+const _kTransparencyTrendInfo = '''
+The transparency trend chart tracks how atmospheric clarity changes throughout your imaging session. Each point represents a transparency measurement derived from comparing measured star brightnesses to their catalog values.
+
+A flat, high line (near 90-100%) indicates stable, clear conditions — ideal for photometry and deep imaging. A downward trend suggests increasing cloud cover, rising humidity, or the target moving to lower altitude where atmospheric extinction is greater.
+
+Sudden drops usually indicate thin clouds passing through the field. Gradual declines over the session may reflect changing atmospheric conditions, increasing dew formation on optics, or the target descending toward the horizon.
+
+This chart helps you identify which portions of your session had the best conditions, so you can selectively stack only the frames captured during optimal transparency. It's also useful for explaining unexpected scatter in your photometry data — periods of poor transparency will naturally produce noisier magnitude measurements.
+
+The X-axis shows elapsed time from the start of the session in minutes.
+''';
+
+const _kPsfFieldMapInfo = '''
+The PSF (Point Spread Function) Field Map shows how star sharpness varies across your imaging sensor. Each tile in the grid represents a region of the field of view, color-coded by the median FWHM (Full Width at Half Maximum) of stars detected in that region.
+
+FWHM measures how spread out a star's light profile is, in pixels. A perfectly focused star on a sensor with no atmospheric distortion would be as small as the diffraction limit allows. In practice, FWHM is typically 2-6 pixels for amateur setups and is affected by focus accuracy, atmospheric seeing, optical aberrations, and tracking errors.
+
+Green tiles indicate regions with tight, well-focused stars (low FWHM). Red tiles indicate regions where stars appear bloated or elongated (high FWHM). A uniform green grid means your optics are well-corrected and evenly focused across the field.
+
+Common patterns you might see:
+- Corners redder than center: field curvature or coma from your optical train. Consider a field flattener or coma corrector.
+- One side redder: tilt in your imaging train (camera not square to the optical axis). Check your adapters and spacers.
+- Everything red: poor focus or poor seeing conditions.
+- Uniform green: excellent optics and focus — the ideal result.
+
+The color scale is normalized to the 5th and 95th percentiles of your data, so it automatically adapts to show the variation present in your specific setup.
+''';
+
+const _kAstrometricResidualsInfo = '''
+Astrometric residuals measure the accuracy of the plate solution — how well the computed sky coordinates match the actual positions of known catalog stars in your image. After plate solving identifies stars and fits a coordinate model, the residual for each star is the angular distance between where the model says it should be and where it actually appears.
+
+The RMS (Root Mean Square) value combines all individual residuals into a single accuracy metric, expressed in arcseconds. Lower RMS means a more accurate astrometric solution.
+
+Typical values:
+- Below 0.5": Excellent astrometry, suitable for scientific reporting.
+- 0.5" to 1.5": Good astrometry, adequate for most purposes.
+- 1.5" to 3.0": Acceptable, but may indicate optical distortion or a sparse star field.
+- Above 3.0": Poor fit — may indicate tracking issues, severe distortion at the field edges, or an incorrect focal length in the solver configuration.
+
+The "recommendation" code (when present) provides guidance from the astrometric solver about potential improvements, such as refining the distortion model, adjusting the focal length, or using a denser reference catalog.
+
+High residuals can result from: poor tracking (field rotation or drift), optical distortion not accounted for in the plate model, incorrectly specified pixel scale or focal length, or very few reference stars in the field.
+''';
+
+const _kMovingObjectCandidatesInfo = '''
+This panel lists the individual moving object candidates detected in your session, ranked by confidence. For each candidate, you can see:
+
+- Name/ID: If the object matches a known asteroid or comet from the MPC (Minor Planet Center) database, its designation is shown. Otherwise, a temporary candidate ID is assigned.
+
+- Confidence: A percentage score indicating how likely this detection is to be a real moving object versus an artifact. Scores above 80% are generally reliable. Lower scores may indicate hot pixels, cosmic rays, or satellite trails that partially mimic asteroid-like motion.
+
+- Motion rate: The apparent angular velocity in arcseconds per minute. Main-belt asteroids typically move at 0.3-1.0"/min, while NEOs (Near-Earth Objects) can move much faster (up to several arcseconds per minute or more). Very fast motion (>10"/min) is usually an artificial satellite.
+
+To confirm a candidate as a real discovery, you would need to image the same field on subsequent nights to verify the object is still present and moving along a consistent orbital arc. Confirmed new discoveries can be reported to the Minor Planet Center for official designation.
+
+The list shows up to 6 candidates. If many low-confidence candidates appear, it may indicate noisy data or a crowded star field rather than actual moving objects.
+''';
+
+const _kNarrowbandRatiosInfo = '''
+Narrowband emission line ratios compare the relative intensities of specific wavelengths of light emitted by ionized gas in nebulae. These ratios reveal the physical conditions — temperature, density, and ionization state — of the gas you're imaging.
+
+The three ratios shown are:
+
+SII/H-alpha: Compares sulfur-II emission (672nm) to hydrogen-alpha emission (656nm). Elevated SII/Ha ratios indicate shock-heated gas, such as supernova remnants (SNRs) or Herbig-Haro objects. Typical HII regions (star-forming nebulae) have SII/Ha < 0.4, while SNRs often exceed 0.4-0.5.
+
+OIII/H-alpha: Compares doubly-ionized oxygen emission (496/501nm) to hydrogen-alpha. High OIII/Ha ratios indicate highly ionized gas, typically found near hot stars (planetary nebulae, Wolf-Rayet bubbles) or in the outer zones of large HII regions. This ratio is a proxy for the ionization parameter of the gas.
+
+SII/OIII: Compares sulfur-II to oxygen-III directly. This ratio helps distinguish between different excitation mechanisms. Low SII/OIII values suggest photoionization by UV radiation from hot stars, while high values point toward collisional excitation from shocks.
+
+To generate ratios, Nightshade needs at least one frame captured through each of the three narrowband filters (H-alpha, OIII, SII) in the current session. The frames are median-sampled and their integrated fluxes are compared to produce each ratio.
+
+These ratios are widely used in professional astronomy for classifying nebulae, mapping shock fronts, and studying the interstellar medium. They form the basis of BPT (Baldwin-Phillips-Terlevich) diagnostic diagrams used to classify emission-line objects.
+''';
+
+/// Map of card titles to their info content for easy lookup.
+const _kScienceInfoContent = <String, String>{
+  'Calibration': _kCalibrationInfo,
+  'Lim Mag (5-sigma)': _kLimMagInfo,
+  'Transparency': _kTransparencyInfo,
+  'Moving Objects': _kMovingObjectsInfo,
+  'Differential Photometry': _kDifferentialPhotometryInfo,
+  'Transparency Trend': _kTransparencyTrendInfo,
+  'PSF Field Map': _kPsfFieldMapInfo,
+  'Astrometric Residuals': _kAstrometricResidualsInfo,
+  'Moving Object Candidates': _kMovingObjectCandidatesInfo,
+  'Narrowband Ratios': _kNarrowbandRatiosInfo,
+};
+
+/// Shows a themed info dialog explaining a science visualization.
+void _showScienceInfoDialog(BuildContext context, String title, String body) {
+  final colors = Theme.of(context).extension<NightshadeColors>()!;
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colors.primary.withValues(alpha: 0.25)),
+      ),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              LucideIcons.info,
+              color: colors.primary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 420),
+        child: SingleChildScrollView(
+          child: Text(
+            body.trim(),
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 13,
+              height: 1.6,
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          style: TextButton.styleFrom(
+            foregroundColor: colors.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
+          child: const Text('Got it'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Small info icon button that opens the explanation dialog for a science card.
+class _ScienceInfoButton extends StatelessWidget {
+  final String title;
+
+  const _ScienceInfoButton({required this.title});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 240,
-      child: NightshadeCard(
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final body = _kScienceInfoContent[title];
+    if (body == null) return const SizedBox.shrink();
+
+    return Tooltip(
+      message: 'What is this?',
+      child: InkWell(
+        onTap: () => _showScienceInfoDialog(context, title, body),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colors.textMuted,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colors.textSecondary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+          padding: const EdgeInsets.all(4),
+          child: Icon(
+            LucideIcons.info,
+            size: 14,
+            color: colors.textMuted,
           ),
         ),
       ),
@@ -303,7 +550,6 @@ class _SeriesChartCard extends StatelessWidget {
   final String yLabel;
   final List<_ChartPoint> points;
   final Color color;
-  final bool invertY;
 
   const _SeriesChartCard({
     required this.colors,
@@ -311,7 +557,6 @@ class _SeriesChartCard extends StatelessWidget {
     required this.yLabel,
     required this.points,
     required this.color,
-    this.invertY = false,
   });
 
   @override
@@ -333,27 +578,21 @@ class _SeriesChartCard extends StatelessWidget {
     final sorted = points.toList(growable: false)
       ..sort((a, b) => a.time.compareTo(b.time));
     final start = sorted.first.time;
-    // For magnitude charts (invertY), negate values so "brighter" (more
-    // negative magnitude) renders at the top — standard astronomical
-    // convention.  Axis labels negate back to show true values.
-    final ySign = invertY ? -1.0 : 1.0;
     final spots = sorted
         .map(
           (point) => FlSpot(
-              point.time.difference(start).inSeconds.toDouble(),
-              point.value * ySign),
+              point.time.difference(start).inSeconds.toDouble(), point.value),
         )
         .toList(growable: false);
 
-    var minY = sorted.first.value * ySign;
-    var maxY = sorted.first.value * ySign;
+    var minY = sorted.first.value;
+    var maxY = sorted.first.value;
     for (final point in sorted) {
-      final v = point.value * ySign;
-      if (v < minY) {
-        minY = v;
+      if (point.value < minY) {
+        minY = point.value;
       }
-      if (v > maxY) {
-        maxY = v;
+      if (point.value > maxY) {
+        maxY = point.value;
       }
     }
 
@@ -365,12 +604,19 @@ class _SeriesChartCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                _ScienceInfoButton(title: title),
+              ],
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -428,7 +674,7 @@ class _SeriesChartCard extends StatelessWidget {
                         showTitles: true,
                         reservedSize: 40,
                         getTitlesWidget: (value, meta) => Text(
-                          (value * ySign).toStringAsFixed(1),
+                          value.toStringAsFixed(1),
                           style: TextStyle(
                             fontSize: 10,
                             color: colors.textSecondary,
@@ -522,12 +768,19 @@ class _LightCurveChartCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Differential Photometry',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Differential Photometry',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                const _ScienceInfoButton(title: 'Differential Photometry'),
+              ],
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -560,8 +813,8 @@ class _LightCurveChartCard extends StatelessWidget {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 24,
-                        interval: math.max(
-                            1, (spots.last.x / 4).floorToDouble()),
+                        interval:
+                            math.max(1, (spots.last.x / 4).floorToDouble()),
                         getTitlesWidget: (value, meta) {
                           final mins =
                               Duration(seconds: value.round()).inMinutes;
@@ -603,8 +856,7 @@ class _LightCurveChartCard extends StatelessWidget {
                       isCurved: false,
                       dotData: FlDotData(
                         show: true,
-                        getDotPainter: (spot, _, __, ___) =>
-                            FlDotCirclePainter(
+                        getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
                           radius: 2.2,
                           color: colors.primary,
                           strokeWidth: 0,
@@ -661,7 +913,6 @@ class _LightCurveChartCard extends StatelessWidget {
   }
 }
 
-
 class _PsfHeatmapCard extends StatelessWidget {
   final NightshadeColors colors;
   final List<PsfFieldTileRow> tiles;
@@ -676,12 +927,19 @@ class _PsfHeatmapCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'PSF Field Map',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'PSF Field Map',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                const _ScienceInfoButton(title: 'PSF Field Map'),
+              ],
             ),
             const SizedBox(height: 10),
             if (tiles.isEmpty)
@@ -826,12 +1084,19 @@ class _ResidualCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Astrometric Residuals',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Astrometric Residuals',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                const _ScienceInfoButton(title: 'Astrometric Residuals'),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -873,12 +1138,19 @@ class _MovingObjectCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Moving Object Candidates',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Moving Object Candidates',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                const _ScienceInfoButton(title: 'Moving Object Candidates'),
+              ],
             ),
             const SizedBox(height: 8),
             if (moving.isEmpty)
@@ -931,7 +1203,7 @@ class _MovingObjectCard extends StatelessWidget {
 
 class _LineRatioCard extends ConsumerStatefulWidget {
   final NightshadeColors colors;
-  final int sessionId;
+  final int? sessionId;
   final List<LineRatioProductRow> lineRatios;
 
   const _LineRatioCard({
@@ -961,18 +1233,27 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Narrowband Ratios',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: widget.colors.textPrimary,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Narrowband Ratios',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: widget.colors.textPrimary,
+                    ),
+                  ),
+                ),
+                const _ScienceInfoButton(title: 'Narrowband Ratios'),
+              ],
             ),
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: NightshadeButton(
-                onPressed: _isGenerating || !narrowbandEnabled
+                onPressed: _isGenerating ||
+                        !narrowbandEnabled ||
+                        widget.sessionId == null
                     ? null
                     : _generateLineRatios,
                 label: !narrowbandEnabled
@@ -1036,6 +1317,9 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
   }
 
   Future<void> _generateLineRatios() async {
+    final sessionId = widget.sessionId;
+    if (sessionId == null) return;
+
     final scienceSettings = ref.read(scienceSettingsProvider).valueOrNull ??
         const ScienceSettings();
     if (!scienceSettings.narrowbandRatiosEnabled) {
@@ -1054,7 +1338,7 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
     try {
       final images = await ref
           .read(imagesDaoProvider)
-          .getImagesForSession(widget.sessionId);
+          .getImagesForSession(sessionId);
       final ha =
           _findLatestByFilter(images, {'ha', 'halpha', 'h-alpha', 'h alpha'});
       final oiii = _findLatestByFilter(images, {'oiii', 'o3'});
@@ -1070,7 +1354,7 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
       }
 
       await ref.read(scienceProcessingServiceProvider).generateLineRatios(
-            sessionId: widget.sessionId,
+            sessionId: sessionId,
             set: NarrowbandSet(
               hAlphaPath: ha.filePath,
               oiiiPath: oiii.filePath,
@@ -1102,7 +1386,8 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
         // Match on exact filter name or as a whole-word within the filter
         // string.  Prevents false positives like "Shah" matching "ha".
         if (filter == name) return true;
-        final pattern = RegExp('(?:^|[\\s_-])${RegExp.escape(name)}(?:[\\s_-]|\$)');
+        final pattern =
+            RegExp('(?:^|[\\s_-])${RegExp.escape(name)}(?:[\\s_-]|\$)');
         if (pattern.hasMatch(filter)) return true;
       }
       return false;

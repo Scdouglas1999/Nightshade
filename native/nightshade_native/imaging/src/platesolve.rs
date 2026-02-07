@@ -191,13 +191,13 @@ impl AstapSolver {
             cmd.arg("-spd").arg(format!("{}", dec + 90.0)); // Convert to SPD
         }
 
-        // Hint scale (focal length)
-        if let Some(scale) = hint_scale {
-            // ASTAP uses focal length, estimate from scale
-            // scale = 206.265 * pixel_size / focal_length
-            // Assuming 3.76 micron pixels (common for ASI cameras)
-            let focal_length = 206.265 * 3.76 / scale;
-            cmd.arg("-fov").arg(format!("{}", focal_length));
+        // Hint scale
+        if hint_scale.is_some() {
+            // ASTAP expects focal-length-style hints here, which require a known pixel size.
+            // Do not synthesize focal length from an assumed pixel size.
+            tracing::debug!(
+                "Plate-solve scale hint provided without pixel size; skipping ASTAP focal-length hint"
+            );
         }
 
         // Downsample

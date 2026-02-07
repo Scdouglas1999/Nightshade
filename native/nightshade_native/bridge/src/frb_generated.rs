@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1514280401;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2105894733;
 
 // Section: executor
 
@@ -417,6 +417,84 @@ fn wire__crate__api__api_clear_device_image_impl(
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok = crate::api::api_clear_device_image(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_compute_fits_quality_maps_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    file_path: impl CstDecode<String>,
+    grid_rows: impl CstDecode<u32>,
+    grid_cols: impl CstDecode<u32>,
+    low_clip_adu: impl CstDecode<u32>,
+    high_clip_adu: impl CstDecode<u32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_compute_fits_quality_maps",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_file_path = file_path.cst_decode();
+            let api_grid_rows = grid_rows.cst_decode();
+            let api_grid_cols = grid_cols.cst_decode();
+            let api_low_clip_adu = low_clip_adu.cst_decode();
+            let api_high_clip_adu = high_clip_adu.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_compute_fits_quality_maps(
+                            api_file_path,
+                            api_grid_rows,
+                            api_grid_cols,
+                            api_low_clip_adu,
+                            api_high_clip_adu,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_compute_last_capture_quality_maps_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    grid_rows: impl CstDecode<u32>,
+    grid_cols: impl CstDecode<u32>,
+    low_clip_adu: impl CstDecode<u32>,
+    high_clip_adu: impl CstDecode<u32>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_compute_last_capture_quality_maps",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_grid_rows = grid_rows.cst_decode();
+            let api_grid_cols = grid_cols.cst_decode();
+            let api_low_clip_adu = low_clip_adu.cst_decode();
+            let api_high_clip_adu = high_clip_adu.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::api_compute_last_capture_quality_maps(
+                            api_device_id,
+                            api_grid_rows,
+                            api_grid_cols,
+                            api_low_clip_adu,
+                            api_high_clip_adu,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -9026,6 +9104,18 @@ impl SseDecode for Vec<u8> {
     }
 }
 
+impl SseDecode for Vec<crate::api::QualityTileMetricApi> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::QualityTileMetricApi>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::QuirkInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9883,6 +9973,82 @@ impl SseDecode for crate::api::QhyDiscoveryStatus {
             sdk_available: var_sdkAvailable,
             discovery_enabled: var_discoveryEnabled,
             timeout_ms: var_timeoutMs,
+        };
+    }
+}
+
+impl SseDecode for crate::api::QualityFrameMetricsApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_median = <f64>::sse_decode(deserializer);
+        let mut var_mean = <f64>::sse_decode(deserializer);
+        let mut var_stdDev = <f64>::sse_decode(deserializer);
+        let mut var_mad = <f64>::sse_decode(deserializer);
+        let mut var_background = <f64>::sse_decode(deserializer);
+        let mut var_noise = <f64>::sse_decode(deserializer);
+        let mut var_snr = <f64>::sse_decode(deserializer);
+        let mut var_dynamicRangeP1P99 = <f64>::sse_decode(deserializer);
+        let mut var_lowClipPercent = <f64>::sse_decode(deserializer);
+        let mut var_highClipPercent = <f64>::sse_decode(deserializer);
+        let mut var_uniformityCv = <f64>::sse_decode(deserializer);
+        let mut var_gradientX = <f64>::sse_decode(deserializer);
+        let mut var_gradientY = <f64>::sse_decode(deserializer);
+        let mut var_processingTier = <String>::sse_decode(deserializer);
+        let mut var_processingMs = <u32>::sse_decode(deserializer);
+        return crate::api::QualityFrameMetricsApi {
+            median: var_median,
+            mean: var_mean,
+            std_dev: var_stdDev,
+            mad: var_mad,
+            background: var_background,
+            noise: var_noise,
+            snr: var_snr,
+            dynamic_range_p1_p99: var_dynamicRangeP1P99,
+            low_clip_percent: var_lowClipPercent,
+            high_clip_percent: var_highClipPercent,
+            uniformity_cv: var_uniformityCv,
+            gradient_x: var_gradientX,
+            gradient_y: var_gradientY,
+            processing_tier: var_processingTier,
+            processing_ms: var_processingMs,
+        };
+    }
+}
+
+impl SseDecode for crate::api::QualityMapsResultApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_frame = <crate::api::QualityFrameMetricsApi>::sse_decode(deserializer);
+        let mut var_tiles = <Vec<crate::api::QualityTileMetricApi>>::sse_decode(deserializer);
+        return crate::api::QualityMapsResultApi {
+            frame: var_frame,
+            tiles: var_tiles,
+        };
+    }
+}
+
+impl SseDecode for crate::api::QualityTileMetricApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_layerType = <String>::sse_decode(deserializer);
+        let mut var_tileRow = <u32>::sse_decode(deserializer);
+        let mut var_tileCol = <u32>::sse_decode(deserializer);
+        let mut var_sampleCount = <u32>::sse_decode(deserializer);
+        let mut var_value = <f64>::sse_decode(deserializer);
+        let mut var_p05 = <f64>::sse_decode(deserializer);
+        let mut var_p50 = <f64>::sse_decode(deserializer);
+        let mut var_p95 = <f64>::sse_decode(deserializer);
+        let mut var_auxValue = <f64>::sse_decode(deserializer);
+        return crate::api::QualityTileMetricApi {
+            layer_type: var_layerType,
+            tile_row: var_tileRow,
+            tile_col: var_tileCol,
+            sample_count: var_sampleCount,
+            value: var_value,
+            p05: var_p05,
+            p50: var_p50,
+            p95: var_p95,
+            aux_value: var_auxValue,
         };
     }
 }
@@ -12693,6 +12859,89 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::QhyDiscoveryStatus>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::QualityFrameMetricsApi {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.median.into_into_dart().into_dart(),
+            self.mean.into_into_dart().into_dart(),
+            self.std_dev.into_into_dart().into_dart(),
+            self.mad.into_into_dart().into_dart(),
+            self.background.into_into_dart().into_dart(),
+            self.noise.into_into_dart().into_dart(),
+            self.snr.into_into_dart().into_dart(),
+            self.dynamic_range_p1_p99.into_into_dart().into_dart(),
+            self.low_clip_percent.into_into_dart().into_dart(),
+            self.high_clip_percent.into_into_dart().into_dart(),
+            self.uniformity_cv.into_into_dart().into_dart(),
+            self.gradient_x.into_into_dart().into_dart(),
+            self.gradient_y.into_into_dart().into_dart(),
+            self.processing_tier.into_into_dart().into_dart(),
+            self.processing_ms.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::QualityFrameMetricsApi
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::QualityFrameMetricsApi>
+    for crate::api::QualityFrameMetricsApi
+{
+    fn into_into_dart(self) -> crate::api::QualityFrameMetricsApi {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::QualityMapsResultApi {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.frame.into_into_dart().into_dart(),
+            self.tiles.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::QualityMapsResultApi
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::QualityMapsResultApi>
+    for crate::api::QualityMapsResultApi
+{
+    fn into_into_dart(self) -> crate::api::QualityMapsResultApi {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::QualityTileMetricApi {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.layer_type.into_into_dart().into_dart(),
+            self.tile_row.into_into_dart().into_dart(),
+            self.tile_col.into_into_dart().into_dart(),
+            self.sample_count.into_into_dart().into_dart(),
+            self.value.into_into_dart().into_dart(),
+            self.p05.into_into_dart().into_dart(),
+            self.p50.into_into_dart().into_dart(),
+            self.p95.into_into_dart().into_dart(),
+            self.aux_value.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::QualityTileMetricApi
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::QualityTileMetricApi>
+    for crate::api::QualityTileMetricApi
+{
+    fn into_into_dart(self) -> crate::api::QualityTileMetricApi {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::QuirkInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14734,6 +14983,16 @@ impl SseEncode for Vec<u8> {
     }
 }
 
+impl SseEncode for Vec<crate::api::QualityTileMetricApi> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::QualityTileMetricApi>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::QuirkInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15395,6 +15654,50 @@ impl SseEncode for crate::api::QhyDiscoveryStatus {
         <bool>::sse_encode(self.sdk_available, serializer);
         <bool>::sse_encode(self.discovery_enabled, serializer);
         <u64>::sse_encode(self.timeout_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::QualityFrameMetricsApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f64>::sse_encode(self.median, serializer);
+        <f64>::sse_encode(self.mean, serializer);
+        <f64>::sse_encode(self.std_dev, serializer);
+        <f64>::sse_encode(self.mad, serializer);
+        <f64>::sse_encode(self.background, serializer);
+        <f64>::sse_encode(self.noise, serializer);
+        <f64>::sse_encode(self.snr, serializer);
+        <f64>::sse_encode(self.dynamic_range_p1_p99, serializer);
+        <f64>::sse_encode(self.low_clip_percent, serializer);
+        <f64>::sse_encode(self.high_clip_percent, serializer);
+        <f64>::sse_encode(self.uniformity_cv, serializer);
+        <f64>::sse_encode(self.gradient_x, serializer);
+        <f64>::sse_encode(self.gradient_y, serializer);
+        <String>::sse_encode(self.processing_tier, serializer);
+        <u32>::sse_encode(self.processing_ms, serializer);
+    }
+}
+
+impl SseEncode for crate::api::QualityMapsResultApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::QualityFrameMetricsApi>::sse_encode(self.frame, serializer);
+        <Vec<crate::api::QualityTileMetricApi>>::sse_encode(self.tiles, serializer);
+    }
+}
+
+impl SseEncode for crate::api::QualityTileMetricApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.layer_type, serializer);
+        <u32>::sse_encode(self.tile_row, serializer);
+        <u32>::sse_encode(self.tile_col, serializer);
+        <u32>::sse_encode(self.sample_count, serializer);
+        <f64>::sse_encode(self.value, serializer);
+        <f64>::sse_encode(self.p05, serializer);
+        <f64>::sse_encode(self.p50, serializer);
+        <f64>::sse_encode(self.p95, serializer);
+        <f64>::sse_encode(self.aux_value, serializer);
     }
 }
 
@@ -17363,6 +17666,18 @@ mod io {
             }
         }
     }
+    impl CstDecode<Vec<crate::api::QualityTileMetricApi>>
+        for *mut wire_cst_list_quality_tile_metric_api
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<crate::api::QualityTileMetricApi> {
+            let vec = unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            };
+            vec.into_iter().map(CstDecode::cst_decode).collect()
+        }
+    }
     impl CstDecode<Vec<crate::api::QuirkInfo>> for *mut wire_cst_list_quirk_info {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> Vec<crate::api::QuirkInfo> {
@@ -17829,6 +18144,53 @@ mod io {
                 sdk_available: self.sdk_available.cst_decode(),
                 discovery_enabled: self.discovery_enabled.cst_decode(),
                 timeout_ms: self.timeout_ms.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::QualityFrameMetricsApi> for wire_cst_quality_frame_metrics_api {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::QualityFrameMetricsApi {
+            crate::api::QualityFrameMetricsApi {
+                median: self.median.cst_decode(),
+                mean: self.mean.cst_decode(),
+                std_dev: self.std_dev.cst_decode(),
+                mad: self.mad.cst_decode(),
+                background: self.background.cst_decode(),
+                noise: self.noise.cst_decode(),
+                snr: self.snr.cst_decode(),
+                dynamic_range_p1_p99: self.dynamic_range_p1_p99.cst_decode(),
+                low_clip_percent: self.low_clip_percent.cst_decode(),
+                high_clip_percent: self.high_clip_percent.cst_decode(),
+                uniformity_cv: self.uniformity_cv.cst_decode(),
+                gradient_x: self.gradient_x.cst_decode(),
+                gradient_y: self.gradient_y.cst_decode(),
+                processing_tier: self.processing_tier.cst_decode(),
+                processing_ms: self.processing_ms.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::QualityMapsResultApi> for wire_cst_quality_maps_result_api {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::QualityMapsResultApi {
+            crate::api::QualityMapsResultApi {
+                frame: self.frame.cst_decode(),
+                tiles: self.tiles.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::QualityTileMetricApi> for wire_cst_quality_tile_metric_api {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::QualityTileMetricApi {
+            crate::api::QualityTileMetricApi {
+                layer_type: self.layer_type.cst_decode(),
+                tile_row: self.tile_row.cst_decode(),
+                tile_col: self.tile_col.cst_decode(),
+                sample_count: self.sample_count.cst_decode(),
+                value: self.value.cst_decode(),
+                p05: self.p05.cst_decode(),
+                p50: self.p50.cst_decode(),
+                p95: self.p95.cst_decode(),
+                aux_value: self.aux_value.cst_decode(),
             }
         }
     }
@@ -19214,6 +19576,65 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_quality_frame_metrics_api {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                median: Default::default(),
+                mean: Default::default(),
+                std_dev: Default::default(),
+                mad: Default::default(),
+                background: Default::default(),
+                noise: Default::default(),
+                snr: Default::default(),
+                dynamic_range_p1_p99: Default::default(),
+                low_clip_percent: Default::default(),
+                high_clip_percent: Default::default(),
+                uniformity_cv: Default::default(),
+                gradient_x: Default::default(),
+                gradient_y: Default::default(),
+                processing_tier: core::ptr::null_mut(),
+                processing_ms: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_quality_frame_metrics_api {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_quality_maps_result_api {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                frame: Default::default(),
+                tiles: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_quality_maps_result_api {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_quality_tile_metric_api {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                layer_type: core::ptr::null_mut(),
+                tile_row: Default::default(),
+                tile_col: Default::default(),
+                sample_count: Default::default(),
+                value: Default::default(),
+                p05: Default::default(),
+                p50: Default::default(),
+                p95: Default::default(),
+                aux_value: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_quality_tile_metric_api {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_quirk_info {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -19812,6 +20233,44 @@ mod io {
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__api_clear_device_image_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_compute_fits_quality_maps(
+        port_: i64,
+        file_path: *mut wire_cst_list_prim_u_8_strict,
+        grid_rows: u32,
+        grid_cols: u32,
+        low_clip_adu: u32,
+        high_clip_adu: u32,
+    ) {
+        wire__crate__api__api_compute_fits_quality_maps_impl(
+            port_,
+            file_path,
+            grid_rows,
+            grid_cols,
+            low_clip_adu,
+            high_clip_adu,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_compute_last_capture_quality_maps(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        grid_rows: u32,
+        grid_cols: u32,
+        low_clip_adu: u32,
+        high_clip_adu: u32,
+    ) {
+        wire__crate__api__api_compute_last_capture_quality_maps_impl(
+            port_,
+            device_id,
+            grid_rows,
+            grid_cols,
+            low_clip_adu,
+            high_clip_adu,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -22636,6 +23095,20 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_quality_tile_metric_api(
+        len: i32,
+    ) -> *mut wire_cst_list_quality_tile_metric_api {
+        let wrap = wire_cst_list_quality_tile_metric_api {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
+                <wire_cst_quality_tile_metric_api>::new_with_null_ptr(),
+                len,
+            ),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(wrap)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_quirk_info(
         len: i32,
     ) -> *mut wire_cst_list_quirk_info {
@@ -23632,6 +24105,12 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_list_quality_tile_metric_api {
+        ptr: *mut wire_cst_quality_tile_metric_api,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_list_quirk_info {
         ptr: *mut wire_cst_quirk_info,
         len: i32,
@@ -24061,6 +24540,44 @@ mod io {
         sdk_available: bool,
         discovery_enabled: bool,
         timeout_ms: u64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_quality_frame_metrics_api {
+        median: f64,
+        mean: f64,
+        std_dev: f64,
+        mad: f64,
+        background: f64,
+        noise: f64,
+        snr: f64,
+        dynamic_range_p1_p99: f64,
+        low_clip_percent: f64,
+        high_clip_percent: f64,
+        uniformity_cv: f64,
+        gradient_x: f64,
+        gradient_y: f64,
+        processing_tier: *mut wire_cst_list_prim_u_8_strict,
+        processing_ms: u32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_quality_maps_result_api {
+        frame: wire_cst_quality_frame_metrics_api,
+        tiles: *mut wire_cst_list_quality_tile_metric_api,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_quality_tile_metric_api {
+        layer_type: *mut wire_cst_list_prim_u_8_strict,
+        tile_row: u32,
+        tile_col: u32,
+        sample_count: u32,
+        value: f64,
+        p05: f64,
+        p50: f64,
+        p95: f64,
+        aux_value: f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

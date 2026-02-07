@@ -87,7 +87,7 @@ void main() {
     final imageData = CapturedImageData(
       width: 100,
       height: 100,
-      displayData: Uint8List(100 * 100),
+      displayData: Uint8List(100 * 100 * 4),
       histogram: List.filled(256, 0),
       stats: const ImageStats(mean: 0),
       capturedAt: DateTime.now(),
@@ -194,7 +194,7 @@ void main() {
     final imageData = CapturedImageData(
       width: 100,
       height: 100,
-      displayData: Uint8List(100 * 100),
+      displayData: Uint8List(100 * 100 * 4),
       histogram: List.filled(256, 0),
       stats: const ImageStats(mean: 50, stdDev: 10, snr: 5),
       capturedAt: DateTime.now(),

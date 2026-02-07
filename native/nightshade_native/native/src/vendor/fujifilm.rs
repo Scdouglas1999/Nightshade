@@ -481,14 +481,20 @@ impl FujifilmModel {
 
     /// Check if this is an X-Trans sensor (non-Bayer)
     fn is_xtrans(&self) -> bool {
-        !matches!(
+        matches!(
             self,
-            Self::Gfx100
-                | Self::Gfx100II
-                | Self::Gfx100SII
-                | Self::Gfx50R
-                | Self::Gfx50S
-                | Self::Gfx50SII
+            Self::XH2
+                | Self::XH2S
+                | Self::XT5
+                | Self::XT4
+                | Self::XT3
+                | Self::XM5
+                | Self::XS20
+                | Self::XS10
+                | Self::XPro3
+                | Self::XE4
+                | Self::X100V
+                | Self::X100VI
         )
     }
 
@@ -1928,7 +1934,7 @@ fn process_raf_buffer(
         .map_err(|e| NativeError::SdkError(format!("Failed to write temp RAF file: {}", e)))?;
 
     // Use LibRaw to process
-    // For now, use nightshade_imaging if available, otherwise return error
+    // Use nightshade_imaging LibRaw integration and return its result.
     let result = process_raf_with_libraw(&temp_path);
 
     // Cleanup temp file
@@ -2273,10 +2279,10 @@ mod tests {
 
     #[test]
     fn test_is_xtrans_unknown() {
-        // Unknown defaults to X-Trans (assumes X-series)
+        // Unknown model should not infer sensor CFA.
         assert!(
-            FujifilmModel::Unknown.is_xtrans(),
-            "Unknown should default to X-Trans"
+            !FujifilmModel::Unknown.is_xtrans(),
+            "Unknown should not report X-Trans"
         );
     }
 

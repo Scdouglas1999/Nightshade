@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/database/database.dart' show Target, ImagingSession;
+import 'package:nightshade_core/src/database/database.dart'
+    show Target, ImagingSession;
+import 'package:nightshade_core/src/models/optical_config.dart';
 
 /// Mock implementation of LoggingService
 class MockLoggingService extends Mock implements LoggingService {}
@@ -298,12 +300,13 @@ void main() {
         );
 
         if (suggestions.length >= 2) {
-          // Verify sorted by altitude descending
+          // Verify sorted by peak altitude descending (night-aware)
           for (int i = 0; i < suggestions.length - 1; i++) {
-            expect(
-              suggestions[i].visibility.currentAltitude,
-              greaterThanOrEqualTo(suggestions[i + 1].visibility.currentAltitude),
-            );
+            final aAlt = suggestions[i].visibility.peakAltitude ??
+                suggestions[i].visibility.currentAltitude;
+            final bAlt = suggestions[i + 1].visibility.peakAltitude ??
+                suggestions[i + 1].visibility.currentAltitude;
+            expect(aAlt, greaterThanOrEqualTo(bAlt));
           }
         }
       });
@@ -534,6 +537,295 @@ void main() {
           // Should show 10% progress (some data exists but no plan)
           expect(suggestions.first.dataProgress, closeTo(0.1, 0.01));
         }
+      });
+
+      group('framing fit scoring', () {
+        /// Creates an OpticalConfig with a known FOV.
+        /// With 1000mm focal length, 4656x3520 pixels at 3.76 µm pixel size:
+        /// sensorWidthMm = 4656 * 3.76 / 1000 = 17.51 mm
+        /// sensorHeightMm = 3520 * 3.76 / 1000 = 13.24 mm
+        /// FOV width ≈ 1.003°, FOV height ≈ 0.759°
+        /// FOV short axis ≈ 0.759° ≈ 45.5 arcmin
+        OpticalConfig createTestOpticalConfig() {
+          return const OpticalConfig(
+            focalLength: 1000,
+            aperture: 200,
+            sensorWidth: 4656,
+            sensorHeight: 3520,
+            pixelSize: 3.76,
+          );
+        }
+
+        test('suggestions without opticalConfig have no framingFit score', () async {
+          final targets = [
+            createTarget(
+              id: 1,
+              name: 'Test Nebula',
+              ra: 12.0,
+              dec: 45.0,
+              sizeArcmin: 15.0,
+              objectType: 'Nebula',
+            ),
+          ];
+
+          final suggestions = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+            ),
+            latitude: 40.0,
+            longitude: -75.0,
+            targets: targets,
+            sessions: [],
+            observationTime: DateTime(2024, 3, 21, 22, 0),
+          );
+
+          if (suggestions.isNotEmpty) {
+            expect(
+              suggestions.first.scoreBreakdown.containsKey('framingFit'),
+              isFalse,
+            );
+          }
+        });
+
+        test('suggestions with opticalConfig include framingFit score', () async {
+          final opticalConfig = createTestOpticalConfig();
+          final targets = [
+            createTarget(
+              id: 1,
+              name: 'Test Nebula',
+              ra: 12.0,
+              dec: 45.0,
+              sizeArcmin: 15.0,
+              objectType: 'Nebula',
+            ),
+          ];
+
+          final suggestions = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+            ),
+            latitude: 40.0,
+            longitude: -75.0,
+            targets: targets,
+            sessions: [],
+            observationTime: DateTime(2024, 3, 21, 22, 0),
+            opticalConfig: opticalConfig,
+          );
+
+          if (suggestions.isNotEmpty) {
+            expect(
+              suggestions.first.scoreBreakdown.containsKey('framingFit'),
+              isTrue,
+            );
+            expect(
+              suggestions.first.scoreBreakdown['framingFit'],
+              greaterThan(0),
+            );
+          }
+        });
+
+        test('ideal fill ratio target gets high framing fit score', () async {
+          final opticalConfig = createTestOpticalConfig();
+          // FOV short axis ≈ 45.5 arcmin
+          // Target at 22 arcmin → fill ratio ≈ 0.48 → in sweet spot (0.40-0.60) → score 100
+          final targets = [
+            createTarget(
+              id: 1,
+              name: 'Well-framed Galaxy',
+              ra: 12.0,
+              dec: 45.0,
+              sizeArcmin: 22.0,
+              objectType: 'Galaxy',
+            ),
+          ];
+
+          final suggestions = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+            ),
+            latitude: 40.0,
+            longitude: -75.0,
+            targets: targets,
+            sessions: [],
+            observationTime: DateTime(2024, 3, 21, 22, 0),
+            opticalConfig: opticalConfig,
+          );
+
+          if (suggestions.isNotEmpty) {
+            final framingScore =
+                suggestions.first.scoreBreakdown['framingFit']!;
+            // 22 / 45.5 ≈ 0.48 fill ratio → should be 100
+            expect(framingScore, equals(100.0));
+          }
+        });
+
+        test('target much larger than FOV gets gentle penalty', () async {
+          final opticalConfig = createTestOpticalConfig();
+          // FOV short axis ≈ 45.5 arcmin
+          // Target at 120 arcmin → fill ratio ≈ 2.64 → overflows → gentle score
+          final targets = [
+            createTarget(
+              id: 1,
+              name: 'Huge Nebula',
+              ra: 12.0,
+              dec: 45.0,
+              sizeArcmin: 120.0,
+              objectType: 'Nebula',
+            ),
+          ];
+
+          final suggestions = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+            ),
+            latitude: 40.0,
+            longitude: -75.0,
+            targets: targets,
+            sessions: [],
+            observationTime: DateTime(2024, 3, 21, 22, 0),
+            opticalConfig: opticalConfig,
+          );
+
+          if (suggestions.isNotEmpty) {
+            final framingScore =
+                suggestions.first.scoreBreakdown['framingFit']!;
+            // 120 / 45.5 ≈ 2.64 → >2.0 fill ratio → neutral score of 50
+            expect(framingScore, equals(50.0));
+          }
+        });
+
+        test('target with no size data gets neutral framing fit score', () async {
+          final opticalConfig = createTestOpticalConfig();
+          final targets = [
+            createTarget(
+              id: 1,
+              name: 'Unknown Size Target',
+              ra: 12.0,
+              dec: 45.0,
+              sizeArcmin: null,
+              objectType: 'Galaxy',
+            ),
+          ];
+
+          final suggestions = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+            ),
+            latitude: 40.0,
+            longitude: -75.0,
+            targets: targets,
+            sessions: [],
+            observationTime: DateTime(2024, 3, 21, 22, 0),
+            opticalConfig: opticalConfig,
+          );
+
+          if (suggestions.isNotEmpty) {
+            final framingScore =
+                suggestions.first.scoreBreakdown['framingFit']!;
+            // No size data → neutral score of 50
+            expect(framingScore, equals(50.0));
+          }
+        });
+
+        test('overflow target gets "Mosaic recommended" tag', () async {
+          final opticalConfig = createTestOpticalConfig();
+          // FOV short axis ≈ 45.5 arcmin
+          // Target at 80 arcmin → fill ratio ≈ 1.76 → overflows FOV
+          final targets = [
+            createTarget(
+              id: 1,
+              name: 'Large Nebula',
+              ra: 12.0,
+              dec: 45.0,
+              sizeArcmin: 80.0,
+              objectType: 'Nebula',
+            ),
+          ];
+
+          final suggestions = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+            ),
+            latitude: 40.0,
+            longitude: -75.0,
+            targets: targets,
+            sessions: [],
+            observationTime: DateTime(2024, 3, 21, 22, 0),
+            opticalConfig: opticalConfig,
+          );
+
+          if (suggestions.isNotEmpty) {
+            expect(suggestions.first.tags, contains('Mosaic recommended'));
+          }
+        });
+
+        test('well-framed target has no mosaic tag', () async {
+          final opticalConfig = createTestOpticalConfig();
+          // FOV short axis ≈ 45.5 arcmin
+          // Target at 22 arcmin → fill ratio ≈ 0.48 → fits well
+          final targets = [
+            createTarget(
+              id: 1,
+              name: 'Nice Galaxy',
+              ra: 12.0,
+              dec: 45.0,
+              sizeArcmin: 22.0,
+              objectType: 'Galaxy',
+            ),
+          ];
+
+          final suggestions = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+            ),
+            latitude: 40.0,
+            longitude: -75.0,
+            targets: targets,
+            sessions: [],
+            observationTime: DateTime(2024, 3, 21, 22, 0),
+            opticalConfig: opticalConfig,
+          );
+
+          if (suggestions.isNotEmpty) {
+            expect(suggestions.first.tags, isEmpty);
+          }
+        });
+
+        test('no tags without optical config', () async {
+          final targets = [
+            createTarget(
+              id: 1,
+              name: 'Large Nebula',
+              ra: 12.0,
+              dec: 45.0,
+              sizeArcmin: 120.0,
+              objectType: 'Nebula',
+            ),
+          ];
+
+          final suggestions = await service.getSuggestionsForTonight(
+            config: const TargetSuggestionConfig(
+              minAltitude: 0.0,
+              minScore: 0.0,
+            ),
+            latitude: 40.0,
+            longitude: -75.0,
+            targets: targets,
+            sessions: [],
+            observationTime: DateTime(2024, 3, 21, 22, 0),
+          );
+
+          if (suggestions.isNotEmpty) {
+            expect(suggestions.first.tags, isEmpty);
+          }
+        });
       });
     });
   });

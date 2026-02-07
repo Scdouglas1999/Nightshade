@@ -1,14 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/sequence/sequence_models.dart';
 import '../models/sequence/template_snippet.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart';
-import '../models/settings/app_settings.dart'
-    show ObserverLocation, SafetyFailMode;
+import '../models/settings/app_settings.dart' show ObserverLocation;
 import '../services/logging_service.dart';
 import 'equipment_provider.dart';
 import 'database_provider.dart';
@@ -537,47 +538,37 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     }
 
     // Match template filter names to actual profile filter names
-    print(
-        'insertSnippet: profileFilterNames=$profileFilterNames, createdNodes=${createdNodes.length}');
+    developer.log(
+        'insertSnippet: profileFilterNames=$profileFilterNames, createdNodes=${createdNodes.length}',
+        name: 'Sequence');
     if (profileFilterNames != null && profileFilterNames.isNotEmpty) {
       for (int i = 0; i < createdNodes.length; i++) {
         final node = createdNodes[i];
         if (node is ExposureNode &&
             node.filter != null &&
             node.filter!.isNotEmpty) {
-          print(
-              'insertSnippet: ExposureNode filter="${node.filter}" filterIndex=${node.filterIndex}');
           final matchedIndex =
               _matchFilterToProfile(node.filter!, profileFilterNames);
-          print('insertSnippet: matchedIndex=$matchedIndex');
           if (matchedIndex != null) {
             createdNodes[i] = node.copyWith(
               filter: profileFilterNames[matchedIndex],
               filterIndex: matchedIndex,
             );
-            print(
-                'insertSnippet: Updated to filter="${profileFilterNames[matchedIndex]}" filterIndex=$matchedIndex');
+            developer.log(
+                'insertSnippet: Mapped filter "${node.filter}" -> "${profileFilterNames[matchedIndex]}" (index $matchedIndex)',
+                name: 'Sequence');
           }
         } else if (node is FilterChangeNode) {
-          print(
-              'insertSnippet: FilterChangeNode filterName="${node.filterName}" filterPosition=${node.filterPosition}');
           final matchedIndex =
               _matchFilterToProfile(node.filterName, profileFilterNames);
-          print('insertSnippet: matchedIndex=$matchedIndex');
           if (matchedIndex != null) {
             createdNodes[i] = node.copyWith(
               filterName: profileFilterNames[matchedIndex],
               filterPosition: matchedIndex,
             );
           }
-        } else {
-          print(
-              'insertSnippet: Node type=${node.runtimeType}, not a filter node');
         }
       }
-    } else {
-      print(
-          'insertSnippet: No profile filter names provided, skipping filter matching');
     }
 
     // Add all created nodes to the sequence
@@ -631,7 +622,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     final childIds =
         (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
     final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
-    final isEnabled = json['isEnabled'] as bool? ?? true;
+    final isEnabled = json['isEnabled'] as bool? ?? false;
 
     switch (nodeType) {
       case 'targetheader':
@@ -712,7 +703,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return SlewNode(
           id: id,
           name: name ?? 'Slew to Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
           customRa: (json['customRa'] as num?)?.toDouble(),
           customDec: (json['customDec'] as num?)?.toDouble(),
           parentId: parentId,
@@ -726,7 +717,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return CenterNode(
           id: id,
           name: name ?? 'Center Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
           accuracyArcsec: (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
           maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 5,
           parentId: parentId,
@@ -791,7 +782,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
           settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 60.0,
-          autoSelectStar: json['autoSelectStar'] as bool? ?? true,
+          autoSelectStar: json['autoSelectStar'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -872,8 +863,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           name: name ?? 'Meridian Flip',
           minutesPastMeridian:
               (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
-          pauseGuiding: json['pauseGuiding'] as bool? ?? true,
-          autoCenter: json['autoCenter'] as bool? ?? true,
+          pauseGuiding: json['pauseGuiding'] as bool? ?? false,
+          autoCenter: json['autoCenter'] as bool? ?? false,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
           parentId: parentId,
           childIds: childIds,
@@ -1398,18 +1389,29 @@ class SequenceExecutor {
   bool get _useNativeExecution {
     try {
       final settings = _ref.read(appSettingsProvider).valueOrNull;
-      return settings?.useNativeExecution ?? true;
-    } catch (_) {
-      return true; // Default to native execution
+      return settings?.useNativeExecution ?? false;
+    } catch (error, stack) {
+      _logger.warning(
+        'Failed to read useNativeExecution setting; defaulting to false: $error\n$stack',
+        source: 'SequenceExecutor',
+      );
+      return false;
     }
   }
 
   /// Check if simulation mode is enabled in settings
   bool get _useSimulationMode {
+    if (kReleaseMode) {
+      return false;
+    }
     try {
       final settings = _ref.read(appSettingsProvider).valueOrNull;
       return settings?.useSimulationMode ?? false;
-    } catch (_) {
+    } catch (error, stack) {
+      _logger.warning(
+        'Failed to read useSimulationMode setting; defaulting to false: $error\n$stack',
+        source: 'SequenceExecutor',
+      );
       return false;
     }
   }
@@ -2016,16 +2018,17 @@ class SequenceExecutor {
           source: 'SequenceExecutor');
     }
 
-    // Set simulation mode based on settings
-    await backend.sequencerSetSimulationMode(_useSimulationMode);
+    // Simulation is disabled in release builds.
+    if (kReleaseMode) {
+      await backend.sequencerSetSimulationMode(false);
+    } else {
+      await backend.sequencerSetSimulationMode(_useSimulationMode);
+    }
 
     // Set safety fail mode from app settings
     if (settings != null) {
-      final modeString = switch (settings.safetyFailMode) {
-        SafetyFailMode.failOpen => 'fail_open',
-        SafetyFailMode.failClosed => 'fail_closed',
-        SafetyFailMode.warnOnly => 'warn_only',
-      };
+      // Strict fail-closed behavior is enforced at runtime.
+      final modeString = 'fail_closed';
       await backend.sequencerSetSafetyFailMode(modeString);
       _logger.debug('Safety fail mode set to: $modeString',
           source: 'SequenceExecutor');
@@ -2142,7 +2145,7 @@ class SequenceExecutor {
       case 'NodeCompleted':
         final nodeId =
             event.data['node_id'] as String? ?? event.data['nodeId'] as String?;
-        final success = event.data['success'] as bool? ?? true;
+        final success = event.data['success'] as bool? ?? false;
         if (nodeId != null) {
           progressNotifier.updateNodeStatus(
             nodeId,

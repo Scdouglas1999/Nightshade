@@ -887,25 +887,28 @@ impl SequenceExecutor {
                     let is_safe = match device_ops_for_triggers.safety_is_safe(None).await {
                         Ok(safe) => safe,
                         Err(e) => {
-                            // Handle error based on configured safety fail mode
+                            // Strict production behavior: safety read errors are always unsafe.
                             match safety_fail_mode {
                                 SafetyFailMode::FailOpen => {
                                     tracing::trace!(
-                                        "Safety poll error: {} - assuming safe (fail-open)",
+                                        "Safety poll error: {} - fail_open requested but strict fail-closed is enforced",
                                         e
                                     );
-                                    true
+                                    false
                                 }
                                 SafetyFailMode::FailClosed => {
                                     tracing::warn!(
-                                        "Safety poll error: {} - assuming UNSAFE (fail-closed)",
+                                        "Safety poll error: {} - treating as unsafe (fail-closed)",
                                         e
                                     );
                                     false
                                 }
                                 SafetyFailMode::WarnOnly => {
-                                    tracing::trace!("Safety poll error: {} - continuing with warning (warn-only)", e);
-                                    true
+                                    tracing::warn!(
+                                        "Safety poll error: {} - warn_only requested but strict fail-closed is enforced",
+                                        e
+                                    );
+                                    false
                                 }
                             }
                         }

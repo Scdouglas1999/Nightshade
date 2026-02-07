@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 /// Signaling for WebRTC connection establishment
@@ -21,7 +22,7 @@ class NightshadeSignaling {
   /// Start listening for connections (desktop)
   Future<void> startServer() async {
     if (_server != null) {
-      print('Signaling server is already running');
+      developer.log('Signaling server is already running', name: 'NightshadeSignaling', level: 900);
       return;
     }
     
@@ -41,7 +42,7 @@ class NightshadeSignaling {
           continue;
         }
         // Last attempt failed
-        print('Failed to start signaling server after 3 attempts: $e');
+        developer.log('Failed to start signaling server after 3 attempts: $e', name: 'NightshadeSignaling', level: 1000);
         rethrow;
       }
     }

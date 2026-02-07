@@ -1,3 +1,5 @@
+// ignore_for_file: unused_field
+
 /// ASCOM Client - Native Windows COM-based ASCOM driver support
 ///
 /// This allows direct communication with ASCOM drivers installed on Windows
@@ -261,7 +263,7 @@ Future<String?> _getDriverName(String registryPath, String progId) async {
 /// ASCOM device client using COM automation
 ///
 /// Note: Full COM automation requires win32 package with IDispatch support.
-/// For now, we provide a basic structure that can be expanded.
+/// This implementation currently uses a minimal PowerShell-based control path.
 class AscomDeviceClient {
   final String progId;
   final String deviceType;
@@ -285,8 +287,7 @@ class AscomDeviceClient {
     }
 
     try {
-      // For now, we'll use a scripting approach via PowerShell
-      // This works without additional dependencies
+      // Use a PowerShell COM scripting approach without extra dependencies.
       final result = await Process.run(
         'powershell',
         [

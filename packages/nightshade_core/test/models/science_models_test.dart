@@ -2,6 +2,34 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/science/science_models.dart';
 
 void main() {
+  group('ScienceLayerType', () {
+    test('round-trips db values', () {
+      for (final layer in ScienceLayerType.values) {
+        expect(
+          ScienceLayerType.fromDbValue(layer.dbValue),
+          equals(layer),
+        );
+      }
+    });
+  });
+
+  group('ScienceOverlayState', () {
+    test('copyWith updates new visual toggles', () {
+      const state = ScienceOverlayState();
+      final updated = state.copyWith(
+        showUniformityMap: true,
+        showClipHighMap: true,
+        showClipLowMap: true,
+        showFwhmSurface: true,
+      );
+
+      expect(updated.showUniformityMap, isTrue);
+      expect(updated.showClipHighMap, isTrue);
+      expect(updated.showClipLowMap, isTrue);
+      expect(updated.showFwhmSurface, isTrue);
+    });
+  });
+
   group('SciencePhotometrySelection', () {
     test('round-trips target and comparisons through JSON', () {
       const selection = SciencePhotometrySelection(

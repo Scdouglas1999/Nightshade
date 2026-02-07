@@ -12,6 +12,8 @@ part 'science_dao.g.dart';
   FramePhotometricCalibration,
   TransparencySamples,
   PsfFieldTiles,
+  ScienceFrameQualityMetrics,
+  ScienceTileMetrics,
   AstrometryResidualVectors,
   MovingObjectCandidates,
   LineRatioProducts,
@@ -176,6 +178,107 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
   Stream<List<PsfFieldTileRow>> watchPsfTilesForSession(int sessionId) {
     return (select(psfFieldTiles)
           ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([
+            (tbl) => OrderingTerm.desc(tbl.timestamp),
+            (tbl) => OrderingTerm.asc(tbl.tileRow),
+            (tbl) => OrderingTerm.asc(tbl.tileCol),
+          ]))
+        .watch();
+  }
+
+  Future<void> insertFrameQualityMetrics(
+      ScienceFrameQualityMetricsCompanion metrics) {
+    return into(scienceFrameQualityMetrics).insert(metrics);
+  }
+
+  Future<void> replaceFrameQualityMetricsForImage(
+    int capturedImageId,
+    ScienceFrameQualityMetricsCompanion metrics,
+  ) async {
+    await (delete(scienceFrameQualityMetrics)
+          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
+        .go();
+    await into(scienceFrameQualityMetrics).insert(metrics);
+  }
+
+  Stream<List<ScienceFrameQualityMetricsRow>>
+      watchFrameQualityMetricsForSession(int sessionId) {
+    return (select(scienceFrameQualityMetrics)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([(tbl) => OrderingTerm.asc(tbl.timestamp)]))
+        .watch();
+  }
+
+  Stream<ScienceFrameQualityMetricsRow?> watchFrameQualityMetricsForImage(
+      int capturedImageId) {
+    return (select(scienceFrameQualityMetrics)
+          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId))
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+          ..limit(1))
+        .watchSingleOrNull();
+  }
+
+  Future<void> replaceTileMetricsForImage(
+    int capturedImageId,
+    List<ScienceTileMetricsCompanion> tiles,
+  ) async {
+    await (delete(scienceTileMetrics)
+          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId)))
+        .go();
+    if (tiles.isEmpty) {
+      return;
+    }
+    await batch((batch) {
+      batch.insertAll(scienceTileMetrics, tiles);
+    });
+  }
+
+  Future<void> insertTileMetrics(
+      List<ScienceTileMetricsCompanion> tiles) async {
+    if (tiles.isEmpty) {
+      return;
+    }
+    await batch((batch) {
+      batch.insertAll(scienceTileMetrics, tiles);
+    });
+  }
+
+  Future<void> replaceTileMetricsForImageLayer(
+    int capturedImageId,
+    String layerType,
+    List<ScienceTileMetricsCompanion> tiles,
+  ) async {
+    await (delete(scienceTileMetrics)
+          ..where((tbl) =>
+              tbl.capturedImageId.equals(capturedImageId) &
+              tbl.layerType.equals(layerType)))
+        .go();
+    if (tiles.isEmpty) {
+      return;
+    }
+    await batch((batch) {
+      batch.insertAll(scienceTileMetrics, tiles);
+    });
+  }
+
+  Stream<List<ScienceTileMetricRow>> watchTileMetricsForSession(int sessionId) {
+    return (select(scienceTileMetrics)
+          ..where((tbl) => tbl.sessionId.equals(sessionId))
+          ..orderBy([
+            (tbl) => OrderingTerm.desc(tbl.timestamp),
+            (tbl) => OrderingTerm.asc(tbl.tileRow),
+            (tbl) => OrderingTerm.asc(tbl.tileCol),
+          ]))
+        .watch();
+  }
+
+  Stream<List<ScienceTileMetricRow>> watchTileMetricsForSessionLayer(
+    int sessionId,
+    String layerType,
+  ) {
+    return (select(scienceTileMetrics)
+          ..where((tbl) =>
+              tbl.sessionId.equals(sessionId) & tbl.layerType.equals(layerType))
           ..orderBy([
             (tbl) => OrderingTerm.desc(tbl.timestamp),
             (tbl) => OrderingTerm.asc(tbl.tileRow),

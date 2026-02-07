@@ -40,6 +40,30 @@ abstract class ScienceBackend {
     MovingObjectOptions options,
   );
 
+  Future<(ScienceFrameQualityMetrics, List<ScienceTileMetric>)>
+      computeLastCaptureQualityMaps({
+    required String deviceId,
+    required int gridRows,
+    required int gridCols,
+    required int lowClipAdu,
+    required int highClipAdu,
+    required DateTime timestamp,
+    int? capturedImageId,
+    int? sessionId,
+  });
+
+  Future<(ScienceFrameQualityMetrics, List<ScienceTileMetric>)>
+      computeFitsQualityMaps({
+    required String filePath,
+    required int gridRows,
+    required int gridCols,
+    required int lowClipAdu,
+    required int highClipAdu,
+    required DateTime timestamp,
+    int? capturedImageId,
+    int? sessionId,
+  });
+
   Future<LineRatioProduct> computeLineRatios(
     NarrowbandSet set,
     LineRatioOptions options,

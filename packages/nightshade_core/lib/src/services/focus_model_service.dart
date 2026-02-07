@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -27,28 +29,28 @@ class FocusDataPoint {
   });
 
   Map<String, dynamic> toJson() => {
-    'timestamp': timestamp.toIso8601String(),
-    'temperature': temperatureCelsius,
-    'position': focusPosition,
-    'hfr': hfr,
-    'filter': filterName,
-  };
+        'timestamp': timestamp.toIso8601String(),
+        'temperature': temperatureCelsius,
+        'position': focusPosition,
+        'hfr': hfr,
+        'filter': filterName,
+      };
 
   factory FocusDataPoint.fromJson(Map<String, dynamic> json) => FocusDataPoint(
-    timestamp: DateTime.parse(json['timestamp'] as String),
-    temperatureCelsius: (json['temperature'] as num).toDouble(),
-    focusPosition: json['position'] as int,
-    hfr: (json['hfr'] as num).toDouble(),
-    filterName: json['filter'] as String?,
-  );
+        timestamp: DateTime.parse(json['timestamp'] as String),
+        temperatureCelsius: (json['temperature'] as num).toDouble(),
+        focusPosition: json['position'] as int,
+        hfr: (json['hfr'] as num).toDouble(),
+        filterName: json['filter'] as String?,
+      );
 }
 
 /// Linear regression result for temperature-focus correlation
 class FocusModel {
-  final double slope;         // Steps per degree C
-  final double intercept;     // Base focus position at 0°C
-  final double rSquared;      // Correlation coefficient
-  final int dataPointCount;   // Number of points used
+  final double slope; // Steps per degree C
+  final double intercept; // Base focus position at 0°C
+  final double rSquared; // Correlation coefficient
+  final int dataPointCount; // Number of points used
   final DateTime lastUpdated;
 
   FocusModel({
@@ -68,20 +70,20 @@ class FocusModel {
   bool get isReliable => rSquared >= 0.7 && dataPointCount >= 5;
 
   Map<String, dynamic> toJson() => {
-    'slope': slope,
-    'intercept': intercept,
-    'rSquared': rSquared,
-    'dataPointCount': dataPointCount,
-    'lastUpdated': lastUpdated.toIso8601String(),
-  };
+        'slope': slope,
+        'intercept': intercept,
+        'rSquared': rSquared,
+        'dataPointCount': dataPointCount,
+        'lastUpdated': lastUpdated.toIso8601String(),
+      };
 
   factory FocusModel.fromJson(Map<String, dynamic> json) => FocusModel(
-    slope: (json['slope'] as num).toDouble(),
-    intercept: (json['intercept'] as num).toDouble(),
-    rSquared: (json['rSquared'] as num).toDouble(),
-    dataPointCount: json['dataPointCount'] as int,
-    lastUpdated: DateTime.parse(json['lastUpdated'] as String),
-  );
+        slope: (json['slope'] as num).toDouble(),
+        intercept: (json['intercept'] as num).toDouble(),
+        rSquared: (json['rSquared'] as num).toDouble(),
+        dataPointCount: json['dataPointCount'] as int,
+        lastUpdated: DateTime.parse(json['lastUpdated'] as String),
+      );
 }
 
 /// Filter focus offset relative to a reference filter
@@ -101,20 +103,20 @@ class FilterOffset {
   });
 
   Map<String, dynamic> toJson() => {
-    'filterName': filterName,
-    'referenceFilter': referenceFilter,
-    'offsetSteps': offsetSteps,
-    'measurementCount': measurementCount,
-    'confidence': confidence,
-  };
+        'filterName': filterName,
+        'referenceFilter': referenceFilter,
+        'offsetSteps': offsetSteps,
+        'measurementCount': measurementCount,
+        'confidence': confidence,
+      };
 
   factory FilterOffset.fromJson(Map<String, dynamic> json) => FilterOffset(
-    filterName: json['filterName'] as String,
-    referenceFilter: json['referenceFilter'] as String,
-    offsetSteps: json['offsetSteps'] as int,
-    measurementCount: json['measurementCount'] as int,
-    confidence: (json['confidence'] as num).toDouble(),
-  );
+        filterName: json['filterName'] as String,
+        referenceFilter: json['referenceFilter'] as String,
+        offsetSteps: json['offsetSteps'] as int,
+        measurementCount: json['measurementCount'] as int,
+        confidence: (json['confidence'] as num).toDouble(),
+      );
 }
 
 /// Complete focus data for an equipment profile
@@ -150,26 +152,30 @@ class ProfileFocusData {
   }
 
   Map<String, dynamic> toJson() => {
-    'profileId': profileId,
-    'dataPoints': dataPoints.map((p) => p.toJson()).toList(),
-    'temperatureModel': temperatureModel?.toJson(),
-    'filterOffsets': filterOffsets.map((k, v) => MapEntry(k, v.toJson())),
-    'referenceFilter': referenceFilter,
-  };
+        'profileId': profileId,
+        'dataPoints': dataPoints.map((p) => p.toJson()).toList(),
+        'temperatureModel': temperatureModel?.toJson(),
+        'filterOffsets': filterOffsets.map((k, v) => MapEntry(k, v.toJson())),
+        'referenceFilter': referenceFilter,
+      };
 
-  factory ProfileFocusData.fromJson(Map<String, dynamic> json) => ProfileFocusData(
-    profileId: json['profileId'] as String,
-    dataPoints: (json['dataPoints'] as List<dynamic>?)
-        ?.map((p) => FocusDataPoint.fromJson(p as Map<String, dynamic>))
-        .toList() ?? [],
-    temperatureModel: json['temperatureModel'] != null
-        ? FocusModel.fromJson(json['temperatureModel'] as Map<String, dynamic>)
-        : null,
-    filterOffsets: (json['filterOffsets'] as Map<String, dynamic>?)
-        ?.map((k, v) => MapEntry(k, FilterOffset.fromJson(v as Map<String, dynamic>)))
-        ?? {},
-    referenceFilter: json['referenceFilter'] as String?,
-  );
+  factory ProfileFocusData.fromJson(Map<String, dynamic> json) =>
+      ProfileFocusData(
+        profileId: json['profileId'] as String,
+        dataPoints: (json['dataPoints'] as List<dynamic>?)
+                ?.map((p) => FocusDataPoint.fromJson(p as Map<String, dynamic>))
+                .toList() ??
+            [],
+        temperatureModel: json['temperatureModel'] != null
+            ? FocusModel.fromJson(
+                json['temperatureModel'] as Map<String, dynamic>)
+            : null,
+        filterOffsets: (json['filterOffsets'] as Map<String, dynamic>?)?.map(
+                (k, v) => MapEntry(
+                    k, FilterOffset.fromJson(v as Map<String, dynamic>))) ??
+            {},
+        referenceFilter: json['referenceFilter'] as String?,
+      );
 }
 
 /// Service for managing focus models and predictions
@@ -206,7 +212,8 @@ class FocusModelService {
       filterName: filterName,
     );
 
-    var data = _profileData[profileId] ?? ProfileFocusData(profileId: profileId);
+    var data =
+        _profileData[profileId] ?? ProfileFocusData(profileId: profileId);
     final newPoints = [...data.dataPoints, point];
 
     // Keep only last 100 points to avoid unbounded growth
@@ -311,8 +318,9 @@ class FocusModelService {
     if (refPoints == null || refPoints.isEmpty) return offsets;
 
     // Calculate average position for reference at various temperatures
-    final refAvg = refPoints.map((p) => p.focusPosition).reduce((a, b) => a + b) /
-                   refPoints.length;
+    final refAvg =
+        refPoints.map((p) => p.focusPosition).reduce((a, b) => a + b) /
+            refPoints.length;
 
     // Calculate offsets for each filter
     for (final entry in byFilter.entries) {
@@ -322,15 +330,17 @@ class FocusModelService {
       if (filterPoints.isEmpty) continue;
 
       // Calculate average position for this filter
-      final filterAvg = filterPoints.map((p) => p.focusPosition).reduce((a, b) => a + b) /
-                        filterPoints.length;
+      final filterAvg =
+          filterPoints.map((p) => p.focusPosition).reduce((a, b) => a + b) /
+              filterPoints.length;
 
       final offsetSteps = (filterAvg - refAvg).round();
 
       // Confidence based on measurement count and consistency
-      final variance = filterPoints.map((p) =>
-        math.pow(p.focusPosition - filterAvg, 2)
-      ).reduce((a, b) => a + b) / filterPoints.length;
+      final variance = filterPoints
+              .map((p) => math.pow(p.focusPosition - filterAvg, 2))
+              .reduce((a, b) => a + b) /
+          filterPoints.length;
       final stdDev = math.sqrt(variance);
       final consistency = stdDev < 50 ? 1.0 : 50 / stdDev;
       final countFactor = math.min(filterPoints.length / 5.0, 1.0);
@@ -365,7 +375,8 @@ class FocusModelService {
 
     // Apply filter offset if applicable
     int filterOffset = 0;
-    if (currentFilter != null && data.filterOffsets.containsKey(currentFilter)) {
+    if (currentFilter != null &&
+        data.filterOffsets.containsKey(currentFilter)) {
       final offset = data.filterOffsets[currentFilter]!;
       if (offset.confidence >= 0.5) {
         filterOffset = offset.offsetSteps;
@@ -413,6 +424,27 @@ class FocusModelService {
     // Recalculate offsets with new reference
     final offsets = _updateFilterOffsets(data.dataPoints, filterName);
     data = data.copyWith(filterOffsets: offsets);
+
+    _profileData[profileId] = data;
+    await _saveProfile(profileId);
+  }
+
+  /// Directly update filter offsets for a profile and persist to disk.
+  ///
+  /// This is used by the FilterOffsetNotifier when the user manually
+  /// adjusts filter offsets in the UI.
+  Future<void> updateFilterOffsets(
+    String profileId,
+    Map<String, FilterOffset> offsets, {
+    String? referenceFilter,
+  }) async {
+    var data =
+        _profileData[profileId] ?? ProfileFocusData(profileId: profileId);
+
+    data = data.copyWith(
+      filterOffsets: offsets,
+      referenceFilter: referenceFilter ?? data.referenceFilter,
+    );
 
     _profileData[profileId] = data;
     await _saveProfile(profileId);
@@ -469,7 +501,8 @@ class FocusModelService {
           _profileData[data.profileId] = data;
         } catch (e) {
           // Log corrupted files but continue loading others
-          debugPrint('FocusModelService: Skipping corrupted focus data file ${entity.path}: $e');
+          debugPrint(
+              'FocusModelService: Skipping corrupted focus data file ${entity.path}: $e');
         }
       }
     }

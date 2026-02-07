@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
-import '../utils/snackbar_helper.dart';
+
+import '../models/command_action_result.dart';
 
 /// Provider for the SequenceActionService.
-final sequenceActionServiceProvider = Provider((ref) => SequenceActionService(ref));
+final sequenceActionServiceProvider =
+    Provider((ref) => SequenceActionService(ref));
 
 /// Centralized service for sequence playback actions.
 ///
@@ -20,93 +20,60 @@ class SequenceActionService {
   SequenceExecutor get _executor => _ref.read(sequenceExecutorProvider);
 
   /// Starts the sequence.
-  Future<bool> start() async {
+  Future<CommandActionResult> start() async {
     try {
       _executor.start();
-      return true;
+      return CommandActionResult.ok;
     } catch (e) {
-      _ref.read(uiNotificationProvider.notifier).showError(
-        'Failed to start sequence: $e',
-        title: 'Sequence Error',
-      );
-      return false;
+      return CommandActionResult.failure('Failed to start sequence: $e');
     }
   }
 
   /// Pauses the running sequence.
-  Future<bool> pause(BuildContext context) async {
+  Future<CommandActionResult> pause() async {
     try {
       await _executor.pause();
-      return true;
+      return CommandActionResult.ok;
     } catch (e) {
-      context.showErrorSnackBar('Failed to pause sequence: $e');
-      return false;
+      return CommandActionResult.failure('Failed to pause sequence: $e');
     }
   }
 
   /// Resumes a paused sequence.
-  Future<bool> resume(BuildContext context) async {
+  Future<CommandActionResult> resume() async {
     try {
       await _executor.resume();
-      return true;
+      return CommandActionResult.ok;
     } catch (e) {
-      context.showErrorSnackBar('Failed to resume sequence: $e');
-      return false;
+      return CommandActionResult.failure('Failed to resume sequence: $e');
     }
   }
 
-  /// Stops the sequence, optionally showing a confirmation dialog.
-  ///
-  /// [requireConfirmation] - If true, shows a confirmation dialog before stopping.
-  Future<bool> stop(BuildContext context, {bool requireConfirmation = false}) async {
-    if (requireConfirmation) {
-      final colors = Theme.of(context).extension<NightshadeColors>()!;
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Stop Sequence?'),
-          content: const Text('This will stop the current sequence. Are you sure?'),
-          actions: [
-            NightshadeButton(
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.pop(ctx, false),
-            ),
-            NightshadeButton(
-              label: 'Stop',
-              variant: ButtonVariant.destructive,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.pop(ctx, true),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return false;
-    }
-
+  /// Stops the sequence.
+  Future<CommandActionResult> stop() async {
     try {
       await _executor.stop();
-      return true;
+      return CommandActionResult.ok;
     } catch (e) {
-      context.showErrorSnackBar('Failed to stop sequence: $e');
-      return false;
+      return CommandActionResult.failure('Failed to stop sequence: $e');
     }
   }
 
   /// Skips the current sequence item.
   ///
   /// [showFeedback] - If true, shows a snackbar confirming the skip.
-  Future<bool> skip(BuildContext context, {bool showFeedback = true}) async {
+  Future<CommandActionResult> skip({bool showFeedback = true}) async {
     try {
       await _executor.skip();
       if (showFeedback) {
-        context.showInfoSnackBar('Skipped current item');
+        return const CommandActionResult.success(
+          message: 'Skipped current item',
+          feedbackType: CommandFeedbackType.info,
+        );
       }
-      return true;
+      return CommandActionResult.ok;
     } catch (e) {
-      context.showErrorSnackBar('Failed to skip: $e');
-      return false;
+      return CommandActionResult.failure('Failed to skip: $e');
     }
   }
 

@@ -6,6 +6,7 @@ import '../models/planning/target_suggestion.dart';
 import '../services/logging_service.dart';
 import '../services/target_suggestion_service.dart';
 import 'database_provider.dart';
+import 'profiles_provider.dart';
 import 'settings_provider.dart';
 
 // ============================================================================
@@ -13,7 +14,8 @@ import 'settings_provider.dart';
 // ============================================================================
 
 /// Provider for the target suggestion service.
-final targetSuggestionServiceProvider = Provider<TargetSuggestionService>((ref) {
+final targetSuggestionServiceProvider =
+    Provider<TargetSuggestionService>((ref) {
   final logging = ref.watch(loggingServiceProvider);
   return TargetSuggestionService(loggingService: logging);
 });
@@ -69,6 +71,9 @@ final tonightSuggestionsProvider =
 
   // Watch refresh trigger for manual refresh
   ref.watch(refreshSuggestionsProvider);
+
+  // Watch optical config for FOV-aware framing fit scoring
+  final opticalConfig = ref.watch(opticalConfigProvider);
 
   // Get app settings for observer location
   final settingsAsync = ref.watch(appSettingsProvider);
@@ -136,6 +141,7 @@ final tonightSuggestionsProvider =
       longitude: longitude,
       targets: allTargets,
       sessions: sessions,
+      opticalConfig: opticalConfig,
     );
 
     // Keep alive to prevent constant refetching while the user is viewing
@@ -273,18 +279,60 @@ final suggestionsByTypeProvider = Provider.autoDispose
 
   return suggestionsAsync.when(
     data: (suggestions) {
-      // Filter suggestions that have the target name containing the object type
-      // This is a simple filter - the UI can use config for more complex filtering
-      final filtered = suggestions.where((s) {
-        // For now, just return all - the config's preferredObjectTypes handles filtering
-        return true;
-      }).toList();
+      final filtered = suggestions
+          .where((suggestion) => _matchesSuggestionType(suggestion, objectType))
+          .toList();
       return AsyncData(filtered);
     },
     loading: () => const AsyncLoading(),
     error: (error, stackTrace) => AsyncError(error, stackTrace),
   );
 });
+
+bool _matchesSuggestionType(TargetSuggestion suggestion, String selectedType) {
+  final normalizedSelected = selectedType.trim().toLowerCase();
+  if (normalizedSelected.isEmpty || normalizedSelected == 'all') {
+    return true;
+  }
+
+  final normalizedObjectType =
+      (suggestion.objectType ?? '').trim().toLowerCase();
+  if (normalizedObjectType.isEmpty) {
+    return false;
+  }
+
+  if (normalizedObjectType == normalizedSelected) {
+    return true;
+  }
+
+  final escaped = RegExp.escape(normalizedSelected).replaceAll(r'\ ', r'\s+');
+  final boundaryPattern = RegExp(
+    '(^|\\b)$escaped(\\b|\$)',
+    caseSensitive: false,
+  );
+  if (boundaryPattern.hasMatch(normalizedObjectType)) {
+    return true;
+  }
+
+  const aliases = <String, List<String>>{
+    'galaxy': ['spiral galaxy', 'elliptical galaxy', 'irregular galaxy'],
+    'nebula': [
+      'emission nebula',
+      'reflection nebula',
+      'planetary nebula',
+      'dark nebula',
+      'supernova remnant',
+    ],
+    'cluster': ['open cluster', 'globular cluster', 'star cluster'],
+  };
+
+  final aliasList = aliases[normalizedSelected];
+  if (aliasList == null) {
+    return false;
+  }
+
+  return aliasList.any((alias) => normalizedObjectType.contains(alias));
+}
 
 /// Provider that returns incomplete targets only (less than 50% data collected).
 final incompleteSuggestionsProvider =

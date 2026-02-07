@@ -1310,12 +1310,24 @@ pub fn calculate_quality_score(
         weight_sum += 0.3;
     }
 
-    // Return normalized score
-    if weight_sum > 0.0 {
-        (score / weight_sum).clamp(0.0, 100.0)
-    } else {
-        0.0
+    if weight_sum <= 0.0 {
+        return 0.0;
     }
+
+    let mut normalized_score = (score / weight_sum).clamp(0.0, 100.0);
+
+    // Apply an additional global penalty for severe focus issues.
+    // Extremely high HFR should reduce overall quality even when star count
+    // and background metrics still appear favorable.
+    if let Some(hfr_val) = hfr {
+        if hfr_val > 5.0 {
+            let hfr_excess = (hfr_val - 5.0).min(15.0);
+            let penalty_factor = 1.0 - (hfr_excess / 15.0) * 0.25;
+            normalized_score *= penalty_factor;
+        }
+    }
+
+    normalized_score.clamp(0.0, 100.0)
 }
 
 #[cfg(test)]

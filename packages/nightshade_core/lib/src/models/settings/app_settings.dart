@@ -5,11 +5,11 @@ part 'app_settings.g.dart';
 
 /// Defines how the safety system behaves when weather/safety devices fail or are unavailable
 enum SafetyFailMode {
-  /// Assume safe when device/API fails (continue imaging) - default for experienced users
+  /// Legacy mode retained for backward compatibility. Runtime is fail-closed.
   failOpen,
-  /// Assume unsafe when device/API fails (pause/park) - conservative choice
+  /// Treat unavailable safety data as unsafe (production behavior).
   failClosed,
-  /// Show warning but continue - user decides
+  /// Legacy mode retained for backward compatibility. Runtime is fail-closed.
   warnOnly,
 }
 
@@ -73,7 +73,7 @@ class AppSettings with _$AppSettings {
     @Default(24) int updateCheckIntervalHours,
     @Default('') String skippedUpdateVersion,
     // Safety settings
-    @Default(SafetyFailMode.failOpen) SafetyFailMode safetyFailMode,
+    @Default(SafetyFailMode.failClosed) SafetyFailMode safetyFailMode,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>

@@ -10,21 +10,34 @@ class SuggestionHandlers {
 
   SuggestionHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'SuggestionHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'SuggestionHandlers');
+
   // ===========================================================================
   // Get Suggestions For Tonight
   // ===========================================================================
 
   Future<Response> handleGetSuggestionsForTonight(Request request) async {
-    print('[API] GET /api/suggestions/tonight');
+    _logInfo('[API] GET /api/suggestions/tonight');
     try {
       final database = container.read(databaseProvider);
 
       // Parse query parameters
-      final minAltitude = double.tryParse(request.url.queryParameters['minAltitude'] ?? '') ?? 30.0;
-      final minScore = double.tryParse(request.url.queryParameters['minScore'] ?? '') ?? 0.0;
-      final maxResults = int.tryParse(request.url.queryParameters['maxResults'] ?? '') ?? 20;
-      final sortModeStr = request.url.queryParameters['sortMode'] ?? 'bestScore';
-      final prioritizeIncomplete = request.url.queryParameters['prioritizeIncomplete'] == 'true';
+      final minAltitude =
+          double.tryParse(request.url.queryParameters['minAltitude'] ?? '') ??
+              30.0;
+      final minScore =
+          double.tryParse(request.url.queryParameters['minScore'] ?? '') ?? 0.0;
+      final maxResults =
+          int.tryParse(request.url.queryParameters['maxResults'] ?? '') ?? 20;
+      final sortModeStr =
+          request.url.queryParameters['sortMode'] ?? 'bestScore';
+      final prioritizeIncomplete =
+          request.url.queryParameters['prioritizeIncomplete'] == 'true';
       final objectTypesStr = request.url.queryParameters['objectTypes'];
 
       // Parse preferred object types
@@ -41,7 +54,9 @@ class SuggestionHandlers {
       final longitude = await database.settingsDao.getObserverLongitude();
       if (latitude == 0.0 && longitude == 0.0) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No location configured. Set location in settings first."}),
+          body: jsonEncode({
+            "error": "No location configured. Set location in settings first."
+          }),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -69,7 +84,8 @@ class SuggestionHandlers {
 
       // Generate suggestions
       final loggingService = container.read(loggingServiceProvider);
-      final suggestionService = TargetSuggestionService(loggingService: loggingService);
+      final suggestionService =
+          TargetSuggestionService(loggingService: loggingService);
 
       final suggestions = await suggestionService.getSuggestionsForTonight(
         config: config,
@@ -94,7 +110,7 @@ class SuggestionHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get suggestions error: $e');
+      _logError('[API] Get suggestions error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -107,10 +123,10 @@ class SuggestionHandlers {
   // ===========================================================================
 
   Future<Response> handleGetConfig(Request request) async {
-    print('[API] GET /api/suggestions/config');
+    _logInfo('[API] GET /api/suggestions/config');
     try {
       // Return default configuration
-      final config = const TargetSuggestionConfig();
+      const config = TargetSuggestionConfig();
 
       return Response.ok(
         jsonEncode({
@@ -126,7 +142,7 @@ class SuggestionHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get config error: $e');
+      _logError('[API] Get config error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -138,8 +154,9 @@ class SuggestionHandlers {
   // Get Target Score
   // ===========================================================================
 
-  Future<Response> handleGetTargetScore(Request request, String targetId) async {
-    print('[API] GET /api/suggestions/score/$targetId');
+  Future<Response> handleGetTargetScore(
+      Request request, String targetId) async {
+    _logInfo('[API] GET /api/suggestions/score/$targetId');
     try {
       final tid = int.parse(targetId);
       final database = container.read(databaseProvider);
@@ -168,11 +185,12 @@ class SuggestionHandlers {
 
       // Generate suggestion for this target
       final loggingService = container.read(loggingServiceProvider);
-      final suggestionService = TargetSuggestionService(loggingService: loggingService);
+      final suggestionService =
+          TargetSuggestionService(loggingService: loggingService);
 
-      final config = const TargetSuggestionConfig(
+      const config = TargetSuggestionConfig(
         minAltitude: -90, // Include all altitudes
-        minScore: -1000,  // Include all scores
+        minScore: -1000, // Include all scores
       );
 
       final suggestions = await suggestionService.getSuggestionsForTonight(
@@ -206,7 +224,7 @@ class SuggestionHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get target score error: $e');
+      _logError('[API] Get target score error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -227,10 +245,12 @@ class SuggestionHandlers {
       'decDegrees': s.decDegrees,
       'totalScore': s.totalScore,
       'scoreBreakdown': s.scoreBreakdown,
-      'warnings': s.warnings.map((w) => {
-        'message': w.message,
-        'severity': w.severity.name,
-      }).toList(),
+      'warnings': s.warnings
+          .map((w) => {
+                'message': w.message,
+                'severity': w.severity.name,
+              })
+          .toList(),
       'visibility': {
         'currentAltitude': s.visibility.currentAltitude,
         'currentAzimuth': s.visibility.currentAzimuth,

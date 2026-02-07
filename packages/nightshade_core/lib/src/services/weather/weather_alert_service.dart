@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'dart:async';
 
 import '../../models/weather/weather_models.dart';
@@ -100,11 +102,14 @@ class WeatherAlertService {
     required WeatherSettings settings,
   }) {
     // Critical: Dense clouds overhead or ETA < 5 minutes
-    if (cloudDistanceKm < 5.0 && cloudDensityPercent >= settings.cloudDensityThreshold) {
+    if (cloudDistanceKm < 5.0 &&
+        cloudDensityPercent >= settings.cloudDensityThreshold) {
       return AlertLevel.critical;
     }
 
-    if (eta != null && eta.inMinutes < 5 && cloudDensityPercent >= settings.cloudDensityThreshold) {
+    if (eta != null &&
+        eta.inMinutes < 5 &&
+        cloudDensityPercent >= settings.cloudDensityThreshold) {
       return AlertLevel.critical;
     }
 

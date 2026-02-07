@@ -95,6 +95,46 @@ final allDbImagesProvider = StreamProvider<List<db.CapturedImage>>((ref) {
   return ref.watch(imagesDaoProvider).watchAllImages();
 });
 
+/// Load a captured image row by id.
+final capturedImageByIdProvider =
+    FutureProvider.family<db.CapturedImage?, int>((ref, imageId) {
+  return ref.watch(imagesDaoProvider).getImageById(imageId);
+});
+
+class CapturedImageWcsData {
+  final int id;
+  final bool isPlateSolved;
+  final double? solvedRaHours;
+  final double? solvedDecDegrees;
+  final double? solvedRotationDegrees;
+  final double? solvedPixelScaleArcsecPerPixel;
+
+  const CapturedImageWcsData({
+    required this.id,
+    required this.isPlateSolved,
+    required this.solvedRaHours,
+    required this.solvedDecDegrees,
+    required this.solvedRotationDegrees,
+    required this.solvedPixelScaleArcsecPerPixel,
+  });
+}
+
+final capturedImageWcsProvider =
+    FutureProvider.family<CapturedImageWcsData?, int>((ref, imageId) async {
+  final row = await ref.watch(imagesDaoProvider).getImageById(imageId);
+  if (row == null) {
+    return null;
+  }
+  return CapturedImageWcsData(
+    id: row.id,
+    isPlateSolved: row.isPlateSolved,
+    solvedRaHours: row.solvedRa,
+    solvedDecDegrees: row.solvedDec,
+    solvedRotationDegrees: row.solvedRotation,
+    solvedPixelScaleArcsecPerPixel: row.solvedPixelScale,
+  );
+});
+
 /// Watch all settings as a map
 final allSettingsProvider = StreamProvider<Map<String, String>>((ref) {
   return ref.watch(settingsDaoProvider).watchAllSettings();

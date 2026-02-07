@@ -6,7 +6,8 @@ import 'package:nightshade_core/src/database/database.dart';
 
 void main() {
   test('migrates captured_images to include quality_score', () async {
-    final tempDir = await Directory.systemTemp.createTemp('nightshade_migration_test_');
+    final tempDir =
+        await Directory.systemTemp.createTemp('nightshade_migration_test_');
     final dbFile = File('${tempDir.path}/nightshade.db');
 
     final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
@@ -64,8 +65,10 @@ CREATE TABLE captured_images (
 
     final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
     try {
-      final columns = await db.customSelect("PRAGMA table_info('captured_images')").get();
-      final hasQualityScore = columns.any((row) => row.data['name'] == 'quality_score');
+      final columns =
+          await db.customSelect("PRAGMA table_info('captured_images')").get();
+      final hasQualityScore =
+          columns.any((row) => row.data['name'] == 'quality_score');
 
       expect(
         hasQualityScore,
@@ -77,6 +80,28 @@ CREATE TABLE captured_images (
       if (await tempDir.exists()) {
         await tempDir.delete(recursive: true);
       }
+    }
+  });
+
+  test('creates science quality metric tables in latest schema', () async {
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    try {
+      final tables = await db
+          .customSelect("SELECT name FROM sqlite_master WHERE type='table'")
+          .get();
+      final tableNames =
+          tables.map((row) => row.data['name']?.toString() ?? '').toSet();
+
+      expect(tableNames.contains('science_frame_quality_metrics'), isTrue);
+      expect(tableNames.contains('science_tile_metrics'), isTrue);
+
+      final settings = await db.settingsDao.getAllSettings();
+      expect(settings['science.feature.frame_quality_maps'], equals('true'));
+      expect(settings['science.feature.surface3d'], equals('true'));
+      expect(settings['science.overlay.live_grid_rows'], equals('12'));
+      expect(settings['science.overlay.live_grid_cols'], equals('16'));
+    } finally {
+      await db.close();
     }
   });
 }

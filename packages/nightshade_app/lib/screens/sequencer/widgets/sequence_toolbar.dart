@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../models/command_action_result.dart';
 import '../../../services/sequence_action_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
@@ -20,10 +21,19 @@ class SequenceToolbar extends ConsumerWidget {
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final sequence = ref.watch(currentSequenceProvider);
     final isTablet = Responsive.isTablet(context);
+    final actionService = ref.read(sequenceActionServiceProvider);
 
     final isIdle = executionState == SequenceExecutionState.idle;
     final isRunning = executionState == SequenceExecutionState.running;
     final isPaused = executionState == SequenceExecutionState.paused;
+
+    Future<void> runSequenceAction(
+      Future<CommandActionResult> Function() action,
+    ) async {
+      final result = await action();
+      if (!context.mounted) return;
+      context.showCommandActionResult(result);
+    }
 
     return Container(
       height: isTablet ? 56 : 64,
@@ -48,7 +58,7 @@ class SequenceToolbar extends ConsumerWidget {
           final hideSimulation = constraints.maxWidth < 900;
           final hideEquipmentStatus = constraints.maxWidth < 850;
           final hideFileOps = constraints.maxWidth < 700;
-          
+
           return Row(
             children: [
               // Playback controls - always visible
@@ -64,16 +74,16 @@ class SequenceToolbar extends ConsumerWidget {
                     context: context,
                     builder: (context) => PreFlightValidationDialog(
                       onStartSequence: () {
-                        ref.read(sequenceActionServiceProvider).start();
+                        runSequenceAction(actionService.start);
                       },
                     ),
                   );
                 },
-                onPause: () => ref.read(sequenceActionServiceProvider).pause(context),
-                onResume: () => ref.read(sequenceActionServiceProvider).resume(context),
-                onStop: () => ref.read(sequenceActionServiceProvider).stop(context),
-                onSkip: () => ref.read(sequenceActionServiceProvider).skip(context),
-                onReset: () => ref.read(sequenceActionServiceProvider).reset(),
+                onPause: () => runSequenceAction(actionService.pause),
+                onResume: () => runSequenceAction(actionService.resume),
+                onStop: () => runSequenceAction(actionService.stop),
+                onSkip: () => runSequenceAction(actionService.skip),
+                onReset: actionService.reset,
               ),
 
               // File operations - hide on extremely narrow screens
@@ -81,7 +91,6 @@ class SequenceToolbar extends ConsumerWidget {
                 const SizedBox(width: 24),
                 _Divider(colors: colors),
                 const SizedBox(width: 24),
-
                 _ToolbarIconButton(
                   icon: LucideIcons.filePlus,
                   tooltip: 'New Sequence',
@@ -98,18 +107,23 @@ class SequenceToolbar extends ConsumerWidget {
                   onPressed: () async {
                     try {
                       final fileService = ref.read(sequenceFileServiceProvider);
-                      final importedSequence = await fileService.importSequence();
-                      
+                      final importedSequence =
+                          await fileService.importSequence();
+
                       if (importedSequence != null) {
-                        ref.read(currentSequenceProvider.notifier).loadSequence(importedSequence);
+                        ref
+                            .read(currentSequenceProvider.notifier)
+                            .loadSequence(importedSequence);
 
                         if (context.mounted) {
-                          context.showSuccessSnackBar('Sequence "${importedSequence.name}" loaded');
+                          context.showSuccessSnackBar(
+                              'Sequence "${importedSequence.name}" loaded');
                         }
                       }
                     } catch (e) {
                       if (context.mounted) {
-                        context.showErrorSnackBar('Failed to load sequence: $e');
+                        context
+                            .showErrorSnackBar('Failed to load sequence: $e');
                       }
                     }
                   },
@@ -133,11 +147,13 @@ class SequenceToolbar extends ConsumerWidget {
                       await fileService.exportSequence(currentSequence);
 
                       if (context.mounted) {
-                        context.showSuccessSnackBar('Sequence "${currentSequence.name}" saved');
+                        context.showSuccessSnackBar(
+                            'Sequence "${currentSequence.name}" saved');
                       }
                     } catch (e) {
                       if (context.mounted) {
-                        context.showErrorSnackBar('Failed to save sequence: $e');
+                        context
+                            .showErrorSnackBar('Failed to save sequence: $e');
                       }
                     }
                   },
@@ -180,7 +196,8 @@ class SequenceToolbar extends ConsumerWidget {
                         );
 
                         if (context.mounted) {
-                          context.showInfoSnackBar('Slewing to ${targetGroup.targetName}');
+                          context.showInfoSnackBar(
+                              'Slewing to ${targetGroup.targetName}');
                         }
                       } catch (e) {
                         if (context.mounted) {
@@ -217,7 +234,8 @@ class SequenceToolbar extends ConsumerWidget {
               // Sequence info - hide on very narrow screens
               if (!hideSequenceInfo && sequence != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
                     borderRadius: BorderRadius.circular(6),
@@ -226,7 +244,8 @@ class SequenceToolbar extends ConsumerWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
+                      Icon(LucideIcons.camera,
+                          size: 14, color: colors.textMuted),
                       const SizedBox(width: 6),
                       Text(
                         '${sequence.totalExposures} frames',
@@ -237,7 +256,8 @@ class SequenceToolbar extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
+                      Icon(LucideIcons.clock,
+                          size: 14, color: colors.textMuted),
                       const SizedBox(width: 6),
                       Text(
                         _formatDuration(sequence.totalIntegrationSecs),
@@ -263,40 +283,44 @@ class SequenceToolbar extends ConsumerWidget {
               // Simulation mode indicator - hide on narrow screens
               if (!hideSimulation)
                 Consumer(
-                builder: (context, ref, child) {
-                  final settingsAsync = ref.watch(appSettingsProvider);
-                  final isSimulation = settingsAsync.valueOrNull?.useSimulationMode ?? false;
-                  if (!isSimulation) return const SizedBox.shrink();
+                  builder: (context, ref, child) {
+                    final settingsAsync = ref.watch(appSettingsProvider);
+                    final isSimulation =
+                        settingsAsync.valueOrNull?.useSimulationMode ?? false;
+                    if (!isSimulation) return const SizedBox.shrink();
 
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: colors.warning.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: colors.warning.withValues(alpha: 0.4)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(LucideIcons.testTube, size: 14, color: colors.warning),
-                          const SizedBox(width: 6),
-                          Text(
-                            'SIMULATION',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: colors.warning,
-                              letterSpacing: 0.5,
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: colors.warning.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                              color: colors.warning.withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.testTube,
+                                size: 14, color: colors.warning),
+                            const SizedBox(width: 6),
+                            Text(
+                              'SIMULATION',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: colors.warning,
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
 
               // Status badge
               _StatusBadge(
@@ -438,7 +462,9 @@ class _PlayButtonState extends State<_PlayButton>
   /// Creates a slightly darker shade of the given color
   Color _darkenColor(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   @override
@@ -466,8 +492,10 @@ class _PlayButtonState extends State<_PlayButton>
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.colors.success.withValues(alpha:
-                      _isHovered ? 0.3 : 0.1 + _pulseController.value * 0.05,
+                    color: widget.colors.success.withValues(
+                      alpha: _isHovered
+                          ? 0.3
+                          : 0.1 + _pulseController.value * 0.05,
                     ),
                     blurRadius: _isHovered ? 12 : 6,
                     offset: const Offset(0, 2),
@@ -590,7 +618,9 @@ class _ControlButtonState extends State<_ControlButton> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
+        cursor: isDisabled
+            ? SystemMouseCursors.forbidden
+            : SystemMouseCursors.click,
         child: GestureDetector(
           onTap: widget.onPressed,
           child: AnimatedContainer(
@@ -647,7 +677,9 @@ class _ToolbarIconButtonState extends State<_ToolbarIconButton> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        cursor: isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
+        cursor: isDisabled
+            ? SystemMouseCursors.forbidden
+            : SystemMouseCursors.click,
         child: GestureDetector(
           onTap: widget.onPressed,
           child: AnimatedContainer(
@@ -810,7 +842,8 @@ class _PulsingDotState extends State<_PulsingDot>
             color: widget.color,
             boxShadow: [
               BoxShadow(
-                color: widget.color.withValues(alpha: 0.5 * (1 - _controller.value)),
+                color: widget.color
+                    .withValues(alpha: 0.5 * (1 - _controller.value)),
                 blurRadius: 4 + _controller.value * 4,
                 spreadRadius: _controller.value * 2,
               ),
@@ -821,4 +854,3 @@ class _PulsingDotState extends State<_PulsingDot>
     );
   }
 }
-

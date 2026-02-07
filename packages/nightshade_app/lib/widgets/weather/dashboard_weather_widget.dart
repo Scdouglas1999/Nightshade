@@ -194,7 +194,9 @@ class _MediumLayout extends StatelessWidget {
               const SizedBox(width: 12),
 
               // Small radar preview
-              if (hasLocation && !weatherStatus.isLoading && weatherStatus.errorMessage == null)
+              if (hasLocation &&
+                  !weatherStatus.isLoading &&
+                  weatherStatus.errorMessage == null)
                 _RadarPreview(
                   colors: colors,
                   weatherStatus: weatherStatus,
@@ -249,7 +251,8 @@ class _MediumLayout extends StatelessWidget {
         iconColor: colors.error,
       );
     } else {
-      return _WeatherStatusDisplay(colors: colors, weatherStatus: weatherStatus);
+      return _WeatherStatusDisplay(
+          colors: colors, weatherStatus: weatherStatus);
     }
   }
 }
@@ -315,7 +318,9 @@ class _ExpandedLayout extends ConsumerWidget {
               const SizedBox(width: 16),
 
               // Larger radar preview
-              if (hasLocation && !weatherStatus.isLoading && weatherStatus.errorMessage == null)
+              if (hasLocation &&
+                  !weatherStatus.isLoading &&
+                  weatherStatus.errorMessage == null)
                 _RadarPreview(
                   colors: colors,
                   weatherStatus: weatherStatus,
@@ -370,7 +375,8 @@ class _ExpandedLayout extends ConsumerWidget {
         iconColor: colors.error,
       );
     } else {
-      return _WeatherStatusDisplay(colors: colors, weatherStatus: weatherStatus);
+      return _WeatherStatusDisplay(
+          colors: colors, weatherStatus: weatherStatus);
     }
   }
 }
@@ -400,8 +406,9 @@ class _RadarPreview extends StatelessWidget {
     final motionDirection = motionAsync.valueOrNull?.directionDegrees;
 
     // Get the first radar frame (most recent)
-    final currentFrame =
-        weatherStatus.radarFrames.isNotEmpty ? weatherStatus.radarFrames.first : null;
+    final currentFrame = weatherStatus.radarFrames.isNotEmpty
+        ? weatherStatus.radarFrames.first
+        : null;
 
     return Container(
       width: width,
@@ -422,16 +429,16 @@ class _RadarPreview extends StatelessWidget {
               motionDirection: motionDirection,
               onTap: () => context.go('/weather'),
             )
-          : _RadarLoadingPlaceholder(colors: colors),
+          : _RadarLoadingCard(colors: colors),
     );
   }
 }
 
-/// Loading placeholder for radar preview
-class _RadarLoadingPlaceholder extends StatelessWidget {
+/// Loading state card for radar preview
+class _RadarLoadingCard extends StatelessWidget {
   final NightshadeColors colors;
 
-  const _RadarLoadingPlaceholder({required this.colors});
+  const _RadarLoadingCard({required this.colors});
 
   @override
   Widget build(BuildContext context) {
@@ -647,7 +654,8 @@ class _StatusBadge extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: textColor),
+            style: TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w600, color: textColor),
           ),
         ],
       ),
@@ -656,11 +664,26 @@ class _StatusBadge extends StatelessWidget {
 
   (String, Color, Color) _getBadgeStyle() {
     return switch (level) {
-      AlertLevel.clear => ('Clear', colors.success.withValues(alpha: 0.2), colors.success),
-      AlertLevel.watch => ('Watch', colors.warning.withValues(alpha: 0.2), const Color(0xFF855C00)),
-      AlertLevel.warning =>
-        ('Warning', const Color(0xFFFF9800).withValues(alpha: 0.2), const Color(0xFFC66900)),
-      AlertLevel.critical => ('Critical', colors.error.withValues(alpha: 0.2), colors.error),
+      AlertLevel.clear => (
+          'Clear',
+          colors.success.withValues(alpha: 0.2),
+          colors.success
+        ),
+      AlertLevel.watch => (
+          'Watch',
+          colors.warning.withValues(alpha: 0.2),
+          const Color(0xFF855C00)
+        ),
+      AlertLevel.warning => (
+          'Warning',
+          const Color(0xFFFF9800).withValues(alpha: 0.2),
+          const Color(0xFFC66900)
+        ),
+      AlertLevel.critical => (
+          'Critical',
+          colors.error.withValues(alpha: 0.2),
+          colors.error
+        ),
     };
   }
 }
@@ -692,7 +715,10 @@ class _CompactStatus extends StatelessWidget {
             children: [
               Text(
                 text,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: colors.textPrimary),
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textPrimary),
               ),
               if (subtext != null)
                 Text(
@@ -711,7 +737,8 @@ class _WeatherStatusDisplay extends StatelessWidget {
   final NightshadeColors colors;
   final WeatherStatus weatherStatus;
 
-  const _WeatherStatusDisplay({required this.colors, required this.weatherStatus});
+  const _WeatherStatusDisplay(
+      {required this.colors, required this.weatherStatus});
 
   @override
   Widget build(BuildContext context) {
@@ -727,7 +754,10 @@ class _WeatherStatusDisplay extends StatelessWidget {
             children: [
               Text(
                 statusText,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: colors.textPrimary),
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textPrimary),
               ),
               if (subtext != null)
                 Text(
@@ -749,7 +779,11 @@ class _WeatherStatusDisplay extends StatelessWidget {
     } else if (weatherStatus.currentLevel == AlertLevel.warning) {
       if (motion?.etaToLocation != null) {
         final minutes = motion!.etaToLocation!.inMinutes;
-        return (LucideIcons.cloudRain, 'Clouds approaching', '~$minutes min away');
+        return (
+          LucideIcons.cloudRain,
+          'Clouds approaching',
+          '~$minutes min away'
+        );
       }
       return (LucideIcons.alertTriangle, 'Warning', 'Monitor conditions');
     } else if (weatherStatus.currentLevel == AlertLevel.watch) {

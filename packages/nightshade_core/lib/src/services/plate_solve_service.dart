@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -122,8 +124,10 @@ class PlateSolveService {
   ) async {
     try {
       final args = <String>[
-        '-f', imagePath,
-        '-r', (config.searchRadius ?? 30).toString(),
+        '-f',
+        imagePath,
+        '-r',
+        (config.searchRadius ?? 30).toString(),
       ];
 
       if (config.hintRa != null && config.hintDec != null) {
@@ -177,8 +181,10 @@ class PlateSolveService {
 
       if (config.hintRa != null && config.hintDec != null) {
         args.addAll([
-          '--ra', (config.hintRa! * 15).toString(),
-          '--dec', config.hintDec.toString(),
+          '--ra',
+          (config.hintRa! * 15).toString(),
+          '--dec',
+          config.hintDec.toString(),
         ]);
       }
 
@@ -294,7 +300,7 @@ class PlateSolveService {
     if (raMatch != null) {
       final ra = double.tryParse(raMatch.group(1)!);
       final dec = double.tryParse(raMatch.group(2)!);
-      
+
       if (ra != null && dec != null) {
         return PlateSolveResult(
           success: true,
@@ -312,23 +318,35 @@ class PlateSolveService {
       final content = await File(outputPath).readAsString();
       final lines = content.split('\n');
 
-      if (lines.isNotEmpty) {
-        final parts = lines[0].split(',');
-        if (parts.length >= 2) {
-          final ra = double.tryParse(parts[0]);
-          final dec = double.tryParse(parts[1]);
-
-          if (ra != null && dec != null) {
-            return PlateSolveResult(
-              success: true,
-              ra: ra / 15,
-              dec: dec,
-            );
-          }
-        }
+      if (lines.isEmpty) {
+        return PlateSolveResult.failed(
+          'Plate solver output file is empty',
+        );
       }
 
-      return PlateSolveResult.failed('Could not parse solution');
+      final parts = lines[0].split(',');
+      if (parts.length < 2) {
+        return PlateSolveResult.failed(
+          'Plate solver output has unexpected format: expected "RA,Dec" '
+          'but got "${lines[0].length > 80 ? '${lines[0].substring(0, 80)}...' : lines[0]}"',
+        );
+      }
+
+      final ra = double.tryParse(parts[0]);
+      final dec = double.tryParse(parts[1]);
+
+      if (ra == null || dec == null) {
+        return PlateSolveResult.failed(
+          'Plate solver output contains non-numeric coordinates: '
+          'RA="${parts[0]}", Dec="${parts[1]}"',
+        );
+      }
+
+      return PlateSolveResult(
+        success: true,
+        ra: ra / 15,
+        dec: dec,
+      );
     } catch (e) {
       return PlateSolveResult.failed('Error parsing output: $e');
     }
@@ -369,8 +387,3 @@ class PlateSolveState {
 final plateSolveStateProvider = StateProvider<PlateSolveState>((ref) {
   return const PlateSolveState();
 });
-
-
-
-
-

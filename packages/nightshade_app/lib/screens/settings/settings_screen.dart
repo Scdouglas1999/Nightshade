@@ -1,5 +1,8 @@
+// ignore_for_file: unused_element_parameter
+
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1710,6 +1713,38 @@ class _ScienceSettings extends ConsumerWidget {
                     ),
                     colors: colors,
                   ),
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.layoutTemplate,
+                  title: 'Frame quality maps',
+                  subtitle:
+                      'Compute clipping, uniformity, background and SNR tile maps',
+                  trailing: _SettingsSwitch(
+                    value: science.frameQualityMapsEnabled,
+                    onChanged: (value) => scienceNotifier.setFeatureEnabled(
+                      ScienceFeature.frameQualityMaps,
+                      value,
+                    ),
+                    colors: colors,
+                  ),
+                  colors: colors,
+                  isMobile: isMobile,
+                ),
+                _SettingRow(
+                  icon: LucideIcons.boxSelect,
+                  title: '3D science surfaces',
+                  subtitle:
+                      'Enable surface explorer and interactive mesh rendering',
+                  trailing: _SettingsSwitch(
+                    value: science.surface3dEnabled,
+                    onChanged: (value) => scienceNotifier.setFeatureEnabled(
+                      ScienceFeature.surface3d,
+                      value,
+                    ),
+                    colors: colors,
+                  ),
                   isLast: true,
                   colors: colors,
                   isMobile: isMobile,
@@ -1793,8 +1828,7 @@ class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
             final parsed = double.tryParse(value);
             if (parsed != null && parsed > 0 && parsed.isFinite) {
               final dao = ref.read(settingsDaoProvider);
-              await dao.setSetting(
-                  _key, parsed.clamp(0.5, 30.0).toString());
+              await dao.setSetting(_key, parsed.clamp(0.5, 30.0).toString());
             }
           },
         ),
@@ -2419,30 +2453,16 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
     }
   }
 
-  String _getFailModeDescription(SafetyFailMode mode) {
-    return switch (mode) {
-      SafetyFailMode.failOpen =>
-        'Continue imaging when safety data unavailable',
-      SafetyFailMode.failClosed => 'Park mount when safety data unavailable',
-      SafetyFailMode.warnOnly => 'Show warning but continue imaging',
-    };
+  String _getFailModeDescription(SafetyFailMode _) {
+    return 'Treat unavailable safety data as unsafe and park/pause equipment';
   }
 
-  String _failModeToString(SafetyFailMode mode) {
-    return switch (mode) {
-      SafetyFailMode.failOpen => 'Fail Open (Continue)',
-      SafetyFailMode.failClosed => 'Fail Closed (Park)',
-      SafetyFailMode.warnOnly => 'Warn Only',
-    };
+  String _failModeToString(SafetyFailMode _) {
+    return 'Fail Closed (Park)';
   }
 
-  SafetyFailMode _stringToFailMode(String value) {
-    return switch (value) {
-      'Fail Open (Continue)' => SafetyFailMode.failOpen,
-      'Fail Closed (Park)' => SafetyFailMode.failClosed,
-      'Warn Only' => SafetyFailMode.warnOnly,
-      _ => SafetyFailMode.failOpen,
-    };
+  SafetyFailMode _stringToFailMode(String _) {
+    return SafetyFailMode.failClosed;
   }
 
   Widget _buildMeridianFlipSection(MeridianFlipSettings flipSettings) {
@@ -2750,11 +2770,7 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                   subtitle: _getFailModeDescription(settings.safetyFailMode),
                   trailing: _SettingsDropdown(
                     value: _failModeToString(settings.safetyFailMode),
-                    items: const [
-                      'Fail Open (Continue)',
-                      'Fail Closed (Park)',
-                      'Warn Only'
-                    ],
+                    items: const ['Fail Closed (Park)'],
                     onChanged: (value) {
                       if (value != null) {
                         ref
@@ -2870,24 +2886,26 @@ class _SequencerSettingsState extends ConsumerState<_SequencerSettings> {
                     },
                     colors: widget.colors,
                   ),
+                  isLast: kReleaseMode,
                   colors: widget.colors,
                 ),
-                _SettingRow(
-                  icon: LucideIcons.testTube,
-                  title: 'Simulation mode',
-                  subtitle: 'Use simulated devices instead of real hardware',
-                  trailing: _SettingsSwitch(
-                    value: settings.useSimulationMode,
-                    onChanged: (value) {
-                      ref
-                          .read(appSettingsProvider.notifier)
-                          .setUseSimulationMode(value);
-                    },
+                if (!kReleaseMode)
+                  _SettingRow(
+                    icon: LucideIcons.testTube,
+                    title: 'Simulation mode',
+                    subtitle: 'Use simulated devices instead of real hardware',
+                    trailing: _SettingsSwitch(
+                      value: settings.useSimulationMode,
+                      onChanged: (value) {
+                        ref
+                            .read(appSettingsProvider.notifier)
+                            .setUseSimulationMode(value);
+                      },
+                      colors: widget.colors,
+                    ),
+                    isLast: true,
                     colors: widget.colors,
                   ),
-                  isLast: true,
-                  colors: widget.colors,
-                ),
               ],
             ),
           ],

@@ -1282,9 +1282,12 @@ impl NativeCamera for TouptekCamera {
         }])
     }
 
-    async fn set_readout_mode(&mut self, _mode: &ReadoutMode) -> Result<(), NativeError> {
-        // No-op for Touptek cameras
-        Ok(())
+    async fn set_readout_mode(&mut self, mode: &ReadoutMode) -> Result<(), NativeError> {
+        // Touptek cameras expose a single fixed readout mode.
+        if mode.index == 0 || mode.name.eq_ignore_ascii_case("normal") {
+            return Ok(());
+        }
+        Err(NativeError::NotSupported)
     }
 
     async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError> {

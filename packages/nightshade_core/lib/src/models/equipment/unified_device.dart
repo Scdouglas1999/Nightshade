@@ -48,7 +48,9 @@ class UnifiedDevice extends Equatable {
   /// For capability-aware selection, use [recommendedBackendForCapabilities] instead.
   DriverBackend get recommendedBackend {
     if (availableBackends.isEmpty) {
-      return DriverBackend.simulator; // Fallback, shouldn't happen
+      throw StateError(
+        'UnifiedDevice "$displayName" has no available backends',
+      );
     }
 
     DriverBackend best = availableBackends.keys.first;
@@ -66,12 +68,12 @@ class UnifiedDevice extends Equatable {
   }
 
   /// Get recommended backend considering capability requirements.
-  /// 
+  ///
   /// Capability-aware selection considers:
   /// - [requireRemoteOperation]: Prefer network-capable backends (Alpaca, INDI)
   /// - [preferLinuxCompatible]: Prefer cross-platform backends (INDI, Native, Alpaca)
   /// - [requireFullFeatureSet]: Prefer backends with complete feature support (Native, ASCOM)
-  /// 
+  ///
   /// Falls back to [recommendedBackend] if no backends match the requirements.
   DriverBackend recommendedBackendForCapabilities({
     bool requireRemoteOperation = false,
@@ -79,15 +81,18 @@ class UnifiedDevice extends Equatable {
     bool requireFullFeatureSet = false,
   }) {
     if (availableBackends.isEmpty) {
-      return DriverBackend.simulator;
+      throw StateError(
+        'UnifiedDevice "$displayName" has no available backends',
+      );
     }
 
     // Score each backend based on requirements
     final scoredBackends = <DriverBackend, int>{};
-    
+
     for (final backend in availableBackends.keys) {
-      int score = 100 - ((_backendPriority[backend] ?? 99) * 10); // Base score from priority
-      
+      int score = 100 -
+          ((_backendPriority[backend] ?? 99) * 10); // Base score from priority
+
       // Remote operation capability (Alpaca and INDI support remote)
       if (requireRemoteOperation) {
         if (backend == DriverBackend.alpaca || backend == DriverBackend.indi) {
@@ -96,7 +101,7 @@ class UnifiedDevice extends Equatable {
           score -= 100; // Heavily penalize non-remote backends
         }
       }
-      
+
       // Linux/cross-platform compatibility
       if (preferLinuxCompatible) {
         switch (backend) {
@@ -113,7 +118,7 @@ class UnifiedDevice extends Equatable {
             break;
         }
       }
-      
+
       // Full feature set (Native and ASCOM typically have best feature support)
       if (requireFullFeatureSet) {
         switch (backend) {
@@ -134,21 +139,21 @@ class UnifiedDevice extends Equatable {
             break;
         }
       }
-      
+
       scoredBackends[backend] = score;
     }
-    
+
     // Find the highest scoring backend
     DriverBackend best = availableBackends.keys.first;
     int bestScore = scoredBackends[best] ?? 0;
-    
+
     for (final entry in scoredBackends.entries) {
       if (entry.value > bestScore) {
         best = entry.key;
         bestScore = entry.value;
       }
     }
-    
+
     return best;
   }
 
@@ -160,13 +165,15 @@ class UnifiedDevice extends Equatable {
     bool requireFullFeatureSet = false,
   }) {
     final backends = availableBackends.keys.toList();
-    
+
     backends.sort((a, b) {
-      final scoreA = _getCapabilityScore(a, requireRemoteOperation, preferLinuxCompatible, requireFullFeatureSet);
-      final scoreB = _getCapabilityScore(b, requireRemoteOperation, preferLinuxCompatible, requireFullFeatureSet);
+      final scoreA = _getCapabilityScore(a, requireRemoteOperation,
+          preferLinuxCompatible, requireFullFeatureSet);
+      final scoreB = _getCapabilityScore(b, requireRemoteOperation,
+          preferLinuxCompatible, requireFullFeatureSet);
       return scoreB.compareTo(scoreA); // Higher score first
     });
-    
+
     return backends;
   }
 
@@ -177,15 +184,22 @@ class UnifiedDevice extends Equatable {
     bool requireFeatures,
   ) {
     int score = 100 - ((_backendPriority[backend] ?? 99) * 10);
-    
+
     if (requireRemote) {
-      score += (backend == DriverBackend.alpaca || backend == DriverBackend.indi) ? 50 : -100;
+      score +=
+          (backend == DriverBackend.alpaca || backend == DriverBackend.indi)
+              ? 50
+              : -100;
     }
     if (preferLinux) {
       score += backend == DriverBackend.ascom ? -30 : 20;
     }
     if (requireFeatures) {
-      score += backend == DriverBackend.native ? 30 : backend == DriverBackend.ascom ? 25 : 10;
+      score += backend == DriverBackend.native
+          ? 30
+          : backend == DriverBackend.ascom
+              ? 25
+              : 10;
     }
     return score;
   }
@@ -200,7 +214,8 @@ class UnifiedDevice extends Equatable {
   AvailableDevice get activeDevice => availableBackends[activeBackend]!;
 
   /// Check if a specific backend is available for this device
-  bool hasBackend(DriverBackend backend) => availableBackends.containsKey(backend);
+  bool hasBackend(DriverBackend backend) =>
+      availableBackends.containsKey(backend);
 
   /// Get the device ID for a specific backend (null if not available)
   String? getDeviceIdForBackend(DriverBackend backend) =>

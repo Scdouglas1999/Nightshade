@@ -172,11 +172,18 @@ pub async fn execute_temperature_compensation(
             current_position + position_delta
         }
         CompensationMode::Absolute => {
-            // Calculate absolute position from baseline
-            // This requires storing baseline position in trigger state
-            // For now, use relative mode behavior
-            tracing::warn!("Absolute mode not yet implemented, using relative mode");
-            current_position + position_delta
+            let baseline_position = match trigger_state.baseline_focuser_position {
+                Some(pos) => pos,
+                None => {
+                    tracing::info!(
+                        "Establishing focuser baseline position for absolute compensation: {}",
+                        current_position
+                    );
+                    trigger_state.baseline_focuser_position = Some(current_position);
+                    current_position
+                }
+            };
+            baseline_position + position_delta
         }
     };
 
@@ -248,8 +255,12 @@ pub async fn execute_temperature_compensation(
                 poll_count += 1;
                 if poll_count % 5 == 0 {
                     let elapsed_secs = move_start.elapsed().as_secs();
-                    // Progress from 70-90% during movement based on time (assume ~30s typical move)
-                    let move_progress = 70.0 + ((elapsed_secs as f64 / 30.0) * 20.0).min(20.0);
+                    // Progress from 70-90% during movement based on configured timeout budget.
+                    let move_progress = if config.timeout_secs > 0 {
+                        70.0 + ((elapsed_secs as f64 / config.timeout_secs as f64) * 20.0).min(20.0)
+                    } else {
+                        70.0
+                    };
                     if let Some(cb) = progress_callback {
                         cb(
                             move_progress,
@@ -284,8 +295,10 @@ pub async fn execute_temperature_compensation(
     let final_position = match ctx.device_ops.focuser_get_position(&focuser_id).await {
         Ok(pos) => pos,
         Err(e) => {
-            tracing::warn!("Failed to verify final position: {}", e);
-            new_position // Use target position as fallback
+            return InstructionResult::failure(format!(
+                "Failed to verify final focuser position after temperature compensation move: {}",
+                e
+            ));
         }
     };
 
@@ -303,6 +316,7 @@ pub async fn execute_temperature_compensation(
     if config.reset_baseline_after_move {
         let mut trigger_state = trigger_state_lock.write().await;
         trigger_state.reset_baseline_temperature();
+        trigger_state.reset_baseline_focuser_position(final_position);
         tracing::info!("Temperature baseline reset to {:.2}°C", current_temp);
     }
 

@@ -39,6 +39,7 @@ dependencies:
   uuid: ^4.3.3
   image: ^4.1.7
   path: ^1.8.3
+  drift: ^2.15.0
   fl_chart: ^0.68.0
   share_plus: ^7.2.2
   csv: ^6.0.0

@@ -11,9 +11,9 @@ class SequenceFileService {
   /// Export a sequence to a JSON file
   Future<void> exportSequence(Sequence sequence) async {
     // Prepare JSON
-   final json = _sequenceToJson(sequence);
+    final json = _sequenceToJson(sequence);
     final jsonString = const JsonEncoder.withIndent('  ').convert(json);
-    
+
     // Show save dialog
     final saveLocation = await file_selector.getSaveLocation(
       suggestedName: '${sequence.name}.nseq.json',
@@ -24,14 +24,14 @@ class SequenceFileService {
         ),
       ],
     );
-    
+
     if (saveLocation == null) return;
-    
+
     // Write file
     final file = File(saveLocation.path);
     await file.writeAsString(jsonString);
   }
-  
+
   /// Import a sequence from a JSON file
   Future<Sequence?> importSequence() async {
     // Show open dialog
@@ -43,16 +43,16 @@ class SequenceFileService {
         ),
       ],
     );
-    
+
     if (file == null) return null;
-    
+
     // Read and parse file
     final jsonString = await file.readAsString();
     final json = jsonDecode(jsonString) as Map<String, dynamic>;
-    
+
     return _jsonToSequence(json);
   }
-  
+
   Map<String, dynamic> _sequenceToJson(Sequence sequence) {
     return {
       'version': '2.0',
@@ -60,21 +60,23 @@ class SequenceFileService {
       'description': sequence.description,
       'rootNodeId': sequence.rootNodeId,
       'isTemplate': sequence.isTemplate,
-      'nodes': sequence.nodes.map((id, node) => MapEntry(id, _nodeToJson(node))),
+      'nodes':
+          sequence.nodes.map((id, node) => MapEntry(id, _nodeToJson(node))),
       'createdAt': sequence.createdAt.toIso8601String(),
       'modifiedAt': sequence.modifiedAt.toIso8601String(),
     };
   }
-  
+
   Sequence _jsonToSequence(Map<String, dynamic> json) {
     final nodes = <String, SequenceNode>{};
     final nodesJson = (json['nodes'] as Map?)?.cast<String, dynamic>() ?? {};
-    
+
     for (final entry in nodesJson.entries) {
-      final node = _jsonToNode(entry.value as Map<String, dynamic>, fallbackId: entry.key);
+      final node = _jsonToNode(entry.value as Map<String, dynamic>,
+          fallbackId: entry.key);
       nodes[node.id] = node;
     }
-    
+
     return Sequence(
       id: const Uuid().v4(), // Generate new ID for imported sequence
       name: json['name'] as String? ?? 'Imported Sequence',
@@ -86,7 +88,7 @@ class SequenceFileService {
       modifiedAt: _parseDate(json['modifiedAt']) ?? DateTime.now(),
     );
   }
-  
+
   Map<String, dynamic> _nodeToJson(SequenceNode node) {
     final base = {
       'id': node.id,
@@ -97,7 +99,7 @@ class SequenceFileService {
       'orderIndex': node.orderIndex,
       'isEnabled': node.isEnabled,
     };
-    
+
     // Add type-specific properties
     if (node is TargetHeaderNode) {
       base.addAll({
@@ -253,10 +255,10 @@ class SequenceFileService {
         'manualSlew': node.manualSlew,
       });
     }
-    
+
     return base;
   }
-  
+
   SequenceNode _jsonToNode(Map<String, dynamic> json, {String? fallbackId}) {
     final rawType = json['nodeType'] as String?;
     if (rawType == null || rawType.trim().isEmpty) {
@@ -267,10 +269,11 @@ class SequenceFileService {
     final id = (json['id'] as String?) ?? fallbackId ?? const Uuid().v4();
     final name = json['name'] as String?;
     final parentId = json['parentId'] as String?;
-    final childIds = (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
+    final childIds =
+        (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
     final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
-    final isEnabled = json['isEnabled'] as bool? ?? true;
-    
+    final isEnabled = json['isEnabled'] as bool? ?? false;
+
     switch (nodeType) {
       case 'targetheader':
       case 'targetgroup':
@@ -293,7 +296,8 @@ class SequenceFileService {
           startAfter: _parseDate(json['startAfter']),
           endBefore: _parseDate(json['endBefore']),
           mosaicPanel: json['mosaicPanel'] != null
-              ? MosaicPanelInfo.fromJson(json['mosaicPanel'] as Map<String, dynamic>)
+              ? MosaicPanelInfo.fromJson(
+                  json['mosaicPanel'] as Map<String, dynamic>)
               : null,
           parentId: parentId,
           childIds: childIds,
@@ -308,7 +312,8 @@ class SequenceFileService {
           conditionType: _parseLoopConditionType(json['conditionType']),
           repeatCount: (json['repeatCount'] as num?)?.toInt(),
           repeatUntil: _parseDate(json['repeatUntil']),
-          repeatUntilAltitude: (json['repeatUntilAltitude'] as num?)?.toDouble(),
+          repeatUntilAltitude:
+              (json['repeatUntilAltitude'] as num?)?.toDouble(),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -368,7 +373,7 @@ class SequenceFileService {
         return SlewNode(
           id: id,
           name: name ?? 'Slew to Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
           customRa: (json['customRa'] as num?)?.toDouble(),
           customDec: (json['customDec'] as num?)?.toDouble(),
           parentId: parentId,
@@ -382,7 +387,7 @@ class SequenceFileService {
         return CenterNode(
           id: id,
           name: name ?? 'Center Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
           accuracyArcsec: (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
           maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 5,
           parentId: parentId,
@@ -410,7 +415,7 @@ class SequenceFileService {
           orderIndex: orderIndex,
           isEnabled: isEnabled,
         );
-        
+
       case 'autofocus':
         return AutofocusNode(
           id: id,
@@ -419,13 +424,14 @@ class SequenceFileService {
           stepSize: (json['stepSize'] as num?)?.toInt() ?? 100,
           stepsOut: (json['stepsOut'] as num?)?.toInt() ?? 7,
           exposuresPerPoint: (json['exposuresPerPoint'] as num?)?.toInt() ?? 1,
-          exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 3.0,
+          exposureDuration:
+              (json['exposureDuration'] as num?)?.toDouble() ?? 3.0,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
           isEnabled: isEnabled,
         );
-        
+
       case 'dither':
         return DitherNode(
           id: id,
@@ -438,7 +444,7 @@ class SequenceFileService {
           orderIndex: orderIndex,
           isEnabled: isEnabled,
         );
-        
+
       case 'startguiding':
         return StartGuidingNode(
           id: id,
@@ -446,7 +452,7 @@ class SequenceFileService {
           settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
           settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 60.0,
-          autoSelectStar: json['autoSelectStar'] as bool? ?? true,
+          autoSelectStar: json['autoSelectStar'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -575,7 +581,8 @@ class SequenceFileService {
           id: id,
           name: name ?? 'Run Script',
           scriptPath: json['scriptPath'] as String? ?? '',
-          arguments: (json['arguments'] as List<dynamic>?)?.cast<String>() ?? const [],
+          arguments:
+              (json['arguments'] as List<dynamic>?)?.cast<String>() ?? const [],
           timeoutSecs: (json['timeoutSecs'] as num?)?.toInt(),
           parentId: parentId,
           childIds: childIds,
@@ -587,9 +594,10 @@ class SequenceFileService {
         return MeridianFlipNode(
           id: id,
           name: name ?? 'Meridian Flip',
-          minutesPastMeridian: (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
-          pauseGuiding: json['pauseGuiding'] as bool? ?? true,
-          autoCenter: json['autoCenter'] as bool? ?? true,
+          minutesPastMeridian:
+              (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
+          pauseGuiding: json['pauseGuiding'] as bool? ?? false,
+          autoCenter: json['autoCenter'] as bool? ?? false,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
           parentId: parentId,
           childIds: childIds,
@@ -635,14 +643,15 @@ class SequenceFileService {
         return PolarAlignmentNode(
           id: id,
           name: name ?? 'Polar Alignment',
-          exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 2.0,
+          exposureDuration:
+              (json['exposureDuration'] as num?)?.toDouble() ?? 2.0,
           binning: (json['binning'] as num?)?.toInt() ?? 2,
           startAltitude: (json['startAltitude'] as num?)?.toDouble() ?? 45.0,
           rotationStep: (json['rotationStep'] as num?)?.toDouble() ?? 20.0,
           gain: (json['gain'] as num?)?.toInt(),
           offset: (json['offset'] as num?)?.toInt(),
-          startFromCurrent: json['startFromCurrent'] as bool? ?? true,
-          isNorth: json['isNorth'] as bool? ?? true,
+          startFromCurrent: json['startFromCurrent'] as bool? ?? false,
+          isNorth: json['isNorth'] as bool? ?? false,
           manualSlew: json['manualSlew'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,

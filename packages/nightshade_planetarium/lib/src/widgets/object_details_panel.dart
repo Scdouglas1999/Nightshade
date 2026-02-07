@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../celestial_object.dart';
 import '../astronomy/astronomy_calculations.dart';
+import '../services/survey_image_service.dart';
 import '../providers/planetarium_providers.dart';
 
 /// Enhanced object details panel showing comprehensive information
@@ -74,7 +75,8 @@ class ObjectDetailsPanel extends ConsumerWidget {
           children: [
             // Header with name, type, and optional thumbnail for DSOs
             if (object is DeepSkyObject)
-              _buildHeaderWithThumbnail(txtColor, accent, object as DeepSkyObject)
+              _buildHeaderWithThumbnail(
+                  txtColor, accent, object as DeepSkyObject)
             else
               _buildHeader(txtColor, accent),
             const SizedBox(height: 12),
@@ -183,7 +185,8 @@ class ObjectDetailsPanel extends ConsumerWidget {
   }
 
   /// Build header with thumbnail for DSOs
-  Widget _buildHeaderWithThumbnail(Color txtColor, Color accent, DeepSkyObject dso) {
+  Widget _buildHeaderWithThumbnail(
+      Color txtColor, Color accent, DeepSkyObject dso) {
     final typeColor = _getTypeColor();
 
     return Row(
@@ -220,7 +223,8 @@ class ObjectDetailsPanel extends ConsumerWidget {
                 children: [
                   if (object.magnitude != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: txtColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -238,7 +242,8 @@ class ObjectDetailsPanel extends ConsumerWidget {
                     const SizedBox(width: 6),
                   if (dso.sizeString != null)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: txtColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
@@ -264,12 +269,17 @@ class ObjectDetailsPanel extends ConsumerWidget {
   Widget _buildCoordinatesSection(Color txtColor) {
     final raHours = object.coordinates.ra.floor();
     final raMinutes = ((object.coordinates.ra - raHours) * 60).floor();
-    final raSeconds = ((object.coordinates.ra - raHours - raMinutes / 60) * 3600).toStringAsFixed(1);
+    final raSeconds =
+        ((object.coordinates.ra - raHours - raMinutes / 60) * 3600)
+            .toStringAsFixed(1);
 
     final decSign = object.coordinates.dec >= 0 ? '+' : '';
     final decDegrees = object.coordinates.dec.abs().floor();
-    final decMinutes = ((object.coordinates.dec.abs() - decDegrees) * 60).floor();
-    final decSeconds = ((object.coordinates.dec.abs() - decDegrees - decMinutes / 60) * 3600).toStringAsFixed(0);
+    final decMinutes =
+        ((object.coordinates.dec.abs() - decDegrees) * 60).floor();
+    final decSeconds =
+        ((object.coordinates.dec.abs() - decDegrees - decMinutes / 60) * 3600)
+            .toStringAsFixed(0);
 
     final constellation = _getConstellation();
 
@@ -370,7 +380,8 @@ class ObjectDetailsPanel extends ConsumerWidget {
         properties.add(_buildInfoRow('Size', sizeStr, txtColor));
       }
       if (dso.positionAngle != null) {
-        properties.add(_buildInfoRow('PA', '${dso.positionAngle!.toStringAsFixed(0)}°', txtColor));
+        properties.add(_buildInfoRow(
+            'PA', '${dso.positionAngle!.toStringAsFixed(0)}°', txtColor));
       }
     }
 
@@ -482,7 +493,28 @@ class ObjectDetailsPanel extends ConsumerWidget {
   }
 
   Widget _buildRiseTransitSetSection(WidgetRef ref, Color txtColor) {
-    // Simplified - just show placeholder for now
+    final location = ref.watch(observerLocationProvider);
+    final obsTime = ref.watch(observationTimeProvider);
+    final visibility = AstronomyCalculations.calculateObjectVisibility(
+      raDeg: object.coordinates.ra * 15,
+      decDeg: object.coordinates.dec,
+      date: obsTime.time,
+      latitudeDeg: location.latitude,
+      longitudeDeg: location.longitude,
+    );
+
+    var riseText = _formatTime(visibility.riseTime);
+    var transitText = _formatTime(visibility.transitTime);
+    var setText = _formatTime(visibility.setTime);
+
+    if (visibility.neverRises) {
+      riseText = 'Never';
+      setText = 'Never';
+    } else if (visibility.isCircumpolar) {
+      riseText = 'Always';
+      setText = 'Always';
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -498,16 +530,27 @@ class ObjectDetailsPanel extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildTimeColumn(LucideIcons.sunrise, 'Rise', '--:--', txtColor),
-            _buildTimeColumn(LucideIcons.arrowUp, 'Transit', '--:--', txtColor),
-            _buildTimeColumn(LucideIcons.sunset, 'Set', '--:--', txtColor),
+            _buildTimeColumn(LucideIcons.sunrise, 'Rise', riseText, txtColor),
+            _buildTimeColumn(
+              LucideIcons.arrowUp,
+              'Transit',
+              transitText,
+              txtColor,
+            ),
+            _buildTimeColumn(LucideIcons.sunset, 'Set', setText, txtColor),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildTimeColumn(IconData icon, String label, String time, Color txtColor) {
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return '--:--';
+    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildTimeColumn(
+      IconData icon, String label, String time, Color txtColor) {
     return Column(
       children: [
         Icon(icon, size: 16, color: txtColor.withValues(alpha: 0.7)),
@@ -664,11 +707,21 @@ class ObjectDetailsPanel extends ConsumerWidget {
   }
 
   // ============================================================================
-  // Task 1: Thumbnail Placeholder Widget
+  // Thumbnail Widget
   // ============================================================================
 
-  /// Build a placeholder thumbnail for DSOs showing an icon representing the object type
+  /// Build a survey thumbnail for DSOs with icon fallback on network/load errors.
   Widget _buildThumbnail(DeepSkyObject dso) {
+    final request = SurveyImageRequest(
+      raDeg: dso.coordinates.ra * 15.0,
+      decDeg: dso.coordinates.dec,
+      fovWidth: _thumbnailFovDeg(dso),
+      fovHeight: _thumbnailFovDeg(dso),
+      pixelWidth: 256,
+      pixelHeight: 256,
+      source: SurveySource.dss2Red,
+    );
+
     return Container(
       width: 80,
       height: 80,
@@ -677,14 +730,45 @@ class ObjectDetailsPanel extends ConsumerWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.white24),
       ),
-      child: Center(
-        child: Icon(
-          _getDsoIcon(dso.type),
-          color: _getDsoColor(dso.type),
-          size: 32,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(7),
+        child: Image.network(
+          request.aladinUrl,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return const Center(
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Center(
+              child: Icon(
+                _getDsoIcon(dso.type),
+                color: _getDsoColor(dso.type),
+                size: 32,
+              ),
+            );
+          },
         ),
       ),
     );
+  }
+
+  double _thumbnailFovDeg(DeepSkyObject dso) {
+    final majorArcMin = dso.sizeArcMin;
+    final minorArcMin = dso.minorAxisArcMin;
+    final largestArcMin = math.max(majorArcMin ?? 0.0, minorArcMin ?? 0.0);
+    if (largestArcMin <= 0) {
+      return 1.5;
+    }
+
+    // Frame the target with margin while avoiding very small/very large cutouts.
+    return (largestArcMin * 3.0 / 60.0).clamp(0.25, 3.0);
   }
 
   /// Get icon for DSO type (for thumbnail)
@@ -693,14 +777,17 @@ class ObjectDetailsPanel extends ConsumerWidget {
       DsoType.galaxy ||
       DsoType.galaxyPair ||
       DsoType.galaxyTriplet ||
-      DsoType.galaxyGroup => LucideIcons.orbit,
+      DsoType.galaxyGroup =>
+        LucideIcons.orbit,
       DsoType.nebula ||
       DsoType.emissionNebula ||
       DsoType.reflectionNebula ||
       DsoType.darkNebula ||
-      DsoType.hiiRegion => LucideIcons.cloud,
+      DsoType.hiiRegion =>
+        LucideIcons.cloud,
       DsoType.openCluster ||
-      DsoType.clusterWithNebulosity => LucideIcons.asterisk,
+      DsoType.clusterWithNebulosity =>
+        LucideIcons.asterisk,
       DsoType.globularCluster => LucideIcons.circle,
       DsoType.planetaryNebula => LucideIcons.circleSlash,
       DsoType.supernova => LucideIcons.zap,
@@ -716,14 +803,15 @@ class ObjectDetailsPanel extends ConsumerWidget {
       DsoType.galaxy ||
       DsoType.galaxyPair ||
       DsoType.galaxyTriplet ||
-      DsoType.galaxyGroup => Colors.purple,
+      DsoType.galaxyGroup =>
+        Colors.purple,
       DsoType.nebula ||
       DsoType.emissionNebula ||
-      DsoType.hiiRegion => Colors.red,
+      DsoType.hiiRegion =>
+        Colors.red,
       DsoType.reflectionNebula => Colors.blue,
       DsoType.darkNebula => Colors.grey,
-      DsoType.openCluster ||
-      DsoType.clusterWithNebulosity => Colors.blue,
+      DsoType.openCluster || DsoType.clusterWithNebulosity => Colors.blue,
       DsoType.globularCluster => Colors.orange,
       DsoType.planetaryNebula => Colors.cyan,
       DsoType.supernova => Colors.amber,
@@ -754,11 +842,13 @@ class ObjectDetailsPanel extends ConsumerWidget {
     String transitTime = '--:--';
     if (visibility.transitTime != null) {
       final t = visibility.transitTime!;
-      transitTime = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+      transitTime =
+          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
     }
 
     // Calculate moon distance (angular separation from moon)
-    final (moonRa, moonDec, _) = AstronomyCalculations.moonPosition(obsTime.time);
+    final (moonRa, moonDec, _) =
+        AstronomyCalculations.moonPosition(obsTime.time);
     final moonDist = AstronomyCalculations.angularSeparation(
       ra1Deg: object.coordinates.ra * 15,
       dec1Deg: object.coordinates.dec,
@@ -818,12 +908,14 @@ class ObjectDetailsPanel extends ConsumerWidget {
 
     // Moon phase score (0-30 points)
     // New moon = 30 points, Full moon = 0 points
-    final moonIllumination = AstronomyCalculations.moonIllumination(obsTime.time);
+    final moonIllumination =
+        AstronomyCalculations.moonIllumination(obsTime.time);
     score += ((100 - moonIllumination) / 100) * 30;
 
     // Moon distance score (0-15 points)
     // Far from moon = 15 points, close to moon = 0 points
-    final (moonRa, moonDec, _) = AstronomyCalculations.moonPosition(obsTime.time);
+    final (moonRa, moonDec, _) =
+        AstronomyCalculations.moonPosition(obsTime.time);
     final moonDist = AstronomyCalculations.angularSeparation(
       ra1Deg: object.coordinates.ra * 15,
       dec1Deg: object.coordinates.dec,

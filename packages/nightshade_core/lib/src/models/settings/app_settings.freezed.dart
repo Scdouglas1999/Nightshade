@@ -835,7 +835,7 @@ class _$AppSettingsImpl implements _AppSettings {
       this.updateChannel = 'stable',
       this.updateCheckIntervalHours = 24,
       this.skippedUpdateVersion = '',
-      this.safetyFailMode = SafetyFailMode.failOpen});
+      this.safetyFailMode = SafetyFailMode.failClosed});
 
   factory _$AppSettingsImpl.fromJson(Map<String, dynamic> json) =>
       _$$AppSettingsImplFromJson(json);

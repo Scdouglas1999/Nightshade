@@ -179,7 +179,7 @@ class _NightTimeline extends ConsumerWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final sequence = ref.watch(currentSequenceProvider);
     final location = ref.watch(observerLocationProvider);
-    
+
     // Calculate timeline range (Sunset to Sunrise, centered on midnight)
     // For simplicity in this view, we'll show 6pm to 6am local time
     final now = DateTime.now();
@@ -260,7 +260,7 @@ class _TimelinePainter extends CustomPainter {
 
       _drawAltitudeCurve(canvas, size, target, color);
     }
-    
+
     // Draw Current Time Indicator
     _drawCurrentTime(canvas, size);
   }
@@ -271,16 +271,16 @@ class _TimelinePainter extends CustomPainter {
     final paint = Paint()
       ..color = colors.success.withValues(alpha: 0.05)
       ..style = PaintingStyle.fill;
-    
+
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, y30), paint);
-    
+
     // Draw clear 30 degree line
     final linePaint = Paint()
       ..color = colors.success.withValues(alpha: 0.3)
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
-      // ..pathEffect = const DashPathEffect(5, 5); // Requires ui import or helper
-      
+    // ..pathEffect = const DashPathEffect(5, 5); // Requires ui import or helper
+
     canvas.drawLine(Offset(0, y30), Offset(size.width, y30), linePaint);
   }
 
@@ -290,7 +290,7 @@ class _TimelinePainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-      // ..pathEffect = DashPathEffect(5, 5);
+    // ..pathEffect = DashPathEffect(5, 5);
 
     final totalMinutes = endTime.difference(startTime).inMinutes;
     bool first = true;
@@ -317,9 +317,9 @@ class _TimelinePainter extends CustomPainter {
         path.lineTo(x, clampedY);
       }
     }
-    
+
     canvas.drawPath(path, paint);
-    
+
     // Label for Moon
     final textPainter = TextPainter(
       text: const TextSpan(
@@ -336,7 +336,7 @@ class _TimelinePainter extends CustomPainter {
     final linePaint = Paint()
       ..color = colors.border.withValues(alpha: 0.5)
       ..strokeWidth = 1;
-    
+
     final textStyle = TextStyle(
       color: colors.textMuted,
       fontSize: 10,
@@ -350,7 +350,7 @@ class _TimelinePainter extends CustomPainter {
     for (int alt = 0; alt <= 90; alt += 30) {
       final y = size.height - (alt / 90.0 * size.height);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
-      
+
       textPainter.text = TextSpan(text: '$alt°', style: textStyle);
       textPainter.layout();
       textPainter.paint(canvas, Offset(4, y - 12));
@@ -358,10 +358,11 @@ class _TimelinePainter extends CustomPainter {
 
     // Vertical lines (Time)
     final totalDuration = endTime.difference(startTime).inMinutes;
-    for (int i = 0; i <= totalDuration; i += 60) { // Every hour
+    for (int i = 0; i <= totalDuration; i += 60) {
+      // Every hour
       final x = (i / totalDuration) * size.width;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
-      
+
       final time = startTime.add(Duration(minutes: i));
       textPainter.text = TextSpan(
         text: DateFormat('HH:mm').format(time),
@@ -372,7 +373,8 @@ class _TimelinePainter extends CustomPainter {
     }
   }
 
-  void _drawAltitudeCurve(Canvas canvas, Size size, TargetHeaderNode target, Color color) {
+  void _drawAltitudeCurve(
+      Canvas canvas, Size size, TargetHeaderNode target, Color color) {
     final path = Path();
     final paint = Paint()
       ..color = color
@@ -384,7 +386,7 @@ class _TimelinePainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final totalMinutes = endTime.difference(startTime).inMinutes;
-    
+
     // Calculate points every 10 minutes
     bool first = true;
     final shadowPath = Path();
@@ -415,15 +417,14 @@ class _TimelinePainter extends CustomPainter {
         shadowPath.lineTo(x, clampedY);
       }
     }
-    
+
     shadowPath.lineTo(size.width, size.height);
     shadowPath.close();
 
     canvas.drawPath(shadowPath, shadowPaint);
     canvas.drawPath(path, paint);
-    
-    // Draw label at peak (transit)
-    // Simplified: just draw at start for now to identify lines
+
+    // Draw label near the highest altitude point (approximate transit).
     final textPainter = TextPainter(
       text: TextSpan(
         text: target.targetName,
@@ -438,15 +439,15 @@ class _TimelinePainter extends CustomPainter {
       ),
       textDirection: ui.TextDirection.ltr,
     );
-    
+
     // Find highest point on curve to place label
     // Re-calculate just the peak approx
     double peakAlt = -90;
     double peakX = 0;
-    
+
     for (int i = 0; i <= totalMinutes; i += 30) {
-       final time = startTime.add(Duration(minutes: i));
-       final altAz = AstronomyCalculations.objectAltAz(
+      final time = startTime.add(Duration(minutes: i));
+      final altAz = AstronomyCalculations.objectAltAz(
         raDeg: target.raHours * 15.0,
         decDeg: target.decDegrees,
         dt: time,
@@ -458,29 +459,30 @@ class _TimelinePainter extends CustomPainter {
         peakX = (i / totalMinutes) * size.width;
       }
     }
-    
+
     if (peakAlt > 0) {
       final peakY = size.height - (peakAlt / 90.0 * size.height);
       textPainter.layout();
-      textPainter.paint(canvas, Offset(peakX - textPainter.width / 2, peakY - 20));
+      textPainter.paint(
+          canvas, Offset(peakX - textPainter.width / 2, peakY - 20));
     }
   }
-  
+
   void _drawCurrentTime(Canvas canvas, Size size) {
     final now = DateTime.now();
     if (now.isBefore(startTime) || now.isAfter(endTime)) return;
-    
+
     final totalDuration = endTime.difference(startTime).inMinutes;
     final elapsed = now.difference(startTime).inMinutes;
     final x = (elapsed / totalDuration) * size.width;
-    
+
     final paint = Paint()
       ..color = colors.error
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
-      
+
     canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    
+
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'Now',
@@ -524,7 +526,7 @@ class _ActiveTargetList extends ConsumerWidget {
           colors.warning,
           colors.info
         ][index % 5];
-        
+
         return _TargetListItem(
           key: ValueKey(target.id),
           colors: colors,
@@ -537,7 +539,9 @@ class _ActiveTargetList extends ConsumerWidget {
         );
       },
       onReorder: (oldIndex, newIndex) {
-        ref.read(currentSequenceProvider.notifier).reorderTargets(oldIndex, newIndex);
+        ref
+            .read(currentSequenceProvider.notifier)
+            .reorderTargets(oldIndex, newIndex);
       },
     );
   }
@@ -616,7 +620,8 @@ class _TargetListItem extends StatelessWidget {
           isVeryNarrow
               ? '${target.raHours.toStringAsFixed(2)}h / ${target.decDegrees.toStringAsFixed(2)}°'
               : 'RA: ${target.raHours.toStringAsFixed(4)}h  Dec: ${target.decDegrees.toStringAsFixed(4)}°',
-          style: TextStyle(color: colors.textSecondary, fontSize: isMobile ? 11 : 12),
+          style: TextStyle(
+              color: colors.textSecondary, fontSize: isMobile ? 11 : 12),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -624,15 +629,18 @@ class _TargetListItem extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: Icon(LucideIcons.trash2, size: isMobile ? 16 : 18, color: colors.error),
+              icon: Icon(LucideIcons.trash2,
+                  size: isMobile ? 16 : 18, color: colors.error),
               onPressed: onDelete,
               tooltip: 'Remove Target',
-              visualDensity: isMobile ? VisualDensity.compact : VisualDensity.standard,
+              visualDensity:
+                  isMobile ? VisualDensity.compact : VisualDensity.standard,
               constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             ),
             if (!isVeryNarrow) ...[
               const SizedBox(width: 4),
-              Icon(LucideIcons.gripVertical, color: colors.textMuted, size: isMobile ? 18 : 20),
+              Icon(LucideIcons.gripVertical,
+                  color: colors.textMuted, size: isMobile ? 18 : 20),
             ],
           ],
         ),
@@ -685,7 +693,7 @@ class _AddTargetDialog extends ConsumerStatefulWidget {
 
 class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
   final _searchController = TextEditingController();
-  
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -715,87 +723,92 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
             children: [
               Text(
                 'Add Target to Session',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Search Bar
-            TextField(
-              controller: _searchController,
-              autofocus: true,
-              style: TextStyle(color: colors.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'Search object (e.g. M42, NGC 7000)...',
-                hintStyle: TextStyle(color: colors.textMuted),
-                prefixIcon: Icon(LucideIcons.search, color: colors.textMuted),
-                filled: true,
-                fillColor: colors.surfaceAlt,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: colors.textPrimary,
                 ),
               ),
-              onChanged: (value) {
-                ref.read(objectSearchProvider.notifier).search(value);
-              },
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Results
-            Expanded(
-              child: searchState.isSearching
-                  ? Center(child: CircularProgressIndicator(color: colors.primary))
-                  : searchState.results.isEmpty
-                      ? Center(
-                          child: Text(
-                            _searchController.text.isEmpty 
-                                ? 'Type to search...' 
-                                : 'No results found',
-                            style: TextStyle(color: colors.textMuted),
+              const SizedBox(height: 16),
+
+              // Search Bar
+              TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: TextStyle(color: colors.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Search object (e.g. M42, NGC 7000)...',
+                  hintStyle: TextStyle(color: colors.textMuted),
+                  prefixIcon: Icon(LucideIcons.search, color: colors.textMuted),
+                  filled: true,
+                  fillColor: colors.surfaceAlt,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: (value) {
+                  ref.read(objectSearchProvider.notifier).search(value);
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Results
+              Expanded(
+                child: searchState.isSearching
+                    ? Center(
+                        child: CircularProgressIndicator(color: colors.primary))
+                    : searchState.results.isEmpty
+                        ? Center(
+                            child: Text(
+                              _searchController.text.isEmpty
+                                  ? 'Type to search...'
+                                  : 'No results found',
+                              style: TextStyle(color: colors.textMuted),
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: searchState.results.length,
+                            separatorBuilder: (_, __) =>
+                                Divider(color: colors.border, height: 1),
+                            itemBuilder: (context, index) {
+                              final obj = searchState.results[index];
+                              return ListTile(
+                                title: Text(
+                                  obj.name,
+                                  style: TextStyle(color: colors.textPrimary),
+                                ),
+                                subtitle: Text(
+                                  obj.id != obj.name ? obj.id : '',
+                                  style: TextStyle(color: colors.textSecondary),
+                                ),
+                                trailing: NightshadeButton(
+                                  label: 'Add',
+                                  icon: LucideIcons.plus,
+                                  variant: ButtonVariant.ghost,
+                                  size: ButtonSize.small,
+                                  onPressed: () {
+                                    ref
+                                        .read(currentSequenceProvider.notifier)
+                                        .addNode(
+                                          TargetHeaderNode(
+                                            targetName: obj.name,
+                                            raHours: obj.coordinates.ra,
+                                            decDegrees: obj.coordinates.dec,
+                                          ),
+                                        );
+                                    Navigator.pop(context);
+                                    if (context.mounted) {
+                                      context.showSuccessSnackBar(
+                                          'Added ${obj.name} to sequence');
+                                    }
+                                  },
+                                ),
+                              );
+                            },
                           ),
-                        )
-                      : ListView.separated(
-                          itemCount: searchState.results.length,
-                          separatorBuilder: (_, __) => Divider(color: colors.border, height: 1),
-                          itemBuilder: (context, index) {
-                            final obj = searchState.results[index];
-                            return ListTile(
-                              title: Text(
-                                obj.name,
-                                style: TextStyle(color: colors.textPrimary),
-                              ),
-                              subtitle: Text(
-                                obj.id != obj.name ? obj.id : '',
-                                style: TextStyle(color: colors.textSecondary),
-                              ),
-                              trailing: NightshadeButton(
-                                label: 'Add',
-                                icon: LucideIcons.plus,
-                                variant: ButtonVariant.ghost,
-                                size: ButtonSize.small,
-                                onPressed: () {
-                                  ref.read(currentSequenceProvider.notifier).addNode(
-                                    TargetHeaderNode(
-                                      targetName: obj.name,
-                                      raHours: obj.coordinates.ra,
-                                      decDegrees: obj.coordinates.dec,
-                                    ),
-                                  );
-                                  Navigator.pop(context);
-                                  if (context.mounted) {
-                                    context.showSuccessSnackBar('Added ${obj.name} to sequence');
-                                  }
-                                },
-                              ),
-                            );
-                          },
-                        ),
-            ),
+              ),
             ],
           ),
         ),
@@ -810,7 +823,8 @@ class _OptimizeOrderDialog extends ConsumerStatefulWidget {
   const _OptimizeOrderDialog({required this.targets});
 
   @override
-  ConsumerState<_OptimizeOrderDialog> createState() => _OptimizeOrderDialogState();
+  ConsumerState<_OptimizeOrderDialog> createState() =>
+      _OptimizeOrderDialogState();
 }
 
 class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
@@ -897,150 +911,150 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
                   const SizedBox(width: 12),
                   Text(
                     'Optimize Target Order',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
 
-            // Strategy Selection
-            Text('Optimization Strategy', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: OptimizationStrategy.values.map((strategy) {
-                final isSelected = _strategy == strategy;
-                return ChoiceChip(
-                  label: Text(_strategyLabel(strategy)),
-                  selected: isSelected,
-                  onSelected: (_) {
-                    setState(() => _strategy = strategy);
-                    _calculatePreview();
-                  },
-                  selectedColor: colors.primary.withValues(alpha: 0.3),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Min Altitude Slider
-            Row(
-              children: [
-                Text('Minimum Altitude: ${_minAltitude.toStringAsFixed(0)}°'),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Slider(
-                    value: _minAltitude,
-                    min: 0,
-                    max: 60,
-                    divisions: 12,
-                    onChanged: (v) {
-                      setState(() => _minAltitude = v);
+              // Strategy Selection
+              Text('Optimization Strategy', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: OptimizationStrategy.values.map((strategy) {
+                  final isSelected = _strategy == strategy;
+                  return ChoiceChip(
+                    label: Text(_strategyLabel(strategy)),
+                    selected: isSelected,
+                    onSelected: (_) {
+                      setState(() => _strategy = strategy);
                       _calculatePreview();
                     },
-                    activeColor: colors.primary,
+                    selectedColor: colors.primary.withValues(alpha: 0.3),
+                  );
+                }).toList(),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Min Altitude Slider
+              Row(
+                children: [
+                  Text('Minimum Altitude: ${_minAltitude.toStringAsFixed(0)}°'),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Slider(
+                      value: _minAltitude,
+                      min: 0,
+                      max: 60,
+                      divisions: 12,
+                      onChanged: (v) {
+                        setState(() => _minAltitude = v);
+                        _calculatePreview();
+                      },
+                      activeColor: colors.primary,
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Preview
-            Text('Preview Order', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colors.border),
-                ),
-                child: _optimizedOrder == null
-                    ? const Center(child: CircularProgressIndicator())
-                    : ListView.builder(
-                        itemCount: _optimizedOrder!.length,
-                        itemBuilder: (context, index) {
-                          final target = _optimizedOrder![index];
-                          final data = _previewData?.firstWhere(
-                            (d) => d.targetId == target.id,
-                          );
-                          return ListTile(
-                            leading: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: colors.primary.withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '${index + 1}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: colors.primary,
+              // Preview
+              Text('Preview Order', style: theme.textTheme.titleSmall),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: _optimizedOrder == null
+                      ? const Center(child: CircularProgressIndicator())
+                      : ListView.builder(
+                          itemCount: _optimizedOrder!.length,
+                          itemBuilder: (context, index) {
+                            final target = _optimizedOrder![index];
+                            final data = _previewData?.firstWhere(
+                              (d) => d.targetId == target.id,
+                            );
+                            return ListTile(
+                              leading: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: colors.primary.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: colors.primary,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            title: Text(target.targetName),
-                            subtitle: data != null
-                                ? Text(
-                                    'Alt: ${data.currentAltitude.toStringAsFixed(1)}° '
-                                    '(${data.isRising ? "Rising" : "Setting"}) '
-                                    '• Transit: ${DateFormat('HH:mm').format(data.transitTime)}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: colors.textSecondary,
-                                    ),
-                                  )
-                                : null,
-                            trailing: Icon(
-                              data?.isRising == true
-                                  ? LucideIcons.trendingUp
-                                  : LucideIcons.trendingDown,
-                              color: data?.isRising == true
-                                  ? colors.success
-                                  : colors.warning,
-                              size: 18,
-                            ),
-                          );
-                        },
-                      ),
+                              title: Text(target.targetName),
+                              subtitle: data != null
+                                  ? Text(
+                                      'Alt: ${data.currentAltitude.toStringAsFixed(1)}° '
+                                      '(${data.isRising ? "Rising" : "Setting"}) '
+                                      '• Transit: ${DateFormat('HH:mm').format(data.transitTime)}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: colors.textSecondary,
+                                      ),
+                                    )
+                                  : null,
+                              trailing: Icon(
+                                data?.isRising == true
+                                    ? LucideIcons.trendingUp
+                                    : LucideIcons.trendingDown,
+                                color: data?.isRising == true
+                                    ? colors.success
+                                    : colors.warning,
+                                size: 18,
+                              ),
+                            );
+                          },
+                        ),
+                ),
               ),
-            ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Actions
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                NightshadeButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  label: 'Cancel',
-                  variant: ButtonVariant.ghost,
-                  size: ButtonSize.small,
-                ),
-                const SizedBox(width: 12),
-                NightshadeButton(
-                  onPressed: _applyOptimization,
-                  icon: LucideIcons.check,
-                  label: 'Apply Order',
-                  variant: ButtonVariant.primary,
-                  size: ButtonSize.small,
-                ),
-              ],
-            ),
+              // Actions
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  NightshadeButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    label: 'Cancel',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
+                  ),
+                  const SizedBox(width: 12),
+                  NightshadeButton(
+                    onPressed: _applyOptimization,
+                    icon: LucideIcons.check,
+                    label: 'Apply Order',
+                    variant: ButtonVariant.primary,
+                    size: ButtonSize.small,
+                  ),
+                ],
+              ),
             ],
           ),
         ),

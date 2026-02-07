@@ -9,16 +9,16 @@ import '../providers/planetarium_providers.dart';
 class FramingView extends ConsumerStatefulWidget {
   /// Target coordinates
   final CelestialCoordinate? target;
-  
+
   /// Callback when target changes
   final ValueChanged<CelestialCoordinate>? onTargetChanged;
-  
+
   /// Callback when rotation changes
   final ValueChanged<double>? onRotationChanged;
-  
+
   /// Whether mosaic mode is enabled
   final bool showMosaic;
-  
+
   const FramingView({
     super.key,
     this.target,
@@ -36,17 +36,17 @@ class _FramingViewState extends ConsumerState<FramingView> {
   Offset _pan = Offset.zero;
   bool _isDraggingFOV = false;
   bool _isRotatingFOV = false;
-  
+
   @override
   Widget build(BuildContext context) {
     final equipmentFOV = ref.watch(equipmentFOVProvider);
     final mosaicPlan = ref.watch(mosaicPlanProvider);
-    
+
     return Stack(
       children: [
-        // Background with survey placeholder
+        // Background with survey loading state
         _buildBackground(),
-        
+
         // Grid overlay
         CustomPaint(
           painter: _GridPainter(
@@ -55,7 +55,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
           ),
           size: Size.infinite,
         ),
-        
+
         // FOV indicator
         if (equipmentFOV.fov != null)
           Center(
@@ -69,7 +69,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
                 final fovSize = equipmentFOV.fov;
                 final fovH = fovSize != null ? fovSize.$2 * 50 * _zoom : 0.0;
                 final handlePos = center - Offset(0, fovH / 2 + 20);
-                
+
                 if ((details.localPosition - handlePos).distance < 20) {
                   _isRotatingFOV = true;
                 } else {
@@ -88,7 +88,9 @@ class _FramingViewState extends ConsumerState<FramingView> {
                     -(details.localPosition.dy - center.dy),
                   );
                   final newRotation = angle * 180 / math.pi;
-                  ref.read(equipmentFOVProvider.notifier).setRotation(newRotation);
+                  ref
+                      .read(equipmentFOVProvider.notifier)
+                      .setRotation(newRotation);
                   widget.onRotationChanged?.call(newRotation);
                 } else if (_isDraggingFOV) {
                   setState(() {
@@ -113,7 +115,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
               ),
             ),
           ),
-        
+
         // Mosaic panels
         if (widget.showMosaic && mosaicPlan.plan != null)
           CustomPaint(
@@ -124,7 +126,7 @@ class _FramingViewState extends ConsumerState<FramingView> {
             ),
             size: Size.infinite,
           ),
-        
+
         // Center crosshair
         Center(
           child: CustomPaint(
@@ -132,22 +134,24 @@ class _FramingViewState extends ConsumerState<FramingView> {
             size: const Size(60, 60),
           ),
         ),
-        
+
         // Zoom controls
         Positioned(
           right: 16,
           bottom: 16,
           child: _ZoomControls(
             zoom: _zoom,
-            onZoomIn: () => setState(() => _zoom = (_zoom * 1.5).clamp(0.25, 4.0)),
-            onZoomOut: () => setState(() => _zoom = (_zoom / 1.5).clamp(0.25, 4.0)),
+            onZoomIn: () =>
+                setState(() => _zoom = (_zoom * 1.5).clamp(0.25, 4.0)),
+            onZoomOut: () =>
+                setState(() => _zoom = (_zoom / 1.5).clamp(0.25, 4.0)),
             onReset: () => setState(() {
               _zoom = 1.0;
               _pan = Offset.zero;
             }),
           ),
         ),
-        
+
         // Scale indicator
         Positioned(
           left: 16,
@@ -157,26 +161,26 @@ class _FramingViewState extends ConsumerState<FramingView> {
       ],
     );
   }
-  
+
   void _updateTargetFromPan() {
     // Convert pan offset to coordinate offset
     // This is a simplified calculation - real implementation would
     // account for spherical geometry
     if (widget.target == null || widget.onTargetChanged == null) return;
-    
+
     final degreesPerPixel = 1 / (50 * _zoom);
     final dRa = -_pan.dx * degreesPerPixel / 15;
     final dDec = -_pan.dy * degreesPerPixel;
-    
+
     var newRa = widget.target!.ra + dRa;
     if (newRa < 0) newRa += 24;
     if (newRa >= 24) newRa -= 24;
-    
+
     final newDec = (widget.target!.dec + dDec).clamp(-90.0, 90.0);
-    
+
     widget.onTargetChanged?.call(CelestialCoordinate(ra: newRa, dec: newDec));
   }
-  
+
   Widget _buildBackground() {
     return Container(
       decoration: BoxDecoration(
@@ -199,25 +203,25 @@ class _FramingViewState extends ConsumerState<FramingView> {
 
 class _StarFieldPainter extends CustomPainter {
   final double zoom;
-  
+
   _StarFieldPainter({required this.zoom});
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final random = math.Random(42);
     final paint = Paint();
-    
+
     // Draw random stars
     for (var i = 0; i < 300; i++) {
       final x = random.nextDouble() * size.width;
       final y = random.nextDouble() * size.height;
       final brightness = random.nextDouble() * 0.5 + 0.2;
       final radius = (random.nextDouble() * 1.5 + 0.3) * math.sqrt(zoom);
-      
+
       paint.color = Colors.white.withValues(alpha: brightness);
       canvas.drawCircle(Offset(x, y), radius, paint);
     }
-    
+
     // Draw a faint "DSO" in center
     final center = size.center(Offset.zero);
     final gradient = RadialGradient(
@@ -231,7 +235,7 @@ class _StarFieldPainter extends CustomPainter {
     paint.shader = gradient.createShader(rect);
     canvas.drawCircle(center, 80 * zoom, paint);
   }
-  
+
   @override
   bool shouldRepaint(covariant _StarFieldPainter oldDelegate) {
     return zoom != oldDelegate.zoom;
@@ -241,28 +245,28 @@ class _StarFieldPainter extends CustomPainter {
 class _GridPainter extends CustomPainter {
   final double zoom;
   final Offset pan;
-  
+
   _GridPainter({required this.zoom, required this.pan});
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = Colors.white.withValues(alpha: 0.1)
       ..strokeWidth = 0.5;
-    
+
     final center = size.center(Offset.zero) + pan;
     final spacing = 50.0 * zoom;
-    
+
     // Draw vertical lines
     for (var x = center.dx % spacing; x < size.width; x += spacing) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
     }
-    
+
     // Draw horizontal lines
     for (var y = center.dy % spacing; y < size.height; y += spacing) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
-    
+
     // Draw center lines
     paint.color = Colors.white.withValues(alpha: 0.2);
     canvas.drawLine(
@@ -276,7 +280,7 @@ class _GridPainter extends CustomPainter {
       paint,
     );
   }
-  
+
   @override
   bool shouldRepaint(covariant _GridPainter oldDelegate) {
     return zoom != oldDelegate.zoom || pan != oldDelegate.pan;
@@ -289,7 +293,7 @@ class _FOVPainter extends CustomPainter {
   final double rotation;
   final double zoom;
   final Offset pan;
-  
+
   _FOVPainter({
     required this.fovWidth,
     required this.fovHeight,
@@ -297,46 +301,46 @@ class _FOVPainter extends CustomPainter {
     required this.zoom,
     required this.pan,
   });
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero) + pan;
-    
+
     // Convert FOV to screen pixels
     final rectWidth = fovWidth * 50 * zoom;
     final rectHeight = fovHeight * 50 * zoom;
-    
+
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(rotation * math.pi / 180);
-    
+
     final rect = Rect.fromCenter(
       center: Offset.zero,
       width: rectWidth,
       height: rectHeight,
     );
-    
+
     // Fill with semi-transparent color
     final fillPaint = Paint()
       ..color = const Color(0x1A00E676)
       ..style = PaintingStyle.fill;
     canvas.drawRect(rect, fillPaint);
-    
+
     // Draw border
     final borderPaint = Paint()
       ..color = const Color(0xFF00E676)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
     canvas.drawRect(rect, borderPaint);
-    
+
     // Draw corner indicators
     _drawCorners(canvas, rect, borderPaint);
-    
+
     // Draw rotation handle
     final handlePaint = Paint()
       ..color = const Color(0xFF00E676)
       ..style = PaintingStyle.fill;
-    
+
     final handleY = -rectHeight / 2 - 15;
     canvas.drawCircle(Offset(0, handleY), 8, handlePaint);
     canvas.drawLine(
@@ -344,14 +348,15 @@ class _FOVPainter extends CustomPainter {
       Offset(0, handleY + 8),
       borderPaint,
     );
-    
+
     // Draw cardinal directions
     _drawCardinalLabels(canvas, rect);
-    
+
     canvas.restore();
-    
+
     // Draw FOV label below
-    final fovText = '${fovWidth.toStringAsFixed(2)}° × ${fovHeight.toStringAsFixed(2)}°';
+    final fovText =
+        '${fovWidth.toStringAsFixed(2)}° × ${fovHeight.toStringAsFixed(2)}°';
     final textPainter = TextPainter(
       text: TextSpan(
         text: fovText,
@@ -372,10 +377,10 @@ class _FOVPainter extends CustomPainter {
       ),
     );
   }
-  
+
   void _drawCorners(Canvas canvas, Rect rect, Paint paint) {
     final cornerLength = math.min(rect.width, rect.height) * 0.1;
-    
+
     // Top-left
     canvas.drawLine(
       Offset(rect.left, rect.top + cornerLength),
@@ -387,7 +392,7 @@ class _FOVPainter extends CustomPainter {
       Offset(rect.left + cornerLength, rect.top),
       paint,
     );
-    
+
     // Top-right
     canvas.drawLine(
       Offset(rect.right - cornerLength, rect.top),
@@ -399,7 +404,7 @@ class _FOVPainter extends CustomPainter {
       Offset(rect.right, rect.top + cornerLength),
       paint,
     );
-    
+
     // Bottom-right
     canvas.drawLine(
       Offset(rect.right, rect.bottom - cornerLength),
@@ -411,7 +416,7 @@ class _FOVPainter extends CustomPainter {
       Offset(rect.right - cornerLength, rect.bottom),
       paint,
     );
-    
+
     // Bottom-left
     canvas.drawLine(
       Offset(rect.left + cornerLength, rect.bottom),
@@ -424,13 +429,13 @@ class _FOVPainter extends CustomPainter {
       paint,
     );
   }
-  
+
   void _drawCardinalLabels(Canvas canvas, Rect rect) {
     final style = TextStyle(
       color: Colors.white.withValues(alpha: 0.5),
       fontSize: 9,
     );
-    
+
     final labels = ['N', 'E', 'S', 'W'];
     final positions = [
       Offset(0, rect.top + 8),
@@ -438,7 +443,7 @@ class _FOVPainter extends CustomPainter {
       Offset(0, rect.bottom - 14),
       Offset(rect.left + 4, 0),
     ];
-    
+
     for (var i = 0; i < 4; i++) {
       final textPainter = TextPainter(
         text: TextSpan(text: labels[i], style: style),
@@ -451,14 +456,14 @@ class _FOVPainter extends CustomPainter {
       );
     }
   }
-  
+
   @override
   bool shouldRepaint(covariant _FOVPainter oldDelegate) {
     return fovWidth != oldDelegate.fovWidth ||
-           fovHeight != oldDelegate.fovHeight ||
-           rotation != oldDelegate.rotation ||
-           zoom != oldDelegate.zoom ||
-           pan != oldDelegate.pan;
+        fovHeight != oldDelegate.fovHeight ||
+        rotation != oldDelegate.rotation ||
+        zoom != oldDelegate.zoom ||
+        pan != oldDelegate.pan;
   }
 }
 
@@ -466,49 +471,49 @@ class _MosaicOverlayPainter extends CustomPainter {
   final MosaicPlan plan;
   final double zoom;
   final Offset pan;
-  
+
   _MosaicOverlayPainter({
     required this.plan,
     required this.zoom,
     required this.pan,
   });
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero) + pan;
     final scale = 50.0 * zoom;
-    
+
     final borderPaint = Paint()
       ..color = const Color(0xFF2196F3).withValues(alpha: 0.8)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-    
+
     final fillPaint = Paint()
       ..color = const Color(0xFF2196F3).withValues(alpha: 0.1)
       ..style = PaintingStyle.fill;
-    
+
     for (final panel in plan.panels) {
       // Calculate panel position relative to center
       final dx = (panel.center.ra - plan.center.ra) * 15 * scale;
       final dy = -(panel.center.dec - plan.center.dec) * scale;
-      
+
       final panelCenter = center + Offset(dx, dy);
       final panelWidth = panel.fovWidth * scale;
       final panelHeight = panel.fovHeight * scale;
-      
+
       canvas.save();
       canvas.translate(panelCenter.dx, panelCenter.dy);
       canvas.rotate(panel.rotation * math.pi / 180);
-      
+
       final rect = Rect.fromCenter(
         center: Offset.zero,
         width: panelWidth,
         height: panelHeight,
       );
-      
+
       canvas.drawRect(rect, fillPaint);
       canvas.drawRect(rect, borderPaint);
-      
+
       // Draw panel number
       final textPainter = TextPainter(
         text: TextSpan(
@@ -526,16 +531,16 @@ class _MosaicOverlayPainter extends CustomPainter {
         canvas,
         Offset(-textPainter.width / 2, -textPainter.height / 2),
       );
-      
+
       canvas.restore();
     }
   }
-  
+
   @override
   bool shouldRepaint(covariant _MosaicOverlayPainter oldDelegate) {
     return plan != oldDelegate.plan ||
-           zoom != oldDelegate.zoom ||
-           pan != oldDelegate.pan;
+        zoom != oldDelegate.zoom ||
+        pan != oldDelegate.pan;
   }
 }
 
@@ -546,7 +551,7 @@ class _CrosshairPainter extends CustomPainter {
     final paint = Paint()
       ..color = const Color(0xFFFF5722)
       ..strokeWidth = 1;
-    
+
     // Draw crosshair
     canvas.drawLine(
       Offset(0, center.dy),
@@ -558,12 +563,12 @@ class _CrosshairPainter extends CustomPainter {
       Offset(center.dx, size.height),
       paint,
     );
-    
+
     // Draw center circle
     paint.style = PaintingStyle.stroke;
     canvas.drawCircle(center, 5, paint);
   }
-  
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
@@ -573,14 +578,14 @@ class _ZoomControls extends StatelessWidget {
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onReset;
-  
+
   const _ZoomControls({
     required this.zoom,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onReset,
   });
-  
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -614,9 +619,9 @@ class _ZoomControls extends StatelessWidget {
 class _ZoomButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  
+
   const _ZoomButton({required this.icon, required this.onTap});
-  
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -635,14 +640,14 @@ class _ZoomButton extends StatelessWidget {
 
 class _ScaleIndicator extends StatelessWidget {
   final double zoom;
-  
+
   const _ScaleIndicator({required this.zoom});
-  
+
   @override
   Widget build(BuildContext context) {
     // Calculate scale bar length (10 arcminutes)
     final barLength = 10 / 60 * 50 * zoom;
-    
+
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -684,4 +689,3 @@ class _ScaleIndicator extends StatelessWidget {
     );
   }
 }
-

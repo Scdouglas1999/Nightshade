@@ -43,6 +43,18 @@ scripts:
     run: melos exec -- dart analyze .
     description: Run dart analyze in all packages
 
+  analyze:production:
+    run: dart run tools/production/analyzer_rollup.dart
+    description: Run analyzer rollup with zero-error/critical-warning gate
+
+  audit:placeholders:
+    run: dart run tools/production/placeholder_audit.dart --fail-on-new-highrisk --compare-highrisk-baseline docs/production-readiness/highrisk-baseline.txt
+    description: Scan placeholder/stub markers and fail on new high-risk markers
+
+  audit:fail-closed:
+    run: dart run tools/production/fail_closed_check.dart
+    description: Enforce fail-closed backend policy checks
+
   format:
     run: melos exec -- dart format .
     description: Format all packages
@@ -110,4 +122,3 @@ scripts:
   copy:fujifilm:debug:
     run: powershell -ExecutionPolicy Bypass -File scripts/copy_fujifilm_sdk.ps1 -Debug
     description: Copy Fujifilm X Acquire SDK DLLs to Debug build output
-

@@ -48,7 +48,7 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
     try {
       // Download star catalog
       setState(() => _statusMessage = 'Downloading HYG Star Database...');
-      
+
       final starSuccess = await CatalogManager.instance.downloadStarCatalog(
         package: _selectedPackage,
         onProgress: (progress) {
@@ -69,7 +69,7 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
 
       // Download DSO catalog
       setState(() => _statusMessage = 'Downloading OpenNGC Catalog...');
-      
+
       final dsoSuccess = await CatalogManager.instance.downloadDsoCatalog(
         package: _selectedPackage,
         onProgress: (progress) {
@@ -95,7 +95,7 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
 
       // Brief pause to show completion
       await Future.delayed(const Duration(milliseconds: 500));
-      
+
       widget.onComplete?.call();
     } catch (e) {
       setState(() {
@@ -122,157 +122,165 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.download_rounded,
+                      color: colors.primary,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Catalog Setup',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
+                                color: colors.textPrimary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Download star and DSO catalogs',
+                          style: TextStyle(color: colors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Description
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colors.background,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'The planetarium requires astronomical catalogs to display stars and deep sky objects.',
+                      style: TextStyle(color: colors.textPrimary),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildCatalogInfo(
+                        colors, 'HYG Star Database', '~120,000 stars'),
+                    const SizedBox(height: 8),
+                    _buildCatalogInfo(
+                        colors, 'OpenNGC', '~13,000 DSOs (NGC/IC)'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Package selection (only when not downloading)
+              if (!_isDownloading) ...[
+                Text(
+                  'Select package size:',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...CatalogPackage.values
+                    .map((package) => _buildPackageOption(colors, package)),
+                const SizedBox(height: 24),
+              ],
+
+              // Download progress
+              if (_isDownloading) ...[
+                Text(
+                  _statusMessage,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _progress,
+                    backgroundColor: colors.border,
+                    valueColor: AlwaysStoppedAnimation(colors.primary),
+                    minHeight: 8,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${(_progress * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // Error message
+              if (_errorMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border:
+                        Border.all(color: Colors.red.withValues(alpha: 0.3)),
                   ),
-                  child: Icon(
-                    Icons.download_rounded,
-                    color: colors.primary,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(
-                        'Catalog Setup',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.bold,
+                      const Icon(Icons.error_outline,
+                          color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style:
+                              const TextStyle(color: Colors.red, fontSize: 13),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Download star and DSO catalogs',
-                        style: TextStyle(color: colors.textSecondary),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
               ],
-            ),
-            const SizedBox(height: 24),
 
-            // Description
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.background,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Text(
-                    'The planetarium requires astronomical catalogs to display stars and deep sky objects.',
-                    style: TextStyle(color: colors.textPrimary),
+                  if (!_isDownloading)
+                    NightshadeButton(
+                      onPressed: widget.onSkip,
+                      label: 'Skip',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                    ),
+                  const SizedBox(width: 12),
+                  NightshadeButton(
+                    onPressed: _isDownloading ? null : _downloadCatalogs,
+                    label: _isDownloading ? 'Downloading...' : 'Download Now',
+                    isLoading: _isDownloading,
                   ),
-                  const SizedBox(height: 12),
-                  _buildCatalogInfo(colors, 'HYG Star Database', '~120,000 stars'),
-                  const SizedBox(height: 8),
-                  _buildCatalogInfo(colors, 'OpenNGC', '~13,000 DSOs (NGC/IC)'),
                 ],
               ),
-            ),
-            const SizedBox(height: 24),
-
-            // Package selection (only when not downloading)
-            if (!_isDownloading) ...[
-              Text(
-                'Select package size:',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ...CatalogPackage.values.map((package) => 
-                _buildPackageOption(colors, package)),
-              const SizedBox(height: 24),
-            ],
-
-            // Download progress
-            if (_isDownloading) ...[
-              Text(
-                _statusMessage,
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: _progress,
-                  backgroundColor: colors.border,
-                  valueColor: AlwaysStoppedAnimation(colors.primary),
-                  minHeight: 8,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${(_progress * 100).toStringAsFixed(0)}%',
-                style: TextStyle(color: colors.textSecondary, fontSize: 12),
-              ),
-              const SizedBox(height: 24),
-            ],
-
-            // Error message
-            if (_errorMessage != null) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Colors.red, fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (!_isDownloading)
-                  NightshadeButton(
-                    onPressed: widget.onSkip,
-                    label: 'Skip for now',
-                    variant: ButtonVariant.ghost,
-                    size: ButtonSize.small,
-                  ),
-                const SizedBox(width: 12),
-                NightshadeButton(
-                  onPressed: _isDownloading ? null : _downloadCatalogs,
-                  label: _isDownloading ? 'Downloading...' : 'Download Now',
-                  isLoading: _isDownloading,
-                ),
-              ],
-            ),
             ],
           ),
         ),
@@ -280,7 +288,8 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
     );
   }
 
-  Widget _buildCatalogInfo(NightshadeColors colors, String name, String detail) {
+  Widget _buildCatalogInfo(
+      NightshadeColors colors, String name, String detail) {
     return Row(
       children: [
         Icon(Icons.check_circle, color: colors.primary, size: 16),
@@ -322,7 +331,9 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
         child: Row(
           children: [
             Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
               color: isSelected ? colors.primary : colors.textSecondary,
               size: 20,
             ),
@@ -425,4 +436,3 @@ class CatalogRequiredBanner extends StatelessWidget {
     );
   }
 }
-

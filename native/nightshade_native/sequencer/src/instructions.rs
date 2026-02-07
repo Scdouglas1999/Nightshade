@@ -234,8 +234,8 @@ fn validate_slew_position(
     // Check if within tolerance
     if ra_diff_deg.abs() > tolerance_deg || dec_diff_deg.abs() > tolerance_deg {
         return Err(format!(
-            "Mount slew did not reach target position. Expected RA={:.4}h, Dec={:.4}°, \
-             got RA={:.4}h, Dec={:.4}° (diff: RA={:.2}', Dec={:.2}')",
+            "Mount slew did not reach target position. Expected RA={:.4}h, Dec={:.4}deg, \
+             got RA={:.4}h, Dec={:.4}deg (diff: RA={:.2}', Dec={:.2}')",
             ra_target,
             dec_target,
             ra_actual,
@@ -290,11 +290,14 @@ pub async fn execute_slew(
         }
     };
 
-    tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
+    tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}Ã‚Â°", ra, dec);
 
     // Emit initial progress
     if let Some(cb) = progress_callback {
-        cb(0.0, format!("Slewing to RA: {:.2}h, Dec: {:.1}°", ra, dec));
+        cb(
+            0.0,
+            format!("Slewing to RA: {:.2}h, Dec: {:.1}Ã‚Â°", ra, dec),
+        );
     }
 
     if let Some(result) = ctx.check_cancelled() {
@@ -313,7 +316,7 @@ pub async fn execute_slew(
                             match ctx.device_ops.mount_get_coordinates(mount_id).await {
                                 Ok((actual_ra, actual_dec)) => {
                                     tracing::debug!(
-                                        "Slew completed. Target: RA={:.4}h, Dec={:.4}°, Actual: RA={:.4}h, Dec={:.4}°",
+                                        "Slew completed. Target: RA={:.4}h, Dec={:.4}Ã‚Â°, Actual: RA={:.4}h, Dec={:.4}Ã‚Â°",
                                         ra, dec, actual_ra, actual_dec
                                     );
 
@@ -330,28 +333,35 @@ pub async fn execute_slew(
                                     }
 
                                     if let Some(cb) = progress_callback {
-                                        cb(100.0, format!("Arrived at RA: {:.2}h, Dec: {:.1}°", actual_ra, actual_dec));
+                                        cb(100.0, format!("Arrived at RA: {:.2}h, Dec: {:.1} deg", actual_ra, actual_dec));
                                     }
                                     InstructionResult::success_with_message(format!(
-                                        "Slewed to RA: {:.4}h, Dec: {:.4}° (verified)",
+                                        "Slewed to RA: {:.4}h, Dec: {:.4} deg (verified)",
                                         actual_ra, actual_dec
                                     ))
                                 }
                                 Err(e) => {
-                                    // Could not read coordinates to validate, but slew appeared to complete
-                                    // Log warning but consider it a success with caveat
                                     tracing::warn!(
-                                        "Slew completed but could not verify position: {}. \
-                                         Assuming success based on slew completion.",
+                                        "Slew completed but position verification failed: {}. \
+                                         Failing closed because final mount coordinates are unknown.",
                                         e
                                     );
                                     if let Some(cb) = progress_callback {
-                                        cb(100.0, format!("Arrived at RA: {:.2}h, Dec: {:.1}° (unverified)", ra, dec));
+                                        cb(
+                                            100.0,
+                                            format!(
+                                                "Slew reached command target but verification failed: {}",
+                                                e
+                                            ),
+                                        );
                                     }
-                                    InstructionResult::success_with_message(format!(
-                                        "Slewed to RA: {:.4}h, Dec: {:.4}° (position unverified: {})",
-                                        ra, dec, e
-                                    ))
+                                    InstructionResult::failure_with_recovery(
+                                        format!(
+                                            "Slew completed but mount position verification failed: {}",
+                                            e
+                                        ),
+                                        "SLEW_UNVERIFIED_POSITION",
+                                    )
                                 }
                             }
                         }
@@ -599,17 +609,28 @@ pub async fn execute_center(
         Err(e) => return e,
     };
 
-    let (target_ra_deg, target_dec) = if config.use_target_coords {
+    let (target_ra_hours, target_dec) = if config.use_target_coords {
         match (ctx.target_ra, ctx.target_dec) {
-            (Some(ra), Some(dec)) => (ra * 15.0, dec), // Convert RA hours to degrees
+            (Some(ra), Some(dec)) => (ra, dec),
             _ => return InstructionResult::failure("No target coordinates available"),
         }
+    } else if let (Some(ra), Some(dec)) = (config.custom_ra, config.custom_dec) {
+        (ra, dec)
     } else {
-        return InstructionResult::failure("Custom coordinates for centering not implemented");
+        match ctx.device_ops.mount_get_coordinates(&mount_id).await {
+            Ok((ra, dec)) => (ra, dec),
+            Err(e) => {
+                return InstructionResult::failure(format!(
+                    "Custom center coordinates were not provided and current mount coordinates could not be read: {}",
+                    e
+                ))
+            }
+        }
     };
+    let target_ra_deg = target_ra_hours * 15.0;
 
     tracing::info!(
-        "Centering on RA: {:.4}°, Dec: {:.4}° (accuracy: {:.1}\")",
+        "Centering on RA: {:.4}Ã‚Â°, Dec: {:.4}Ã‚Â° (accuracy: {:.1}\")",
         target_ra_deg,
         target_dec,
         config.accuracy_arcsec
@@ -698,7 +719,7 @@ pub async fn execute_center(
                     solve_result.pixel_scale,
                 );
                 tracing::debug!(
-                    "Updated trigger state with plate solve: RA={:.4}°, Dec={:.4}°, scale={:.2}\"/px",
+                    "Updated trigger state with plate solve: RA={:.4}Ã‚Â°, Dec={:.4}Ã‚Â°, scale={:.2}\"/px",
                     solve_result.ra_degrees, solve_result.dec_degrees, solve_result.pixel_scale
                 );
             }
@@ -1062,7 +1083,7 @@ pub async fn execute_autofocus(
     const MIN_STAR_COUNT: u32 = 10;
     // Minimum HFR variance required for a valid V-curve
     const MIN_HFR_VARIANCE: f64 = 1.0;
-    // Minimum R² quality for curve fit
+    // Minimum RÃ‚Â² quality for curve fit
     const MIN_R_SQUARED: f64 = 0.5;
 
     let mut low_star_count_warnings = 0;
@@ -1257,20 +1278,31 @@ pub async fn execute_autofocus(
         ));
     }
 
-    // Find best focus position by fitting curve and get R² quality
+    // Find best focus position by fitting curve and get RÃ‚Â² quality
     let curve_points: Vec<(i32, f64)> = focus_data
         .iter()
         .map(|point| (point.position, point.hfr))
         .collect();
-    let (best_position, r_squared) = find_best_focus_with_quality(&curve_points, config.method);
-    let best_hfr = focus_data
+    let (best_position, r_squared) =
+        match find_best_focus_with_quality(&curve_points, config.method) {
+            Ok(result) => result,
+            Err(e) => return InstructionResult::failure(e),
+        };
+    let best_hfr = match focus_data
         .iter()
         .min_by(|a, b| a.hfr.partial_cmp(&b.hfr).unwrap())
         .map(|point| point.hfr)
-        .unwrap_or(0.0);
+    {
+        Some(v) => v,
+        None => {
+            return InstructionResult::failure(
+                "Autofocus failed: no focus samples collected".to_string(),
+            )
+        }
+    };
 
     tracing::info!(
-        "Curve fit: position={}, HFR={:.2}, R²={:.3}",
+        "Curve fit: position={}, HFR={:.2}, RÃ‚Â²={:.3}",
         best_position,
         best_hfr,
         r_squared
@@ -1279,7 +1311,7 @@ pub async fn execute_autofocus(
     // Check curve fit quality
     if r_squared < MIN_R_SQUARED {
         tracing::warn!(
-            "Low curve fit quality: R²={:.3} (minimum: {:.1}). Proceeding with caution.",
+            "Low curve fit quality: RÃ‚Â²={:.3} (minimum: {:.1}). Proceeding with caution.",
             r_squared,
             MIN_R_SQUARED
         );
@@ -1287,7 +1319,7 @@ pub async fn execute_autofocus(
     }
 
     tracing::info!(
-        "Best focus at position {}, HFR: {:.2}, R²: {:.3}",
+        "Best focus at position {}, HFR: {:.2}, RÃ‚Â²: {:.3}",
         best_position,
         best_hfr,
         r_squared
@@ -1315,7 +1347,7 @@ pub async fn execute_autofocus(
         cb(
             100.0,
             format!(
-                "Complete: pos {}, HFR {:.2}, R² {:.3}",
+                "Complete: pos {}, HFR {:.2}, RÃ‚Â² {:.3}",
                 best_position, best_hfr, r_squared
             ),
         );
@@ -1345,7 +1377,7 @@ pub async fn execute_autofocus(
     InstructionResult {
         status: NodeStatus::Success,
         message: Some(format!(
-            "Autofocus complete: position {}, HFR {:.2}, R² {:.3}",
+            "Autofocus complete: position {}, HFR {:.2}, RÃ‚Â² {:.3}",
             best_position, best_hfr, r_squared
         )),
         data: serde_json::to_value(&autofocus_result).ok(),
@@ -1418,16 +1450,25 @@ fn calculate_hfr_with_crops(image: &ImageData) -> HfrMeasurementWithCrops {
     }
 }
 
-/// Find best focus position from data and calculate R² quality metric
+/// Find best focus position from data and calculate RÃ‚Â² quality metric
 /// Returns (best_position, r_squared)
-fn find_best_focus_with_quality(data: &[(i32, f64)], method: AutofocusMethod) -> (i32, f64) {
+fn find_best_focus_with_quality(
+    data: &[(i32, f64)],
+    method: AutofocusMethod,
+) -> Result<(i32, f64), String> {
+    if data.is_empty() {
+        return Err("Autofocus failed: no valid focus data available".to_string());
+    }
+
     if data.len() < 3 {
         let best_pos = data
             .iter()
             .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
             .map(|(pos, _)| *pos)
-            .unwrap_or(25000);
-        return (best_pos, 0.0); // Can't calculate R² with < 3 points
+            .ok_or_else(|| {
+                "Autofocus failed: unable to determine best focus position".to_string()
+            })?;
+        return Ok((best_pos, 0.0)); // Can't calculate RÃ‚Â² with < 3 points
     }
 
     match method {
@@ -1439,12 +1480,12 @@ fn find_best_focus_with_quality(data: &[(i32, f64)], method: AutofocusMethod) ->
                 .enumerate()
                 .min_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap())
                 .map(|(idx, (pos, _))| (idx, *pos))
-                .unwrap_or((0, 25000));
+                .ok_or_else(|| "Autofocus failed: unable to evaluate V-curve minimum".to_string())?;
 
             let (min_idx, best_pos) = min_point;
             let min_hfr = data[min_idx].1;
 
-            // Calculate R² as the proportion of variance explained by V-shape
+            // Calculate RÃ‚Â² as the proportion of variance explained by V-shape
             // Simple approach: measure how well points decrease before min and increase after
             let mean_hfr: f64 = data.iter().map(|(_, h)| *h).sum::<f64>() / data.len() as f64;
             let ss_tot: f64 = data.iter().map(|(_, h)| (h - mean_hfr).powi(2)).sum();
@@ -1489,11 +1530,11 @@ fn find_best_focus_with_quality(data: &[(i32, f64)], method: AutofocusMethod) ->
                 0.0
             };
 
-            (best_pos, r_squared)
+            Ok((best_pos, r_squared))
         }
 
         AutofocusMethod::Hyperbolic | AutofocusMethod::Quadratic => {
-            // Fit a parabola and calculate R²
+            // Fit a parabola and calculate RÃ‚Â²
             let n = data.len() as f64;
             let sum_x: f64 = data.iter().map(|(x, _)| *x as f64).sum();
             let sum_x2: f64 = data.iter().map(|(x, _)| (*x as f64).powi(2)).sum();
@@ -1512,11 +1553,11 @@ fn find_best_focus_with_quality(data: &[(i32, f64)], method: AutofocusMethod) ->
                     .iter()
                     .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
                     .map(|(pos, _)| *pos)
-                    .unwrap_or(25000);
-                return (best_pos, 0.0);
+                    .ok_or_else(|| "Autofocus failed: unable to determine best focus position".to_string())?;
+                return Ok((best_pos, 0.0));
             }
 
-            // Solve for coefficients: y = c + b*x + a*x²
+            // Solve for coefficients: y = c + b*x + a*xÃ‚Â²
             let c = (sum_y * (sum_x2 * sum_x4 - sum_x3 * sum_x3)
                 - sum_x * (sum_xy * sum_x4 - sum_x2y * sum_x3)
                 + sum_x2 * (sum_xy * sum_x3 - sum_x2y * sum_x2))
@@ -1539,10 +1580,10 @@ fn find_best_focus_with_quality(data: &[(i32, f64)], method: AutofocusMethod) ->
                 data.iter()
                     .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
                     .map(|(pos, _)| *pos)
-                    .unwrap_or(25000)
+                    .ok_or_else(|| "Autofocus failed: unable to determine best focus position".to_string())?
             };
 
-            // Calculate R²
+            // Calculate RÃ‚Â²
             let mean_y = sum_y / n;
             let ss_tot: f64 = data.iter().map(|(_, y)| (y - mean_y).powi(2)).sum();
 
@@ -1561,7 +1602,7 @@ fn find_best_focus_with_quality(data: &[(i32, f64)], method: AutofocusMethod) ->
                 0.0
             };
 
-            (best_pos, r_squared)
+            Ok((best_pos, r_squared))
         }
     }
 }
@@ -1846,14 +1887,15 @@ pub async fn execute_cool_camera(
         }
     };
 
-    tracing::info!("Cooling camera to {}°C", config.target_temp);
+    tracing::info!("Cooling camera to {}Ã‚Â°C", config.target_temp);
 
     // Get initial temperature for progress calculation
-    let start_temp = ctx
-        .device_ops
-        .camera_get_temperature(&camera_id)
-        .await
-        .unwrap_or(20.0);
+    let start_temp = match ctx.device_ops.camera_get_temperature(&camera_id).await {
+        Ok(value) => value,
+        Err(e) => {
+            return InstructionResult::failure(format!("Failed to read camera temperature: {}", e))
+        }
+    };
     let target_temp = config.target_temp;
     let temp_range = (start_temp - target_temp).abs();
 
@@ -1871,13 +1913,17 @@ pub async fn execute_cool_camera(
 
     // If already at target, get power and report success immediately
     if already_at_target {
-        let cooler_power = ctx
-            .device_ops
-            .camera_get_cooler_power(&camera_id)
-            .await
-            .unwrap_or(0.0);
+        let cooler_power = match ctx.device_ops.camera_get_cooler_power(&camera_id).await {
+            Ok(value) => value,
+            Err(e) => {
+                return InstructionResult::failure(format!(
+                    "Failed to read camera cooler power: {}",
+                    e
+                ))
+            }
+        };
         let msg = format!(
-            "At target: {:.1}°C ({:.0}% power)",
+            "At target: {:.1}Ã‚Â°C ({:.0}% power)",
             start_temp, cooler_power
         );
         tracing::info!("Camera already at target temperature: {}", msg);
@@ -1891,7 +1937,10 @@ pub async fn execute_cool_camera(
     if let Some(cb) = progress_callback {
         cb(
             0.0,
-            format!("Starting: {:.1}°C → {:.1}°C", start_temp, target_temp),
+            format!(
+                "Starting: {:.1}Ã‚Â°C Ã¢â€ â€™ {:.1}Ã‚Â°C",
+                start_temp, target_temp
+            ),
         );
     }
 
@@ -1905,16 +1954,24 @@ pub async fn execute_cool_camera(
             }
 
             // Check current temperature and cooler power
-            let current_temp = ctx
-                .device_ops
-                .camera_get_temperature(&camera_id)
-                .await
-                .unwrap_or(20.0);
-            let cooler_power = ctx
-                .device_ops
-                .camera_get_cooler_power(&camera_id)
-                .await
-                .unwrap_or(0.0);
+            let current_temp = match ctx.device_ops.camera_get_temperature(&camera_id).await {
+                Ok(value) => value,
+                Err(e) => {
+                    return InstructionResult::failure(format!(
+                        "Failed to read camera temperature during cooling: {}",
+                        e
+                    ))
+                }
+            };
+            let cooler_power = match ctx.device_ops.camera_get_cooler_power(&camera_id).await {
+                Ok(value) => value,
+                Err(e) => {
+                    return InstructionResult::failure(format!(
+                        "Failed to read camera cooler power: {}",
+                        e
+                    ))
+                }
+            };
 
             // Calculate progress based on temperature change
             // Formula: (current - start) / (target - start) * 100
@@ -1934,7 +1991,7 @@ pub async fn execute_cool_camera(
             let progress = temp_progress.max(time_progress);
 
             tracing::debug!(
-                "Cooling progress: {:.1}%, current temp: {:.1}°C, power: {:.0}%",
+                "Cooling progress: {:.1}%, current temp: {:.1}Ã‚Â°C, power: {:.0}%",
                 progress,
                 current_temp,
                 cooler_power
@@ -1945,7 +2002,7 @@ pub async fn execute_cool_camera(
                 cb(
                     progress,
                     format!(
-                        "Cooling: {:.1}°C → {:.1}°C ({:.0}% power)",
+                        "Cooling: {:.1}Ã‚Â°C Ã¢â€ â€™ {:.1}Ã‚Â°C ({:.0}% power)",
                         current_temp, target_temp, cooler_power
                     ),
                 );
@@ -1953,13 +2010,17 @@ pub async fn execute_cool_camera(
 
             // Check if we've reached target
             if (current_temp - target_temp).abs() < 0.5 {
-                let final_power = ctx
-                    .device_ops
-                    .camera_get_cooler_power(&camera_id)
-                    .await
-                    .unwrap_or(0.0);
+                let final_power = match ctx.device_ops.camera_get_cooler_power(&camera_id).await {
+                    Ok(value) => value,
+                    Err(e) => {
+                        return InstructionResult::failure(format!(
+                            "Failed to read camera cooler power: {}",
+                            e
+                        ))
+                    }
+                };
                 let msg = format!(
-                    "Target reached: {:.1}°C ({:.0}% power)",
+                    "Target reached: {:.1}Ã‚Â°C ({:.0}% power)",
                     current_temp, final_power
                 );
                 if let Some(cb) = progress_callback {
@@ -1974,10 +2035,10 @@ pub async fn execute_cool_camera(
 
     // Emit final progress
     if let Some(cb) = progress_callback {
-        cb(100.0, format!("Cooling to {}°C initiated", target_temp));
+        cb(100.0, format!("Cooling to {}Ã‚Â°C initiated", target_temp));
     }
 
-    InstructionResult::success_with_message(format!("Camera cooling set to {}°C", target_temp))
+    InstructionResult::success_with_message(format!("Camera cooling set to {}Ã‚Â°C", target_temp))
 }
 
 /// Execute camera warming
@@ -1991,13 +2052,14 @@ pub async fn execute_warm_camera(
         Err(e) => return e,
     };
 
-    tracing::info!("Warming camera at {}°C/min", config.rate_per_min);
+    tracing::info!("Warming camera at {}Ã‚Â°C/min", config.rate_per_min);
 
-    let start_temp = ctx
-        .device_ops
-        .camera_get_temperature(&camera_id)
-        .await
-        .unwrap_or(-10.0);
+    let start_temp = match ctx.device_ops.camera_get_temperature(&camera_id).await {
+        Ok(value) => value,
+        Err(e) => {
+            return InstructionResult::failure(format!("Failed to read camera temperature: {}", e))
+        }
+    };
     let target_temp = 10.0; // Warm to ambient
     let temp_range = target_temp - start_temp;
     let duration_mins = temp_range / config.rate_per_min;
@@ -2007,7 +2069,10 @@ pub async fn execute_warm_camera(
     if let Some(cb) = progress_callback {
         cb(
             0.0,
-            format!("Warming: {:.1}°C → {:.1}°C", start_temp, target_temp),
+            format!(
+                "Warming: {:.1}Ã‚Â°C Ã¢â€ â€™ {:.1}Ã‚Â°C",
+                start_temp, target_temp
+            ),
         );
     }
 
@@ -2037,11 +2102,14 @@ pub async fn execute_warm_camera(
         if let Some(cb) = progress_callback {
             cb(
                 progress_percent,
-                format!("Warming: {:.1}°C → {:.1}°C", progress_temp, target_temp),
+                format!(
+                    "Warming: {:.1}Ã‚Â°C Ã¢â€ â€™ {:.1}Ã‚Â°C",
+                    progress_temp, target_temp
+                ),
             );
         }
 
-        tracing::debug!("Warming progress: {:.1}°C", progress_temp);
+        tracing::debug!("Warming progress: {:.1}Ã‚Â°C", progress_temp);
         sleep(Duration::from_secs(10)).await;
     }
 
@@ -2074,7 +2142,7 @@ pub async fn execute_rotator_move(
     };
 
     tracing::info!(
-        "Moving rotator to {}° (relative: {})",
+        "Moving rotator to {}Ã‚Â° (relative: {})",
         config.target_angle,
         config.relative
     );
@@ -2090,9 +2158,10 @@ pub async fn execute_rotator_move(
     };
 
     match result {
-        Ok(_) => {
-            InstructionResult::success_with_message(format!("Rotator at {}°", config.target_angle))
-        }
+        Ok(_) => InstructionResult::success_with_message(format!(
+            "Rotator at {}Ã‚Â°",
+            config.target_angle
+        )),
         Err(e) => InstructionResult::failure(format!("Rotator move failed: {}", e)),
     }
 }
@@ -2211,13 +2280,28 @@ pub async fn execute_wait_time(
         tracing::info!("Waiting for {:?} twilight", twilight);
 
         // Calculate twilight time based on observer location
-        let (lat, lon) = ctx
-            .device_ops
-            .get_observer_location()
-            .unwrap_or((45.0, -75.0));
+        let observer_location = match (ctx.latitude, ctx.longitude) {
+            (Some(lat), Some(lon)) => Some((lat, lon)),
+            _ => ctx.device_ops.get_observer_location(),
+        };
+        let (lat, lon) = match observer_location {
+            Some(loc) => loc,
+            None => {
+                return InstructionResult::failure(
+                    "Cannot evaluate twilight trigger: observer location is unavailable. Set site latitude/longitude in settings.",
+                );
+            }
+        };
         let twilight_time = calculate_twilight_time(lat, lon, twilight);
 
         let now = chrono::Utc::now().timestamp();
+        if twilight_time == i64::MAX {
+            return InstructionResult::failure(format!(
+                "{:?} twilight does not occur at latitude {:.3} and longitude {:.3} for the current date. \
+Sequence cannot wait for an unreachable twilight state.",
+                twilight, lat, lon
+            ));
+        }
         if now < twilight_time {
             let total_wait_secs = (twilight_time - now) as u64;
             tracing::info!(
@@ -2264,8 +2348,6 @@ pub async fn execute_wait_time(
 
 /// Calculate twilight time for a given location using proper solar position algorithms
 fn calculate_twilight_time(latitude: f64, longitude: f64, twilight_type: &TwilightType) -> i64 {
-    use chrono::Duration;
-
     // Sun altitude threshold for each twilight type (degrees below horizon)
     let altitude_threshold: f64 = match twilight_type {
         TwilightType::Civil => -6.0,
@@ -2291,11 +2373,14 @@ fn calculate_twilight_time(latitude: f64, longitude: f64, twilight_type: &Twilig
     // cos(H) = (sin(alt) - sin(lat) * sin(dec)) / (cos(lat) * cos(dec))
     let cos_h = (alt_rad.sin() - lat_rad.sin() * dec_rad.sin()) / (lat_rad.cos() * dec_rad.cos());
 
-    // Check if sun never reaches this altitude (polar regions)
-    if cos_h < -1.0 || cos_h > 1.0 {
-        // Sun never reaches this altitude today
-        // Return a time 12 hours from now as fallback
-        return (now + Duration::hours(12)).timestamp();
+    // Polar handling: avoid fabricated fallback times.
+    if cos_h > 1.0 {
+        // Sun never reaches this altitude threshold today (e.g. polar day).
+        return i64::MAX;
+    }
+    if cos_h < -1.0 {
+        // Sun is already below this threshold all day (e.g. polar night).
+        return now.timestamp();
     }
 
     let hour_angle = cos_h.acos().to_degrees();
@@ -2507,7 +2592,19 @@ pub async fn execute_script(config: &ScriptConfig, ctx: &InstructionContext) -> 
     }
 
     // Set timeout
-    let timeout = config.timeout_secs.unwrap_or(300) as u64;
+    let timeout = match config.timeout_secs {
+        Some(v) if v > 0 => v as u64,
+        Some(_) => {
+            return InstructionResult::failure(
+                "Script timeout_secs must be greater than zero".to_string(),
+            )
+        }
+        None => {
+            return InstructionResult::failure(
+                "Script timeout_secs is required in fail-closed mode".to_string(),
+            )
+        }
+    };
 
     // Run the script with timeout
     let result = tokio::time::timeout(Duration::from_secs(timeout), cmd.output()).await;
@@ -2563,14 +2660,17 @@ pub async fn execute_meridian_flip(
     // SAFETY CHECK 1: Verify mount capability
     // =========================================================================
     let can_flip = match ctx.device_ops.mount_can_flip(&mount_id).await {
-        Ok(capable) => capable,
+        Ok(capable) => Some(capable),
         Err(e) => {
-            tracing::warn!("Could not determine flip capability: {}", e);
-            true // Assume capable if unknown
+            tracing::warn!(
+                "Mount flip capability unavailable ({}); continuing with runtime verification",
+                e
+            );
+            None
         }
     };
 
-    if !can_flip {
+    if matches!(can_flip, Some(false)) {
         return InstructionResult::failure(
             "Mount does not support meridian flips. Please configure mount to allow flips or disable meridian flip instruction."
         );
@@ -2624,13 +2724,29 @@ pub async fn execute_meridian_flip(
     }
 
     // Get current pier side for verification
-    let initial_pier_side = ctx
-        .device_ops
-        .mount_side_of_pier(&mount_id)
-        .await
-        .unwrap_or(crate::meridian::PierSide::Unknown);
+    let initial_pier_side = match ctx.device_ops.mount_side_of_pier(&mount_id).await {
+        Ok(side) if side != crate::meridian::PierSide::Unknown => Some(side),
+        Ok(_) => {
+            tracing::warn!(
+                "Initial pier side is unknown; will verify flip using position convergence"
+            );
+            None
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Failed to read initial pier side before flip ({}); will verify flip using position convergence",
+                e
+            );
+            None
+        }
+    };
 
-    tracing::info!("Flip required - Current pier side: {:?}", initial_pier_side);
+    tracing::info!(
+        "Flip required - Current pier side: {}",
+        initial_pier_side
+            .map(|side| format!("{:?}", side))
+            .unwrap_or_else(|| "unknown".to_string())
+    );
 
     // =========================================================================
     // STEP 2: Stop guiding (if requested)
@@ -2657,36 +2773,53 @@ pub async fn execute_meridian_flip(
     // =========================================================================
     // STEP 3: Stop tracking (for safety during flip)
     // =========================================================================
-    let was_tracking = ctx
-        .device_ops
-        .mount_is_tracking(&mount_id)
-        .await
-        .unwrap_or(true);
+    let tracking_state_before_flip = match ctx.device_ops.mount_is_tracking(&mount_id).await {
+        Ok(is_tracking) => Some(is_tracking),
+        Err(e) => {
+            tracing::warn!(
+                "Failed to read mount tracking state before flip ({}); skipping explicit tracking pause/resume",
+                e
+            );
+            None
+        }
+    };
 
-    if was_tracking {
+    if matches!(tracking_state_before_flip, Some(true)) {
         tracing::debug!("Pausing tracking for flip...");
         if let Err(e) = ctx.device_ops.mount_set_tracking(&mount_id, false).await {
-            tracing::warn!("Could not stop tracking: {}", e);
-            // Continue anyway - some mounts handle this automatically
+            tracing::warn!(
+                "Failed to stop tracking before meridian flip ({}); continuing because some mounts manage tracking automatically during slew",
+                e
+            );
         }
     }
 
     // =========================================================================
     // STEP 4: Record pre-flip position for verification
     // =========================================================================
-    let (pre_flip_ra, pre_flip_dec) = match ctx.device_ops.mount_get_coordinates(&mount_id).await {
-        Ok(coords) => coords,
+    let pre_flip_coords = match ctx.device_ops.mount_get_coordinates(&mount_id).await {
+        Ok(coords) => Some(coords),
         Err(e) => {
-            tracing::warn!("Could not get pre-flip coordinates: {}", e);
-            (target_ra, target_dec) // Use target coords as fallback
+            tracing::warn!(
+                "Failed to read pre-flip mount coordinates ({}); using target coordinates for downstream verification baseline",
+                e
+            );
+            None
         }
     };
-
-    tracing::info!(
-        "Pre-flip position: RA={:.4}h, Dec={:.4}°",
-        pre_flip_ra,
-        pre_flip_dec
-    );
+    if let Some((pre_flip_ra, pre_flip_dec)) = pre_flip_coords {
+        tracing::info!(
+            "Pre-flip position: RA={:.4}h, Dec={:.4}deg",
+            pre_flip_ra,
+            pre_flip_dec
+        );
+    } else {
+        tracing::info!(
+            "Pre-flip position unavailable; target position baseline RA={:.4}h, Dec={:.4}deg",
+            target_ra,
+            target_dec
+        );
+    }
 
     // =========================================================================
     // STEP 5: Execute the flip by slewing to same coordinates
@@ -2695,7 +2828,7 @@ pub async fn execute_meridian_flip(
         cb(30.0, "Executing flip slew...".to_string());
     }
     tracing::info!(
-        "Executing flip slew to RA={:.4}h, Dec={:.4}°...",
+        "Executing flip slew to RA={:.4}h, Dec={:.4}deg...",
         target_ra,
         target_dec
     );
@@ -2709,7 +2842,7 @@ pub async fn execute_meridian_flip(
             let _ = ctx.device_ops.mount_abort_slew(&mount_id).await;
 
             // Try to restore tracking before returning
-            if was_tracking {
+            if matches!(tracking_state_before_flip, Some(true)) {
                 let _ = ctx.device_ops.mount_set_tracking(&mount_id, true).await;
             }
 
@@ -2719,7 +2852,7 @@ pub async fn execute_meridian_flip(
 
     if let Err(e) = slew_result {
         // Restore tracking before failing
-        if was_tracking {
+        if matches!(tracking_state_before_flip, Some(true)) {
             let _ = ctx.device_ops.mount_set_tracking(&mount_id, true).await;
         }
         return InstructionResult::failure(format!("Flip slew failed: {}", e));
@@ -2728,7 +2861,7 @@ pub async fn execute_meridian_flip(
     // Wait for slew to complete with timeout
     tracing::info!("Waiting for flip slew to complete...");
     if let Err(e) = wait_for_mount_idle(&mount_id, ctx, Duration::from_secs(300)).await {
-        if was_tracking {
+        if matches!(tracking_state_before_flip, Some(true)) {
             let _ = ctx.device_ops.mount_set_tracking(&mount_id, true).await;
         }
         return InstructionResult::failure(format!("Flip slew timeout: {}", e));
@@ -2740,37 +2873,68 @@ pub async fn execute_meridian_flip(
     if let Some(cb) = progress_callback {
         cb(60.0, "Verifying pier side...".to_string());
     }
-    let final_pier_side = ctx
-        .device_ops
-        .mount_side_of_pier(&mount_id)
-        .await
-        .unwrap_or(crate::meridian::PierSide::Unknown);
-
-    match (initial_pier_side, final_pier_side) {
-        (crate::meridian::PierSide::Unknown, _) | (_, crate::meridian::PierSide::Unknown) => {
-            tracing::info!("Mount does not report pier side, assuming flip completed successfully");
-        }
-        (initial, final_) if initial == final_ => {
+    let final_pier_side = match ctx.device_ops.mount_side_of_pier(&mount_id).await {
+        Ok(side) if side != crate::meridian::PierSide::Unknown => Some(side),
+        Ok(_) => None,
+        Err(e) => {
             tracing::warn!(
-                "Pier side did not change after flip! Before: {:?}, After: {:?}",
-                initial,
-                final_
+                "Failed to read final pier side after flip ({}); falling back to coordinate verification",
+                e
             );
-            tracing::warn!("Flip may not have executed correctly, but continuing...");
+            None
         }
-        (initial, final_) => {
-            tracing::info!(
-                "Flip verified: pier side changed from {:?} to {:?}",
-                initial,
-                final_
+    };
+
+    if let (Some(initial), Some(final_)) = (initial_pier_side, final_pier_side) {
+        if initial == final_ {
+            return InstructionResult::failure_with_recovery(
+                format!(
+                    "Pier side did not change after flip (before: {:?}, after: {:?}).",
+                    initial, final_
+                ),
+                "FLIP_PIER_SIDE_UNCHANGED",
             );
         }
+        tracing::info!(
+            "Flip verified: pier side changed from {:?} to {:?}",
+            initial,
+            final_
+        );
+    } else {
+        let (post_ra, post_dec) = match ctx.device_ops.mount_get_coordinates(&mount_id).await {
+            Ok(coords) => coords,
+            Err(e) => {
+                return InstructionResult::failure_with_recovery(
+                    format!(
+                        "Flip slew completed but verification failed: unable to read final coordinates: {}",
+                        e
+                    ),
+                    "FLIP_VERIFICATION_UNAVAILABLE",
+                );
+            }
+        };
+        if let Err(e) = validate_slew_position(
+            target_ra,
+            target_dec,
+            post_ra,
+            post_dec,
+            SLEW_POSITION_TOLERANCE_DEG,
+        ) {
+            return InstructionResult::failure_with_recovery(
+                format!(
+                    "Flip verification failed without pier-side telemetry: {}",
+                    e
+                ),
+                "FLIP_POSITION_UNVERIFIED",
+            );
+        }
+        tracing::info!("Flip verified by coordinate convergence (pier side telemetry unavailable)");
     }
 
     // =========================================================================
     // STEP 7: Resume tracking
     // =========================================================================
-    if was_tracking {
+    if matches!(tracking_state_before_flip, Some(true)) {
         tracing::debug!("Resuming tracking...");
         if let Err(e) = ctx.device_ops.mount_set_tracking(&mount_id, true).await {
             return InstructionResult::failure(format!(
@@ -2810,6 +2974,8 @@ pub async fn execute_meridian_flip(
         tracing::info!("Centering after flip...");
         let center_config = CenterConfig {
             use_target_coords: true,
+            custom_ra: None,
+            custom_dec: None,
             accuracy_arcsec: 10.0, // Slightly looser tolerance for post-flip
             max_attempts: 3,
             exposure_duration: 5.0,
@@ -2895,8 +3061,8 @@ pub async fn execute_open_dome(
     }
 
     if !config.shutter_only {
-        // Logic to unpark dome if needed (not yet in DeviceOps, assuming open handles it or separate unpark needed)
-        // For now, just open shutter is the main action
+        // DeviceOps does not currently expose dome_unpark.
+        // Operators must ensure dome park state is compatible with opening.
     }
 
     // Report completion
@@ -3473,3 +3639,4 @@ mod tests {
         assert!(result.is_err());
     }
 }
+

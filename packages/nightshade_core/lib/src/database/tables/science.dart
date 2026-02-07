@@ -143,6 +143,68 @@ class PsfFieldTiles extends Table {
   DateTimeColumn get timestamp => dateTime().withDefault(currentDateAndTime)();
 }
 
+@DataClassName('ScienceFrameQualityMetricsRow')
+@TableIndex(
+    name: 'idx_science_frame_quality_metrics_image',
+    columns: {#capturedImageId})
+@TableIndex(
+    name: 'idx_science_frame_quality_metrics_session_layer_timestamp',
+    columns: {#sessionId, #processingTier, #timestamp})
+class ScienceFrameQualityMetrics extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get capturedImageId => integer()
+      .nullable()
+      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
+  IntColumn get sessionId => integer()
+      .nullable()
+      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+
+  DateTimeColumn get timestamp => dateTime().withDefault(currentDateAndTime)();
+  RealColumn get median => real().withDefault(const Constant(0.0))();
+  RealColumn get mean => real().withDefault(const Constant(0.0))();
+  RealColumn get stdDev => real().withDefault(const Constant(0.0))();
+  RealColumn get mad => real().withDefault(const Constant(0.0))();
+  RealColumn get background => real().withDefault(const Constant(0.0))();
+  RealColumn get noise => real().withDefault(const Constant(0.0))();
+  RealColumn get snr => real().withDefault(const Constant(0.0))();
+  RealColumn get dynamicRangeP1P99 => real().withDefault(const Constant(0.0))();
+  RealColumn get lowClipPercent => real().withDefault(const Constant(0.0))();
+  RealColumn get highClipPercent => real().withDefault(const Constant(0.0))();
+  RealColumn get uniformityCv => real().withDefault(const Constant(0.0))();
+  RealColumn get gradientX => real().withDefault(const Constant(0.0))();
+  RealColumn get gradientY => real().withDefault(const Constant(0.0))();
+  TextColumn get processingTier => text().withDefault(const Constant('live'))();
+  IntColumn get processingMs => integer().withDefault(const Constant(0))();
+}
+
+@DataClassName('ScienceTileMetricRow')
+@TableIndex(
+    name: 'idx_science_tile_metrics_session_layer_timestamp',
+    columns: {#sessionId, #layerType, #timestamp})
+@TableIndex(
+    name: 'idx_science_tile_metrics_image_layer',
+    columns: {#capturedImageId, #layerType})
+class ScienceTileMetrics extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get capturedImageId => integer()
+      .nullable()
+      .references(CapturedImages, #id, onDelete: KeyAction.cascade)();
+  IntColumn get sessionId => integer()
+      .nullable()
+      .references(ImagingSessions, #id, onDelete: KeyAction.cascade)();
+
+  DateTimeColumn get timestamp => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get layerType => text()();
+  IntColumn get tileRow => integer()();
+  IntColumn get tileCol => integer()();
+  IntColumn get sampleCount => integer().withDefault(const Constant(0))();
+  RealColumn get value => real().withDefault(const Constant(0.0))();
+  RealColumn get p05 => real().withDefault(const Constant(0.0))();
+  RealColumn get p50 => real().withDefault(const Constant(0.0))();
+  RealColumn get p95 => real().withDefault(const Constant(0.0))();
+  RealColumn get auxValue => real().withDefault(const Constant(0.0))();
+}
+
 @DataClassName('AstrometryResidualVectorRow')
 @TableIndex(
     name: 'idx_astrometry_residual_vectors_image', columns: {#capturedImageId})

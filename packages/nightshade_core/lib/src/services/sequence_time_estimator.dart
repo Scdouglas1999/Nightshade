@@ -163,6 +163,7 @@ class SequenceTimeEstimator {
 
   /// Default cooling duration in minutes
   static const double _defaultCoolingMins = 10.0;
+  static const int _defaultScriptTimeoutSecs = 60;
 
   /// Minimum altitude for target visibility calculations (degrees)
   static const double _defaultMinAltitude = 0.0;
@@ -245,11 +246,11 @@ class SequenceTimeEstimator {
     }
 
     // Update target header ID if this is a target header node
-    final targetId =
-        node is TargetHeaderNode ? node.id : currentTargetHeaderId;
+    final targetId = node is TargetHeaderNode ? node.id : currentTargetHeaderId;
 
     // Calculate duration for this node
-    final nodeDuration = _estimateNodeDuration(node, currentTime, locationContext);
+    final nodeDuration =
+        _estimateNodeDuration(node, currentTime, locationContext);
 
     // Add timing entry if this node has a meaningful duration
     if (nodeDuration.inSeconds > 0) {
@@ -460,7 +461,8 @@ class SequenceTimeEstimator {
       // Estimate: maxAttempts iterations of (expose + solve + slew)
       // In practice, usually succeeds in 1-3 attempts
       final estimatedAttempts = (node.maxAttempts / 2).ceil();
-      final secsPerAttempt = 10.0 + _slewDurationSecs / 2; // solve + partial slew
+      final secsPerAttempt =
+          10.0 + _slewDurationSecs / 2; // solve + partial slew
       final totalSecs = estimatedAttempts * secsPerAttempt;
       return Duration(milliseconds: (totalSecs * 1000).round());
     }
@@ -508,9 +510,7 @@ class SequenceTimeEstimator {
       return const Duration(seconds: 2);
     }
 
-    if (node is OpenDomeNode ||
-        node is CloseDomeNode ||
-        node is ParkDomeNode) {
+    if (node is OpenDomeNode || node is CloseDomeNode || node is ParkDomeNode) {
       return const Duration(seconds: 60);
     }
 
@@ -520,8 +520,7 @@ class SequenceTimeEstimator {
     }
 
     if (node is ScriptNode) {
-      // Use timeout if specified, otherwise assume quick script
-      return Duration(seconds: node.timeoutSecs ?? 30);
+      return Duration(seconds: node.timeoutSecs ?? _defaultScriptTimeoutSecs);
     }
 
     if (node is NotificationNode) {

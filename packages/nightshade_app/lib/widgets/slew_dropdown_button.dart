@@ -136,7 +136,9 @@ class SlewDropdownButton extends ConsumerWidget {
           Icon(
             LucideIcons.chevronDown,
             size: 16,
-            color: (isEnabled && isMountConnected) ? colors.textPrimary : colors.textMuted,
+            color: (isEnabled && isMountConnected)
+                ? colors.textPrimary
+                : colors.textMuted,
           ),
         ],
       ),
@@ -164,16 +166,20 @@ class SlewDropdownButton extends ConsumerWidget {
 
   Future<void> _handleSlew(BuildContext context, WidgetRef ref) async {
     final mountService = ref.read(mountCommandServiceProvider);
-    await mountService.slewTo(context, ra, dec);
+    final result = await mountService.slewTo(ra, dec);
+    if (!context.mounted) return;
+    context.showCommandActionResult(result);
   }
 
-  Future<void> _handleSlewAndCenter(
-      BuildContext context, WidgetRef ref) async {
+  Future<void> _handleSlewAndCenter(BuildContext context, WidgetRef ref) async {
     // First slew to approximate position
     final mountService = ref.read(mountCommandServiceProvider);
-    final success = await mountService.slewTo(context, ra, dec, showFeedback: false);
+    final slewResult = await mountService.slewTo(ra, dec, showFeedback: false);
 
-    if (!success) {
+    if (!slewResult.isSuccess) {
+      if (context.mounted) {
+        context.showCommandActionResult(slewResult);
+      }
       return;
     }
 
@@ -196,9 +202,12 @@ class SlewDropdownButton extends ConsumerWidget {
       BuildContext context, WidgetRef ref) async {
     // First do slew and center
     final mountService = ref.read(mountCommandServiceProvider);
-    final slewSuccess = await mountService.slewTo(context, ra, dec, showFeedback: false);
+    final slewResult = await mountService.slewTo(ra, dec, showFeedback: false);
 
-    if (!slewSuccess) {
+    if (!slewResult.isSuccess) {
+      if (context.mounted) {
+        context.showCommandActionResult(slewResult);
+      }
       return;
     }
 
@@ -272,7 +281,8 @@ class _CenteringDialogWithResultState
     return CenteringConfig(
       maxIterations: 5,
       toleranceArcsec: 30.0,
-      exposureTime: userSettings.exposureTime > 0 ? userSettings.exposureTime : 3.0,
+      exposureTime:
+          userSettings.exposureTime > 0 ? userSettings.exposureTime : 3.0,
       binning: userSettings.binningX > 0 ? userSettings.binningX : 2,
       gain: userSettings.gain,
       syncMount: false,

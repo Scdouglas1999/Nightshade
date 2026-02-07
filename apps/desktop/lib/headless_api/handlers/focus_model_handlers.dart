@@ -17,6 +17,13 @@ class FocusModelHandlers {
 
   FocusModelHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'FocusModelHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'FocusModelHandlers');
+
   /// Ensure the focus model service is initialized
   Future<FocusModelService> _getInitializedService() async {
     final service = container.read(focusModelServiceProvider);
@@ -40,14 +47,15 @@ class FocusModelHandlers {
   /// GET /api/focus-model/data
   /// Get all focus data points (temperature, position pairs)
   Future<Response> handleGetFocusData(Request request) async {
-    print('[API] GET /api/focus-model/data');
+    _logInfo('[API] GET /api/focus-model/data');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -64,14 +72,16 @@ class FocusModelHandlers {
         );
       }
 
-      final dataPoints = profileData.dataPoints.map((p) => {
-        'timestamp': p.timestamp.toIso8601String(),
-        'timestampEpoch': p.timestamp.millisecondsSinceEpoch,
-        'temperature': p.temperatureCelsius,
-        'position': p.focusPosition,
-        'hfr': p.hfr,
-        'filter': p.filterName,
-      }).toList();
+      final dataPoints = profileData.dataPoints
+          .map((p) => {
+                'timestamp': p.timestamp.toIso8601String(),
+                'timestampEpoch': p.timestamp.millisecondsSinceEpoch,
+                'temperature': p.temperatureCelsius,
+                'position': p.focusPosition,
+                'hfr': p.hfr,
+                'filter': p.filterName,
+              })
+          .toList();
 
       return Response.ok(
         jsonEncode({
@@ -83,7 +93,7 @@ class FocusModelHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get focus data error: $e');
+      _logError('[API] Get focus data error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -98,14 +108,15 @@ class FocusModelHandlers {
   /// POST /api/focus-model/add-point
   /// Add a focus data point (temperature, position, filter?)
   Future<Response> handleAddFocusPoint(Request request) async {
-    print('[API] POST /api/focus-model/add-point');
+    _logInfo('[API] POST /api/focus-model/add-point');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -119,13 +130,15 @@ class FocusModelHandlers {
 
       if (temperature == null || position == null || hfr == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "Missing required fields: temperature, position, hfr"}),
+          body: jsonEncode(
+              {"error": "Missing required fields: temperature, position, hfr"}),
           headers: {'content-type': 'application/json'},
         );
       }
 
       final temperatureCelsius = (temperature as num).toDouble();
-      final focusPosition = position is int ? position : int.parse(position.toString());
+      final focusPosition =
+          position is int ? position : int.parse(position.toString());
       final hfrValue = (hfr as num).toDouble();
       final filterName = payload['filter'] as String?;
 
@@ -151,7 +164,7 @@ class FocusModelHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Add focus point error: $e');
+      _logError('[API] Add focus point error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -166,14 +179,15 @@ class FocusModelHandlers {
   /// DELETE /api/focus-model/clear
   /// Clear all data points
   Future<Response> handleClearFocusData(Request request) async {
-    print('[API] DELETE /api/focus-model/clear');
+    _logInfo('[API] DELETE /api/focus-model/clear');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -189,7 +203,7 @@ class FocusModelHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Clear focus data error: $e');
+      _logError('[API] Clear focus data error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -204,14 +218,15 @@ class FocusModelHandlers {
   /// GET /api/focus-model/model
   /// Get current focus model (slope, intercept, r-squared)
   Future<Response> handleGetFocusModel(Request request) async {
-    print('[API] GET /api/focus-model/model');
+    _logInfo('[API] GET /api/focus-model/model');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -224,7 +239,8 @@ class FocusModelHandlers {
           jsonEncode({
             "profileId": profileId,
             "hasModel": false,
-            "message": "Not enough data points to build model. Need at least 3 data points.",
+            "message":
+                "Not enough data points to build model. Need at least 3 data points.",
             "dataPointCount": profileData?.dataPoints.length ?? 0,
           }),
           headers: {'content-type': 'application/json'},
@@ -249,7 +265,7 @@ class FocusModelHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get focus model error: $e');
+      _logError('[API] Get focus model error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -276,14 +292,15 @@ class FocusModelHandlers {
   /// GET /api/focus-model/predict?temperature=X
   /// Predict focus position for temperature
   Future<Response> handlePredictFocus(Request request) async {
-    print('[API] GET /api/focus-model/predict');
+    _logInfo('[API] GET /api/focus-model/predict');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -292,7 +309,8 @@ class FocusModelHandlers {
       final tempParam = request.url.queryParameters['temperature'];
       if (tempParam == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "Missing required parameter: temperature"}),
+          body:
+              jsonEncode({"error": "Missing required parameter: temperature"}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -321,7 +339,8 @@ class FocusModelHandlers {
             "temperature": temperature,
             "filter": filter,
             "canPredict": false,
-            "message": "Cannot make prediction. Model not available or not reliable enough.",
+            "message":
+                "Cannot make prediction. Model not available or not reliable enough.",
           }),
           headers: {'content-type': 'application/json'},
         );
@@ -344,7 +363,7 @@ class FocusModelHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Predict focus error: $e');
+      _logError('[API] Predict focus error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -359,14 +378,15 @@ class FocusModelHandlers {
   /// GET /api/focus-model/filter-offsets
   /// Get per-filter focus offsets
   Future<Response> handleGetFilterOffsets(Request request) async {
-    print('[API] GET /api/focus-model/filter-offsets');
+    _logInfo('[API] GET /api/focus-model/filter-offsets');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -404,7 +424,7 @@ class FocusModelHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get filter offsets error: $e');
+      _logError('[API] Get filter offsets error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -419,14 +439,15 @@ class FocusModelHandlers {
   /// POST /api/focus-model/filter-offsets
   /// Set per-filter focus offsets
   Future<Response> handleSetFilterOffsets(Request request) async {
-    print('[API] POST /api/focus-model/filter-offsets');
+    _logInfo('[API] POST /api/focus-model/filter-offsets');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -446,8 +467,9 @@ class FocusModelHandlers {
       if (offsets != null) {
         // Get current profile data to determine a reasonable base position
         final profileData = service.getProfileData(profileId);
-        final basePosition = profileData?.temperatureModel?.intercept.round() ?? 10000;
-        final baseTemp = 20.0; // Standard reference temperature
+        final basePosition =
+            profileData?.temperatureModel?.intercept.round() ?? 10000;
+        const baseTemp = 20.0; // Standard reference temperature
 
         // Add synthetic data points for each filter offset
         for (final entry in offsets.entries) {
@@ -480,7 +502,7 @@ class FocusModelHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Set filter offsets error: $e');
+      _logError('[API] Set filter offsets error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -495,14 +517,15 @@ class FocusModelHandlers {
   /// GET /api/focus-model/should-refocus?currentTemp=X&lastFocusTemp=Y
   /// Check if autofocus should be triggered based on temperature drift
   Future<Response> handleShouldRefocus(Request request) async {
-    print('[API] GET /api/focus-model/should-refocus');
+    _logInfo('[API] GET /api/focus-model/should-refocus');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -514,7 +537,9 @@ class FocusModelHandlers {
 
       if (currentTempParam == null || lastFocusTempParam == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "Missing required parameters: currentTemp, lastFocusTemp"}),
+          body: jsonEncode({
+            "error": "Missing required parameters: currentTemp, lastFocusTemp"
+          }),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -560,7 +585,7 @@ class FocusModelHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Should refocus error: $e');
+      _logError('[API] Should refocus error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -575,14 +600,15 @@ class FocusModelHandlers {
   /// GET /api/focus-model/export
   /// Export focus data as JSON
   Future<Response> handleExportFocusData(Request request) async {
-    print('[API] GET /api/focus-model/export');
+    _logInfo('[API] GET /api/focus-model/export');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -593,11 +619,12 @@ class FocusModelHandlers {
         exportJson,
         headers: {
           'content-type': 'application/json',
-          'content-disposition': 'attachment; filename="focus_model_$profileId.json"',
+          'content-disposition':
+              'attachment; filename="focus_model_$profileId.json"',
         },
       );
     } catch (e) {
-      print('[API] Export focus data error: $e');
+      _logError('[API] Export focus data error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -612,14 +639,15 @@ class FocusModelHandlers {
   /// POST /api/focus-model/import
   /// Import focus data from JSON
   Future<Response> handleImportFocusData(Request request) async {
-    print('[API] POST /api/focus-model/import');
+    _logInfo('[API] POST /api/focus-model/import');
     try {
       final service = await _getInitializedService();
       final profileId = _getActiveProfileId();
 
       if (profileId == null) {
         return Response.badRequest(
-          body: jsonEncode({"error": "No active equipment profile. Load a profile first."}),
+          body: jsonEncode(
+              {"error": "No active equipment profile. Load a profile first."}),
           headers: {'content-type': 'application/json'},
         );
       }
@@ -652,7 +680,7 @@ class FocusModelHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Import focus data error: $e');
+      _logError('[API] Import focus data error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

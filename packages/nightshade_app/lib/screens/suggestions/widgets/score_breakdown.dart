@@ -51,7 +51,7 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
   late bool _isExpanded;
 
   /// Configuration for all score components with their display properties.
-  static const List<_ScoreComponentConfig> _scoreComponents = [
+  static const List<_ScoreComponentConfig> _coreScoreComponents = [
     _ScoreComponentConfig(
       key: 'altitude',
       label: 'Altitude',
@@ -68,13 +68,13 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
       key: 'transitProximity',
       label: 'Transit',
       icon: Icons.vertical_align_top_outlined,
-      tooltip: 'Targets near meridian transit are at their best position',
+      tooltip: 'Whether meridian transit occurs during the night',
     ),
     _ScoreComponentConfig(
       key: 'darkness',
-      label: 'Darkness',
+      label: 'Imaging Window',
       icon: Icons.dark_mode_outlined,
-      tooltip: 'Score based on twilight conditions',
+      tooltip: 'Hours above minimum altitude during the night',
     ),
     _ScoreComponentConfig(
       key: 'airmass',
@@ -83,6 +83,13 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
       tooltip: 'Lower airmass means less atmospheric distortion',
     ),
   ];
+
+  static const _framingFitComponent = _ScoreComponentConfig(
+    key: 'framingFit',
+    label: 'Framing Fit',
+    icon: Icons.crop_free_outlined,
+    tooltip: 'How well the target size matches your field of view',
+  );
 
   @override
   void initState() {
@@ -203,9 +210,14 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
   }
 
   Widget _buildScoreList(NightshadeColors colors) {
+    final components = [
+      ..._coreScoreComponents,
+      if (widget.scores.containsKey('framingFit')) _framingFitComponent,
+    ];
+
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: _scoreComponents.map((config) {
+      children: components.map((config) {
         final score = widget.scores[config.key] ?? 0.0;
         return Padding(
           padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),

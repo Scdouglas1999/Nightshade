@@ -1,3 +1,5 @@
+// ignore_for_file: unused_field
+
 import 'dart:math' as math;
 
 /// VSOP87 planetary position calculations
@@ -50,8 +52,8 @@ class PlanetaryPositions {
     final lat = latDeg * _deg2rad;
     final eps = obliquityDeg * _deg2rad;
 
-    final sinDec =
-        math.sin(lat) * math.cos(eps) + math.cos(lat) * math.sin(eps) * math.sin(lon);
+    final sinDec = math.sin(lat) * math.cos(eps) +
+        math.cos(lat) * math.sin(eps) * math.sin(lon);
     final dec = math.asin(sinDec.clamp(-1.0, 1.0));
 
     final y = math.sin(lon) * math.cos(eps) - math.tan(lat) * math.sin(eps);
@@ -144,13 +146,15 @@ class PlanetaryPositions {
     );
 
     // Calculate visual magnitude
-    final magnitude = _calculateMagnitude(planetIndex, planetR, distance, geoLon, earthLon);
+    final magnitude =
+        _calculateMagnitude(planetIndex, planetR, distance, geoLon, earthLon);
 
     return (ra / 15, dec, magnitude); // Convert RA to hours
   }
 
   /// Calculate heliocentric ecliptic coordinates for Earth
-  static (double lon, double lat, double r) _earthHeliocentricEcliptic(double t) {
+  static (double lon, double lat, double r) _earthHeliocentricEcliptic(
+      double t) {
     // Earth's heliocentric coordinates using simplified VSOP87
     double l = 0, b = 0, r = 0;
 

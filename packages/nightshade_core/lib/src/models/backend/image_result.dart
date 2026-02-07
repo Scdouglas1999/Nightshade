@@ -53,8 +53,8 @@ class CapturedImageResult {
   /// Image height in pixels
   final int height;
 
-  /// Display data (RGB if isColor=true, grayscale if isColor=false)
-  /// RGB: width*height*3 bytes, Grayscale: width*height bytes
+  /// Display data, always RGBA (width*height*4 bytes, alpha=255).
+  /// Conversion from RGB/grayscale is done in Rust for performance.
   final List<int> displayData;
 
   /// Histogram data (256 bins)
@@ -69,7 +69,7 @@ class CapturedImageResult {
   /// ISO 8601 timestamp when image was captured
   final String timestamp;
 
-  /// True if displayData is RGB, false if grayscale
+  /// True if source was color (RGB), false if grayscale. displayData is always RGBA.
   final bool isColor;
 
   const CapturedImageResult({

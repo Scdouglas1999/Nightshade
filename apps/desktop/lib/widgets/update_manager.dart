@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -60,7 +62,8 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
 
     final state = ref.read(updateProvider);
     if (state.status == UpdateStatus.staged) {
-      print('[UpdateManager] Found staged update: ${state.availableUpdate?.version}');
+      print(
+          '[UpdateManager] Found staged update: ${state.availableUpdate?.version}');
       _showLanPushBannerDirect(state.availableUpdate?.version ?? 'Unknown');
     } else {
       print('[UpdateManager] No staged update found');
@@ -75,7 +78,9 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
       case LanPushReceivedEvent(:final manifest, :final stagingPath):
         print('[UpdateManager] LAN push received: ${manifest.version}');
         // Update the provider state so applyUpdate() works
-        ref.read(updateProvider.notifier).setStagedFromLanPush(manifest, stagingPath);
+        ref
+            .read(updateProvider.notifier)
+            .setStagedFromLanPush(manifest, stagingPath);
         _showLanPushBannerDirect(manifest.version);
         break;
       case LanPushProgressEvent(:final progress, :final message):

@@ -28,17 +28,28 @@ class DeviceInfo {
 
   /// Create from JSON (for network transport)
   factory DeviceInfo.fromJson(Map<String, dynamic> json) {
+    final deviceTypeName = json['deviceType'] as String?;
+    final driverTypeName = json['driverType'] as String?;
+
+    final deviceType = DeviceType.values.where((e) => e.name == deviceTypeName);
+    if (deviceType.isEmpty) {
+      throw FormatException(
+        'Unknown deviceType "$deviceTypeName" in DeviceInfo JSON',
+      );
+    }
+
+    final driverType = DriverType.values.where((e) => e.name == driverTypeName);
+    if (driverType.isEmpty) {
+      throw FormatException(
+        'Unknown driverType "$driverTypeName" in DeviceInfo JSON',
+      );
+    }
+
     return DeviceInfo(
       id: json['id'] as String,
       name: json['name'] as String,
-      deviceType: DeviceType.values.firstWhere(
-        (e) => e.name == json['deviceType'],
-        orElse: () => DeviceType.camera,
-      ),
-      driverType: DriverType.values.firstWhere(
-        (e) => e.name == json['driverType'],
-        orElse: () => DriverType.simulator,
-      ),
+      deviceType: deviceType.first,
+      driverType: driverType.first,
       description: json['description'] as String? ?? '',
       driverVersion: json['driverVersion'] as String? ?? '',
     );

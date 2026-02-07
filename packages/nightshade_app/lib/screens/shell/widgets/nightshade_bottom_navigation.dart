@@ -15,13 +15,13 @@ class NightshadeBottomNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    
+
     // Use a limited set of tabs for mobile/bottom nav if there are too many
-    // For now, we use all of them but wrap in a scroll view if needed or just fit them.
+    // Use all tabs and let layout choose between fixed and scrolling behavior.
     // 8 items is too many for a standard bottom bar.
     // We should probably show the top 4-5 and a "More" menu, or just scroll.
-    // Let's use a scrollable row for now to ensure all are accessible.
-    
+    // Use a scrollable row to ensure all tabs remain accessible.
+
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,

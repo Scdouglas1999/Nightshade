@@ -216,7 +216,7 @@ impl AscomMountWrapper {
                                 can_unpark: ascom_caps.can_unpark.unwrap_or(false),
                                 can_set_park: false, // ASCOM MountCapabilities doesn't expose this
                                 can_pulse_guide: ascom_caps.can_pulse_guide.unwrap_or(false),
-                                can_set_tracking: true, // Most ASCOM mounts support this
+                                can_set_tracking: m.tracking().is_ok(),
                                 can_find_home: m.can_find_home().unwrap_or(false),
                                 can_move_axis_primary: ascom_caps
                                     .can_move_axis_primary
@@ -224,7 +224,7 @@ impl AscomMountWrapper {
                                 can_move_axis_secondary: ascom_caps
                                     .can_move_axis_secondary
                                     .unwrap_or(false),
-                                is_equatorial: m.alignment_mode().map(|m| m > 0).unwrap_or(true),
+                                is_equatorial: m.alignment_mode().map(|m| m > 0).unwrap_or(false),
                             };
                             let _ = reply.send(Ok(caps));
                         } else {
@@ -672,7 +672,7 @@ impl NativeMount for AscomMountWrapper {
     }
 
     fn can_set_tracking_rate(&self) -> bool {
-        true // ASCOM mounts generally support tracking rate
+        false
     }
 }
 

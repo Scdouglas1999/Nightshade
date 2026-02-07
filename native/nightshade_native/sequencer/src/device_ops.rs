@@ -593,10 +593,14 @@ impl DeviceOps for NullDeviceOps {
     ) -> DeviceResult<PlateSolveResult> {
         tracing::info!("[NULL] Plate solving");
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        let ra_degrees = hint_ra
+            .ok_or_else(|| "NullDeviceOps plate_solve requires hint_ra in simulation mode".to_string())?;
+        let dec_degrees = hint_dec
+            .ok_or_else(|| "NullDeviceOps plate_solve requires hint_dec in simulation mode".to_string())?;
 
         Ok(PlateSolveResult {
-            ra_degrees: hint_ra.unwrap_or(180.0),
-            dec_degrees: hint_dec.unwrap_or(45.0),
+            ra_degrees,
+            dec_degrees,
             pixel_scale: 1.5,
             rotation: 0.0,
             success: true,
@@ -625,13 +629,30 @@ impl DeviceOps for NullDeviceOps {
         Ok(())
     }
 
-    fn calculate_altitude(&self, _ra: f64, _dec: f64, _lat: f64, _lon: f64) -> f64 {
-        // Simple approximation for testing
-        45.0
+    fn calculate_altitude(&self, ra_hours: f64, dec_degrees: f64, lat: f64, lon: f64) -> f64 {
+        let now = chrono::Utc::now();
+        let jd = crate::node::julian_day(&now);
+        let lst_hours = crate::node::local_sidereal_time(jd, lon);
+
+        let mut ha_hours = lst_hours - ra_hours;
+        while ha_hours > 12.0 {
+            ha_hours -= 24.0;
+        }
+        while ha_hours < -12.0 {
+            ha_hours += 24.0;
+        }
+
+        let ha_rad = (ha_hours * 15.0).to_radians();
+        let dec_rad = dec_degrees.to_radians();
+        let lat_rad = lat.to_radians();
+
+        let sin_alt =
+            lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
+        sin_alt.clamp(-1.0, 1.0).asin().to_degrees()
     }
 
     fn get_observer_location(&self) -> Option<(f64, f64)> {
-        Some((45.0, -75.0)) // Default location
+        None
     }
 
     async fn polar_align_update(

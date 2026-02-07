@@ -12,7 +12,8 @@ import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import 'package:nightshade_bridge/src/device_capabilities.dart' as bridge_caps;
 import 'package:nightshade_bridge/src/device.dart' as bridge_device;
 import 'package:nightshade_bridge/src/error.dart' as bridge_error;
-import 'package:nightshade_core/src/database/database.dart' hide EquipmentProfile, CapturedImage;
+import 'package:nightshade_core/src/database/database.dart'
+    hide EquipmentProfile, CapturedImage;
 import 'package:nightshade_core/src/database/daos/images_dao.dart';
 
 // Import pure Dart types from backend_types for return types
@@ -110,37 +111,46 @@ class FfiBackend implements NightshadeBackend {
     // Handle polar alignment events
     if (payload is bridge.EventPayload_PolarAlignment) {
       final pa = payload.field0;
-      return ('PolarAlignment', {
-        'azimuth_error': pa.azimuthError,
-        'altitude_error': pa.altitudeError,
-        'total_error': pa.totalError,
-        'current_ra': pa.currentRa,
-        'current_dec': pa.currentDec,
-        'target_ra': pa.targetRa,
-        'target_dec': pa.targetDec,
-      });
+      return (
+        'PolarAlignment',
+        {
+          'azimuth_error': pa.azimuthError,
+          'altitude_error': pa.altitudeError,
+          'total_error': pa.totalError,
+          'current_ra': pa.currentRa,
+          'current_dec': pa.currentDec,
+          'target_ra': pa.targetRa,
+          'target_dec': pa.targetDec,
+        }
+      );
     }
 
     if (payload is bridge.EventPayload_PolarAlignmentStatus) {
       final status = payload.field0;
-      return ('PolarAlignmentStatus', {
-        'status': status.status,
-        'phase': status.phase,
-        'point': status.point,
-      });
+      return (
+        'PolarAlignmentStatus',
+        {
+          'status': status.status,
+          'phase': status.phase,
+          'point': status.point,
+        }
+      );
     }
 
     if (payload is bridge.EventPayload_PolarAlignmentImage) {
       final img = payload.field0;
-      return ('PolarAlignmentImage', {
-        'image_data': img.imageData,
-        'width': img.width,
-        'height': img.height,
-        'solved_ra': img.solvedRa,
-        'solved_dec': img.solvedDec,
-        'point': img.point,
-        'phase': img.phase,
-      });
+      return (
+        'PolarAlignmentImage',
+        {
+          'image_data': img.imageData,
+          'width': img.width,
+          'height': img.height,
+          'solved_ra': img.solvedRa,
+          'solved_dec': img.solvedDec,
+          'point': img.point,
+          'phase': img.phase,
+        }
+      );
     }
 
     // For other event types, use string parsing as fallback
@@ -151,42 +161,64 @@ class FfiBackend implements NightshadeBackend {
   }
 
   /// Extract event type and data from an EquipmentEvent
-  (String, Map<String, dynamic>) _extractEquipmentEventInfo(dynamic equipmentEvent) {
+  (String, Map<String, dynamic>) _extractEquipmentEventInfo(
+      dynamic equipmentEvent) {
     // Connection events
     if (equipmentEvent is bridge.EquipmentEvent_Connecting) {
-      return ('Connecting', {
-        'device_type': equipmentEvent.deviceType,
-        'device_id': equipmentEvent.deviceId,
-      });
+      return (
+        'Connecting',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+        }
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_Connected) {
-      return ('Connected', {
-        'device_type': equipmentEvent.deviceType,
-        'device_id': equipmentEvent.deviceId,
-      });
+      return (
+        'Connected',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+        }
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_Disconnected) {
-      return ('Disconnected', {
-        'device_type': equipmentEvent.deviceType,
-        'device_id': equipmentEvent.deviceId,
-      });
+      return (
+        'Disconnected',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+        }
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_PropertyChanged) {
-      return ('PropertyChanged', {
-        'device_type': equipmentEvent.deviceType,
-        'device_id': equipmentEvent.deviceId,
-        'property': equipmentEvent.property,
-        'value': equipmentEvent.value,
-      });
+      return (
+        'PropertyChanged',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'property': equipmentEvent.property,
+          'value': equipmentEvent.value,
+        }
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_Error) {
-      return ('Error', {
-        'device_type': equipmentEvent.deviceType,
-        'device_id': equipmentEvent.deviceId,
-        'message': equipmentEvent.message,
-      });
+      return (
+        'Error',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'message': equipmentEvent.message,
+        }
+      );
     }
     // Mount events
     else if (equipmentEvent is bridge.EquipmentEvent_MountSlewStarted) {
-      return ('MountSlewStarted', {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec});
+      return (
+        'MountSlewStarted',
+        {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec}
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_MountSlewCompleted) {
-      return ('MountSlewCompleted', {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec});
+      return (
+        'MountSlewCompleted',
+        {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec}
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_MountTrackingStarted) {
       return ('MountTrackingStarted', {});
     } else if (equipmentEvent is bridge.EquipmentEvent_MountTrackingStopped) {
@@ -200,36 +232,58 @@ class FfiBackend implements NightshadeBackend {
     }
     // Focuser events
     else if (equipmentEvent is bridge.EquipmentEvent_FocuserMoveStarted) {
-      return ('FocuserMoveStarted', {'target_position': equipmentEvent.targetPosition});
+      return (
+        'FocuserMoveStarted',
+        {'target_position': equipmentEvent.targetPosition}
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_FocuserMoveCompleted) {
       return ('FocuserMoveCompleted', {'position': equipmentEvent.position});
-    } else if (equipmentEvent is bridge.EquipmentEvent_FocuserTemperatureChanged) {
-      return ('FocuserTemperatureChanged', {'temperature': equipmentEvent.temperature});
+    } else if (equipmentEvent
+        is bridge.EquipmentEvent_FocuserTemperatureChanged) {
+      return (
+        'FocuserTemperatureChanged',
+        {'temperature': equipmentEvent.temperature}
+      );
     }
     // Filter wheel events
     else if (equipmentEvent is bridge.EquipmentEvent_FilterChanging) {
-      return ('FilterChanging', {
-        'from_position': equipmentEvent.fromPosition,
-        'to_position': equipmentEvent.toPosition,
-        'filter_name': equipmentEvent.filterName,
-      });
+      return (
+        'FilterChanging',
+        {
+          'from_position': equipmentEvent.fromPosition,
+          'to_position': equipmentEvent.toPosition,
+          'filter_name': equipmentEvent.filterName,
+        }
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_FilterChanged) {
-      return ('FilterChanged', {
-        'position': equipmentEvent.position,
-        'filter_name': equipmentEvent.filterName,
-      });
+      return (
+        'FilterChanged',
+        {
+          'position': equipmentEvent.position,
+          'filter_name': equipmentEvent.filterName,
+        }
+      );
     }
     // Rotator events
     else if (equipmentEvent is bridge.EquipmentEvent_RotatorMoveStarted) {
-      return ('RotatorMoveStarted', {'target_angle': equipmentEvent.targetAngle});
+      return (
+        'RotatorMoveStarted',
+        {'target_angle': equipmentEvent.targetAngle}
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_RotatorMoveCompleted) {
       return ('RotatorMoveCompleted', {'angle': equipmentEvent.angle});
     }
     // Camera events
     else if (equipmentEvent is bridge.EquipmentEvent_CameraCoolingStarted) {
-      return ('CameraCoolingStarted', {'target_temp': equipmentEvent.targetTemp});
+      return (
+        'CameraCoolingStarted',
+        {'target_temp': equipmentEvent.targetTemp}
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_CameraCoolingReached) {
-      return ('CameraCoolingReached', {'temperature': equipmentEvent.temperature});
+      return (
+        'CameraCoolingReached',
+        {'temperature': equipmentEvent.temperature}
+      );
     } else if (equipmentEvent is bridge.EquipmentEvent_CameraWarmingStarted) {
       return ('CameraWarmingStarted', {});
     } else if (equipmentEvent is bridge.EquipmentEvent_CameraWarmingCompleted) {
@@ -240,14 +294,18 @@ class FfiBackend implements NightshadeBackend {
   }
 
   /// Extract event type and data from a GuidingEvent
-  (String, Map<String, dynamic>) _extractGuidingEventInfo(dynamic guidingEvent) {
+  (String, Map<String, dynamic>) _extractGuidingEventInfo(
+      dynamic guidingEvent) {
     if (guidingEvent is bridge.GuidingEvent_Correction) {
-      return ('GuideStep', {
-        'RADistanceRaw': guidingEvent.raRaw,
-        'DECDistanceRaw': guidingEvent.decRaw,
-        'RADistance': guidingEvent.ra,
-        'DECDistance': guidingEvent.dec,
-      });
+      return (
+        'GuideStep',
+        {
+          'RADistanceRaw': guidingEvent.raRaw,
+          'DECDistanceRaw': guidingEvent.decRaw,
+          'RADistance': guidingEvent.ra,
+          'DECDistance': guidingEvent.dec,
+        }
+      );
     } else if (guidingEvent is bridge.GuidingEvent_GuidingStarted) {
       return ('GuidingStarted', {});
     } else if (guidingEvent is bridge.GuidingEvent_GuidingStopped) {
@@ -277,26 +335,36 @@ class FfiBackend implements NightshadeBackend {
     } else if (guidingEvent is bridge.GuidingEvent_CalibrationComplete) {
       return ('CalibrationComplete', {});
     } else if (guidingEvent is bridge.GuidingEvent_StarSelected) {
-      return ('StarSelected', {
-        'X': guidingEvent.x,
-        'Y': guidingEvent.y,
-      });
+      return (
+        'StarSelected',
+        {
+          'X': guidingEvent.x,
+          'Y': guidingEvent.y,
+        }
+      );
     } else if (guidingEvent is bridge.GuidingEvent_AppState) {
-      return ('AppState', {
-        'State': guidingEvent.state,
-      });
+      return (
+        'AppState',
+        {
+          'State': guidingEvent.state,
+        }
+      );
     } else if (guidingEvent is bridge.GuidingEvent_GuideStats) {
-      return ('GuideStats', {
-        'SNR': guidingEvent.snr,
-        'StarMass': guidingEvent.starMass,
-      });
+      return (
+        'GuideStats',
+        {
+          'SNR': guidingEvent.snr,
+          'StarMass': guidingEvent.starMass,
+        }
+      );
     }
 
     return ('UnknownGuidingEvent', {'event': guidingEvent.toString()});
   }
 
   /// Extract event type and data from a SequencerEvent
-  (String, Map<String, dynamic>) _extractSequencerEventInfo(dynamic sequencerEvent) {
+  (String, Map<String, dynamic>) _extractSequencerEventInfo(
+      dynamic sequencerEvent) {
     if (sequencerEvent is bridge.SequencerEvent_Started) {
       return ('Started', {'sequence_name': sequencerEvent.sequenceName});
     } else if (sequencerEvent is bridge.SequencerEvent_Paused) {
@@ -308,87 +376,124 @@ class FfiBackend implements NightshadeBackend {
     } else if (sequencerEvent is bridge.SequencerEvent_Completed) {
       return ('Completed', {});
     } else if (sequencerEvent is bridge.SequencerEvent_NodeStarted) {
-      return ('NodeStarted', {
-        'node_id': sequencerEvent.nodeId,
-        'node_type': sequencerEvent.nodeType,
-      });
+      return (
+        'NodeStarted',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'node_type': sequencerEvent.nodeType,
+        }
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_NodeCompleted) {
-      return ('NodeCompleted', {
-        'node_id': sequencerEvent.nodeId,
-        'success': sequencerEvent.success,
-      });
+      return (
+        'NodeCompleted',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'success': sequencerEvent.success,
+        }
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_Progress) {
-      return ('Progress', {
-        'current': sequencerEvent.current,
-        'total': sequencerEvent.total,
-      });
+      return (
+        'Progress',
+        {
+          'current': sequencerEvent.current,
+          'total': sequencerEvent.total,
+        }
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_TargetChanged) {
       return ('TargetChanged', {'target_name': sequencerEvent.targetName});
     } else if (sequencerEvent is bridge.SequencerEvent_TargetCompleted) {
       return ('TargetCompleted', {'target_name': sequencerEvent.targetName});
     } else if (sequencerEvent is bridge.SequencerEvent_ExposureStarted) {
-      return ('ExposureStarted', {
-        'frame': sequencerEvent.frame,
-        'total': sequencerEvent.total,
-        'filter': sequencerEvent.filter,
-        'duration_secs': sequencerEvent.durationSecs,
-      });
+      return (
+        'ExposureStarted',
+        {
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'filter': sequencerEvent.filter,
+          'duration_secs': sequencerEvent.durationSecs,
+        }
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_ExposureCompleted) {
-      return ('ExposureCompleted', {
-        'frame': sequencerEvent.frame,
-        'total': sequencerEvent.total,
-        'duration_secs': sequencerEvent.durationSecs,
-      });
+      return (
+        'ExposureCompleted',
+        {
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'duration_secs': sequencerEvent.durationSecs,
+        }
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_Error) {
       return ('Error', {'message': sequencerEvent.message});
     } else if (sequencerEvent is bridge.SequencerEvent_InstructionProgress) {
-      return ('InstructionProgress', {
-        'node_id': sequencerEvent.nodeId,
-        'instruction': sequencerEvent.instruction,
-        'progress_percent': sequencerEvent.progressPercent,
-        'detail': sequencerEvent.detail,
-      });
+      return (
+        'InstructionProgress',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'instruction': sequencerEvent.instruction,
+          'progress_percent': sequencerEvent.progressPercent,
+          'detail': sequencerEvent.detail,
+        }
+      );
     }
 
     return ('UnknownSequencerEvent', {'event': sequencerEvent.toString()});
   }
 
   /// Extract event type and data from an ImagingEvent
-  (String, Map<String, dynamic>) _extractImagingEventInfo(dynamic imagingEvent) {
+  (String, Map<String, dynamic>) _extractImagingEventInfo(
+      dynamic imagingEvent) {
     if (imagingEvent is bridge.ImagingEvent_ExposureStarted) {
-      return ('ExposureStarted', {
-        'duration_secs': imagingEvent.durationSecs,
-        'frame_type': imagingEvent.frameType.toString(),
-      });
+      return (
+        'ExposureStarted',
+        {
+          'duration_secs': imagingEvent.durationSecs,
+          'frame_type': imagingEvent.frameType.toString(),
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureStartedWithFrame) {
-      return ('ExposureStarted', {
-        'duration_secs': imagingEvent.durationSecs,
-        'frame': imagingEvent.frameNumber,
-        'total': imagingEvent.totalFrames,
-        'frame_type': imagingEvent.frameType.toString(),
-      });
+      return (
+        'ExposureStarted',
+        {
+          'duration_secs': imagingEvent.durationSecs,
+          'frame': imagingEvent.frameNumber,
+          'total': imagingEvent.totalFrames,
+          'frame_type': imagingEvent.frameType.toString(),
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureProgress) {
-      return ('ExposureProgress', {
-        'progress': imagingEvent.progress,
-        'remainingSecs': imagingEvent.remainingSecs,
-      });
+      return (
+        'ExposureProgress',
+        {
+          'progress': imagingEvent.progress,
+          'remainingSecs': imagingEvent.remainingSecs,
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureCompleted) {
-      return ('ExposureCompleted', {
-        'file_path': imagingEvent.filePath,
-        'hfr': imagingEvent.hfr,
-        'stars_detected': imagingEvent.starsDetected,
-      });
+      return (
+        'ExposureCompleted',
+        {
+          'file_path': imagingEvent.filePath,
+          'hfr': imagingEvent.hfr,
+          'stars_detected': imagingEvent.starsDetected,
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureCompletedWithFrame) {
-      return ('ExposureCompleted', {
-        'frame': imagingEvent.frameNumber,
-        'total': imagingEvent.totalFrames,
-        'hfr': imagingEvent.hfr,
-        'stars_detected': imagingEvent.starsDetected,
-      });
+      return (
+        'ExposureCompleted',
+        {
+          'frame': imagingEvent.frameNumber,
+          'total': imagingEvent.totalFrames,
+          'hfr': imagingEvent.hfr,
+          'stars_detected': imagingEvent.starsDetected,
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureFailed) {
-      return ('ExposureFailed', {
-        'error': imagingEvent.error,
-      });
+      return (
+        'ExposureFailed',
+        {
+          'error': imagingEvent.error,
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureCancelled) {
       return ('ExposureCancelled', {});
     } else if (imagingEvent is bridge.ImagingEvent_DownloadStarted) {
@@ -396,28 +501,43 @@ class FfiBackend implements NightshadeBackend {
     } else if (imagingEvent is bridge.ImagingEvent_DownloadCompleted) {
       return ('DownloadCompleted', {});
     } else if (imagingEvent is bridge.ImagingEvent_ImageReady) {
-      return ('ImageReady', {
-        'width': imagingEvent.width,
-        'height': imagingEvent.height,
-      });
+      return (
+        'ImageReady',
+        {
+          'width': imagingEvent.width,
+          'height': imagingEvent.height,
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_ImageSaved) {
-      return ('ImageSaved', {
-        'file_path': imagingEvent.filePath,
-      });
+      return (
+        'ImageSaved',
+        {
+          'file_path': imagingEvent.filePath,
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_TemperatureChanged) {
-      return ('TemperatureChanged', {
-        'temp_celsius': imagingEvent.tempCelsius,
-        'cooler_power': imagingEvent.coolerPower,
-      });
+      return (
+        'TemperatureChanged',
+        {
+          'temp_celsius': imagingEvent.tempCelsius,
+          'cooler_power': imagingEvent.coolerPower,
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureComplete) {
       // Legacy event type - map to 'ExposureComplete' for compatibility with imaging_service.dart
-      return ('ExposureComplete', {
-        'success': imagingEvent.success,
-      });
+      return (
+        'ExposureComplete',
+        {
+          'success': imagingEvent.success,
+        }
+      );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureFailedOld) {
-      return ('ExposureFailed', {
-        'reason': imagingEvent.reason,
-      });
+      return (
+        'ExposureFailed',
+        {
+          'reason': imagingEvent.reason,
+        }
+      );
     }
     return ('UnknownImagingEvent', {'event': imagingEvent.toString()});
   }
@@ -1007,10 +1127,9 @@ class FfiBackend implements NightshadeBackend {
         settleTimeout: settleTimeout,
       );
     } else {
-      // Future: Add support for other guider types (ASCOM, INDI, custom)
-      throw UnimplementedError(
-        'Guider "$deviceId" is not yet supported for guiding operations. '
-        'Currently only PHD2 guiding is implemented.',
+      throw UnsupportedError(
+        'Guider "$deviceId" is not supported in the FFI backend. '
+        'Supported guider: "phd2_guider".',
       );
     }
   }
@@ -1020,8 +1139,9 @@ class FfiBackend implements NightshadeBackend {
     if (deviceId == 'phd2_guider') {
       await phd2StopGuiding();
     } else {
-      throw UnimplementedError(
-        'Guider "$deviceId" is not yet supported for guiding operations.',
+      throw UnsupportedError(
+        'Guider "$deviceId" is not supported in the FFI backend. '
+        'Supported guider: "phd2_guider".',
       );
     }
   }
@@ -1044,8 +1164,9 @@ class FfiBackend implements NightshadeBackend {
         settleTimeout: settleTimeout,
       );
     } else {
-      throw UnimplementedError(
-        'Guider "$deviceId" is not yet supported for dithering operations.',
+      throw UnsupportedError(
+        'Guider "$deviceId" is not supported for dithering in the FFI backend. '
+        'Supported guider: "phd2_guider".',
       );
     }
   }
@@ -1293,18 +1414,21 @@ class FfiBackend implements NightshadeBackend {
 
   @override
   Future<FilterWheelStatus> getFilterWheelStatus(String deviceId) async {
-    final bridgeStatus = await bridge.NativeBridge.getFilterWheelStatus(deviceId);
+    final bridgeStatus =
+        await bridge.NativeBridge.getFilterWheelStatus(deviceId);
     return _fromBridgeFilterWheelStatus(bridgeStatus);
   }
 
   @override
   Future<RotatorStatus> getRotatorStatus(String deviceId) async {
-    final bridgeStatus = await bridge_api.apiGetRotatorStatus(deviceId: deviceId);
+    final bridgeStatus =
+        await bridge_api.apiGetRotatorStatus(deviceId: deviceId);
     return _fromBridgeRotatorStatus(bridgeStatus);
   }
 
   // Status conversion helpers
-  dart_status.CameraStatus _fromBridgeCameraStatus(bridge_device.CameraStatus s) {
+  dart_status.CameraStatus _fromBridgeCameraStatus(
+      bridge_device.CameraStatus s) {
     return dart_status.CameraStatus(
       connected: s.connected,
       state: _fromBridgeCameraState(s.state),
@@ -1392,7 +1516,8 @@ class FfiBackend implements NightshadeBackend {
     }
   }
 
-  dart_status.FocuserStatus _fromBridgeFocuserStatus(bridge_device.FocuserStatus s) {
+  dart_status.FocuserStatus _fromBridgeFocuserStatus(
+      bridge_device.FocuserStatus s) {
     return dart_status.FocuserStatus(
       connected: s.connected,
       position: s.position,
@@ -1405,7 +1530,8 @@ class FfiBackend implements NightshadeBackend {
     );
   }
 
-  dart_status.FilterWheelStatus _fromBridgeFilterWheelStatus(bridge_device.FilterWheelStatus s) {
+  dart_status.FilterWheelStatus _fromBridgeFilterWheelStatus(
+      bridge_device.FilterWheelStatus s) {
     return dart_status.FilterWheelStatus(
       connected: s.connected,
       position: s.position,
@@ -1415,7 +1541,8 @@ class FfiBackend implements NightshadeBackend {
     );
   }
 
-  dart_status.RotatorStatus _fromBridgeRotatorStatus(bridge_device.RotatorStatus s) {
+  dart_status.RotatorStatus _fromBridgeRotatorStatus(
+      bridge_device.RotatorStatus s) {
     return dart_status.RotatorStatus(
       connected: s.connected,
       position: s.position,
@@ -1433,7 +1560,8 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
     try {
-      final bridgeCaps = await bridge_api.apiGetCameraCapabilities(deviceId: deviceId);
+      final bridgeCaps =
+          await bridge_api.apiGetCameraCapabilities(deviceId: deviceId);
       return _fromBridgeCameraCapabilities(bridgeCaps);
     } catch (e) {
       _logger.warning('Failed to get camera capabilities: $e');
@@ -1444,7 +1572,8 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<MountCapabilities?> getMountCapabilities(String deviceId) async {
     try {
-      final bridgeCaps = await bridge_api.apiGetMountCapabilities(deviceId: deviceId);
+      final bridgeCaps =
+          await bridge_api.apiGetMountCapabilities(deviceId: deviceId);
       return _fromBridgeMountCapabilities(bridgeCaps);
     } catch (e) {
       _logger.warning('Failed to get mount capabilities: $e');
@@ -1455,7 +1584,8 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<FocuserCapabilities?> getFocuserCapabilities(String deviceId) async {
     try {
-      final bridgeCaps = await bridge_api.apiGetFocuserCapabilities(deviceId: deviceId);
+      final bridgeCaps =
+          await bridge_api.apiGetFocuserCapabilities(deviceId: deviceId);
       return _fromBridgeFocuserCapabilities(bridgeCaps);
     } catch (e) {
       _logger.warning('Failed to get focuser capabilities: $e');
@@ -1464,9 +1594,11 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
-  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(String deviceId) async {
+  Future<FilterWheelCapabilities?> getFilterWheelCapabilities(
+      String deviceId) async {
     try {
-      final bridgeCaps = await bridge_api.apiGetFilterwheelCapabilities(deviceId: deviceId);
+      final bridgeCaps =
+          await bridge_api.apiGetFilterwheelCapabilities(deviceId: deviceId);
       return _fromBridgeFilterWheelCapabilities(bridgeCaps);
     } catch (e) {
       _logger.warning('Failed to get filter wheel capabilities: $e');
@@ -1478,7 +1610,8 @@ class FfiBackend implements NightshadeBackend {
   Future<RotatorCapabilities?> getRotatorCapabilities(String deviceId) async {
     try {
       // Use generic device capabilities and extract rotator
-      final result = await bridge_api.apiGetDeviceCapabilities(deviceId: deviceId);
+      final result =
+          await bridge_api.apiGetDeviceCapabilities(deviceId: deviceId);
       if (result is bridge_caps.DeviceCapabilities_Rotator) {
         return _fromBridgeRotatorCapabilities(result.field0);
       }
@@ -1618,18 +1751,10 @@ class FfiBackend implements NightshadeBackend {
 
   @override
   Future<void> setLocation(models.ObserverLocation? location) async {
-    if (location != null) {
-      print('[FFI-BACKEND] setLocation called with lat=${location.latitude}, lon=${location.longitude}, elev=${location.elevation}');
-    } else {
-      print('[FFI-BACKEND] setLocation called with null');
-    }
     final bridgeLoc = location != null ? _toBridgeLocation(location) : null;
-    if (bridgeLoc != null) {
-      print('[FFI-BACKEND] bridgeLoc: lat=${bridgeLoc.latitude}, lon=${bridgeLoc.longitude}, elev=${bridgeLoc.elevation}');
-    }
-    print('[FFI-BACKEND] Calling apiSetLocation...');
+    _logger.fine(
+        'setLocation: ${location != null ? "lat=${location.latitude}, lon=${location.longitude}, elev=${location.elevation}" : "null"}');
     bridge.NativeBridge.apiSetLocation(location: bridgeLoc);
-    print('[FFI-BACKEND] apiSetLocation returned');
   }
 
   // =========================================================================
@@ -1658,18 +1783,21 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
-  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId, {int maxCrops = 5}) async {
+  Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
+      {int maxCrops = 5}) async {
     final bridgeCrops = await bridge_api.apiGetStarCropsFromLastImage(
       deviceId: deviceId,
       maxCrops: maxCrops,
     );
-    return bridgeCrops.map((crop) => StarCrop(
-      pixelsBase64: crop.pixelsBase64,
-      width: crop.width.toInt(),
-      height: crop.height.toInt(),
-      hfr: crop.hfr,
-      snr: crop.snr,
-    )).toList();
+    return bridgeCrops
+        .map((crop) => StarCrop(
+              pixelsBase64: crop.pixelsBase64,
+              width: crop.width.toInt(),
+              height: crop.height.toInt(),
+              hfr: crop.hfr,
+              snr: crop.snr,
+            ))
+        .toList();
   }
 
   @override
@@ -2082,7 +2210,7 @@ class FfiBackend implements NightshadeBackend {
       telescope: h.telescope,
       instrument: h.instrument,
       observer: h.observer,
-      binX: h.binX ?? 1,  // Default to 1x1 binning
+      binX: h.binX ?? 1, // Default to 1x1 binning
       binY: h.binY ?? 1,
       focalLength: h.focalLength,
       aperture: h.aperture,
@@ -2099,12 +2227,14 @@ class FfiBackend implements NightshadeBackend {
     return AutofocusResult(
       bestPosition: r.bestPosition,
       bestHfr: r.bestHfr,
-      focusData: r.focusData.map((dp) => FocusDataPoint(
-        position: dp.position,
-        hfr: dp.hfr,
-        fwhm: dp.fwhm,
-        starCount: dp.starCount,
-      )).toList(),
+      focusData: r.focusData
+          .map((dp) => FocusDataPoint(
+                position: dp.position,
+                hfr: dp.hfr,
+                fwhm: dp.fwhm,
+                starCount: dp.starCount,
+              ))
+          .toList(),
       method: r.method,
       temperature: r.temperature,
       timestamp: r.timestamp,
@@ -2114,7 +2244,8 @@ class FfiBackend implements NightshadeBackend {
   }
 
   /// Convert bridge CameraCapabilities to pure Dart CameraCapabilities
-  CameraCapabilities _fromBridgeCameraCapabilities(bridge_caps.CameraCapabilities c) {
+  CameraCapabilities _fromBridgeCameraCapabilities(
+      bridge_caps.CameraCapabilities c) {
     return CameraCapabilities(
       maxWidth: c.maxWidth,
       maxHeight: c.maxHeight,
@@ -2153,7 +2284,8 @@ class FfiBackend implements NightshadeBackend {
   }
 
   /// Convert bridge MountCapabilities to pure Dart MountCapabilities
-  MountCapabilities _fromBridgeMountCapabilities(bridge_caps.MountCapabilities m) {
+  MountCapabilities _fromBridgeMountCapabilities(
+      bridge_caps.MountCapabilities m) {
     return MountCapabilities(
       canSlew: m.canSlew,
       canSlewAsync: m.canSlewAsync,
@@ -2174,7 +2306,9 @@ class FfiBackend implements NightshadeBackend {
       canGetPointingState: m.canGetPointingState,
       canFindHome: m.canFindHome,
       tracking: m.tracking,
-      trackingRate: m.trackingRate != null ? _fromBridgeTrackingRate(m.trackingRate!) : null,
+      trackingRate: m.trackingRate != null
+          ? _fromBridgeTrackingRate(m.trackingRate!)
+          : null,
       canAbortSlew: m.canAbortSlew,
       maxSlewRate: m.maxSlewRate,
       canMoveAxis: m.canMoveAxis,
@@ -2183,7 +2317,8 @@ class FfiBackend implements NightshadeBackend {
   }
 
   /// Convert bridge FocuserCapabilities to pure Dart FocuserCapabilities
-  FocuserCapabilities _fromBridgeFocuserCapabilities(bridge_caps.FocuserCapabilities f) {
+  FocuserCapabilities _fromBridgeFocuserCapabilities(
+      bridge_caps.FocuserCapabilities f) {
     return FocuserCapabilities(
       maxPosition: f.maxPosition,
       maxIncrement: f.maxIncrement,
@@ -2201,7 +2336,8 @@ class FfiBackend implements NightshadeBackend {
   }
 
   /// Convert bridge FilterWheelCapabilities to pure Dart FilterWheelCapabilities
-  FilterWheelCapabilities _fromBridgeFilterWheelCapabilities(bridge_caps.FilterWheelCapabilities fw) {
+  FilterWheelCapabilities _fromBridgeFilterWheelCapabilities(
+      bridge_caps.FilterWheelCapabilities fw) {
     return FilterWheelCapabilities(
       positionCount: fw.positionCount,
       currentPosition: fw.currentPosition,
@@ -2214,7 +2350,8 @@ class FfiBackend implements NightshadeBackend {
   }
 
   /// Convert bridge RotatorCapabilities to pure Dart RotatorCapabilities
-  RotatorCapabilities _fromBridgeRotatorCapabilities(bridge_caps.RotatorCapabilities r) {
+  RotatorCapabilities _fromBridgeRotatorCapabilities(
+      bridge_caps.RotatorCapabilities r) {
     return RotatorCapabilities(
       canReverse: r.canReverse,
       reverse: r.reverse,
@@ -2238,7 +2375,8 @@ class FfiBackend implements NightshadeBackend {
   /// - FRB-generated NightshadeError (from Rust)
   /// - AnyhowException (fallback from Rust)
   /// - Generic Dart exceptions
-  dart_error.NightshadeError _toNightshadeError(Object exception, [String? context]) {
+  dart_error.NightshadeError _toNightshadeError(Object exception,
+      [String? context]) {
     // Handle FRB-generated NightshadeError from Rust
     if (exception is bridge_error.NightshadeError) {
       return _fromBridgeNightshadeError(exception);
@@ -2255,10 +2393,12 @@ class FfiBackend implements NightshadeBackend {
   /// Convert FRB-generated NightshadeError to pure Dart NightshadeError.
   ///
   /// This preserves all the structured error information from Rust.
-  dart_error.NightshadeError _fromBridgeNightshadeError(bridge_error.NightshadeError e) {
+  dart_error.NightshadeError _fromBridgeNightshadeError(
+      bridge_error.NightshadeError e) {
     return e.when(
       // Connection errors
-      deviceNotFound: (deviceId) => dart_error.NightshadeError.deviceNotFound(deviceId),
+      deviceNotFound: (deviceId) =>
+          dart_error.NightshadeError.deviceNotFound(deviceId),
       connectionFailed: (deviceId, reason) =>
           dart_error.NightshadeError.connectionFailed(deviceId, reason),
       alreadyConnected: (deviceId) => dart_error.NightshadeError(
@@ -2267,13 +2407,15 @@ class FfiBackend implements NightshadeBackend {
         userMessage: "'$deviceId' is already connected",
         deviceId: deviceId,
       ),
-      notConnected: (deviceId) => dart_error.NightshadeError.notConnected(deviceId),
+      notConnected: (deviceId) =>
+          dart_error.NightshadeError.notConnected(deviceId),
       deviceDisconnected: (deviceId, reason) =>
           dart_error.NightshadeError.deviceDisconnected(deviceId, reason),
 
       // Hardware errors
       hardwareError: (deviceId, message, errorCode) =>
-          dart_error.NightshadeError.hardwareError(deviceId, message, errorCode: errorCode),
+          dart_error.NightshadeError.hardwareError(deviceId, message,
+              errorCode: errorCode),
       communicationError: (deviceId, message) => dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.hardware,
         message: 'Communication error: $deviceId - $message',
@@ -2286,10 +2428,12 @@ class FfiBackend implements NightshadeBackend {
       // Timeout errors
       timeout: (message) => dart_error.NightshadeError.timeout(message),
       deviceTimeout: (deviceId, operation, timeoutSecs) =>
-          dart_error.NightshadeError.timeout(operation, deviceId: deviceId, timeoutSecs: timeoutSecs),
+          dart_error.NightshadeError.timeout(operation,
+              deviceId: deviceId, timeoutSecs: timeoutSecs),
       connectionTimeout: (deviceId, timeoutSecs) => dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.timeout,
-        message: 'Connection timeout: $deviceId after ${timeoutSecs.toStringAsFixed(1)}s',
+        message:
+            'Connection timeout: $deviceId after ${timeoutSecs.toStringAsFixed(1)}s',
         userMessage: "Connection to '$deviceId' timed out",
         isRecoverable: true,
         isTimeout: true,
@@ -2311,9 +2455,11 @@ class FfiBackend implements NightshadeBackend {
         message: 'Invalid device ID: $deviceId - $reason',
         deviceId: deviceId,
       ),
-      parameterOutOfRange: (paramName, value, min, max) => dart_error.NightshadeError(
+      parameterOutOfRange: (paramName, value, min, max) =>
+          dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.validation,
-        message: 'Parameter out of range: $paramName = $value (valid: $min to $max)',
+        message:
+            'Parameter out of range: $paramName = $value (valid: $min to $max)',
         userMessage: '$paramName value $value is out of range ($min to $max)',
       ),
 
@@ -2376,12 +2522,15 @@ class FfiBackend implements NightshadeBackend {
         message: 'ASCOM error: $progId - $message (code: $errorCode)',
         errorCode: errorCode,
       ),
-      alpacaError: (baseUrl, deviceNumber, message, errorCode) => dart_error.NightshadeError(
+      alpacaError: (baseUrl, deviceNumber, message, errorCode) =>
+          dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.driver,
-        message: 'Alpaca error: $baseUrl device $deviceNumber - $message (code: $errorCode)',
+        message:
+            'Alpaca error: $baseUrl device $deviceNumber - $message (code: $errorCode)',
         errorCode: errorCode,
       ),
-      indiError: (server, port, deviceName, message) => dart_error.NightshadeError(
+      indiError: (server, port, deviceName, message) =>
+          dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.driver,
         message: 'INDI error: $server:$port device $deviceName - $message',
       ),
@@ -2392,7 +2541,8 @@ class FfiBackend implements NightshadeBackend {
       ),
       comError: (message, hresult) => dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.driver,
-        message: 'COM error: $message (HRESULT: 0x${hresult.toRadixString(16).padLeft(8, '0')})',
+        message:
+            'COM error: $message (HRESULT: 0x${hresult.toRadixString(16).padLeft(8, '0')})',
         errorCode: hresult,
         shouldReconnect: true,
       ),

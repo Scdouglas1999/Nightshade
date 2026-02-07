@@ -274,7 +274,8 @@ class QuickStartDialog extends ConsumerWidget {
               if (snapshot.coolerTargetTemp != null)
                 _EquipmentChip(
                   icon: LucideIcons.thermometer,
-                  label: '${snapshot.coolerTargetTemp!.toStringAsFixed(0)}\u00B0C',
+                  label:
+                      '${snapshot.coolerTargetTemp!.toStringAsFixed(0)}\u00B0C',
                   colors: colors,
                 ),
               if (snapshot.cameraGain != null)
@@ -315,9 +316,11 @@ class QuickStartDialog extends ConsumerWidget {
 
     String progressText;
     if (frames > 0 && total > 0) {
-      progressText = '$frames/$total frames captured, ${_formatIntegration(integration)} integration';
+      progressText =
+          '$frames/$total frames captured, ${_formatIntegration(integration)} integration';
     } else if (frames > 0) {
-      progressText = '$frames frames captured, ${_formatIntegration(integration)} integration';
+      progressText =
+          '$frames frames captured, ${_formatIntegration(integration)} integration';
     } else if (integration > 0) {
       progressText = '${_formatIntegration(integration)} integration';
     } else {
@@ -401,7 +404,7 @@ class QuickStartDialog extends ConsumerWidget {
         Center(
           child: NightshadeButton(
             onPressed: onSkip,
-            label: 'Skip for now',
+            label: 'Skip',
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
           ),

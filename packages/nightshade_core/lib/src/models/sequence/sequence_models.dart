@@ -4,7 +4,14 @@ import '../imaging/imaging_models.dart' show FrameType;
 import '../../backend/nightshade_backend.dart' show DeviceType;
 
 /// Sequence execution state
-enum SequenceExecutionState { idle, running, paused, stopping, completed, failed }
+enum SequenceExecutionState {
+  idle,
+  running,
+  paused,
+  stopping,
+  completed,
+  failed
+}
 
 /// Node execution status
 enum NodeStatus { pending, running, success, failure, skipped, cancelled }
@@ -17,10 +24,14 @@ enum BinningMode { one, two, three, four }
 extension BinningModeExtension on BinningMode {
   String get label {
     switch (this) {
-      case BinningMode.one: return '1x1';
-      case BinningMode.two: return '2x2';
-      case BinningMode.three: return '3x3';
-      case BinningMode.four: return '4x4';
+      case BinningMode.one:
+        return '1x1';
+      case BinningMode.two:
+        return '2x2';
+      case BinningMode.three:
+        return '3x3';
+      case BinningMode.four:
+        return '4x4';
     }
   }
 }
@@ -72,35 +83,35 @@ class SequenceEstimate extends Equatable {
 
   @override
   List<Object?> get props => [
-    estimatedSecs,
-    singleIterationSecs,
-    isUnbounded,
-    untilTime,
-    conditionType,
-  ];
+        estimatedSecs,
+        singleIterationSecs,
+        isUnbounded,
+        untilTime,
+        conditionType,
+      ];
 }
 
 /// Conditional check type
-enum ConditionalType { 
-  always, 
-  altitudeAbove, 
-  timeAfter, 
-  guidingRmsBelow, 
-  hfrBelow, 
-  weatherSafe, 
+enum ConditionalType {
+  always,
+  altitudeAbove,
+  timeAfter,
+  guidingRmsBelow,
+  hfrBelow,
+  weatherSafe,
   moonSeparationAbove,
   safetyMonitorSafe,
 }
 
 /// Recovery action type
-enum RecoveryActionType { 
-  continueExecution, 
-  pause, 
-  autofocus, 
-  nextTarget, 
-  retry, 
-  parkAndAbort, 
-  customBranch 
+enum RecoveryActionType {
+  continueExecution,
+  pause,
+  autofocus,
+  nextTarget,
+  retry,
+  parkAndAbort,
+  customBranch
 }
 
 /// Trigger type
@@ -140,10 +151,10 @@ abstract class SequenceNode extends Equatable {
 
   /// Get the node type identifier
   String get nodeType;
-  
+
   /// Get the icon name for this node
   String get iconName;
-  
+
   /// Get the color category for this node
   NodeCategory get category;
 
@@ -162,7 +173,8 @@ abstract class SequenceNode extends Equatable {
   });
 
   @override
-  List<Object?> get props => [id, name, isEnabled, childIds, parentId, orderIndex];
+  List<Object?> get props =>
+      [id, name, isEnabled, childIds, parentId, orderIndex];
 }
 
 /// Node category for coloring
@@ -207,20 +219,21 @@ class MosaicPanelInfo extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-    'mosaic_name': mosaicName,
-    'panel_index': panelIndex,
-    'total_panels': totalPanels,
-    'row': row,
-    'column': column,
-  };
+        'mosaic_name': mosaicName,
+        'panel_index': panelIndex,
+        'total_panels': totalPanels,
+        'row': row,
+        'column': column,
+      };
 
-  factory MosaicPanelInfo.fromJson(Map<String, dynamic> json) => MosaicPanelInfo(
-    mosaicName: json['mosaic_name'] as String,
-    panelIndex: json['panel_index'] as int,
-    totalPanels: json['total_panels'] as int,
-    row: json['row'] as int,
-    column: json['column'] as int,
-  );
+  factory MosaicPanelInfo.fromJson(Map<String, dynamic> json) =>
+      MosaicPanelInfo(
+        mosaicName: json['mosaic_name'] as String,
+        panelIndex: json['panel_index'] as int,
+        totalPanels: json['total_panels'] as int,
+        row: json['row'] as int,
+        column: json['column'] as int,
+      );
 
   @override
   List<Object?> get props => [mosaicName, panelIndex, totalPanels, row, column];
@@ -331,18 +344,18 @@ class TargetHeaderNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    targetName,
-    raHours,
-    decDegrees,
-    rotation,
-    priority,
-    minAltitude,
-    maxAltitude,
-    startAfter,
-    endBefore,
-    mosaicPanel,
-  ];
+        ...super.props,
+        targetName,
+        raHours,
+        decDegrees,
+        rotation,
+        priority,
+        minAltitude,
+        maxAltitude,
+        startAfter,
+        endBefore,
+        mosaicPanel,
+      ];
 }
 
 /// Legacy alias for backwards compatibility during migration
@@ -371,10 +384,10 @@ class LoopNode extends SequenceNode {
 
   @override
   String get nodeType => 'Loop';
-  
+
   @override
   String get iconName => 'repeat';
-  
+
   @override
   NodeCategory get category => NodeCategory.logic;
 
@@ -407,12 +420,12 @@ class LoopNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    conditionType,
-    repeatCount,
-    repeatUntil,
-    repeatUntilAltitude,
-  ];
+        ...super.props,
+        conditionType,
+        repeatCount,
+        repeatUntil,
+        repeatUntilAltitude,
+      ];
 }
 
 /// Parallel node - executes children in parallel
@@ -431,10 +444,10 @@ class ParallelNode extends SequenceNode {
 
   @override
   String get nodeType => 'Parallel';
-  
+
   @override
   String get iconName => 'git-branch';
-  
+
   @override
   NodeCategory get category => NodeCategory.logic;
 
@@ -483,10 +496,10 @@ class ConditionalNode extends SequenceNode {
 
   @override
   String get nodeType => 'Conditional';
-  
+
   @override
   String get iconName => 'git-merge';
-  
+
   @override
   NodeCategory get category => NodeCategory.logic;
 
@@ -517,11 +530,11 @@ class ConditionalNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    conditionType,
-    thresholdValue,
-    thresholdTime,
-  ];
+        ...super.props,
+        conditionType,
+        thresholdValue,
+        thresholdTime,
+      ];
 }
 
 /// Recovery node - handles errors with retry/recovery logic
@@ -546,10 +559,10 @@ class RecoveryNode extends SequenceNode {
 
   @override
   String get nodeType => 'Recovery';
-  
+
   @override
   String get iconName => 'shield-check';
-  
+
   @override
   NodeCategory get category => NodeCategory.logic;
 
@@ -582,12 +595,12 @@ class RecoveryNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    recoveryAction,
-    maxRetries,
-    triggerType,
-    triggerThreshold,
-  ];
+        ...super.props,
+        recoveryAction,
+        maxRetries,
+        triggerType,
+        triggerThreshold,
+      ];
 }
 
 /// Instruction Set node - executes children sequentially once
@@ -603,10 +616,10 @@ class InstructionSetNode extends SequenceNode {
 
   @override
   String get nodeType => 'InstructionSet';
-  
+
   @override
   String get iconName => 'list';
-  
+
   @override
   NodeCategory get category => NodeCategory.logic;
 
@@ -690,7 +703,8 @@ class SlewNode extends SequenceNode {
   }
 
   @override
-  List<Object?> get props => [...super.props, useTargetCoords, customRa, customDec];
+  List<Object?> get props =>
+      [...super.props, useTargetCoords, customRa, customDec];
 }
 
 /// Center target (plate solve + sync + slew)
@@ -750,11 +764,11 @@ class CenterNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    accuracyArcsec,
-    maxAttempts,
-    useTargetCoords,
-  ];
+        ...super.props,
+        accuracyArcsec,
+        maxAttempts,
+        useTargetCoords,
+      ];
 }
 
 /// Take exposure instruction
@@ -763,6 +777,7 @@ class ExposureNode extends SequenceNode {
   final int count;
   final FrameType frameType;
   final String? filter;
+
   /// Filter position (0-based index). When set, used instead of filter name for reliability.
   final int? filterIndex;
   final int? gain;
@@ -842,17 +857,17 @@ class ExposureNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    durationSecs,
-    count,
-    frameType,
-    filter,
-    filterIndex,
-    gain,
-    offset,
-    binning,
-    ditherEvery,
-  ];
+        ...super.props,
+        durationSecs,
+        count,
+        frameType,
+        filter,
+        filterIndex,
+        gain,
+        offset,
+        binning,
+        ditherEvery,
+      ];
 }
 
 /// Autofocus instruction
@@ -887,7 +902,8 @@ class AutofocusNode extends SequenceNode {
   NodeCategory get category => NodeCategory.instruction;
 
   @override
-  Set<DeviceType> get requiredDevices => {DeviceType.camera, DeviceType.focuser};
+  Set<DeviceType> get requiredDevices =>
+      {DeviceType.camera, DeviceType.focuser};
 
   @override
   AutofocusNode copyWith({
@@ -920,13 +936,13 @@ class AutofocusNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    method,
-    stepSize,
-    stepsOut,
-    exposuresPerPoint,
-    exposureDuration,
-  ];
+        ...super.props,
+        method,
+        stepSize,
+        stepsOut,
+        exposuresPerPoint,
+        exposureDuration,
+      ];
 }
 
 /// Dither instruction
@@ -1048,7 +1064,8 @@ class StartGuidingNode extends SequenceNode {
   }
 
   @override
-  List<Object?> get props => [...super.props, settlePixels, settleTime, settleTimeout, autoSelectStar];
+  List<Object?> get props =>
+      [...super.props, settlePixels, settleTime, settleTimeout, autoSelectStar];
 }
 
 /// Stop guiding instruction - stops PHD2 guiding
@@ -1417,10 +1434,10 @@ class WaitTimeNode extends SequenceNode {
 
   @override
   String get nodeType => 'WaitForTime';
-  
+
   @override
   String get iconName => 'clock';
-  
+
   @override
   NodeCategory get category => NodeCategory.instruction;
 
@@ -1467,10 +1484,10 @@ class DelayNode extends SequenceNode {
 
   @override
   String get nodeType => 'Delay';
-  
+
   @override
   String get iconName => 'timer';
-  
+
   @override
   NodeCategory get category => NodeCategory.instruction;
 
@@ -1519,10 +1536,10 @@ class NotificationNode extends SequenceNode {
 
   @override
   String get nodeType => 'Notification';
-  
+
   @override
   String get iconName => 'bell';
-  
+
   @override
   NodeCategory get category => NodeCategory.instruction;
 
@@ -1575,10 +1592,10 @@ class ScriptNode extends SequenceNode {
 
   @override
   String get nodeType => 'RunScript';
-  
+
   @override
   String get iconName => 'code';
-  
+
   @override
   NodeCategory get category => NodeCategory.instruction;
 
@@ -1608,7 +1625,8 @@ class ScriptNode extends SequenceNode {
   }
 
   @override
-  List<Object?> get props => [...super.props, scriptPath, arguments, timeoutSecs];
+  List<Object?> get props =>
+      [...super.props, scriptPath, arguments, timeoutSecs];
 }
 
 /// Meridian Flip instruction
@@ -1672,12 +1690,12 @@ class MeridianFlipNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    minutesPastMeridian,
-    pauseGuiding,
-    autoCenter,
-    settleTime,
-  ];
+        ...super.props,
+        minutesPastMeridian,
+        pauseGuiding,
+        autoCenter,
+        settleTime,
+      ];
 }
 
 /// Open Dome instruction
@@ -1698,7 +1716,7 @@ class OpenDomeNode extends SequenceNode {
   String get nodeType => 'OpenDome';
 
   @override
-  String get iconName => 'home'; // Using home icon for dome for now
+  String get iconName => 'home';
 
   @override
   NodeCategory get category => NodeCategory.instruction;
@@ -1914,19 +1932,18 @@ class PolarAlignmentNode extends SequenceNode {
 
   @override
   List<Object?> get props => [
-    ...super.props,
-    exposureDuration,
-    binning,
-    startAltitude,
-    rotationStep,
-    gain,
-    offset,
-    startFromCurrent,
-    isNorth,
-    manualSlew,
-  ];
+        ...super.props,
+        exposureDuration,
+        binning,
+        startAltitude,
+        rotationStep,
+        gain,
+        offset,
+        startFromCurrent,
+        isNorth,
+        manualSlew,
+      ];
 }
-
 
 // =============================================================================
 // SEQUENCE
@@ -1956,10 +1973,10 @@ class Sequence extends Equatable {
     DateTime? modifiedAt,
     this.isTemplate = false,
     this.estimatedDurationMins,
-  }) : id = id ?? const Uuid().v4(),
-       nodes = nodes ?? {},
-       createdAt = createdAt ?? DateTime.now(),
-       modifiedAt = modifiedAt ?? DateTime.now();
+  })  : id = id ?? const Uuid().v4(),
+        nodes = nodes ?? {},
+        createdAt = createdAt ?? DateTime.now(),
+        modifiedAt = modifiedAt ?? DateTime.now();
 
   /// Get total exposure count
   int get totalExposures {
@@ -2003,7 +2020,8 @@ class Sequence extends Equatable {
   }
 
   /// Recursively estimate integration time for a node and its children
-  SequenceEstimate _estimateNodeIntegration(String nodeId, DateTime referenceTime) {
+  SequenceEstimate _estimateNodeIntegration(
+      String nodeId, DateTime referenceTime) {
     final node = nodes[nodeId];
     if (node == null || !node.isEnabled) {
       return const SequenceEstimate(
@@ -2050,11 +2068,16 @@ class Sequence extends Equatable {
         case LoopConditionType.untilTime:
           // Time-based loop: estimate iterations based on available time
           if (node.repeatUntil != null && childrenSingleIteration > 0) {
-            final availableSecs = node.repeatUntil!.difference(referenceTime).inSeconds.toDouble();
+            final availableSecs = node.repeatUntil!
+                .difference(referenceTime)
+                .inSeconds
+                .toDouble();
             if (availableSecs > 0) {
               // Estimate how many iterations can fit in the time window
-              final estimatedIterations = (availableSecs / childrenSingleIteration).floor();
-              final estimatedTotal = childrenSingleIteration * estimatedIterations;
+              final estimatedIterations =
+                  (availableSecs / childrenSingleIteration).floor();
+              final estimatedTotal =
+                  childrenSingleIteration * estimatedIterations;
               return SequenceEstimate(
                 estimatedSecs: estimatedTotal,
                 singleIterationSecs: childrenSingleIteration,
@@ -2144,23 +2167,24 @@ class Sequence extends Equatable {
       createdAt: createdAt ?? this.createdAt,
       modifiedAt: modifiedAt ?? this.modifiedAt,
       isTemplate: isTemplate ?? this.isTemplate,
-      estimatedDurationMins: estimatedDurationMins ?? this.estimatedDurationMins,
+      estimatedDurationMins:
+          estimatedDurationMins ?? this.estimatedDurationMins,
     );
   }
 
   @override
   List<Object?> get props => [
-    id,
-    databaseId,
-    name,
-    description,
-    nodes,
-    rootNodeId,
-    createdAt,
-    modifiedAt,
-    isTemplate,
-    estimatedDurationMins,
-  ];
+        id,
+        databaseId,
+        name,
+        description,
+        nodes,
+        rootNodeId,
+        createdAt,
+        modifiedAt,
+        isTemplate,
+        estimatedDurationMins,
+      ];
 }
 
 /// Progress of sequence execution
@@ -2236,9 +2260,11 @@ class SequenceProgress extends Equatable {
       totalExposures: totalExposures ?? this.totalExposures,
       completedExposures: completedExposures ?? this.completedExposures,
       totalIntegrationSecs: totalIntegrationSecs ?? this.totalIntegrationSecs,
-      completedIntegrationSecs: completedIntegrationSecs ?? this.completedIntegrationSecs,
+      completedIntegrationSecs:
+          completedIntegrationSecs ?? this.completedIntegrationSecs,
       elapsedSecs: elapsedSecs ?? this.elapsedSecs,
-      estimatedRemainingSecs: estimatedRemainingSecs ?? this.estimatedRemainingSecs,
+      estimatedRemainingSecs:
+          estimatedRemainingSecs ?? this.estimatedRemainingSecs,
       currentTarget: currentTarget ?? this.currentTarget,
       currentFilter: currentFilter ?? this.currentFilter,
       message: message ?? this.message,
@@ -2250,21 +2276,21 @@ class SequenceProgress extends Equatable {
 
   @override
   List<Object?> get props => [
-    state,
-    currentNodeId,
-    currentNodeName,
-    currentNodeStatus,
-    totalExposures,
-    completedExposures,
-    totalIntegrationSecs,
-    completedIntegrationSecs,
-    elapsedSecs,
-    estimatedRemainingSecs,
-    currentTarget,
-    currentFilter,
-    message,
-    nodeStatuses,
-    nodeProgressPercent,
-    nodeProgressDetail,
-  ];
+        state,
+        currentNodeId,
+        currentNodeName,
+        currentNodeStatus,
+        totalExposures,
+        completedExposures,
+        totalIntegrationSecs,
+        completedIntegrationSecs,
+        elapsedSecs,
+        estimatedRemainingSecs,
+        currentTarget,
+        currentFilter,
+        message,
+        nodeStatuses,
+        nodeProgressPercent,
+        nodeProgressDetail,
+      ];
 }

@@ -25,12 +25,19 @@ class TransientHandlers {
 
   TransientHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'TransientHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'TransientHandlers');
+
   // ===========================================================================
   // Get Active Transients
   // ===========================================================================
 
   Future<Response> handleGetActiveTransients(Request request) async {
-    print('[API] GET /api/transients');
+    _logInfo('[API] GET /api/transients');
     try {
       final service = container.read(transientAlertServiceProvider);
 
@@ -53,7 +60,7 @@ class TransientHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get transients error: $e');
+      _logError('[API] Get transients error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -66,7 +73,7 @@ class TransientHandlers {
   // ===========================================================================
 
   Future<Response> handleGetSettings(Request request) async {
-    print('[API] GET /api/transients/settings');
+    _logInfo('[API] GET /api/transients/settings');
     try {
       final settings = _settings;
 
@@ -86,7 +93,7 @@ class TransientHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get transient settings error: $e');
+      _logError('[API] Get transient settings error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -99,7 +106,7 @@ class TransientHandlers {
   // ===========================================================================
 
   Future<Response> handleUpdateSettings(Request request) async {
-    print('[API] POST /api/transients/settings');
+    _logInfo('[API] POST /api/transients/settings');
     try {
       final payload =
           jsonDecode(await request.readAsString()) as Map<String, dynamic>;
@@ -163,7 +170,7 @@ class TransientHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Update transient settings error: $e');
+      _logError('[API] Update transient settings error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -176,7 +183,7 @@ class TransientHandlers {
   // ===========================================================================
 
   Future<Response> handleQueueTransient(Request request, String id) async {
-    print('[API] POST /api/transients/$id/queue');
+    _logInfo('[API] POST /api/transients/$id/queue');
     try {
       _queuedAlertIds.add(id);
 
@@ -189,7 +196,7 @@ class TransientHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Queue transient error: $e');
+      _logError('[API] Queue transient error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -202,7 +209,7 @@ class TransientHandlers {
   // ===========================================================================
 
   Future<Response> handleDismissTransient(Request request, String id) async {
-    print('[API] POST /api/transients/$id/dismiss');
+    _logInfo('[API] POST /api/transients/$id/dismiss');
     try {
       _dismissedAlertIds.add(id);
 
@@ -215,7 +222,7 @@ class TransientHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Dismiss transient error: $e');
+      _logError('[API] Dismiss transient error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -228,7 +235,7 @@ class TransientHandlers {
   // ===========================================================================
 
   Future<Response> handleRefreshAlerts(Request request) async {
-    print('[API] POST /api/transients/refresh');
+    _logInfo('[API] POST /api/transients/refresh');
     try {
       final service = container.read(transientAlertServiceProvider);
       service.clearCache();
@@ -238,7 +245,7 @@ class TransientHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Refresh alerts error: $e');
+      _logError('[API] Refresh alerts error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -251,7 +258,7 @@ class TransientHandlers {
   // ===========================================================================
 
   Future<Response> handleGetQueued(Request request) async {
-    print('[API] GET /api/transients/queued');
+    _logInfo('[API] GET /api/transients/queued');
     try {
       final service = container.read(transientAlertServiceProvider);
 
@@ -269,7 +276,7 @@ class TransientHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get queued error: $e');
+      _logError('[API] Get queued error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

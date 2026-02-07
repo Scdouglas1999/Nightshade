@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/database_entities.dart' as settings_models;
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/models/settings/app_settings.dart' as settings_models;
 import 'package:shelf/shelf.dart';
 
 /// Handlers for profile and settings endpoints
@@ -10,6 +10,13 @@ class ProfileHandlers {
   final ProviderContainer container;
 
   ProfileHandlers(this.container);
+
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'ProfileHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'ProfileHandlers');
 
   // ===========================================================================
   // Profiles
@@ -24,7 +31,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get profiles error: $e');
+      _logError('[API] Get profiles error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -33,7 +40,7 @@ class ProfileHandlers {
   }
 
   Future<Response> handleSaveProfile(Request request) async {
-    print('[API] POST /api/profiles');
+    _logInfo('[API] POST /api/profiles');
     try {
       final payload = jsonDecode(await request.readAsString());
       final profileJson = payload['profile'] as Map<String, dynamic>;
@@ -46,7 +53,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Save profile error: $e');
+      _logError('[API] Save profile error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -54,8 +61,9 @@ class ProfileHandlers {
     }
   }
 
-  Future<Response> handleDeleteProfile(Request request, String profileId) async {
-    print('[API] DELETE /api/profiles/$profileId');
+  Future<Response> handleDeleteProfile(
+      Request request, String profileId) async {
+    _logInfo('[API] DELETE /api/profiles/$profileId');
     try {
       final backend = container.read(backendProvider);
       await backend.deleteProfile(profileId);
@@ -64,7 +72,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Delete profile error: $e');
+      _logError('[API] Delete profile error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -73,7 +81,7 @@ class ProfileHandlers {
   }
 
   Future<Response> handleLoadProfile(Request request, String profileId) async {
-    print('[API] POST /api/profiles/$profileId/load');
+    _logInfo('[API] POST /api/profiles/$profileId/load');
     try {
       final backend = container.read(backendProvider);
       await backend.loadProfile(profileId);
@@ -82,7 +90,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Load profile error: $e');
+      _logError('[API] Load profile error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -99,7 +107,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get active profile error: $e');
+      _logError('[API] Get active profile error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -120,7 +128,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get settings error: $e');
+      _logError('[API] Get settings error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -129,7 +137,7 @@ class ProfileHandlers {
   }
 
   Future<Response> handleUpdateSettings(Request request) async {
-    print('[API] POST /api/settings');
+    _logInfo('[API] POST /api/settings');
     try {
       final payload = jsonDecode(await request.readAsString());
       final settingsJson = payload['settings'] as Map<String, dynamic>;
@@ -142,7 +150,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Update settings error: $e');
+      _logError('[API] Update settings error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -159,7 +167,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get location error: $e');
+      _logError('[API] Get location error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -168,7 +176,7 @@ class ProfileHandlers {
   }
 
   Future<Response> handleSetLocation(Request request) async {
-    print('[API] POST /api/settings/location');
+    _logInfo('[API] POST /api/settings/location');
     try {
       final payload = jsonDecode(await request.readAsString());
       final locationJson = payload['location'] as Map<String, dynamic>?;
@@ -183,7 +191,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Set location error: $e');
+      _logError('[API] Set location error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -204,7 +212,7 @@ class ProfileHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get location from internet error: $e');
+      _logError('[API] Get location from internet error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

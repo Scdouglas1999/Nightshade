@@ -383,6 +383,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<QualityTileMetricApi> dco_decode_list_quality_tile_metric_api(
+      dynamic raw);
+
+  @protected
   List<QuirkInfo> dco_decode_list_quirk_info(dynamic raw);
 
   @protected
@@ -505,6 +509,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   QhyDiscoveryStatus dco_decode_qhy_discovery_status(dynamic raw);
+
+  @protected
+  QualityFrameMetricsApi dco_decode_quality_frame_metrics_api(dynamic raw);
+
+  @protected
+  QualityMapsResultApi dco_decode_quality_maps_result_api(dynamic raw);
+
+  @protected
+  QualityTileMetricApi dco_decode_quality_tile_metric_api(dynamic raw);
 
   @protected
   QuirkInfo dco_decode_quirk_info(dynamic raw);
@@ -1019,6 +1032,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<QualityTileMetricApi> sse_decode_list_quality_tile_metric_api(
+      SseDeserializer deserializer);
+
+  @protected
   List<QuirkInfo> sse_decode_list_quirk_info(SseDeserializer deserializer);
 
   @protected
@@ -1155,6 +1172,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   QhyDiscoveryStatus sse_decode_qhy_discovery_status(
+      SseDeserializer deserializer);
+
+  @protected
+  QualityFrameMetricsApi sse_decode_quality_frame_metrics_api(
+      SseDeserializer deserializer);
+
+  @protected
+  QualityMapsResultApi sse_decode_quality_maps_result_api(
+      SseDeserializer deserializer);
+
+  @protected
+  QualityTileMetricApi sse_decode_quality_tile_metric_api(
       SseDeserializer deserializer);
 
   @protected
@@ -1823,6 +1852,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ans = wire.cst_new_list_prim_u_8_strict(raw.length);
     ans.ref.ptr.asTypedList(raw.length).setAll(0, raw);
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_quality_tile_metric_api>
+      cst_encode_list_quality_tile_metric_api(List<QualityTileMetricApi> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_quality_tile_metric_api(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_quality_tile_metric_api(raw[i], ans.ref.ptr[i]);
+    }
     return ans;
   }
 
@@ -3689,6 +3729,48 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_quality_frame_metrics_api(
+      QualityFrameMetricsApi apiObj,
+      wire_cst_quality_frame_metrics_api wireObj) {
+    wireObj.median = cst_encode_f_64(apiObj.median);
+    wireObj.mean = cst_encode_f_64(apiObj.mean);
+    wireObj.std_dev = cst_encode_f_64(apiObj.stdDev);
+    wireObj.mad = cst_encode_f_64(apiObj.mad);
+    wireObj.background = cst_encode_f_64(apiObj.background);
+    wireObj.noise = cst_encode_f_64(apiObj.noise);
+    wireObj.snr = cst_encode_f_64(apiObj.snr);
+    wireObj.dynamic_range_p1_p99 = cst_encode_f_64(apiObj.dynamicRangeP1P99);
+    wireObj.low_clip_percent = cst_encode_f_64(apiObj.lowClipPercent);
+    wireObj.high_clip_percent = cst_encode_f_64(apiObj.highClipPercent);
+    wireObj.uniformity_cv = cst_encode_f_64(apiObj.uniformityCv);
+    wireObj.gradient_x = cst_encode_f_64(apiObj.gradientX);
+    wireObj.gradient_y = cst_encode_f_64(apiObj.gradientY);
+    wireObj.processing_tier = cst_encode_String(apiObj.processingTier);
+    wireObj.processing_ms = cst_encode_u_32(apiObj.processingMs);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_quality_maps_result_api(
+      QualityMapsResultApi apiObj, wire_cst_quality_maps_result_api wireObj) {
+    cst_api_fill_to_wire_quality_frame_metrics_api(apiObj.frame, wireObj.frame);
+    wireObj.tiles = cst_encode_list_quality_tile_metric_api(apiObj.tiles);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_quality_tile_metric_api(
+      QualityTileMetricApi apiObj, wire_cst_quality_tile_metric_api wireObj) {
+    wireObj.layer_type = cst_encode_String(apiObj.layerType);
+    wireObj.tile_row = cst_encode_u_32(apiObj.tileRow);
+    wireObj.tile_col = cst_encode_u_32(apiObj.tileCol);
+    wireObj.sample_count = cst_encode_u_32(apiObj.sampleCount);
+    wireObj.value = cst_encode_f_64(apiObj.value);
+    wireObj.p05 = cst_encode_f_64(apiObj.p05);
+    wireObj.p50 = cst_encode_f_64(apiObj.p50);
+    wireObj.p95 = cst_encode_f_64(apiObj.p95);
+    wireObj.aux_value = cst_encode_f_64(apiObj.auxValue);
+  }
+
+  @protected
   void cst_api_fill_to_wire_quirk_info(
       QuirkInfo apiObj, wire_cst_quirk_info wireObj) {
     wireObj.category = cst_encode_String(apiObj.category);
@@ -4632,6 +4714,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       Uint8List self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_quality_tile_metric_api(
+      List<QualityTileMetricApi> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_quirk_info(
       List<QuirkInfo> self, SseSerializer serializer);
 
@@ -4780,6 +4866,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_qhy_discovery_status(
       QhyDiscoveryStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_quality_frame_metrics_api(
+      QualityFrameMetricsApi self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_quality_maps_result_api(
+      QualityMapsResultApi self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_quality_tile_metric_api(
+      QualityTileMetricApi self, SseSerializer serializer);
 
   @protected
   void sse_encode_quirk_info(QuirkInfo self, SseSerializer serializer);
@@ -5303,6 +5401,89 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__api_clear_device_image =
       _wire__crate__api__api_clear_device_imagePtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__api_compute_fits_quality_maps(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
+    int grid_rows,
+    int grid_cols,
+    int low_clip_adu,
+    int high_clip_adu,
+  ) {
+    return _wire__crate__api__api_compute_fits_quality_maps(
+      port_,
+      file_path,
+      grid_rows,
+      grid_cols,
+      low_clip_adu,
+      high_clip_adu,
+    );
+  }
+
+  late final _wire__crate__api__api_compute_fits_quality_mapsPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Uint32,
+            ffi.Uint32,
+            ffi.Uint32,
+            ffi.Uint32,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_compute_fits_quality_maps',
+  );
+  late final _wire__crate__api__api_compute_fits_quality_maps =
+      _wire__crate__api__api_compute_fits_quality_mapsPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            int,
+            int,
+            int,
+          )>();
+
+  void wire__crate__api__api_compute_last_capture_quality_maps(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    int grid_rows,
+    int grid_cols,
+    int low_clip_adu,
+    int high_clip_adu,
+  ) {
+    return _wire__crate__api__api_compute_last_capture_quality_maps(
+      port_,
+      device_id,
+      grid_rows,
+      grid_cols,
+      low_clip_adu,
+      high_clip_adu,
+    );
+  }
+
+  late final _wire__crate__api__api_compute_last_capture_quality_mapsPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Uint32,
+                ffi.Uint32,
+                ffi.Uint32,
+                ffi.Uint32,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__api_compute_last_capture_quality_maps',
+  );
+  late final _wire__crate__api__api_compute_last_capture_quality_maps =
+      _wire__crate__api__api_compute_last_capture_quality_mapsPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            int,
+            int,
+            int,
+          )>();
 
   void wire__crate__api__api_connect_device(
     int port_,
@@ -11514,6 +11695,20 @@ class RustLibWire implements BaseWire {
   late final _cst_new_list_prim_u_8_strict = _cst_new_list_prim_u_8_strictPtr
       .asFunction<ffi.Pointer<wire_cst_list_prim_u_8_strict> Function(int)>();
 
+  ffi.Pointer<wire_cst_list_quality_tile_metric_api>
+      cst_new_list_quality_tile_metric_api(int len) {
+    return _cst_new_list_quality_tile_metric_api(len);
+  }
+
+  late final _cst_new_list_quality_tile_metric_apiPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_list_quality_tile_metric_api> Function(
+                  ffi.Int32)>>(
+      'frbgen_nightshade_bridge_cst_new_list_quality_tile_metric_api');
+  late final _cst_new_list_quality_tile_metric_api =
+      _cst_new_list_quality_tile_metric_apiPtr.asFunction<
+          ffi.Pointer<wire_cst_list_quality_tile_metric_api> Function(int)>();
+
   ffi.Pointer<wire_cst_list_quirk_info> cst_new_list_quirk_info(int len) {
     return _cst_new_list_quirk_info(len);
   }
@@ -13053,6 +13248,41 @@ final class wire_cst_list_prim_u_32_strict extends ffi.Struct {
   external int len;
 }
 
+final class wire_cst_quality_tile_metric_api extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> layer_type;
+
+  @ffi.Uint32()
+  external int tile_row;
+
+  @ffi.Uint32()
+  external int tile_col;
+
+  @ffi.Uint32()
+  external int sample_count;
+
+  @ffi.Double()
+  external double value;
+
+  @ffi.Double()
+  external double p05;
+
+  @ffi.Double()
+  external double p50;
+
+  @ffi.Double()
+  external double p95;
+
+  @ffi.Double()
+  external double aux_value;
+}
+
+final class wire_cst_list_quality_tile_metric_api extends ffi.Struct {
+  external ffi.Pointer<wire_cst_quality_tile_metric_api> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
 final class wire_cst_quirk_info extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> category;
 
@@ -13999,6 +14229,58 @@ final class wire_cst_qhy_discovery_status extends ffi.Struct {
 
   @ffi.Uint64()
   external int timeout_ms;
+}
+
+final class wire_cst_quality_frame_metrics_api extends ffi.Struct {
+  @ffi.Double()
+  external double median;
+
+  @ffi.Double()
+  external double mean;
+
+  @ffi.Double()
+  external double std_dev;
+
+  @ffi.Double()
+  external double mad;
+
+  @ffi.Double()
+  external double background;
+
+  @ffi.Double()
+  external double noise;
+
+  @ffi.Double()
+  external double snr;
+
+  @ffi.Double()
+  external double dynamic_range_p1_p99;
+
+  @ffi.Double()
+  external double low_clip_percent;
+
+  @ffi.Double()
+  external double high_clip_percent;
+
+  @ffi.Double()
+  external double uniformity_cv;
+
+  @ffi.Double()
+  external double gradient_x;
+
+  @ffi.Double()
+  external double gradient_y;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> processing_tier;
+
+  @ffi.Uint32()
+  external int processing_ms;
+}
+
+final class wire_cst_quality_maps_result_api extends ffi.Struct {
+  external wire_cst_quality_frame_metrics_api frame;
+
+  external ffi.Pointer<wire_cst_list_quality_tile_metric_api> tiles;
 }
 
 final class wire_cst_record_f_64_f_64 extends ffi.Struct {

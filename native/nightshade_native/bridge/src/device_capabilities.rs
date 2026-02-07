@@ -413,8 +413,7 @@ pub async fn get_device_capabilities(
     // Use cached parsing for better performance
     let parsed = parse_device_id_cached(device_id)?;
 
-    // For now, return basic capabilities
-    // Full implementation would query the actual device
+    // Return capability data from the backend-specific capability providers.
     match parsed.driver_type {
         crate::device::DriverType::Alpaca => get_alpaca_capabilities(device_id).await,
         crate::device::DriverType::Ascom => get_ascom_capabilities(device_id).await,
@@ -1331,15 +1330,18 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
             let native_mounts = mgr.native_mounts.read().await;
             if let Some(mount) = native_mounts.get(device_id) {
                 let tracking = mount.get_tracking().await.ok();
+                let can_set_tracking = tracking.is_some();
+                let can_park = mount.is_parked().await.is_ok();
+                let can_abort_slew = mount.is_slewing().await.is_ok();
                 Ok(DeviceCapabilities::Mount(MountCapabilities {
                     can_slew: true,
                     can_slew_async: true,
                     can_sync: true,
-                    can_park: true,
-                    can_unpark: true,
+                    can_park,
+                    can_unpark: can_park,
                     can_pulse_guide: true,
-                    can_set_tracking: true,
-                    can_abort_slew: true,
+                    can_set_tracking,
+                    can_abort_slew,
                     is_equatorial: true,
                     tracking,
                     axis_count: 2,
@@ -1406,9 +1408,129 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 ))
             }
         }
+        crate::device::DeviceType::Dome => {
+            let native_domes = mgr.native_domes.read().await;
+            if let Some(dome) = native_domes.get(device_id) {
+                let azimuth = dome.get_azimuth().await.ok();
+                let slewing_result = dome.is_slewing().await;
+                let can_abort = slewing_result.is_ok();
+                let slewing = slewing_result.unwrap_or(false);
+                let at_home_result = dome.is_at_home().await;
+                let can_find_home = at_home_result.is_ok();
+                let at_home = at_home_result.unwrap_or(false);
+                let at_park_result = dome.is_parked().await;
+                let can_park = at_park_result.is_ok();
+                let at_park = at_park_result.unwrap_or(false);
+                let slaved = dome.is_slaved().await.unwrap_or(false);
+                let shutter_status =
+                    dome.get_shutter_status()
+                        .await
+                        .ok()
+                        .map(|status| match status {
+                            nightshade_native::traits::ShutterState::Open => ShutterStatus::Open,
+                            nightshade_native::traits::ShutterState::Closed => {
+                                ShutterStatus::Closed
+                            }
+                            nightshade_native::traits::ShutterState::Opening => {
+                                ShutterStatus::Opening
+                            }
+                            nightshade_native::traits::ShutterState::Closing => {
+                                ShutterStatus::Closing
+                            }
+                            nightshade_native::traits::ShutterState::Error => {
+                                ShutterStatus::Unknown
+                            }
+                            nightshade_native::traits::ShutterState::Unknown => {
+                                ShutterStatus::Unknown
+                            }
+                        });
+
+                Ok(DeviceCapabilities::Dome(DomeCapabilities {
+                    can_set_azimuth: dome.can_set_azimuth(),
+                    can_park,
+                    can_find_home,
+                    can_set_shutter: dome.can_set_shutter(),
+                    can_sync_azimuth: false,
+                    azimuth,
+                    slewing,
+                    at_home,
+                    at_park,
+                    shutter_status,
+                    can_slave: dome.can_slave(),
+                    slaved,
+                    can_abort,
+                }))
+            } else {
+                Err(NightshadeError::hardware_error(
+                    device_id,
+                    "Native dome not connected",
+                ))
+            }
+        }
+        crate::device::DeviceType::Weather => {
+            let native_weather = mgr.native_weather.read().await;
+            if let Some(weather) = native_weather.get(device_id) {
+                let has_cloud_cover = weather.get_cloud_cover().await.ok().flatten().is_some();
+                let has_dew_point = weather.get_dew_point().await.ok().flatten().is_some();
+                let has_humidity = weather.get_humidity().await.ok().flatten().is_some();
+                let has_pressure = weather.get_pressure().await.ok().flatten().is_some();
+                let has_rain_rate = weather.get_rain_rate().await.ok().flatten().is_some();
+                let has_sky_quality = weather.get_sky_quality().await.ok().flatten().is_some();
+                let has_temperature = weather.get_temperature().await.ok().flatten().is_some();
+                let has_wind_direction =
+                    weather.get_wind_direction().await.ok().flatten().is_some();
+                let has_wind_speed = weather.get_wind_speed().await.ok().flatten().is_some();
+
+                Ok(DeviceCapabilities::Weather(WeatherCapabilities {
+                    has_cloud_cover,
+                    has_dew_point,
+                    has_humidity,
+                    has_pressure,
+                    has_rain_rate,
+                    has_sky_quality,
+                    has_temperature,
+                    has_wind_direction,
+                    has_wind_speed,
+                    has_sky_brightness: false,
+                    has_sky_temperature: false,
+                    has_seeing: false,
+                    has_wind_gust: false,
+                    average_period: None,
+                }))
+            } else {
+                Err(NightshadeError::hardware_error(
+                    device_id,
+                    "Native weather station not connected",
+                ))
+            }
+        }
+        crate::device::DeviceType::SafetyMonitor => {
+            let native_safety = mgr.native_safety_monitors.read().await;
+            if let Some(safety) = native_safety.get(device_id) {
+                let is_safe = safety.is_safe().await.unwrap_or(false);
+                Ok(DeviceCapabilities::SafetyMonitor(
+                    SafetyMonitorCapabilities {
+                        is_safe,
+                        safety_description: None,
+                    },
+                ))
+            } else {
+                Err(NightshadeError::hardware_error(
+                    device_id,
+                    "Native safety monitor not connected",
+                ))
+            }
+        }
+        crate::device::DeviceType::Switch => Err(NightshadeError::not_supported(
+            device_id,
+            "Native switch capabilities are unavailable in the current native backend",
+        )),
         _ => Err(NightshadeError::not_supported(
             device_id,
-            &format!("Native capabilities not implemented for {:?}", device_type),
+            &format!(
+                "Native capabilities are unavailable for device type {:?}",
+                device_type
+            ),
         )),
     }
 }

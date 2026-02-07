@@ -92,26 +92,27 @@ class DeviceError extends Equatable {
     }
 
     final message = error.toString();
+    final normalized = message.toLowerCase();
 
     // Try to categorize the error from the message
     DeviceErrorType type = DeviceErrorType.unknown;
     bool recoverable = true;
 
-    if (message.toLowerCase().contains('timeout')) {
+    if (normalized.contains('timeout') || normalized.contains('timed out')) {
       type = DeviceErrorType.timeout;
-    } else if (message.toLowerCase().contains('not found') ||
-        message.toLowerCase().contains('notfound')) {
+    } else if (normalized.contains('not found') ||
+        normalized.contains('notfound')) {
       type = DeviceErrorType.deviceNotFound;
       recoverable = false;
-    } else if (message.toLowerCase().contains('connection') ||
-        message.toLowerCase().contains('connect')) {
+    } else if (normalized.contains('connection') ||
+        normalized.contains('connect')) {
       type = DeviceErrorType.connectionFailed;
-    } else if (message.toLowerCase().contains('driver')) {
+    } else if (normalized.contains('driver')) {
       type = DeviceErrorType.driverError;
-    } else if (message.toLowerCase().contains('busy')) {
+    } else if (normalized.contains('busy')) {
       type = DeviceErrorType.busy;
-    } else if (message.toLowerCase().contains('permission') ||
-        message.toLowerCase().contains('denied')) {
+    } else if (normalized.contains('permission') ||
+        normalized.contains('denied')) {
       type = DeviceErrorType.permissionDenied;
       recoverable = false;
     }
@@ -275,7 +276,7 @@ class CameraState extends Equatable {
   }
 
   /// Clear error and return a new state
-  CameraState clearError() => copyWith(lastError: null);
+  CameraState clearError() => copyWith(clearError: true);
 
   CameraState copyWith({
     DeviceConnectionState? connectionState,

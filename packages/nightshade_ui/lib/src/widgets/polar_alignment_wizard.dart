@@ -12,7 +12,8 @@ class PolarAlignmentWizard extends ConsumerStatefulWidget {
   const PolarAlignmentWizard({super.key});
 
   @override
-  ConsumerState<PolarAlignmentWizard> createState() => _PolarAlignmentWizardState();
+  ConsumerState<PolarAlignmentWizard> createState() =>
+      _PolarAlignmentWizardState();
 }
 
 class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
@@ -25,14 +26,14 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
   bool _startFromCurrent = true;
   bool _isNorth = true;
   bool _manualSlew = false;
-  
+
   // State
   bool _isRunning = false;
   String _statusMessage = 'Ready to start';
   double? _azimuthError;
   double? _altitudeError;
   double? _totalError;
-  
+
   // Stream subscription
   StreamSubscription? _eventSubscription;
 
@@ -71,7 +72,7 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
 
     // Load and start sequence via provider
     ref.read(currentSequenceProvider.notifier).loadSequence(sequence);
-    
+
     try {
       // Subscribe to events using the generated API
       _eventSubscription?.cancel();
@@ -95,24 +96,25 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
           _azimuthError = e.azimuthError;
           _altitudeError = e.altitudeError;
           _totalError = e.totalError;
-          _statusMessage = 'Adjusting... Error: ${e.totalError.toStringAsFixed(1)}\'';
+          _statusMessage =
+              'Adjusting... Error: ${e.totalError.toStringAsFixed(1)}\'';
         });
       }
     } else if (event.category == bridge_event.EventCategory.sequencer) {
-       // Handle completion/failure
-       final payload = event.payload;
-       if (payload is bridge_event.EventPayload_Sequencer) {
-         final seqEvent = payload.field0;
-         if (seqEvent is bridge_event.SequencerEvent_NodeCompleted) {
-           // Check if success or failure
-           if (seqEvent.success) {
-             setState(() {
-               _isRunning = false;
-               _statusMessage = 'Alignment complete!';
-             });
-           }
-         }
-       }
+      // Handle completion/failure
+      final payload = event.payload;
+      if (payload is bridge_event.EventPayload_Sequencer) {
+        final seqEvent = payload.field0;
+        if (seqEvent is bridge_event.SequencerEvent_NodeCompleted) {
+          // Check if success or failure
+          if (seqEvent.success) {
+            setState(() {
+              _isRunning = false;
+              _statusMessage = 'Alignment complete!';
+            });
+          }
+        }
+      }
     }
   }
 
@@ -133,7 +135,8 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Three-Point Polar Alignment', style: Theme.of(context).textTheme.titleLarge),
+              Text('Three-Point Polar Alignment',
+                  style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
               if (!_isRunning) ...[
                 _buildConfig(),
@@ -171,16 +174,19 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
                 initialValue: _exposureDuration.toString(),
                 decoration: const InputDecoration(labelText: 'Exposure (s)'),
                 keyboardType: TextInputType.number,
-                onChanged: (v) => _exposureDuration = double.tryParse(v) ?? _exposureDuration,
+                onChanged: (v) =>
+                    _exposureDuration = double.tryParse(v) ?? _exposureDuration,
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: TextFormField(
                 initialValue: _rotationStep.toString(),
-                decoration: const InputDecoration(labelText: 'Rotation Step (deg)'),
+                decoration:
+                    const InputDecoration(labelText: 'Rotation Step (deg)'),
                 keyboardType: TextInputType.number,
-                onChanged: (v) => _rotationStep = double.tryParse(v) ?? _rotationStep,
+                onChanged: (v) =>
+                    _rotationStep = double.tryParse(v) ?? _rotationStep,
               ),
             ),
           ],
@@ -200,7 +206,8 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
             Expanded(
               child: TextFormField(
                 initialValue: _offset?.toString() ?? '',
-                decoration: const InputDecoration(labelText: 'Offset (Optional)'),
+                decoration:
+                    const InputDecoration(labelText: 'Offset (Optional)'),
                 keyboardType: TextInputType.number,
                 onChanged: (v) => _offset = int.tryParse(v),
               ),
@@ -227,18 +234,23 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
             DropdownMenuItem(value: true, child: Text('North')),
             DropdownMenuItem(value: false, child: Text('South')),
           ],
-          onChanged: (v) => setState(() => _isNorth = v ?? true),
+          onChanged: (v) {
+            if (v == null) return;
+            setState(() => _isNorth = v);
+          },
         ),
         const SizedBox(height: 16),
         SwitchListTile(
           title: const Text('Start from Current Location'),
-          subtitle: const Text('If disabled, mount will slew to near-pole position first'),
+          subtitle: const Text(
+              'If disabled, mount will slew to near-pole position first'),
           value: _startFromCurrent,
           onChanged: (v) => setState(() => _startFromCurrent = v),
         ),
         SwitchListTile(
           title: const Text('Manual Slew'),
-          subtitle: const Text('For trackers without GoTo. You will be prompted to rotate.'),
+          subtitle: const Text(
+              'For trackers without GoTo. You will be prompted to rotate.'),
           value: _manualSlew,
           onChanged: (v) => setState(() => _manualSlew = v),
         ),
@@ -251,15 +263,17 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
   }
 
   Widget _buildErrorDisplay() {
-    if (_azimuthError == null || _altitudeError == null) return const SizedBox.shrink();
-    
+    if (_azimuthError == null || _altitudeError == null)
+      return const SizedBox.shrink();
+
     return Column(
       children: [
         _buildErrorBar('Azimuth', _azimuthError!),
         const SizedBox(height: 8),
         _buildErrorBar('Altitude', _altitudeError!),
         const SizedBox(height: 8),
-        Text('Total Error: ${_totalError?.toStringAsFixed(1)}\'', style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text('Total Error: ${_totalError?.toStringAsFixed(1)}\'',
+            style: const TextStyle(fontWeight: FontWeight.bold)),
       ],
     );
   }
@@ -276,7 +290,10 @@ class _PolarAlignmentWizardState extends ConsumerState<PolarAlignmentWizard> {
             backgroundColor: Colors.grey[800],
           ),
         ),
-        SizedBox(width: 60, child: Text('${error.toStringAsFixed(1)}\'', textAlign: TextAlign.end)),
+        SizedBox(
+            width: 60,
+            child: Text('${error.toStringAsFixed(1)}\'',
+                textAlign: TextAlign.end)),
       ],
     );
   }

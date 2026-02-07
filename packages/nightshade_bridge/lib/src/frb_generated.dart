@@ -76,7 +76,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1514280401;
+  int get rustContentHash => -2105894733;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -144,6 +144,20 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiApiCancelAutofocus();
 
   Future<void> crateApiApiClearDeviceImage({required String deviceId});
+
+  Future<QualityMapsResultApi> crateApiApiComputeFitsQualityMaps(
+      {required String filePath,
+      required int gridRows,
+      required int gridCols,
+      required int lowClipAdu,
+      required int highClipAdu});
+
+  Future<QualityMapsResultApi> crateApiApiComputeLastCaptureQualityMaps(
+      {required String deviceId,
+      required int gridRows,
+      required int gridCols,
+      required int lowClipAdu,
+      required int highClipAdu});
 
   Future<void> crateApiApiConnectDevice(
       {required DeviceType deviceType, required String deviceId});
@@ -1362,6 +1376,84 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_clear_device_image",
         argNames: ["deviceId"],
+      );
+
+  @override
+  Future<QualityMapsResultApi> crateApiApiComputeFitsQualityMaps(
+      {required String filePath,
+      required int gridRows,
+      required int gridCols,
+      required int lowClipAdu,
+      required int highClipAdu}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(filePath);
+        var arg1 = cst_encode_u_32(gridRows);
+        var arg2 = cst_encode_u_32(gridCols);
+        var arg3 = cst_encode_u_32(lowClipAdu);
+        var arg4 = cst_encode_u_32(highClipAdu);
+        return wire.wire__crate__api__api_compute_fits_quality_maps(
+            port_, arg0, arg1, arg2, arg3, arg4);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_quality_maps_result_api,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiComputeFitsQualityMapsConstMeta,
+      argValues: [filePath, gridRows, gridCols, lowClipAdu, highClipAdu],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiComputeFitsQualityMapsConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_compute_fits_quality_maps",
+        argNames: [
+          "filePath",
+          "gridRows",
+          "gridCols",
+          "lowClipAdu",
+          "highClipAdu"
+        ],
+      );
+
+  @override
+  Future<QualityMapsResultApi> crateApiApiComputeLastCaptureQualityMaps(
+      {required String deviceId,
+      required int gridRows,
+      required int gridCols,
+      required int lowClipAdu,
+      required int highClipAdu}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        var arg1 = cst_encode_u_32(gridRows);
+        var arg2 = cst_encode_u_32(gridCols);
+        var arg3 = cst_encode_u_32(lowClipAdu);
+        var arg4 = cst_encode_u_32(highClipAdu);
+        return wire.wire__crate__api__api_compute_last_capture_quality_maps(
+            port_, arg0, arg1, arg2, arg3, arg4);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_quality_maps_result_api,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiApiComputeLastCaptureQualityMapsConstMeta,
+      argValues: [deviceId, gridRows, gridCols, lowClipAdu, highClipAdu],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiComputeLastCaptureQualityMapsConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_compute_last_capture_quality_maps",
+        argNames: [
+          "deviceId",
+          "gridRows",
+          "gridCols",
+          "lowClipAdu",
+          "highClipAdu"
+        ],
       );
 
   @override
@@ -9325,6 +9417,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<QualityTileMetricApi> dco_decode_list_quality_tile_metric_api(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_quality_tile_metric_api)
+        .toList();
+  }
+
+  @protected
   List<QuirkInfo> dco_decode_list_quirk_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_quirk_info).toList();
@@ -9906,6 +10007,62 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       sdkAvailable: dco_decode_bool(arr[0]),
       discoveryEnabled: dco_decode_bool(arr[1]),
       timeoutMs: dco_decode_u_64(arr[2]),
+    );
+  }
+
+  @protected
+  QualityFrameMetricsApi dco_decode_quality_frame_metrics_api(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 15)
+      throw Exception('unexpected arr length: expect 15 but see ${arr.length}');
+    return QualityFrameMetricsApi(
+      median: dco_decode_f_64(arr[0]),
+      mean: dco_decode_f_64(arr[1]),
+      stdDev: dco_decode_f_64(arr[2]),
+      mad: dco_decode_f_64(arr[3]),
+      background: dco_decode_f_64(arr[4]),
+      noise: dco_decode_f_64(arr[5]),
+      snr: dco_decode_f_64(arr[6]),
+      dynamicRangeP1P99: dco_decode_f_64(arr[7]),
+      lowClipPercent: dco_decode_f_64(arr[8]),
+      highClipPercent: dco_decode_f_64(arr[9]),
+      uniformityCv: dco_decode_f_64(arr[10]),
+      gradientX: dco_decode_f_64(arr[11]),
+      gradientY: dco_decode_f_64(arr[12]),
+      processingTier: dco_decode_String(arr[13]),
+      processingMs: dco_decode_u_32(arr[14]),
+    );
+  }
+
+  @protected
+  QualityMapsResultApi dco_decode_quality_maps_result_api(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return QualityMapsResultApi(
+      frame: dco_decode_quality_frame_metrics_api(arr[0]),
+      tiles: dco_decode_list_quality_tile_metric_api(arr[1]),
+    );
+  }
+
+  @protected
+  QualityTileMetricApi dco_decode_quality_tile_metric_api(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return QualityTileMetricApi(
+      layerType: dco_decode_String(arr[0]),
+      tileRow: dco_decode_u_32(arr[1]),
+      tileCol: dco_decode_u_32(arr[2]),
+      sampleCount: dco_decode_u_32(arr[3]),
+      value: dco_decode_f_64(arr[4]),
+      p05: dco_decode_f_64(arr[5]),
+      p50: dco_decode_f_64(arr[6]),
+      p95: dco_decode_f_64(arr[7]),
+      auxValue: dco_decode_f_64(arr[8]),
     );
   }
 
@@ -12201,6 +12358,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<QualityTileMetricApi> sse_decode_list_quality_tile_metric_api(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <QualityTileMetricApi>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_quality_tile_metric_api(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<QuirkInfo> sse_decode_list_quirk_info(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -12967,6 +13137,77 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sdkAvailable: var_sdkAvailable,
         discoveryEnabled: var_discoveryEnabled,
         timeoutMs: var_timeoutMs);
+  }
+
+  @protected
+  QualityFrameMetricsApi sse_decode_quality_frame_metrics_api(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_median = sse_decode_f_64(deserializer);
+    var var_mean = sse_decode_f_64(deserializer);
+    var var_stdDev = sse_decode_f_64(deserializer);
+    var var_mad = sse_decode_f_64(deserializer);
+    var var_background = sse_decode_f_64(deserializer);
+    var var_noise = sse_decode_f_64(deserializer);
+    var var_snr = sse_decode_f_64(deserializer);
+    var var_dynamicRangeP1P99 = sse_decode_f_64(deserializer);
+    var var_lowClipPercent = sse_decode_f_64(deserializer);
+    var var_highClipPercent = sse_decode_f_64(deserializer);
+    var var_uniformityCv = sse_decode_f_64(deserializer);
+    var var_gradientX = sse_decode_f_64(deserializer);
+    var var_gradientY = sse_decode_f_64(deserializer);
+    var var_processingTier = sse_decode_String(deserializer);
+    var var_processingMs = sse_decode_u_32(deserializer);
+    return QualityFrameMetricsApi(
+        median: var_median,
+        mean: var_mean,
+        stdDev: var_stdDev,
+        mad: var_mad,
+        background: var_background,
+        noise: var_noise,
+        snr: var_snr,
+        dynamicRangeP1P99: var_dynamicRangeP1P99,
+        lowClipPercent: var_lowClipPercent,
+        highClipPercent: var_highClipPercent,
+        uniformityCv: var_uniformityCv,
+        gradientX: var_gradientX,
+        gradientY: var_gradientY,
+        processingTier: var_processingTier,
+        processingMs: var_processingMs);
+  }
+
+  @protected
+  QualityMapsResultApi sse_decode_quality_maps_result_api(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_frame = sse_decode_quality_frame_metrics_api(deserializer);
+    var var_tiles = sse_decode_list_quality_tile_metric_api(deserializer);
+    return QualityMapsResultApi(frame: var_frame, tiles: var_tiles);
+  }
+
+  @protected
+  QualityTileMetricApi sse_decode_quality_tile_metric_api(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_layerType = sse_decode_String(deserializer);
+    var var_tileRow = sse_decode_u_32(deserializer);
+    var var_tileCol = sse_decode_u_32(deserializer);
+    var var_sampleCount = sse_decode_u_32(deserializer);
+    var var_value = sse_decode_f_64(deserializer);
+    var var_p05 = sse_decode_f_64(deserializer);
+    var var_p50 = sse_decode_f_64(deserializer);
+    var var_p95 = sse_decode_f_64(deserializer);
+    var var_auxValue = sse_decode_f_64(deserializer);
+    return QualityTileMetricApi(
+        layerType: var_layerType,
+        tileRow: var_tileRow,
+        tileCol: var_tileCol,
+        sampleCount: var_sampleCount,
+        value: var_value,
+        p05: var_p05,
+        p50: var_p50,
+        p95: var_p95,
+        auxValue: var_auxValue);
   }
 
   @protected
@@ -15103,6 +15344,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_quality_tile_metric_api(
+      List<QualityTileMetricApi> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_quality_tile_metric_api(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_quirk_info(
       List<QuirkInfo> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -15750,6 +16001,50 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.sdkAvailable, serializer);
     sse_encode_bool(self.discoveryEnabled, serializer);
     sse_encode_u_64(self.timeoutMs, serializer);
+  }
+
+  @protected
+  void sse_encode_quality_frame_metrics_api(
+      QualityFrameMetricsApi self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.median, serializer);
+    sse_encode_f_64(self.mean, serializer);
+    sse_encode_f_64(self.stdDev, serializer);
+    sse_encode_f_64(self.mad, serializer);
+    sse_encode_f_64(self.background, serializer);
+    sse_encode_f_64(self.noise, serializer);
+    sse_encode_f_64(self.snr, serializer);
+    sse_encode_f_64(self.dynamicRangeP1P99, serializer);
+    sse_encode_f_64(self.lowClipPercent, serializer);
+    sse_encode_f_64(self.highClipPercent, serializer);
+    sse_encode_f_64(self.uniformityCv, serializer);
+    sse_encode_f_64(self.gradientX, serializer);
+    sse_encode_f_64(self.gradientY, serializer);
+    sse_encode_String(self.processingTier, serializer);
+    sse_encode_u_32(self.processingMs, serializer);
+  }
+
+  @protected
+  void sse_encode_quality_maps_result_api(
+      QualityMapsResultApi self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_quality_frame_metrics_api(self.frame, serializer);
+    sse_encode_list_quality_tile_metric_api(self.tiles, serializer);
+  }
+
+  @protected
+  void sse_encode_quality_tile_metric_api(
+      QualityTileMetricApi self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.layerType, serializer);
+    sse_encode_u_32(self.tileRow, serializer);
+    sse_encode_u_32(self.tileCol, serializer);
+    sse_encode_u_32(self.sampleCount, serializer);
+    sse_encode_f_64(self.value, serializer);
+    sse_encode_f_64(self.p05, serializer);
+    sse_encode_f_64(self.p50, serializer);
+    sse_encode_f_64(self.p95, serializer);
+    sse_encode_f_64(self.auxValue, serializer);
   }
 
   @protected

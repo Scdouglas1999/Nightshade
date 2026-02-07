@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../models/weather/weather_models.dart';
@@ -139,7 +140,7 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
       final response = await client.get(uri);
 
       if (response.statusCode != 200) {
-        print('Cloud cover fetch failed: ${response.statusCode}');
+        developer.log('Cloud cover fetch failed: ${response.statusCode}', name: 'Weather', level: 900);
         return null;
       }
 
@@ -152,7 +153,7 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
 
       final cloudCover = current['cloud_cover'];
       if (cloudCover is num) {
-        print('Current cloud cover: ${cloudCover.toDouble()}%');
+        developer.log('Current cloud cover: ${cloudCover.toDouble()}%', name: 'Weather');
         return cloudCover.toDouble();
       }
 
@@ -161,7 +162,7 @@ final cloudCoverPercentageProvider = FutureProvider<double?>((ref) async {
       client.close();
     }
   } catch (e) {
-    print('Error fetching cloud cover: $e');
+    developer.log('Error fetching cloud cover: $e', name: 'Weather', level: 1000);
     return null;
   }
 });
@@ -178,7 +179,7 @@ final weatherRadarFramesProvider = FutureProvider<List<RadarFrame>>((ref) async 
   final appSettings = ref.watch(appSettingsProvider).valueOrNull;
 
   if (appSettings == null) {
-    print('WeatherRadarFramesProvider: No app settings yet, returning empty');
+    developer.log('No app settings yet, returning empty', name: 'WeatherRadar');
     return [];
   }
 
@@ -187,11 +188,11 @@ final weatherRadarFramesProvider = FutureProvider<List<RadarFrame>>((ref) async 
 
   // Skip fetch if location not set
   if (latitude == 0.0 && longitude == 0.0) {
-    print('WeatherRadarFramesProvider: Location not set, returning empty');
+    developer.log('Location not set, returning empty', name: 'WeatherRadar');
     return [];
   }
 
-  print('WeatherRadarFramesProvider: Fetching for location ($latitude, $longitude)');
+  developer.log('Fetching for location ($latitude, $longitude)', name: 'WeatherRadar');
 
   final radarService = ref.read(weatherRadarServiceProvider);
 
@@ -205,10 +206,10 @@ final weatherRadarFramesProvider = FutureProvider<List<RadarFrame>>((ref) async 
   );
 
   if (result.isSuccess) {
-    print('WeatherRadarFramesProvider: Got ${result.frames.length} frames');
+    developer.log('Got ${result.frames.length} frames', name: 'WeatherRadar');
     return result.frames;
   } else {
-    print('WeatherRadarFramesProvider: Fetch failed - ${result.errorMessage}');
+    developer.log('Fetch failed - ${result.errorMessage}', name: 'WeatherRadar', level: 900);
     // Return empty list instead of throwing to avoid breaking the UI
     return [];
   }

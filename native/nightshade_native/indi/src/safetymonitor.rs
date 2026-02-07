@@ -121,9 +121,8 @@ impl IndiSafetyMonitor {
             return Ok(false);
         }
 
-        // If we have no safety indicators, assume safe (fail-open)
-        // The caller should check is_monitoring_available() first
-        Ok(true)
+        // Fail-closed when no safety indicators are available.
+        Ok(false)
     }
 
     /// Check if any safety monitoring is available

@@ -56,6 +56,15 @@ class TargetVisibilityInfo {
   final double airmass;
   final double moonDistance;
 
+  /// Peak altitude during the night window (populated by scoreTargetForNight)
+  final double? peakAltitude;
+
+  /// Time when peak altitude occurs during the night (populated by scoreTargetForNight)
+  final DateTime? peakAltitudeTime;
+
+  /// Hours the target is above minimum imaging altitude during the night
+  final double? hoursAboveMinAlt;
+
   const TargetVisibilityInfo({
     required this.currentAltitude,
     required this.currentAzimuth,
@@ -67,6 +76,9 @@ class TargetVisibilityInfo {
     this.neverRises = false,
     required this.airmass,
     required this.moonDistance,
+    this.peakAltitude,
+    this.peakAltitudeTime,
+    this.hoursAboveMinAlt,
   });
 }
 
@@ -193,6 +205,171 @@ class TargetScoringService {
       airmass: airmass,
       moonDist: moonDist,
       visibility: visibility,
+    );
+
+    // Calculate weighted total score
+    final totalScore = (altScore * weights.altitudeWeight +
+            moonScore * weights.moonDistanceWeight +
+            transitScore * weights.transitProximityWeight +
+            darknessScore * weights.darknessWeight +
+            airmassScore * weights.airmassWeight) /
+        (weights.altitudeWeight +
+            weights.moonDistanceWeight +
+            weights.transitProximityWeight +
+            weights.darknessWeight +
+            weights.airmassWeight);
+
+    return TargetScore(
+      target: target,
+      totalScore: totalScore,
+      altitudeScore: altScore,
+      moonDistanceScore: moonScore,
+      transitProximityScore: transitScore,
+      darknessScore: darknessScore,
+      airmassScore: airmassScore,
+      warnings: warnings,
+      visibility: visibilityInfo,
+    );
+  }
+
+  /// Score a target based on the entire night window rather than a single moment.
+  ///
+  /// Samples the target's position at 15-minute intervals throughout the night
+  /// (from [nightStart] to [nightEnd]) and scores based on peak conditions:
+  /// - Altitude score uses the peak altitude during the night
+  /// - Airmass score uses the best (lowest) airmass during the night
+  /// - Transit proximity scores whether transit falls within the night window
+  /// - Darkness score is replaced by imaging window duration
+  /// - Moon distance is evaluated at the time of peak altitude
+  ///
+  /// Targets that never rise above [minAltitude] during the night receive a
+  /// total score of 0.
+  TargetScore scoreTargetForNight({
+    required CelestialObject target,
+    required DateTime nightStart,
+    required DateTime nightEnd,
+    double minAltitude = 0,
+  }) {
+    final coord = target.coordinates;
+    final raDeg = coord.raDegrees;
+    final decDeg = coord.dec;
+
+    // Calculate current position (for display purposes)
+    final (currentAlt, currentAz) = AstronomyCalculations.objectAltAz(
+      raDeg: raDeg,
+      decDeg: decDeg,
+      dt: observationTime,
+      latitudeDeg: latitude,
+      longitudeDeg: longitude,
+    );
+
+    // Sample positions throughout the night at 15-minute intervals
+    const sampleInterval = Duration(minutes: 15);
+    double peakAlt = -90;
+    DateTime peakTime = nightStart;
+    double bestAirmass = double.infinity;
+    int samplesAboveMin = 0;
+    int totalSamples = 0;
+
+    var sampleTime = nightStart;
+    while (!sampleTime.isAfter(nightEnd)) {
+      final (alt, _) = AstronomyCalculations.objectAltAz(
+        raDeg: raDeg,
+        decDeg: decDeg,
+        dt: sampleTime,
+        latitudeDeg: latitude,
+        longitudeDeg: longitude,
+      );
+      final am = AstronomyCalculations.airmass(alt);
+
+      if (alt > peakAlt) {
+        peakAlt = alt;
+        peakTime = sampleTime;
+      }
+      if (am < bestAirmass) {
+        bestAirmass = am;
+      }
+      if (alt >= minAltitude) {
+        samplesAboveMin++;
+      }
+      totalSamples++;
+
+      sampleTime = sampleTime.add(sampleInterval);
+    }
+
+    final hoursAboveMin = totalSamples > 0
+        ? (samplesAboveMin * sampleInterval.inMinutes / 60.0)
+        : 0.0;
+
+    // Calculate visibility (rise/transit/set) relative to the night's midpoint
+    final nightMid = nightStart.add(
+      Duration(
+        seconds: nightEnd.difference(nightStart).inSeconds ~/ 2,
+      ),
+    );
+    final visibility = AstronomyCalculations.calculateObjectVisibility(
+      raDeg: raDeg,
+      decDeg: decDeg,
+      date: nightMid,
+      latitudeDeg: latitude,
+      longitudeDeg: longitude,
+    );
+
+    // Moon distance at peak altitude time
+    double moonDist = 180;
+    if (moonPosition != null) {
+      moonDist = AstronomyCalculations.angularSeparation(
+        ra1Deg: raDeg,
+        dec1Deg: decDeg,
+        ra2Deg: moonPosition!.$1,
+        dec2Deg: moonPosition!.$2,
+      );
+    }
+
+    // Current airmass (for display)
+    final currentAirmass = AstronomyCalculations.airmass(currentAlt);
+
+    // Create visibility info with both current and peak data
+    final visibilityInfo = TargetVisibilityInfo(
+      currentAltitude: currentAlt,
+      currentAzimuth: currentAz,
+      transitAltitude: visibility.transitAltitude,
+      riseTime: visibility.riseTime,
+      transitTime: visibility.transitTime,
+      setTime: visibility.setTime,
+      isCircumpolar: visibility.isCircumpolar,
+      neverRises: visibility.neverRises,
+      airmass: currentAirmass,
+      moonDistance: moonDist,
+      peakAltitude: peakAlt,
+      peakAltitudeTime: peakTime,
+      hoursAboveMinAlt: hoursAboveMin,
+    );
+
+    // Calculate individual scores based on night conditions
+    final altScore = _scoreAltitude(peakAlt);
+    final moonScore = _scoreMoonDistance(moonDist, moonIllumination);
+    final transitScore = _scoreTransitProximityForNight(
+      visibility,
+      nightStart,
+      nightEnd,
+    );
+    final darknessScore = _scoreImagingWindow(
+      hoursAboveMin,
+      nightStart,
+      nightEnd,
+    );
+    final airmassScore = _scoreAirmass(bestAirmass);
+
+    // Generate warnings based on night conditions
+    final warnings = _generateNightWarnings(
+      peakAlt: peakAlt,
+      bestAirmass: bestAirmass,
+      moonDist: moonDist,
+      visibility: visibility,
+      hoursAboveMin: hoursAboveMin,
+      nightStart: nightStart,
+      nightEnd: nightEnd,
     );
 
     // Calculate weighted total score
@@ -483,6 +660,213 @@ class TargetScoringService {
 
   String _formatTime(DateTime time) {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Score transit proximity relative to the night window.
+  ///
+  /// Targets whose transit falls during the night score highest, with a bonus
+  /// for transits near the middle of the night. Targets whose transit is just
+  /// outside the night window still score moderately.
+  double _scoreTransitProximityForNight(
+    ObjectVisibility visibility,
+    DateTime nightStart,
+    DateTime nightEnd,
+  ) {
+    if (visibility.neverRises) return 0;
+    if (visibility.transitTime == null) return 50;
+
+    final transitTime = visibility.transitTime!;
+    final nightMid = nightStart.add(
+      Duration(
+        seconds: nightEnd.difference(nightStart).inSeconds ~/ 2,
+      ),
+    );
+    final halfNightMinutes = nightEnd.difference(nightStart).inMinutes / 2;
+
+    // Is transit during the night?
+    if (transitTime.isAfter(nightStart) && transitTime.isBefore(nightEnd)) {
+      // Transit is during the night - score based on how centered it is
+      final offsetFromMid = transitTime.difference(nightMid).inMinutes.abs();
+      if (halfNightMinutes <= 0) return 100;
+      final centeredness =
+          1.0 - (offsetFromMid / halfNightMinutes).clamp(0.0, 1.0);
+      return 70 + centeredness * 30; // 70-100 for transits during the night
+    }
+
+    // Transit is outside the night - score based on proximity to the window
+    final minutesToStart = transitTime.difference(nightStart).inMinutes.abs();
+    final minutesToEnd = transitTime.difference(nightEnd).inMinutes.abs();
+    final closestMinutes =
+        minutesToStart < minutesToEnd ? minutesToStart : minutesToEnd;
+
+    if (closestMinutes < 60) return 60;
+    if (closestMinutes < 120) return 40;
+    if (closestMinutes < 240) return 20;
+    return 10;
+  }
+
+  /// Score based on available imaging hours during the night.
+  ///
+  /// Replaces the real-time darkness check with a measure of how much of the
+  /// night the target is above minimum altitude -- more useful for planning.
+  double _scoreImagingWindow(
+    double hoursAboveMin,
+    DateTime nightStart,
+    DateTime nightEnd,
+  ) {
+    final nightHours = nightEnd.difference(nightStart).inMinutes / 60.0;
+    if (nightHours <= 0) return 10;
+    if (hoursAboveMin <= 0) return 0;
+
+    final fraction = (hoursAboveMin / nightHours).clamp(0.0, 1.0);
+
+    if (fraction >= 0.8) return 100; // Available most of the night
+    if (fraction >= 0.6) return 90;
+    if (fraction >= 0.4) return 75;
+    if (fraction >= 0.2) return 55;
+    return 30;
+  }
+
+  /// Generate warnings based on conditions across the full night window.
+  List<TargetWarning> _generateNightWarnings({
+    required double peakAlt,
+    required double bestAirmass,
+    required double moonDist,
+    required ObjectVisibility visibility,
+    required double hoursAboveMin,
+    required DateTime nightStart,
+    required DateTime nightEnd,
+  }) {
+    final warnings = <TargetWarning>[];
+
+    // Peak altitude warnings
+    if (peakAlt < 0) {
+      warnings.add(const TargetWarning(
+        type: WarningType.belowHorizon,
+        severity: WarningSeverity.critical,
+        message: 'Below horizon all night',
+        suggestion: 'Target is not visible during this night',
+      ));
+    } else if (peakAlt < 15) {
+      warnings.add(TargetWarning(
+        type: WarningType.lowAltitude,
+        severity: WarningSeverity.warning,
+        message:
+            'Low peak altitude (${peakAlt.toStringAsFixed(0)}°) - poor seeing expected',
+        suggestion: 'Consider imaging on a different night',
+      ));
+    } else if (peakAlt < 30) {
+      warnings.add(TargetWarning(
+        type: WarningType.lowAltitude,
+        severity: WarningSeverity.caution,
+        message: 'Moderate peak altitude (${peakAlt.toStringAsFixed(0)}°)',
+        suggestion: visibility.transitAltitude != null
+            ? 'Max altitude: ${visibility.transitAltitude?.toStringAsFixed(0)}°'
+            : null,
+      ));
+    }
+
+    // Airmass (best during the night)
+    if (bestAirmass > 2.5 && bestAirmass.isFinite) {
+      warnings.add(TargetWarning(
+        type: WarningType.highAirmass,
+        severity: WarningSeverity.warning,
+        message:
+            'Best airmass ${bestAirmass.toStringAsFixed(2)} - atmospheric extinction',
+        suggestion: 'Image quality may be degraded all night',
+      ));
+    } else if (bestAirmass > 2.0 && bestAirmass.isFinite) {
+      warnings.add(TargetWarning(
+        type: WarningType.highAirmass,
+        severity: WarningSeverity.caution,
+        message: 'Elevated best airmass (${bestAirmass.toStringAsFixed(2)})',
+      ));
+    }
+
+    // Moon proximity
+    if (moonIllumination > 20) {
+      if (moonDist < 15) {
+        warnings.add(TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.critical,
+          message:
+              'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+          suggestion: 'Consider narrowband filters or a different target',
+        ));
+      } else if (moonDist < 30 && moonIllumination > 50) {
+        warnings.add(TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.warning,
+          message:
+              'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+          suggestion: 'Use narrowband filters to reduce sky glow',
+        ));
+      } else if (moonDist < 45 && moonIllumination > 70) {
+        warnings.add(TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.caution,
+          message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
+          suggestion: 'Some sky glow may be present',
+        ));
+      }
+    }
+
+    // Short imaging window
+    final nightHours = nightEnd.difference(nightStart).inMinutes / 60.0;
+    if (hoursAboveMin > 0 && hoursAboveMin < 2.0 && nightHours > 0) {
+      warnings.add(TargetWarning(
+        type: WarningType.settingSoon,
+        severity: WarningSeverity.warning,
+        message:
+            'Short imaging window (${hoursAboveMin.toStringAsFixed(1)} hours)',
+        suggestion: 'Limited time above minimum altitude tonight',
+      ));
+    } else if (hoursAboveMin >= 2.0 && hoursAboveMin < 4.0 && nightHours > 4) {
+      warnings.add(TargetWarning(
+        type: WarningType.settingSoon,
+        severity: WarningSeverity.caution,
+        message:
+            'Moderate imaging window (${hoursAboveMin.toStringAsFixed(1)} hours)',
+      ));
+    }
+
+    // Rises late in the night
+    if (visibility.riseTime != null && peakAlt >= 0) {
+      final riseTime = visibility.riseTime!;
+      if (riseTime.isAfter(nightStart)) {
+        final nightDuration = nightEnd.difference(nightStart);
+        final riseOffset = riseTime.difference(nightStart);
+        // If the target rises in the last third of the night
+        if (riseOffset > nightDuration * 0.66) {
+          warnings.add(TargetWarning(
+            type: WarningType.notYetRisen,
+            severity: WarningSeverity.info,
+            message: 'Rises late at ${_formatTime(riseTime)}',
+            suggestion: 'Target becomes available late in the night',
+          ));
+        }
+      }
+    }
+
+    // Sets early in the night
+    if (visibility.setTime != null && peakAlt >= 0) {
+      final setTime = visibility.setTime!;
+      if (setTime.isBefore(nightEnd) && setTime.isAfter(nightStart)) {
+        final nightDuration = nightEnd.difference(nightStart);
+        final setOffset = setTime.difference(nightStart);
+        // If the target sets in the first third of the night
+        if (setOffset < nightDuration * 0.33) {
+          warnings.add(TargetWarning(
+            type: WarningType.settingSoon,
+            severity: WarningSeverity.caution,
+            message: 'Sets early at ${_formatTime(setTime)}',
+            suggestion: 'Image this target early in the session',
+          ));
+        }
+      }
+    }
+
+    return warnings;
   }
 }
 

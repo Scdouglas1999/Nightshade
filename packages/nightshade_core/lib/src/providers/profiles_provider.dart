@@ -150,7 +150,8 @@ class EquipmentProfileModel {
 
     if (db.filterFocusOffsets != null) {
       try {
-        final decoded = jsonDecode(db.filterFocusOffsets!) as Map<String, dynamic>;
+        final decoded =
+            jsonDecode(db.filterFocusOffsets!) as Map<String, dynamic>;
         offsets = decoded.map((key, value) => MapEntry(key, value as int));
       } catch (_) {}
     }
@@ -232,8 +233,11 @@ class EquipmentProfileModel {
       defaultBinY: Value(defaultBinY),
       defaultCoolingTemp: Value(defaultCoolingTemp),
       coolOnConnect: Value(coolOnConnect),
-      filterNames: Value(filterNames.isNotEmpty ? jsonEncode(filterNames) : null),
-      filterFocusOffsets: Value(filterFocusOffsets.isNotEmpty ? jsonEncode(filterFocusOffsets) : null),
+      filterNames:
+          Value(filterNames.isNotEmpty ? jsonEncode(filterNames) : null),
+      filterFocusOffsets: Value(filterFocusOffsets.isNotEmpty
+          ? jsonEncode(filterFocusOffsets)
+          : null),
       profileIcon: Value(profileIcon),
       profileColor: Value(profileColor),
       sortOrder: Value(sortOrder),
@@ -391,18 +395,20 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
     // Set up a watch on the database profiles
     final profilesStream = ref.watch(allProfilesProvider);
     final activeStream = ref.watch(activeProfileProvider);
-    
+
     List<EquipmentProfileModel> profiles = [];
     EquipmentProfileModel? active;
-    
+
     if (profilesStream.hasValue) {
-      profiles = profilesStream.value!.map((p) => EquipmentProfileModel.fromDatabase(p)).toList();
+      profiles = profilesStream.value!
+          .map((p) => EquipmentProfileModel.fromDatabase(p))
+          .toList();
     }
-    
+
     if (activeStream.hasValue && activeStream.value != null) {
       active = EquipmentProfileModel.fromDatabase(activeStream.value!);
     }
-    
+
     return EquipmentProfilesState(
       profiles: profiles,
       activeProfile: active,
@@ -415,17 +421,17 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
     String? description,
   }) async {
     final dao = ref.read(equipmentProfilesDaoProvider);
-    
+
     final id = await dao.createProfile(
       EquipmentProfilesCompanion.insert(
         name: name,
         description: Value(description),
       ),
     );
-    
+
     // Refresh state
     ref.invalidateSelf();
-    
+
     return id;
   }
 
@@ -434,14 +440,14 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
     if (profile.id == null) {
       throw Exception('Cannot update profile without ID');
     }
-    
+
     final dao = ref.read(equipmentProfilesDaoProvider);
     final dbProfile = await dao.getProfileById(profile.id!);
-    
+
     if (dbProfile == null) {
       throw Exception('Profile not found');
     }
-    
+
     // Create updated profile
     final updated = dbProfile.copyWith(
       name: profile.name,
@@ -464,8 +470,12 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       defaultBinY: profile.defaultBinY,
       defaultCoolingTemp: Value(profile.defaultCoolingTemp),
       coolOnConnect: profile.coolOnConnect,
-      filterNames: Value(profile.filterNames.isNotEmpty ? jsonEncode(profile.filterNames) : null),
-      filterFocusOffsets: Value(profile.filterFocusOffsets.isNotEmpty ? jsonEncode(profile.filterFocusOffsets) : null),
+      filterNames: Value(profile.filterNames.isNotEmpty
+          ? jsonEncode(profile.filterNames)
+          : null),
+      filterFocusOffsets: Value(profile.filterFocusOffsets.isNotEmpty
+          ? jsonEncode(profile.filterFocusOffsets)
+          : null),
       updatedAt: DateTime.now(),
     );
 
@@ -517,7 +527,9 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
 }
 
 /// Main provider for equipment profiles
-final equipmentProfilesProvider = AsyncNotifierProvider<EquipmentProfilesNotifier, EquipmentProfilesState>(() {
+final equipmentProfilesProvider =
+    AsyncNotifierProvider<EquipmentProfilesNotifier, EquipmentProfilesState>(
+        () {
   return EquipmentProfilesNotifier();
 });
 
@@ -528,7 +540,8 @@ final activeEquipmentProfileProvider = Provider<EquipmentProfileModel?>((ref) {
 });
 
 /// Provider for watching just the profile list (convenience)
-final equipmentProfileListProvider = Provider<List<EquipmentProfileModel>>((ref) {
+final equipmentProfileListProvider =
+    Provider<List<EquipmentProfileModel>>((ref) {
   final state = ref.watch(equipmentProfilesProvider);
   return state.valueOrNull?.profiles ?? [];
 });
@@ -573,8 +586,17 @@ final opticalConfigProvider = Provider<OpticalConfig?>((ref) {
     if (capabilities != null) {
       sensorWidth = capabilities.maxWidth;
       sensorHeight = capabilities.maxHeight;
-      // Use X pixel size, assuming square pixels for most cameras
-      pixelSize = capabilities.pixelSizeX;
+      final px = capabilities.pixelSizeX;
+      final py = capabilities.pixelSizeY;
+      if (px != null && px > 0 && py != null && py > 0) {
+        // OpticalConfig currently stores a scalar pixel size; use the mean of
+        // axis-specific values to avoid assuming perfectly square pixels.
+        pixelSize = (px + py) / 2.0;
+      } else if (px != null && px > 0) {
+        pixelSize = px;
+      } else if (py != null && py > 0) {
+        pixelSize = py;
+      }
     }
   }
 
@@ -621,8 +643,3 @@ final sortedProfilesProvider = Provider<List<EquipmentProfileModel>>((ref) {
   });
   return sorted;
 });
-
-
-
-
-

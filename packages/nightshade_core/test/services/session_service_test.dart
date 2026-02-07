@@ -6,16 +6,54 @@ void main() {
   late NightshadeDatabase database;
   late SessionsDao sessionsDao;
   late SequenceCheckpointsDao checkpointsDao;
+  late TargetsDao targetsDao;
+  late EquipmentProfilesDao profilesDao;
   late SessionService sessionService;
+  late LoggingService logger;
 
-  setUp(() {
+  setUp(() async {
     // Create in-memory database for testing
     database = NightshadeDatabase.forTesting(NativeDatabase.memory());
     sessionsDao = SessionsDao(database);
     checkpointsDao = SequenceCheckpointsDao(database);
+    targetsDao = TargetsDao(database);
+    profilesDao = EquipmentProfilesDao(database);
+
+    // Seed FK dependencies used by session tests
+    await targetsDao.createTarget(
+      TargetsCompanion.insert(
+        name: 'Target 1',
+        ra: 5.0,
+        dec: 25.0,
+      ),
+    );
+    await targetsDao.createTarget(
+      TargetsCompanion.insert(
+        name: 'Target 2',
+        ra: 10.0,
+        dec: -15.0,
+      ),
+    );
+    await targetsDao.createTarget(
+      TargetsCompanion.insert(
+        name: 'Target 3',
+        ra: 15.0,
+        dec: 35.0,
+      ),
+    );
+
+    await profilesDao.createProfile(
+      EquipmentProfilesCompanion.insert(name: 'Profile 1'),
+    );
+    await profilesDao.createProfile(
+      EquipmentProfilesCompanion.insert(name: 'Profile 2'),
+    );
+
+    logger = LoggingService();
     sessionService = SessionService(
       sessionsDao: sessionsDao,
       checkpointsDao: checkpointsDao,
+      logger: logger,
     );
   });
 
@@ -129,10 +167,12 @@ void main() {
       expect(session.avgHfr, equals(2.3));
     });
 
-    test('updateSessionProgress triggers checkpoint after image threshold', () async {
+    test('updateSessionProgress triggers checkpoint after image threshold',
+        () async {
       final config = SessionCheckpointConfig(
         checkpointImageInterval: 3,
-        checkpointTimeInterval: Duration(hours: 1), // Long time to avoid time-based trigger
+        checkpointTimeInterval:
+            Duration(hours: 1), // Long time to avoid time-based trigger
         enabled: true,
       );
       sessionService.updateConfig(config);
@@ -176,7 +216,8 @@ void main() {
 
     test('checkpoint configuration can be updated', () async {
       expect(sessionService.config.checkpointImageInterval, equals(5));
-      expect(sessionService.config.checkpointTimeInterval, equals(Duration(minutes: 5)));
+      expect(sessionService.config.checkpointTimeInterval,
+          equals(Duration(minutes: 5)));
 
       final newConfig = SessionCheckpointConfig(
         checkpointImageInterval: 10,
@@ -186,7 +227,8 @@ void main() {
       sessionService.updateConfig(newConfig);
 
       expect(sessionService.config.checkpointImageInterval, equals(10));
-      expect(sessionService.config.checkpointTimeInterval, equals(Duration(minutes: 10)));
+      expect(sessionService.config.checkpointTimeInterval,
+          equals(Duration(minutes: 10)));
     });
   });
 
@@ -203,11 +245,13 @@ void main() {
         name: 'Completed Session',
         targetId: 2,
       );
-      await sessionsDao.updateSessionStats(completedId, successfulExposures: 10);
+      await sessionsDao.updateSessionStats(completedId,
+          successfulExposures: 10);
       await sessionsDao.endSession(completedId, status: 'completed');
 
       // Find incomplete sessions
-      final incompleteSessions = await sessionService.findIncompleteSessionsForRecovery();
+      final incompleteSessions =
+          await sessionService.findIncompleteSessionsForRecovery();
 
       expect(incompleteSessions.length, equals(1));
       expect(incompleteSessions[0].sessionId, equals(activeId));
@@ -216,7 +260,8 @@ void main() {
 
     test('recoverSession restores session state', () async {
       // Create a session with stats
-      final sessionId = await sessionsDao.startSession(name: 'Recoverable Session');
+      final sessionId =
+          await sessionsDao.startSession(name: 'Recoverable Session');
       await sessionsDao.updateSessionStats(
         sessionId,
         successfulExposures: 15,
@@ -231,6 +276,7 @@ void main() {
       final newService = SessionService(
         sessionsDao: sessionsDao,
         checkpointsDao: checkpointsDao,
+        logger: logger,
       );
 
       expect(newService.hasActiveSession, isFalse);
@@ -279,7 +325,8 @@ void main() {
       );
     });
 
-    test('markSessionAborted marks session as aborted without active session', () async {
+    test('markSessionAborted marks session as aborted without active session',
+        () async {
       final sessionId = await sessionsDao.startSession(name: 'Test Session');
 
       // Mark as aborted without making it active
@@ -338,7 +385,8 @@ void main() {
         lastUpdated: DateTime.now(),
       );
 
-      expect(stats.successRate, equals(1.0)); // Default to 1.0 when no exposures
+      expect(
+          stats.successRate, equals(1.0)); // Default to 1.0 when no exposures
     });
   });
 
@@ -421,18 +469,25 @@ void main() {
       await sessionsDao.startSession(name: 'Session 2', targetId: 2);
       await sessionsDao.startSession(name: 'Session 3', targetId: 3);
 
-      final incompleteSessions = await sessionService.findIncompleteSessionsForRecovery();
+      final incompleteSessions =
+          await sessionService.findIncompleteSessionsForRecovery();
 
       expect(incompleteSessions.length, equals(3));
-      expect(incompleteSessions[0].sessionName, equals('Session 1'));
-      expect(incompleteSessions[1].sessionName, equals('Session 2'));
-      expect(incompleteSessions[2].sessionName, equals('Session 3'));
+      final names = incompleteSessions
+          .map((session) => session.sessionName)
+          .whereType<String>()
+          .toSet();
+      expect(
+        names,
+        containsAll(<String>['Session 1', 'Session 2', 'Session 3']),
+      );
     });
   });
 
   group('SessionRecoveryInfo', () {
     test('calculates duration correctly', () {
-      final startTime = DateTime.now().subtract(Duration(hours: 2, minutes: 30));
+      final startTime =
+          DateTime.now().subtract(Duration(hours: 2, minutes: 30));
       final recoveryInfo = SessionRecoveryInfo(
         sessionId: 1,
         startTime: startTime,

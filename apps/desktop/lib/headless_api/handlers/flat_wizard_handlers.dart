@@ -10,12 +10,19 @@ class FlatWizardHandlers {
 
   FlatWizardHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'FlatWizardHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'FlatWizardHandlers');
+
   // ===========================================================================
   // Calibrate Single Filter
   // ===========================================================================
 
   Future<Response> handleCalibrateFilter(Request request) async {
-    print('[API] POST /api/flat-wizard/calibrate');
+    _logInfo('[API] POST /api/flat-wizard/calibrate');
     try {
       final payload = jsonDecode(await request.readAsString());
 
@@ -49,7 +56,7 @@ class FlatWizardHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Calibrate filter error: $e');
+      _logError('[API] Calibrate filter error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -62,7 +69,7 @@ class FlatWizardHandlers {
   // ===========================================================================
 
   Future<Response> handleCalibrateMultipleFilters(Request request) async {
-    print('[API] POST /api/flat-wizard/calibrate-multi');
+    _logInfo('[API] POST /api/flat-wizard/calibrate-multi');
     try {
       final payload = jsonDecode(await request.readAsString());
 
@@ -96,7 +103,7 @@ class FlatWizardHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Calibrate multiple filters error: $e');
+      _logError('[API] Calibrate multiple filters error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -109,29 +116,32 @@ class FlatWizardHandlers {
   // ===========================================================================
 
   Future<Response> handleGenerateSequence(Request request) async {
-    print('[API] POST /api/flat-wizard/generate-sequence');
+    _logInfo('[API] POST /api/flat-wizard/generate-sequence');
     try {
       final payload = jsonDecode(await request.readAsString());
 
       // Parse calibration results
       final calibrationsJson = payload['calibrations'] as List;
-      final calibrations = calibrationsJson.map((c) => FlatResult(
-        filter: c['filter'] as String,
-        exposure: (c['exposure'] as num).toDouble(),
-        adu: (c['adu'] as num).toDouble(),
-        success: c['success'] as bool,
-        iterations: c['iterations'] as int? ?? 0,
-        errorMessage: c['errorMessage'] as String?,
-      )).toList();
+      final calibrations = calibrationsJson
+          .map((c) => FlatResult(
+                filter: c['filter'] as String,
+                exposure: (c['exposure'] as num).toDouble(),
+                adu: (c['adu'] as num).toDouble(),
+                success: c['success'] as bool,
+                iterations: c['iterations'] as int? ?? 0,
+                errorMessage: c['errorMessage'] as String?,
+              ))
+          .toList();
 
       final framesPerFilter = payload['framesPerFilter'] as int;
-      final sequenceName = payload['sequenceName'] as String? ?? 'Flat Frame Sequence';
+      final sequenceName =
+          payload['sequenceName'] as String? ?? 'Flat Frame Sequence';
       final description = payload['description'] as String?;
       final binX = payload['binX'] as int? ?? 1;
       final binY = payload['binY'] as int? ?? 1;
       final gain = payload['gain'] as int?;
       final offset = payload['offset'] as int?;
-      final onlySuccessful = payload['onlySuccessful'] as bool? ?? true;
+      final onlySuccessful = payload['onlySuccessful'] as bool? ?? false;
 
       final service = container.read(flatWizardServiceProvider);
       final sequence = service.generateCompleteSequence(
@@ -153,7 +163,7 @@ class FlatWizardHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Generate sequence error: $e');
+      _logError('[API] Generate sequence error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -166,14 +176,15 @@ class FlatWizardHandlers {
   // ===========================================================================
 
   Future<Response> handleQuickCalibrate(Request request) async {
-    print('[API] POST /api/flat-wizard/quick-calibrate');
+    _logInfo('[API] POST /api/flat-wizard/quick-calibrate');
     try {
       final payload = jsonDecode(await request.readAsString());
 
       final deviceId = payload['deviceId'] as String;
       final filter = payload['filter'] as String;
       final targetAdu = (payload['targetAdu'] as num?)?.toDouble() ?? 30000;
-      final tolerancePercent = (payload['tolerancePercent'] as num?)?.toDouble() ?? 10.0;
+      final tolerancePercent =
+          (payload['tolerancePercent'] as num?)?.toDouble() ?? 10.0;
       final binX = payload['binX'] as int? ?? 1;
       final binY = payload['binY'] as int? ?? 1;
 
@@ -194,7 +205,7 @@ class FlatWizardHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Quick calibrate error: $e');
+      _logError('[API] Quick calibrate error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -226,7 +237,8 @@ class FlatWizardHandlers {
       'isTemplate': sequence.isTemplate,
       'createdAt': sequence.createdAt.millisecondsSinceEpoch,
       'modifiedAt': sequence.modifiedAt.millisecondsSinceEpoch,
-      'nodes': sequence.nodes.map((key, node) => MapEntry(key, _nodeToJson(node))),
+      'nodes':
+          sequence.nodes.map((key, node) => MapEntry(key, _nodeToJson(node))),
     };
   }
 

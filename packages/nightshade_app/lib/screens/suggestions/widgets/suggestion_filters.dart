@@ -8,14 +8,21 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 ///
 /// This widget provides controls for:
 /// - Object type filtering via multi-select chips
+/// - Constellation filtering via multi-select chips
+/// - Magnitude range slider
+/// - Object size range slider
+/// - Moon distance minimum slider
+/// - Imaging time minimum slider
 /// - Minimum score slider (0-100)
 /// - Minimum altitude slider (0-90 degrees)
 /// - Sort mode selection
 /// - Toggle for prioritizing incomplete targets
 /// - Reset filters button
 ///
-/// All changes immediately update the [targetSuggestionConfigProvider],
-/// which triggers the suggestion list to refresh automatically.
+/// Object type / sort / score / altitude / incomplete changes update
+/// [targetSuggestionConfigProvider]. Constellation / magnitude / size / moon /
+/// imaging-time changes update [suggestionFilterProvider]. Both trigger the
+/// suggestion list to refresh automatically via [filteredSuggestionsProvider].
 class SuggestionFilters extends ConsumerWidget {
   /// If true, displays controls in a vertical layout suitable for mobile bottom sheets.
   /// If false, displays controls in a horizontal layout for desktop/tablet.
@@ -30,15 +37,27 @@ class SuggestionFilters extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final config = ref.watch(targetSuggestionConfigProvider);
+    final filters = ref.watch(suggestionFilterProvider);
 
     // Fetch available object types from user's targets
     final targetsAsync = ref.watch(_availableObjectTypesProvider);
     final availableTypes = targetsAsync.valueOrNull ?? <String>[];
 
+    // Derived data for filter bounds
+    final availableConstellations = ref.watch(availableConstellationsProvider);
+    final magRange = ref.watch(availableMagnitudeRangeProvider);
+    final sizeRange = ref.watch(availableSizeRangeProvider);
+
     if (showAsSheet) {
-      return _buildMobileLayout(context, ref, colors, config, availableTypes);
+      return _buildMobileLayout(
+        context, ref, colors, config, filters,
+        availableTypes, availableConstellations, magRange, sizeRange,
+      );
     } else {
-      return _buildDesktopLayout(context, ref, colors, config, availableTypes);
+      return _buildDesktopLayout(
+        context, ref, colors, config, filters,
+        availableTypes, availableConstellations, magRange, sizeRange,
+      );
     }
   }
 
@@ -47,97 +66,182 @@ class SuggestionFilters extends ConsumerWidget {
     WidgetRef ref,
     NightshadeColors colors,
     TargetSuggestionConfig config,
+    SuggestionFilterState filters,
     List<String> availableTypes,
+    List<String> availableConstellations,
+    (double, double)? magRange,
+    (double, double)? sizeRange,
   ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Object type chips
-          if (availableTypes.isNotEmpty) ...[
-            Expanded(
-              flex: 3,
-              child: _ObjectTypeChips(
-                availableTypes: availableTypes,
-                selectedTypes: config.preferredObjectTypes,
+          // Row 1: Object types + sort + incomplete + reset
+          Row(
+            children: [
+              if (availableTypes.isNotEmpty) ...[
+                Expanded(
+                  flex: 3,
+                  child: _ObjectTypeChips(
+                    availableTypes: availableTypes,
+                    selectedTypes: config.preferredObjectTypes,
+                    colors: colors,
+                    onChanged: (types) => _updateConfig(
+                      ref,
+                      config.copyWith(preferredObjectTypes: types),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
+              _SortModeDropdown(
+                value: config.sortMode,
                 colors: colors,
-                onChanged: (types) => _updateConfig(
+                onChanged: (mode) => _updateConfig(
                   ref,
-                  config.copyWith(preferredObjectTypes: types),
+                  config.copyWith(sortMode: mode),
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-          ],
-
-          // Minimum score slider
-          Expanded(
-            flex: 2,
-            child: _SliderControl(
-              label: 'Min Score',
-              value: config.minScore,
-              min: 0,
-              max: 100,
-              divisions: 20,
-              valueFormatter: (v) => '${v.round()}',
-              colors: colors,
-              onChanged: (value) => _updateConfig(
-                ref,
-                config.copyWith(minScore: value),
+              const SizedBox(width: 12),
+              _PrioritizeIncompleteToggle(
+                value: config.prioritizeIncomplete,
+                colors: colors,
+                onChanged: (value) => _updateConfig(
+                  ref,
+                  config.copyWith(prioritizeIncomplete: value),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 16),
-
-          // Minimum altitude slider
-          Expanded(
-            flex: 2,
-            child: _SliderControl(
-              label: 'Min Altitude',
-              value: config.minAltitude,
-              min: 0,
-              max: 90,
-              divisions: 18,
-              valueFormatter: (v) => '${v.round()}°',
-              colors: colors,
-              onChanged: (value) => _updateConfig(
-                ref,
-                config.copyWith(minAltitude: value),
+              const SizedBox(width: 12),
+              _ResetFiltersButton(
+                colors: colors,
+                onPressed: () => _resetAll(ref),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 16),
+          const SizedBox(height: 8),
 
-          // Sort dropdown
-          _SortModeDropdown(
-            value: config.sortMode,
-            colors: colors,
-            onChanged: (mode) => _updateConfig(
-              ref,
-              config.copyWith(sortMode: mode),
-            ),
-          ),
-          const SizedBox(width: 16),
+          // Row 2: Constellation chips + range sliders
+          Row(
+            children: [
+              // Constellation chips (scrollable)
+              if (availableConstellations.isNotEmpty) ...[
+                Expanded(
+                  flex: 3,
+                  child: _ConstellationChips(
+                    availableConstellations: availableConstellations,
+                    selectedConstellations: filters.selectedConstellations,
+                    colors: colors,
+                    onChanged: (selected) => _updateFilter(
+                      ref,
+                      filters.copyWith(selectedConstellations: selected),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
 
-          // Prioritize incomplete toggle
-          _PrioritizeIncompleteToggle(
-            value: config.prioritizeIncomplete,
-            colors: colors,
-            onChanged: (value) => _updateConfig(
-              ref,
-              config.copyWith(prioritizeIncomplete: value),
-            ),
-          ),
-          const SizedBox(width: 16),
+              // Magnitude range
+              if (magRange != null) ...[
+                Expanded(
+                  flex: 2,
+                  child: _RangeSliderControl(
+                    label: 'Magnitude',
+                    currentMin: filters.minMagnitude ?? magRange.$1,
+                    currentMax: filters.maxMagnitude ?? magRange.$2,
+                    rangeMin: magRange.$1,
+                    rangeMax: magRange.$2,
+                    divisions: ((magRange.$2 - magRange.$1) * 2).round().clamp(1, 100),
+                    minValueFormatter: (v) => v.toStringAsFixed(1),
+                    maxValueFormatter: (v) => v.toStringAsFixed(1),
+                    colors: colors,
+                    onChanged: (min, max) {
+                      final isMinDefault = (min - magRange.$1).abs() < 0.01;
+                      final isMaxDefault = (max - magRange.$2).abs() < 0.01;
+                      _updateFilter(
+                        ref,
+                        filters.copyWith(
+                          minMagnitude: () => isMinDefault ? null : min,
+                          maxMagnitude: () => isMaxDefault ? null : max,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
 
-          // Reset button
-          _ResetFiltersButton(
-            colors: colors,
-            onPressed: () => _resetConfig(ref),
+              // Size range
+              if (sizeRange != null) ...[
+                Expanded(
+                  flex: 2,
+                  child: _RangeSliderControl(
+                    label: 'Size',
+                    currentMin: filters.minSizeArcmin ?? sizeRange.$1,
+                    currentMax: filters.maxSizeArcmin ?? sizeRange.$2,
+                    rangeMin: sizeRange.$1,
+                    rangeMax: sizeRange.$2,
+                    divisions: ((sizeRange.$2 - sizeRange.$1) / 0.5).round().clamp(1, 100),
+                    minValueFormatter: (v) => "${v.toStringAsFixed(1)}'",
+                    maxValueFormatter: (v) => "${v.toStringAsFixed(1)}'",
+                    colors: colors,
+                    onChanged: (min, max) {
+                      final isMinDefault = (min - sizeRange.$1).abs() < 0.01;
+                      final isMaxDefault = (max - sizeRange.$2).abs() < 0.01;
+                      _updateFilter(
+                        ref,
+                        filters.copyWith(
+                          minSizeArcmin: () => isMinDefault ? null : min,
+                          maxSizeArcmin: () => isMaxDefault ? null : max,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
+
+              // Min score
+              Expanded(
+                flex: 2,
+                child: _SliderControl(
+                  label: 'Min Score',
+                  value: config.minScore,
+                  min: 0,
+                  max: 100,
+                  divisions: 20,
+                  valueFormatter: (v) => '${v.round()}',
+                  colors: colors,
+                  onChanged: (value) => _updateConfig(
+                    ref,
+                    config.copyWith(minScore: value),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Min altitude
+              Expanded(
+                flex: 2,
+                child: _SliderControl(
+                  label: 'Min Altitude',
+                  value: config.minAltitude,
+                  min: 0,
+                  max: 90,
+                  divisions: 18,
+                  valueFormatter: (v) => '${v.round()}°',
+                  colors: colors,
+                  onChanged: (value) => _updateConfig(
+                    ref,
+                    config.copyWith(minAltitude: value),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -149,7 +253,11 @@ class SuggestionFilters extends ConsumerWidget {
     WidgetRef ref,
     NightshadeColors colors,
     TargetSuggestionConfig config,
+    SuggestionFilterState filters,
     List<String> availableTypes,
+    List<String> availableConstellations,
+    (double, double)? magRange,
+    (double, double)? sizeRange,
   ) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -176,7 +284,7 @@ class SuggestionFilters extends ConsumerWidget {
                 ),
                 _ResetFiltersButton(
                   colors: colors,
-                  onPressed: () => _resetConfig(ref),
+                  onPressed: () => _resetAll(ref),
                 ),
               ],
             ),
@@ -205,6 +313,29 @@ class SuggestionFilters extends ConsumerWidget {
               const SizedBox(height: 20),
             ],
 
+            // Constellation chips
+            if (availableConstellations.isNotEmpty) ...[
+              Text(
+                'Constellation',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _ConstellationChips(
+                availableConstellations: availableConstellations,
+                selectedConstellations: filters.selectedConstellations,
+                colors: colors,
+                onChanged: (selected) => _updateFilter(
+                  ref,
+                  filters.copyWith(selectedConstellations: selected),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
             // Sort mode
             Text(
               'Sort By',
@@ -224,6 +355,102 @@ class SuggestionFilters extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 20),
+
+            // Magnitude range slider
+            if (magRange != null) ...[
+              _RangeSliderControl(
+                label: 'Magnitude Range',
+                currentMin: filters.minMagnitude ?? magRange.$1,
+                currentMax: filters.maxMagnitude ?? magRange.$2,
+                rangeMin: magRange.$1,
+                rangeMax: magRange.$2,
+                divisions: ((magRange.$2 - magRange.$1) * 2).round().clamp(1, 100),
+                minValueFormatter: (v) => v.toStringAsFixed(1),
+                maxValueFormatter: (v) => v.toStringAsFixed(1),
+                minLabel: 'Brighter',
+                maxLabel: 'Fainter',
+                showLabel: true,
+                colors: colors,
+                onChanged: (min, max) {
+                  final isMinDefault = (min - magRange.$1).abs() < 0.01;
+                  final isMaxDefault = (max - magRange.$2).abs() < 0.01;
+                  _updateFilter(
+                    ref,
+                    filters.copyWith(
+                      minMagnitude: () => isMinDefault ? null : min,
+                      maxMagnitude: () => isMaxDefault ? null : max,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Object size range slider
+            if (sizeRange != null) ...[
+              _RangeSliderControl(
+                label: 'Object Size',
+                currentMin: filters.minSizeArcmin ?? sizeRange.$1,
+                currentMax: filters.maxSizeArcmin ?? sizeRange.$2,
+                rangeMin: sizeRange.$1,
+                rangeMax: sizeRange.$2,
+                divisions: ((sizeRange.$2 - sizeRange.$1) / 0.5).round().clamp(1, 100),
+                minValueFormatter: (v) => "${v.toStringAsFixed(1)}'",
+                maxValueFormatter: (v) => "${v.toStringAsFixed(1)}'",
+                showLabel: true,
+                colors: colors,
+                onChanged: (min, max) {
+                  final isMinDefault = (min - sizeRange.$1).abs() < 0.01;
+                  final isMaxDefault = (max - sizeRange.$2).abs() < 0.01;
+                  _updateFilter(
+                    ref,
+                    filters.copyWith(
+                      minSizeArcmin: () => isMinDefault ? null : min,
+                      maxSizeArcmin: () => isMaxDefault ? null : max,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Moon distance slider
+            _SliderControl(
+              label: 'Min Moon Distance',
+              value: filters.minMoonDistance ?? 0,
+              min: 0,
+              max: 180,
+              divisions: 36,
+              valueFormatter: (v) => v.round() == 0 ? 'Off' : '${v.round()}°',
+              colors: colors,
+              onChanged: (value) => _updateFilter(
+                ref,
+                filters.copyWith(
+                  minMoonDistance: () => value <= 0 ? null : value,
+                ),
+              ),
+              showLabel: true,
+            ),
+            const SizedBox(height: 16),
+
+            // Imaging time slider
+            _SliderControl(
+              label: 'Min Imaging Time',
+              value: filters.minImagingHours ?? 0,
+              min: 0,
+              max: 10,
+              divisions: 20,
+              valueFormatter: (v) => v <= 0 ? 'Off' : '${v.toStringAsFixed(1)}h',
+              colors: colors,
+              onChanged: (value) => _updateFilter(
+                ref,
+                filters.copyWith(
+                  minImagingHours: () => value <= 0 ? null : value,
+                ),
+              ),
+              showLabel: true,
+            ),
+            const SizedBox(height: 16),
 
             // Minimum score slider
             _SliderControl(
@@ -315,7 +542,12 @@ class SuggestionFilters extends ConsumerWidget {
     ref.read(targetSuggestionConfigProvider.notifier).state = newConfig;
   }
 
-  void _resetConfig(WidgetRef ref) {
+  void _updateFilter(WidgetRef ref, SuggestionFilterState newFilter) {
+    ref.read(suggestionFilterProvider.notifier).state = newFilter;
+  }
+
+  void _resetAll(WidgetRef ref) {
+    // Reset the scoring/sort config
     ref.read(targetSuggestionConfigProvider.notifier).state =
         const TargetSuggestionConfig(
       minAltitude: 30.0,
@@ -324,6 +556,9 @@ class SuggestionFilters extends ConsumerWidget {
       sortMode: SuggestionSortMode.bestScore,
       preferredObjectTypes: [],
     );
+    // Reset the UI filter state
+    ref.read(suggestionFilterProvider.notifier).state =
+        const SuggestionFilterState();
   }
 }
 
@@ -346,6 +581,10 @@ final _availableObjectTypesProvider =
   return sortedTypes;
 });
 
+// ============================================================================
+// Multi-select Chips
+// ============================================================================
+
 /// Multi-select chips for object type filtering.
 class _ObjectTypeChips extends StatelessWidget {
   final List<String> availableTypes;
@@ -367,7 +606,7 @@ class _ObjectTypeChips extends StatelessWidget {
       runSpacing: 6,
       children: availableTypes.map((type) {
         final isSelected = selectedTypes.contains(type);
-        return _ObjectTypeFilterChip(
+        return _FilterChip(
           label: _formatObjectType(type),
           isSelected: isSelected,
           colors: colors,
@@ -385,10 +624,7 @@ class _ObjectTypeChips extends StatelessWidget {
     );
   }
 
-  /// Formats the object type string for display.
-  /// Converts snake_case or camelCase to Title Case.
   String _formatObjectType(String type) {
-    // Handle common astronomical object types
     final displayNames = {
       'galaxy': 'Galaxy',
       'nebula': 'Nebula',
@@ -429,20 +665,59 @@ class _ObjectTypeChips extends StatelessWidget {
       return displayNames[type]!;
     }
 
-    // Fallback: capitalize first letter
     if (type.isEmpty) return type;
     return type[0].toUpperCase() + type.substring(1);
   }
 }
 
-/// Individual filter chip for object type selection.
-class _ObjectTypeFilterChip extends StatelessWidget {
+/// Multi-select chips for constellation filtering.
+class _ConstellationChips extends StatelessWidget {
+  final List<String> availableConstellations;
+  final Set<String> selectedConstellations;
+  final NightshadeColors colors;
+  final ValueChanged<Set<String>> onChanged;
+
+  const _ConstellationChips({
+    required this.availableConstellations,
+    required this.selectedConstellations,
+    required this.colors,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: availableConstellations.map((constellation) {
+        final isSelected = selectedConstellations.contains(constellation);
+        return _FilterChip(
+          label: constellation,
+          isSelected: isSelected,
+          colors: colors,
+          onTap: () {
+            final newSelection = Set<String>.from(selectedConstellations);
+            if (isSelected) {
+              newSelection.remove(constellation);
+            } else {
+              newSelection.add(constellation);
+            }
+            onChanged(newSelection);
+          },
+        );
+      }).toList(),
+    );
+  }
+}
+
+/// Reusable filter chip used by both object type and constellation chips.
+class _FilterChip extends StatelessWidget {
   final String label;
   final bool isSelected;
   final NightshadeColors colors;
   final VoidCallback onTap;
 
-  const _ObjectTypeFilterChip({
+  const _FilterChip({
     required this.label,
     required this.isSelected,
     required this.colors,
@@ -492,6 +767,10 @@ class _ObjectTypeFilterChip extends StatelessWidget {
     );
   }
 }
+
+// ============================================================================
+// Slider Controls
+// ============================================================================
 
 /// Slider control with label and value display.
 class _SliderControl extends StatelessWidget {
@@ -573,6 +852,139 @@ class _SliderControl extends StatelessWidget {
     );
   }
 }
+
+/// Range slider control with label and two value badges showing min–max.
+class _RangeSliderControl extends StatelessWidget {
+  final String label;
+  final double currentMin;
+  final double currentMax;
+  final double rangeMin;
+  final double rangeMax;
+  final int divisions;
+  final String Function(double) minValueFormatter;
+  final String Function(double) maxValueFormatter;
+  final NightshadeColors colors;
+  final void Function(double min, double max) onChanged;
+  final String? minLabel;
+  final String? maxLabel;
+  final bool showLabel;
+
+  const _RangeSliderControl({
+    required this.label,
+    required this.currentMin,
+    required this.currentMax,
+    required this.rangeMin,
+    required this.rangeMax,
+    required this.divisions,
+    required this.minValueFormatter,
+    required this.maxValueFormatter,
+    required this.colors,
+    required this.onChanged,
+    this.minLabel,
+    this.maxLabel,
+    this.showLabel = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Clamp values to the valid range
+    final clampedMin = currentMin.clamp(rangeMin, rangeMax);
+    final clampedMax = currentMax.clamp(rangeMin, rangeMax);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: showLabel ? 13 : 11,
+                fontWeight: showLabel ? FontWeight.w500 : FontWeight.normal,
+                color: showLabel ? colors.textSecondary : colors.textMuted,
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _valueBadge(minValueFormatter(clampedMin)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    '–',
+                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                  ),
+                ),
+                _valueBadge(maxValueFormatter(clampedMax)),
+              ],
+            ),
+          ],
+        ),
+        // Optional min/max semantic labels
+        if (minLabel != null || maxLabel != null) ...[
+          const SizedBox(height: 2),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (minLabel != null)
+                Text(
+                  minLabel!,
+                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                ),
+              if (maxLabel != null)
+                Text(
+                  maxLabel!,
+                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 4),
+        SliderTheme(
+          data: SliderThemeData(
+            activeTrackColor: colors.primary,
+            inactiveTrackColor: colors.surfaceAlt,
+            thumbColor: colors.primary,
+            overlayColor: colors.primary.withValues(alpha: 0.2),
+            trackHeight: 4,
+            rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 6),
+          ),
+          child: RangeSlider(
+            values: RangeValues(clampedMin, clampedMax),
+            min: rangeMin,
+            max: rangeMax,
+            divisions: divisions,
+            onChanged: (values) => onChanged(values.start, values.end),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _valueBadge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: colors.textPrimary,
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Sort & Toggle Controls
+// ============================================================================
 
 /// Dropdown for selecting sort mode (desktop).
 class _SortModeDropdown extends StatelessWidget {

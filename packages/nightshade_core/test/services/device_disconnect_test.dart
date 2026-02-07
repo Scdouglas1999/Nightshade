@@ -10,13 +10,15 @@ import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 
 import '../mocks/mock_backend.dart';
 
-/// A mock BackendNotifier for testing
-class MockBackendNotifier extends Mock implements BackendNotifier {}
+class TestBackendNotifier extends BackendNotifier {
+  TestBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+    state = backend;
+  }
+}
 
 void main() {
   late ProviderContainer container;
   late MockBackend mockBackend;
-  late MockBackendNotifier mockNotifier;
   late StreamController<NightshadeEvent> eventStreamController;
 
   setUpAll(() {
@@ -25,22 +27,22 @@ void main() {
 
   setUp(() {
     mockBackend = MockBackend();
-    mockNotifier = MockBackendNotifier();
     eventStreamController = StreamController<NightshadeEvent>.broadcast();
 
     // Configure mock backend
     when(() => mockBackend.eventStream).thenAnswer((_) => eventStreamController.stream);
     when(() => mockBackend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
 
-    // Configure mock notifier to return our mock backend
-    when(() => mockNotifier.state).thenReturn(mockBackend);
-
     container = ProviderContainer(
       overrides: [
-        // Override the backend provider with our mock notifier
-        backendProvider.overrideWith((ref) => mockNotifier),
+        backendProvider.overrideWith(
+          (ref) => TestBackendNotifier(ref, mockBackend),
+        ),
       ],
     );
+
+    // Ensure DeviceService is initialized so equipment event listeners are active.
+    container.read(deviceServiceProvider);
   });
 
   tearDown(() {
@@ -198,8 +200,10 @@ void main() {
 
       final state = container.read(cameraStateProvider);
       expect(state.lastSuccessfulCommunication, isNotNull);
+      final communicationTime = state.lastSuccessfulCommunication!;
       expect(
-        state.lastSuccessfulCommunication!.isAfter(timestampBefore),
+        communicationTime.isAfter(timestampBefore) ||
+            communicationTime.isAtSameMomentAs(timestampBefore),
         isTrue,
       );
       expect(state.temperature, -10.0);

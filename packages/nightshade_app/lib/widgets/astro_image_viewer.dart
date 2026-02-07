@@ -4,32 +4,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-/// Data class for passing image conversion parameters to the isolate
-class _ImageConversionParams {
-  final Uint8List sourceData;
-  final int width;
-  final int height;
-  final bool isColor;
-
-  _ImageConversionParams({
-    required this.sourceData,
-    required this.width,
-    required this.height,
-    required this.isColor,
-  });
-}
-
 /// Efficient astronomy image viewer that supports both color and mono images
 /// with zoom/pan functionality including mousewheel support.
 ///
 /// Features:
 /// - GPU-accelerated rendering via ui.Image
-/// - Background isolate conversion (doesn't block UI)
-/// - Supports RGB color and grayscale mono images
+/// - Supports RGBA pixel data (conversion done in Rust for performance)
 /// - Interactive zoom/pan with mousewheel and gesture support
 /// - Configurable min/max zoom levels
 class AstroImageViewer extends StatefulWidget {
-  /// The raw pixel data (RGB for color, grayscale for mono)
+  /// The RGBA pixel data (4 bytes per pixel, alpha=255).
+  /// Conversion from RGB/grayscale is done in Rust for performance.
   final Uint8List imageData;
 
   /// Width of the image in pixels
@@ -38,7 +23,8 @@ class AstroImageViewer extends StatefulWidget {
   /// Height of the image in pixels
   final int height;
 
-  /// Whether the image is color (RGB) or mono (grayscale)
+  /// Whether the source image was color (RGB) or mono (grayscale).
+  /// Retained for informational purposes; imageData is always RGBA.
   final bool isColor;
 
   /// Minimum zoom scale
@@ -163,19 +149,12 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
       setState(() => _isLoading = true);
     }
 
-    // Convert to RGBA in a compute isolate to avoid blocking UI
-    final params = _ImageConversionParams(
-      sourceData: sourceData,
-      width: width,
-      height: height,
-      isColor: isColor,
-    );
-    final rgbaData = await compute(_convertToRgba, params);
-
-    // Decode pixels to ui.Image
+    // imageData is already RGBA (4 bytes per pixel, alpha=255) —
+    // conversion from RGB/grayscale is done in Rust for performance.
+    // No compute isolate needed; just decode directly.
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
-      rgbaData,
+      sourceData,
       width,
       height,
       ui.PixelFormat.rgba8888,
@@ -311,38 +290,6 @@ class _AstroImageViewerState extends State<AstroImageViewer> {
       },
     );
   }
-}
-
-/// Convert source image data to RGBA format for ui.decodeImageFromPixels.
-/// This runs in a compute isolate to avoid blocking the UI thread.
-Uint8List _convertToRgba(_ImageConversionParams params) {
-  final src = params.sourceData;
-  final numPixels = params.width * params.height;
-  final rgba = Uint8List(numPixels * 4);
-
-  if (params.isColor) {
-    // RGB -> RGBA (add alpha channel)
-    for (int i = 0; i < numPixels; i++) {
-      final srcOffset = i * 3;
-      final dstOffset = i * 4;
-      rgba[dstOffset] = src[srcOffset];         // R
-      rgba[dstOffset + 1] = src[srcOffset + 1]; // G
-      rgba[dstOffset + 2] = src[srcOffset + 2]; // B
-      rgba[dstOffset + 3] = 255;                // A (fully opaque)
-    }
-  } else {
-    // Grayscale -> RGBA
-    for (int i = 0; i < numPixels; i++) {
-      final gray = src[i];
-      final offset = i * 4;
-      rgba[offset] = gray;     // R
-      rgba[offset + 1] = gray; // G
-      rgba[offset + 2] = gray; // B
-      rgba[offset + 3] = 255;  // A (fully opaque)
-    }
-  }
-
-  return rgba;
 }
 
 /// Efficient image painter that draws a pre-decoded ui.Image

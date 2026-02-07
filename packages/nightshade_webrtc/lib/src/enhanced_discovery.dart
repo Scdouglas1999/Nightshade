@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -80,7 +81,7 @@ class EnhancedNightshadeDiscovery {
         _DiscoveryPrefs.lastServerSignalingPort, server.signalingPort);
     await prefs.setString(_DiscoveryPrefs.lastServerName, server.name);
     await prefs.setString(_DiscoveryPrefs.lastServerVersion, server.version);
-    print('[EnhancedDiscovery] Saved server: ${server.name} at ${server.host}');
+    developer.log('Saved server: ${server.name} at ${server.host}', name: 'EnhancedDiscovery');
   }
 
   /// Load last server from preferences
@@ -111,7 +112,7 @@ class EnhancedNightshadeDiscovery {
     await prefs.remove(_DiscoveryPrefs.lastServerSignalingPort);
     await prefs.remove(_DiscoveryPrefs.lastServerName);
     await prefs.remove(_DiscoveryPrefs.lastServerVersion);
-    print('[EnhancedDiscovery] Cleared saved server');
+    developer.log('Cleared saved server', name: 'EnhancedDiscovery');
   }
 
   /// Test if a server is reachable via HTTP
@@ -138,21 +139,20 @@ class EnhancedNightshadeDiscovery {
     onStatus?.call('Checking last server...');
     final server = await loadLastServer();
     if (server == null) {
-      print('[EnhancedDiscovery] No saved server found');
+      developer.log('No saved server found', name: 'EnhancedDiscovery');
       return null;
     }
 
-    print(
-        '[EnhancedDiscovery] Testing saved server: ${server.host}:${server.webPort}');
+    developer.log('Testing saved server: ${server.host}:${server.webPort}', name: 'EnhancedDiscovery');
     final isReachable =
         await testServerConnection(server.host, server.webPort, timeout: timeout);
 
     if (isReachable) {
-      print('[EnhancedDiscovery] Saved server is reachable');
+      developer.log('Saved server is reachable', name: 'EnhancedDiscovery');
       return server;
     }
 
-    print('[EnhancedDiscovery] Saved server not reachable');
+    developer.log('Saved server not reachable', name: 'EnhancedDiscovery');
     return null;
   }
 
@@ -163,22 +163,21 @@ class EnhancedNightshadeDiscovery {
     DiscoveryStatusCallback? onStatus,
   }) async {
     onStatus?.call('Searching via Bonjour...');
-    print('[EnhancedDiscovery] mDNS discovery starting...');
+    developer.log('mDNS discovery starting...', name: 'EnhancedDiscovery');
 
     final List<DiscoveredServer> servers = [];
-    // StreamSubscription<Service>? subscription;
+
+    Discovery? discovery;
+    Timer? timeoutTimer;
 
     try {
-      final discovery = await startDiscovery('_nightshade._tcp');
+      discovery = await startDiscovery('_nightshade._tcp');
 
       // Collect discovered services
       final completer = Completer<List<DiscoveredServer>>();
-      Timer? timeoutTimer;
 
       discovery.addServiceListener((service, status) async {
         if (status == ServiceStatus.found) {
-          print('[EnhancedDiscovery] Found mDNS service: ${service.name}');
-
           try {
             // Resolve the service to get host and port
             final resolvedService = await resolve(service);
@@ -186,8 +185,6 @@ class EnhancedNightshadeDiscovery {
             if (resolvedService.host != null && resolvedService.port != null) {
               final host = resolvedService.host!;
               final port = resolvedService.port!;
-
-              print('[EnhancedDiscovery] Resolved service: $host:$port');
 
               // Parse service name and TXT records for metadata
               String serverName = resolvedService.name ?? 'Nightshade';
@@ -228,11 +225,10 @@ class EnhancedNightshadeDiscovery {
               // Avoid duplicates
               if (!servers.any((s) => s.host == server.host && s.webPort == server.webPort)) {
                 servers.add(server);
-                print('[EnhancedDiscovery] Added server: $serverName at $host:$port');
               }
             }
-          } catch (e) {
-            print('[EnhancedDiscovery] Failed to resolve service: $e');
+          } catch (_) {
+            // Service resolution can fail for transient network reasons — skip this service
           }
         }
       });
@@ -240,7 +236,6 @@ class EnhancedNightshadeDiscovery {
       // Set timeout for discovery
       timeoutTimer = Timer(timeout, () {
         if (!completer.isCompleted) {
-          print('[EnhancedDiscovery] mDNS discovery timeout reached');
           completer.complete(servers);
         }
       });
@@ -248,21 +243,19 @@ class EnhancedNightshadeDiscovery {
       // Wait for timeout
       await completer.future;
 
-      // Clean up
-      timeoutTimer.cancel();
-      // await subscription?.cancel();
-      await stopDiscovery(discovery);
-
-      print('[EnhancedDiscovery] mDNS discovery complete. Found ${servers.length} server(s)');
       return servers;
-
     } catch (e) {
-      print('[EnhancedDiscovery] mDNS discovery error: $e');
-
-      // Clean up on error
-      // await subscription?.cancel();
-
+      // mDNS discovery can fail on platforms without Bonjour support
       return servers;
+    } finally {
+      timeoutTimer?.cancel();
+      if (discovery != null) {
+        try {
+          await stopDiscovery(discovery);
+        } catch (_) {
+          // Best-effort cleanup
+        }
+      }
     }
   }
 
@@ -286,7 +279,7 @@ class EnhancedNightshadeDiscovery {
   static Future<DiscoveredServer?> discoverWithFallback({
     DiscoveryStatusCallback? onStatus,
   }) async {
-    print('[EnhancedDiscovery] Starting cascading discovery...');
+    developer.log('Starting cascading discovery...', name: 'EnhancedDiscovery');
 
     // 1. Try last saved server (2s timeout)
     onStatus?.call('Reconnecting to last server...');
@@ -295,7 +288,7 @@ class EnhancedNightshadeDiscovery {
       onStatus: onStatus,
     );
     if (lastServer != null) {
-      print('[EnhancedDiscovery] Connected via saved server');
+      developer.log('Connected via saved server', name: 'EnhancedDiscovery');
       return lastServer;
     }
 
@@ -306,7 +299,7 @@ class EnhancedNightshadeDiscovery {
       onStatus: onStatus,
     );
     if (mdnsServers.isNotEmpty) {
-      print('[EnhancedDiscovery] Found server via mDNS');
+      developer.log('Found server via mDNS', name: 'EnhancedDiscovery');
       return mdnsServers.first;
     }
 
@@ -317,12 +310,12 @@ class EnhancedNightshadeDiscovery {
       onStatus: onStatus,
     );
     if (udpServers.isNotEmpty) {
-      print('[EnhancedDiscovery] Found server via UDP broadcast');
+      developer.log('Found server via UDP broadcast', name: 'EnhancedDiscovery');
       return udpServers.first;
     }
 
     // 4. No server found
-    print('[EnhancedDiscovery] No server found via any method');
+    developer.log('No server found via any method', name: 'EnhancedDiscovery', level: 900);
     onStatus?.call('No server found');
     return null;
   }

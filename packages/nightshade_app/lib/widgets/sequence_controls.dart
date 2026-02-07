@@ -4,6 +4,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../services/sequence_action_service.dart';
+import '../utils/snackbar_helper.dart';
 
 /// Mobile-optimized sequence control bar
 class SequenceControls extends ConsumerWidget {
@@ -16,10 +17,12 @@ class SequenceControls extends ConsumerWidget {
 
     final surfaceColor = colors?.surface ?? Theme.of(context).cardColor;
     final borderColor = colors?.border ?? Colors.grey.shade300;
-    final primaryColor = colors?.primary ?? Theme.of(context).colorScheme.primary;
+    final primaryColor =
+        colors?.primary ?? Theme.of(context).colorScheme.primary;
 
     // Don't show controls if sequence is idle or completed
-    if (state == SequenceExecutionState.idle || state == SequenceExecutionState.completed) {
+    if (state == SequenceExecutionState.idle ||
+        state == SequenceExecutionState.completed) {
       return const SizedBox.shrink();
     }
 
@@ -45,12 +48,12 @@ class SequenceControls extends ConsumerWidget {
               label: isPaused ? 'Resume' : 'Pause',
               color: isPaused ? Colors.green : Colors.orange,
               enabled: canControl,
-              onPressed: () {
-                if (isPaused) {
-                  ref.read(sequenceActionServiceProvider).resume(context);
-                } else {
-                  ref.read(sequenceActionServiceProvider).pause(context);
-                }
+              onPressed: () async {
+                final service = ref.read(sequenceActionServiceProvider);
+                final result =
+                    isPaused ? await service.resume() : await service.pause();
+                if (!context.mounted) return;
+                context.showCommandActionResult(result);
               },
             ),
           ),
@@ -64,7 +67,14 @@ class SequenceControls extends ConsumerWidget {
               label: 'Stop',
               color: Colors.red,
               enabled: canControl,
-              onPressed: () => ref.read(sequenceActionServiceProvider).stop(context, requireConfirmation: true),
+              onPressed: () async {
+                final confirmed = await _confirmStop(context);
+                if (!confirmed || !context.mounted) return;
+                final result =
+                    await ref.read(sequenceActionServiceProvider).stop();
+                if (!context.mounted) return;
+                context.showCommandActionResult(result);
+              },
             ),
           ),
 
@@ -77,12 +87,43 @@ class SequenceControls extends ConsumerWidget {
               label: 'Skip',
               color: primaryColor,
               enabled: isRunning,
-              onPressed: () => ref.read(sequenceActionServiceProvider).skip(context),
+              onPressed: () async {
+                final result =
+                    await ref.read(sequenceActionServiceProvider).skip();
+                if (!context.mounted) return;
+                context.showCommandActionResult(result);
+              },
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<bool> _confirmStop(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Stop Sequence?'),
+        content:
+            const Text('This will stop the current sequence. Are you sure?'),
+        actions: [
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          NightshadeButton(
+            label: 'Stop',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 }
 

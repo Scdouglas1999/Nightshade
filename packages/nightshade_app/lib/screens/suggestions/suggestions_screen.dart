@@ -19,7 +19,8 @@ class SuggestionsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+    final suggestionsAsync = ref.watch(filteredSuggestionsProvider);
+    final filterCount = ref.watch(activeFilterCountProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -28,6 +29,7 @@ class SuggestionsScreen extends ConsumerWidget {
           // App bar header
           _SuggestionsHeader(
             colors: colors,
+            activeFilterCount: filterCount,
             onRefresh: () {
               ref.read(refreshSuggestionsProvider.notifier).state++;
             },
@@ -37,9 +39,11 @@ class SuggestionsScreen extends ConsumerWidget {
           // Main content area
           Expanded(
             child: suggestionsAsync.when(
-              data: (suggestions) => _buildDataState(context, ref, colors, suggestions),
+              data: (suggestions) =>
+                  _buildDataState(context, ref, colors, suggestions),
               loading: () => _buildLoadingState(colors),
-              error: (error, stackTrace) => _buildErrorState(context, ref, colors, error),
+              error: (error, stackTrace) =>
+                  _buildErrorState(context, ref, colors, error),
             ),
           ),
         ],
@@ -91,7 +95,8 @@ class SuggestionsScreen extends ConsumerWidget {
             itemCount: suggestions.length,
             itemBuilder: (context, index) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+                padding:
+                    const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
                 child: SizedBox(
                   height: cardHeight,
                   child: SuggestionCard(
@@ -100,7 +105,8 @@ class SuggestionsScreen extends ConsumerWidget {
                       _navigateToFraming(context, ref, suggestions[index]);
                     },
                     onAddToSequence: () {
-                      _showAddToSequenceDialog(context, ref, suggestions[index]);
+                      _showAddToSequenceDialog(
+                          context, ref, suggestions[index]);
                     },
                   ),
                 ),
@@ -109,13 +115,22 @@ class SuggestionsScreen extends ConsumerWidget {
           );
         } else {
           // Grid layout for tablet/desktop
+          // Calculate card height for ~1.5 rows visible (matching mobile feel)
+          final availableHeight = constraints.maxHeight;
+          final cardHeight = (availableHeight * 0.6).clamp(280.0, 420.0);
+          const hPad = NightshadeTokens.space2xl * 2;
+          const gap = NightshadeTokens.spaceLg;
+          final cardWidth =
+              (width - hPad - (crossAxisCount - 1) * gap) / crossAxisCount;
+          final aspectRatio = cardWidth / cardHeight;
+
           content = GridView.builder(
             padding: NightshadeTokens.screenPadding,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               crossAxisSpacing: NightshadeTokens.spaceLg,
               mainAxisSpacing: NightshadeTokens.spaceLg,
-              childAspectRatio: 1.6, // Cards are wider than tall
+              childAspectRatio: aspectRatio,
             ),
             itemCount: suggestions.length,
             itemBuilder: (context, index) {
@@ -158,11 +173,16 @@ class SuggestionsScreen extends ConsumerWidget {
         final isMobile = width < NightshadeTokens.breakpointTablet;
         final crossAxisCount = isMobile ? 1 : 2;
 
-        // Match mobile card height calculation
+        // Match data-state card sizing
         final availableHeight = constraints.maxHeight;
         final cardHeight = (availableHeight * 0.6).clamp(280.0, 420.0);
+        const hPad = NightshadeTokens.space2xl * 2;
+        const gap = NightshadeTokens.spaceLg;
+        final cardWidth =
+            (width - hPad - (crossAxisCount - 1) * gap) / crossAxisCount;
+        final aspectRatio = cardWidth / cardHeight;
 
-        // Show shimmer loading placeholders
+        // Show shimmer loading states
         return ShimmerLoading(
           child: crossAxisCount == 1
               ? ListView.builder(
@@ -172,7 +192,8 @@ class SuggestionsScreen extends ConsumerWidget {
                   itemCount: 3,
                   itemBuilder: (context, index) {
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+                      padding: const EdgeInsets.only(
+                          bottom: NightshadeTokens.spaceMd),
                       child: SizedBox(
                         height: cardHeight,
                         child: _SuggestionCardSkeleton(colors: colors),
@@ -186,7 +207,7 @@ class SuggestionsScreen extends ConsumerWidget {
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: NightshadeTokens.spaceLg,
                     mainAxisSpacing: NightshadeTokens.spaceLg,
-                    childAspectRatio: 1.6,
+                    childAspectRatio: aspectRatio,
                   ),
                   itemCount: 6,
                   itemBuilder: (context, index) {
@@ -198,7 +219,8 @@ class SuggestionsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, WidgetRef ref, NightshadeColors colors) {
+  Widget _buildEmptyState(
+      BuildContext context, WidgetRef ref, NightshadeColors colors) {
     // Check if location is configured
     final settingsAsync = ref.watch(appSettingsProvider);
     final settings = settingsAsync.valueOrNull;
@@ -368,7 +390,9 @@ class SuggestionsScreen extends ConsumerWidget {
 
                 // Add target to sequence via provider
                 // This will auto-create a sequence if one doesn't exist
-                ref.read(currentSequenceProvider.notifier).addTargetHeader(targetNode);
+                ref
+                    .read(currentSequenceProvider.notifier)
+                    .addTargetHeader(targetNode);
 
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -392,10 +416,10 @@ class SuggestionsScreen extends ConsumerWidget {
   ) {
     // Set the target in the framing provider before navigating
     ref.read(framingProvider.notifier).setTargetCoordinates(
-      suggestion.raHours,
-      suggestion.decDegrees,
-      name: suggestion.targetName,
-    );
+          suggestion.raHours,
+          suggestion.decDegrees,
+          name: suggestion.targetName,
+        );
 
     // Navigate to framing screen
     context.go('/framing');
@@ -405,11 +429,13 @@ class SuggestionsScreen extends ConsumerWidget {
 /// Header widget for the suggestions screen with title, refresh, and filter buttons.
 class _SuggestionsHeader extends StatelessWidget {
   final NightshadeColors colors;
+  final int activeFilterCount;
   final VoidCallback onRefresh;
   final VoidCallback onFilterTap;
 
   const _SuggestionsHeader({
     required this.colors,
+    required this.activeFilterCount,
     required this.onRefresh,
     required this.onFilterTap,
   });
@@ -435,17 +461,47 @@ class _SuggestionsHeader extends StatelessWidget {
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(LucideIcons.refreshCw, size: NightshadeTokens.iconMd),
+            icon: const Icon(LucideIcons.refreshCw,
+                size: NightshadeTokens.iconMd),
             onPressed: onRefresh,
             tooltip: 'Refresh suggestions',
             color: colors.textSecondary,
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
-          IconButton(
-            icon: const Icon(LucideIcons.slidersHorizontal, size: NightshadeTokens.iconMd),
-            onPressed: onFilterTap,
-            tooltip: 'Filter options',
-            color: colors.textSecondary,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              IconButton(
+                icon: const Icon(LucideIcons.slidersHorizontal,
+                    size: NightshadeTokens.iconMd),
+                onPressed: onFilterTap,
+                tooltip: 'Filter options',
+                color: colors.textSecondary,
+              ),
+              if (activeFilterCount > 0)
+                Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints:
+                        const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      '$activeFilterCount',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -453,7 +509,7 @@ class _SuggestionsHeader extends StatelessWidget {
   }
 }
 
-/// Skeleton placeholder for suggestion cards during loading.
+/// Skeleton loading cards for suggestions.
 class _SuggestionCardSkeleton extends StatelessWidget {
   final NightshadeColors colors;
 
@@ -475,13 +531,16 @@ class _SuggestionCardSkeleton extends StatelessWidget {
             children: [
               SkeletonBox(width: 150, height: 18),
               Spacer(),
-              SkeletonBox(width: 44, height: 44, borderRadius: NightshadeTokens.radiusFull),
+              SkeletonBox(
+                  width: 44,
+                  height: 44,
+                  borderRadius: NightshadeTokens.radiusFull),
             ],
           ),
           SizedBox(height: NightshadeTokens.spaceMd),
           SkeletonText(width: 200, height: 14),
           SizedBox(height: NightshadeTokens.spaceSm),
-          // Altitude plot placeholder - expands to fill available space
+          // Altitude plot empty-state container - expands to fill available space
           Expanded(
             child: SkeletonBox(
               width: double.infinity,
@@ -514,4 +573,3 @@ class _SuggestionCardSkeleton extends StatelessWidget {
     );
   }
 }
-

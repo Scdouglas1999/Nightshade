@@ -10,12 +10,19 @@ class FramingHandlers {
 
   FramingHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'FramingHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'FramingHandlers');
+
   // ===========================================================================
   // Slew To Target
   // ===========================================================================
 
   Future<Response> handleSlewToTarget(Request request) async {
-    print('[API] POST /api/framing/slew-to-target');
+    _logInfo('[API] POST /api/framing/slew-to-target');
     try {
       final payload = jsonDecode(await request.readAsString());
 
@@ -26,9 +33,9 @@ class FramingHandlers {
 
       // Get connected mount
       final connectedDevices = await backend.getConnectedDevices();
-      final mount = connectedDevices.where(
-        (d) => d.deviceType == DeviceType.mount
-      ).firstOrNull;
+      final mount = connectedDevices
+          .where((d) => d.deviceType == DeviceType.mount)
+          .firstOrNull;
 
       if (mount == null) {
         return Response.badRequest(
@@ -48,7 +55,7 @@ class FramingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Slew to target error: $e');
+      _logError('[API] Slew to target error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -61,14 +68,15 @@ class FramingHandlers {
   // ===========================================================================
 
   Future<Response> handleCenterOnTarget(Request request) async {
-    print('[API] POST /api/framing/center-on-target');
+    _logInfo('[API] POST /api/framing/center-on-target');
     try {
       final payload = jsonDecode(await request.readAsString());
 
       final ra = (payload['ra'] as num).toDouble();
       final dec = (payload['dec'] as num).toDouble();
       final maxIterations = payload['maxIterations'] as int? ?? 5;
-      final toleranceArcsec = (payload['toleranceArcsec'] as num?)?.toDouble() ?? 30.0;
+      final toleranceArcsec =
+          (payload['toleranceArcsec'] as num?)?.toDouble() ?? 30.0;
       final exposureTime = (payload['exposureTime'] as num?)?.toDouble() ?? 3.0;
       final binning = payload['binning'] as int? ?? 2;
       final gain = payload['gain'] as int? ?? 100;
@@ -88,9 +96,13 @@ class FramingHandlers {
 
       // Get plate solver config from settings
       final database = container.read(databaseProvider);
-      final solverName = await database.settingsDao.getSetting('plate_solve_solver') ?? 'ASTAP';
-      final solverPath = await database.settingsDao.getSetting('plate_solve_path') ?? '';
-      final timeoutStr = await database.settingsDao.getSetting('plate_solve_timeout') ?? '60';
+      final solverName =
+          await database.settingsDao.getSetting('plate_solve_solver') ??
+              'ASTAP';
+      final solverPath =
+          await database.settingsDao.getSetting('plate_solve_path') ?? '';
+      final timeoutStr =
+          await database.settingsDao.getSetting('plate_solve_timeout') ?? '60';
       final solverType = PlateSolverType.values.firstWhere(
         (t) => t.name.toLowerCase() == solverName.toLowerCase(),
         orElse: () => PlateSolverType.astap,
@@ -115,23 +127,25 @@ class FramingHandlers {
           "iterations": result.iterations,
           "finalOffsetArcsec": result.finalOffsetArcsec,
           "errorMessage": result.errorMessage,
-          "iterationHistory": result.iterationHistory.map((i) => {
-            'iterationNumber': i.iterationNumber,
-            'solvedRa': i.solvedRa,
-            'solvedDec': i.solvedDec,
-            'targetRa': i.targetRa,
-            'targetDec': i.targetDec,
-            'offsetArcsec': i.offsetArcsec,
-            'offsetArcmin': i.offsetArcmin,
-            'plateSolveSuccess': i.plateSolveSuccess,
-            'errorMessage': i.errorMessage,
-            'timestamp': i.timestamp.millisecondsSinceEpoch,
-          }).toList(),
+          "iterationHistory": result.iterationHistory
+              .map((i) => {
+                    'iterationNumber': i.iterationNumber,
+                    'solvedRa': i.solvedRa,
+                    'solvedDec': i.solvedDec,
+                    'targetRa': i.targetRa,
+                    'targetDec': i.targetDec,
+                    'offsetArcsec': i.offsetArcsec,
+                    'offsetArcmin': i.offsetArcmin,
+                    'plateSolveSuccess': i.plateSolveSuccess,
+                    'errorMessage': i.errorMessage,
+                    'timestamp': i.timestamp.millisecondsSinceEpoch,
+                  })
+              .toList(),
         }),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Center on target error: $e');
+      _logError('[API] Center on target error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -144,7 +158,7 @@ class FramingHandlers {
   // ===========================================================================
 
   Future<Response> handleSyncMount(Request request) async {
-    print('[API] POST /api/framing/sync');
+    _logInfo('[API] POST /api/framing/sync');
     try {
       final payload = jsonDecode(await request.readAsString());
 
@@ -155,9 +169,9 @@ class FramingHandlers {
 
       // Get connected mount
       final connectedDevices = await backend.getConnectedDevices();
-      final mount = connectedDevices.where(
-        (d) => d.deviceType == DeviceType.mount
-      ).firstOrNull;
+      final mount = connectedDevices
+          .where((d) => d.deviceType == DeviceType.mount)
+          .firstOrNull;
 
       if (mount == null) {
         return Response.badRequest(
@@ -177,7 +191,7 @@ class FramingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Sync mount error: $e');
+      _logError('[API] Sync mount error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -190,15 +204,15 @@ class FramingHandlers {
   // ===========================================================================
 
   Future<Response> handleGetCurrentPosition(Request request) async {
-    print('[API] GET /api/framing/current-position');
+    _logInfo('[API] GET /api/framing/current-position');
     try {
       final backend = container.read(backendProvider);
 
       // Get connected mount
       final connectedDevices = await backend.getConnectedDevices();
-      final mount = connectedDevices.where(
-        (d) => d.deviceType == DeviceType.mount
-      ).firstOrNull;
+      final mount = connectedDevices
+          .where((d) => d.deviceType == DeviceType.mount)
+          .firstOrNull;
 
       if (mount == null) {
         return Response.badRequest(
@@ -225,7 +239,7 @@ class FramingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get current position error: $e');
+      _logError('[API] Get current position error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -238,7 +252,7 @@ class FramingHandlers {
   // ===========================================================================
 
   Future<Response> handleRotateTo(Request request) async {
-    print('[API] POST /api/framing/rotate-to');
+    _logInfo('[API] POST /api/framing/rotate-to');
     try {
       final payload = jsonDecode(await request.readAsString());
 
@@ -248,9 +262,9 @@ class FramingHandlers {
 
       // Get connected rotator
       final connectedDevices = await backend.getConnectedDevices();
-      final rotator = connectedDevices.where(
-        (d) => d.deviceType == DeviceType.rotator
-      ).firstOrNull;
+      final rotator = connectedDevices
+          .where((d) => d.deviceType == DeviceType.rotator)
+          .firstOrNull;
 
       if (rotator == null) {
         return Response.badRequest(
@@ -269,7 +283,7 @@ class FramingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Rotate to error: $e');
+      _logError('[API] Rotate to error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -282,15 +296,15 @@ class FramingHandlers {
   // ===========================================================================
 
   Future<Response> handleAbortSlew(Request request) async {
-    print('[API] POST /api/framing/abort-slew');
+    _logInfo('[API] POST /api/framing/abort-slew');
     try {
       final backend = container.read(backendProvider);
 
       // Get connected mount
       final connectedDevices = await backend.getConnectedDevices();
-      final mount = connectedDevices.where(
-        (d) => d.deviceType == DeviceType.mount
-      ).firstOrNull;
+      final mount = connectedDevices
+          .where((d) => d.deviceType == DeviceType.mount)
+          .firstOrNull;
 
       if (mount == null) {
         return Response.badRequest(
@@ -306,7 +320,7 @@ class FramingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Abort slew error: $e');
+      _logError('[API] Abort slew error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -319,15 +333,15 @@ class FramingHandlers {
   // ===========================================================================
 
   Future<Response> handleParkMount(Request request) async {
-    print('[API] POST /api/framing/park');
+    _logInfo('[API] POST /api/framing/park');
     try {
       final backend = container.read(backendProvider);
 
       // Get connected mount
       final connectedDevices = await backend.getConnectedDevices();
-      final mount = connectedDevices.where(
-        (d) => d.deviceType == DeviceType.mount
-      ).firstOrNull;
+      final mount = connectedDevices
+          .where((d) => d.deviceType == DeviceType.mount)
+          .firstOrNull;
 
       if (mount == null) {
         return Response.badRequest(
@@ -343,7 +357,7 @@ class FramingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Park mount error: $e');
+      _logError('[API] Park mount error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -356,15 +370,15 @@ class FramingHandlers {
   // ===========================================================================
 
   Future<Response> handleUnparkMount(Request request) async {
-    print('[API] POST /api/framing/unpark');
+    _logInfo('[API] POST /api/framing/unpark');
     try {
       final backend = container.read(backendProvider);
 
       // Get connected mount
       final connectedDevices = await backend.getConnectedDevices();
-      final mount = connectedDevices.where(
-        (d) => d.deviceType == DeviceType.mount
-      ).firstOrNull;
+      final mount = connectedDevices
+          .where((d) => d.deviceType == DeviceType.mount)
+          .firstOrNull;
 
       if (mount == null) {
         return Response.badRequest(
@@ -380,7 +394,7 @@ class FramingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Unpark mount error: $e');
+      _logError('[API] Unpark mount error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

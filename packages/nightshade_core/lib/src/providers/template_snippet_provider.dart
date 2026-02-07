@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
@@ -53,7 +54,7 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
     } catch (e) {
       // Log error but don't crash - return empty list
       // ignore: avoid_print
-      print('Error loading custom snippets: $e');
+      developer.log('Error loading custom snippets: $e', name: 'TemplateSnippet', level: 1000);
       state = [];
     }
   }

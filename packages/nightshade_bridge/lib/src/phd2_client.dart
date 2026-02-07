@@ -246,7 +246,7 @@ class Phd2Client {
       _startHeartbeat();
 
       // Send initial handshake/version check if needed
-      // For now just get app state
+      // Fetch initial app state
       await _getAppState();
 
       _eventController.add(Phd2Event(

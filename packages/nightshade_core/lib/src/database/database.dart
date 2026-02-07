@@ -52,6 +52,8 @@ part 'database.g.dart';
     FramePhotometricCalibration,
     TransparencySamples,
     PsfFieldTiles,
+    ScienceFrameQualityMetrics,
+    ScienceTileMetrics,
     AstrometryResidualVectors,
     MovingObjectCandidates,
     LineRatioProducts,
@@ -78,7 +80,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration {
@@ -274,6 +276,14 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           await customStatement(
             'CREATE INDEX IF NOT EXISTS idx_polar_history_completed ON polar_alignment_history (completed_at)',
           );
+
+          final hasQualityScore =
+              await _columnExists('captured_images', 'quality_score');
+          if (!hasQualityScore) {
+            await customStatement(
+              'ALTER TABLE captured_images ADD COLUMN quality_score REAL',
+            );
+          }
         }
 
         // Version 11: Add user-friendly device names, telescope info, and profile customization to equipment_profiles
@@ -508,6 +518,47 @@ class NightshadeDatabase extends _$NightshadeDatabase {
             "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('science.photometry.comparison_anchors', '[]')",
           );
         }
+
+        // Version 14: Add frame quality and tile metrics tables
+        if (from < 14) {
+          await m.createTable(scienceFrameQualityMetrics);
+          await m.createTable(scienceTileMetrics);
+
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_science_frame_quality_metrics_image ON science_frame_quality_metrics (captured_image_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_science_frame_quality_metrics_session_layer_timestamp ON science_frame_quality_metrics (session_id, processing_tier, timestamp)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_science_tile_metrics_session_layer_timestamp ON science_tile_metrics (session_id, layer_type, timestamp)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_science_tile_metrics_image_layer ON science_tile_metrics (captured_image_id, layer_type)',
+          );
+
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('science.feature.frame_quality_maps', 'true')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('science.feature.surface3d', 'true')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('science.overlay.opacity', '0.35')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('science.overlay.live_grid_rows', '12')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('science.overlay.live_grid_cols', '16')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('science.overlay.analysis_grid_rows', '24')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('science.overlay.analysis_grid_cols', '32')",
+          );
+        }
       },
     );
   }
@@ -574,6 +625,14 @@ class NightshadeDatabase extends _$NightshadeDatabase {
       value: 'false',
     ));
     await into(appSettings).insert(AppSettingsCompanion.insert(
+      key: 'science.feature.frame_quality_maps',
+      value: 'true',
+    ));
+    await into(appSettings).insert(AppSettingsCompanion.insert(
+      key: 'science.feature.surface3d',
+      value: 'true',
+    ));
+    await into(appSettings).insert(AppSettingsCompanion.insert(
       key: 'science.retention.manual_purge_only',
       value: 'true',
     ));
@@ -588,6 +647,26 @@ class NightshadeDatabase extends _$NightshadeDatabase {
     await into(appSettings).insert(AppSettingsCompanion.insert(
       key: 'science.photometry.comparison_anchors',
       value: '[]',
+    ));
+    await into(appSettings).insert(AppSettingsCompanion.insert(
+      key: 'science.overlay.opacity',
+      value: '0.35',
+    ));
+    await into(appSettings).insert(AppSettingsCompanion.insert(
+      key: 'science.overlay.live_grid_rows',
+      value: '12',
+    ));
+    await into(appSettings).insert(AppSettingsCompanion.insert(
+      key: 'science.overlay.live_grid_cols',
+      value: '16',
+    ));
+    await into(appSettings).insert(AppSettingsCompanion.insert(
+      key: 'science.overlay.analysis_grid_rows',
+      value: '24',
+    ));
+    await into(appSettings).insert(AppSettingsCompanion.insert(
+      key: 'science.overlay.analysis_grid_cols',
+      value: '32',
     ));
   }
 

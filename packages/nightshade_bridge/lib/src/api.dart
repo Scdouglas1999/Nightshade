@@ -12,9 +12,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'state.dart';
 import 'storage.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `run_polar_alignment`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
+// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `compute_quality_maps_from_linear_data`, `display_data_to_rgba`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median`, `percentile_sorted`, `percentile`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_polar_alignment`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `DiscoveryCache`, `RawImageInfo`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`, `get_device_manager`, `get_last_raw_image_info`, `get_phd2_storage`, `get_sim_focuser`, `get_sim_rotator`, `get_state`
 
 /// Invalidate the discovery cache, forcing fresh discovery on next call.
@@ -244,7 +244,7 @@ Future<DeviceApiVersion> apiGetDeviceApiVersion({required String deviceId}) =>
 ///
 /// This is useful for checking if newer API methods are available before calling them.
 /// Returns true if the device reports an interface version >= the required version,
-/// or true if no version info is available (optimistic fallback).
+/// and false when version information is unavailable.
 Future<bool> apiDeviceSupportsVersion(
         {required String deviceId, required int requiredVersion}) =>
     RustLib.instance.api.crateApiApiDeviceSupportsVersion(
@@ -253,7 +253,7 @@ Future<bool> apiDeviceSupportsVersion(
 /// Check if a device supports a specific action.
 ///
 /// For ASCOM/Alpaca devices, checks the SupportedActions list.
-/// Returns true if the action is supported or if the device doesn't report supported actions.
+/// Returns true only when the action is explicitly reported as supported.
 Future<bool> apiDeviceSupportsAction(
         {required String deviceId, required String action}) =>
     RustLib.instance.api
@@ -763,6 +763,34 @@ Future<FitsLinearReadResult> apiReadFitsLinearData(
         {required String filePath}) =>
     RustLib.instance.api.crateApiApiReadFitsLinearData(filePath: filePath);
 
+/// Compute quality maps from the last captured image in memory for a device.
+Future<QualityMapsResultApi> apiComputeLastCaptureQualityMaps(
+        {required String deviceId,
+        required int gridRows,
+        required int gridCols,
+        required int lowClipAdu,
+        required int highClipAdu}) =>
+    RustLib.instance.api.crateApiApiComputeLastCaptureQualityMaps(
+        deviceId: deviceId,
+        gridRows: gridRows,
+        gridCols: gridCols,
+        lowClipAdu: lowClipAdu,
+        highClipAdu: highClipAdu);
+
+/// Compute quality maps directly from a FITS file.
+Future<QualityMapsResultApi> apiComputeFitsQualityMaps(
+        {required String filePath,
+        required int gridRows,
+        required int gridCols,
+        required int lowClipAdu,
+        required int highClipAdu}) =>
+    RustLib.instance.api.crateApiApiComputeFitsQualityMaps(
+        filePath: filePath,
+        gridRows: gridRows,
+        gridCols: gridCols,
+        lowClipAdu: lowClipAdu,
+        highClipAdu: highClipAdu);
+
 /// Detect stars in a FITS file
 Future<StarDetectionResultApi> apiDetectStarsInFile(
         {required String filePath, StarDetectionConfigApi? config}) =>
@@ -1138,9 +1166,8 @@ Future<void> apiSequencerSetDevices(
 
 /// Set the safety fail mode for the sequencer.
 /// This determines behavior when safety devices fail or are unavailable:
-/// - "fail_open": Assume safe and continue imaging (default)
-/// - "fail_closed": Assume unsafe and pause/park
-/// - "warn_only": Show warning but continue
+/// - "fail_closed": Treat unavailable safety data as unsafe (enforced)
+/// - "fail_open"/"warn_only": accepted for backward compatibility and coerced to fail_closed
 Future<void> apiSequencerSetSafetyFailMode({required String mode}) =>
     RustLib.instance.api.crateApiApiSequencerSetSafetyFailMode(mode: mode);
 
@@ -2958,6 +2985,156 @@ class QhyDiscoveryStatus {
           sdkAvailable == other.sdkAvailable &&
           discoveryEnabled == other.discoveryEnabled &&
           timeoutMs == other.timeoutMs;
+}
+
+/// Frame-level quality metrics for Science visualizations.
+class QualityFrameMetricsApi {
+  final double median;
+  final double mean;
+  final double stdDev;
+  final double mad;
+  final double background;
+  final double noise;
+  final double snr;
+  final double dynamicRangeP1P99;
+  final double lowClipPercent;
+  final double highClipPercent;
+  final double uniformityCv;
+  final double gradientX;
+  final double gradientY;
+  final String processingTier;
+  final int processingMs;
+
+  const QualityFrameMetricsApi({
+    required this.median,
+    required this.mean,
+    required this.stdDev,
+    required this.mad,
+    required this.background,
+    required this.noise,
+    required this.snr,
+    required this.dynamicRangeP1P99,
+    required this.lowClipPercent,
+    required this.highClipPercent,
+    required this.uniformityCv,
+    required this.gradientX,
+    required this.gradientY,
+    required this.processingTier,
+    required this.processingMs,
+  });
+
+  @override
+  int get hashCode =>
+      median.hashCode ^
+      mean.hashCode ^
+      stdDev.hashCode ^
+      mad.hashCode ^
+      background.hashCode ^
+      noise.hashCode ^
+      snr.hashCode ^
+      dynamicRangeP1P99.hashCode ^
+      lowClipPercent.hashCode ^
+      highClipPercent.hashCode ^
+      uniformityCv.hashCode ^
+      gradientX.hashCode ^
+      gradientY.hashCode ^
+      processingTier.hashCode ^
+      processingMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QualityFrameMetricsApi &&
+          runtimeType == other.runtimeType &&
+          median == other.median &&
+          mean == other.mean &&
+          stdDev == other.stdDev &&
+          mad == other.mad &&
+          background == other.background &&
+          noise == other.noise &&
+          snr == other.snr &&
+          dynamicRangeP1P99 == other.dynamicRangeP1P99 &&
+          lowClipPercent == other.lowClipPercent &&
+          highClipPercent == other.highClipPercent &&
+          uniformityCv == other.uniformityCv &&
+          gradientX == other.gradientX &&
+          gradientY == other.gradientY &&
+          processingTier == other.processingTier &&
+          processingMs == other.processingMs;
+}
+
+/// Result container for quality map computation endpoints.
+class QualityMapsResultApi {
+  final QualityFrameMetricsApi frame;
+  final List<QualityTileMetricApi> tiles;
+
+  const QualityMapsResultApi({
+    required this.frame,
+    required this.tiles,
+  });
+
+  @override
+  int get hashCode => frame.hashCode ^ tiles.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QualityMapsResultApi &&
+          runtimeType == other.runtimeType &&
+          frame == other.frame &&
+          tiles == other.tiles;
+}
+
+/// Tile-level quality metrics for Science overlays/surfaces.
+class QualityTileMetricApi {
+  final String layerType;
+  final int tileRow;
+  final int tileCol;
+  final int sampleCount;
+  final double value;
+  final double p05;
+  final double p50;
+  final double p95;
+  final double auxValue;
+
+  const QualityTileMetricApi({
+    required this.layerType,
+    required this.tileRow,
+    required this.tileCol,
+    required this.sampleCount,
+    required this.value,
+    required this.p05,
+    required this.p50,
+    required this.p95,
+    required this.auxValue,
+  });
+
+  @override
+  int get hashCode =>
+      layerType.hashCode ^
+      tileRow.hashCode ^
+      tileCol.hashCode ^
+      sampleCount.hashCode ^
+      value.hashCode ^
+      p05.hashCode ^
+      p50.hashCode ^
+      p95.hashCode ^
+      auxValue.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QualityTileMetricApi &&
+          runtimeType == other.runtimeType &&
+          layerType == other.layerType &&
+          tileRow == other.tileRow &&
+          tileCol == other.tileCol &&
+          sampleCount == other.sampleCount &&
+          value == other.value &&
+          p05 == other.p05 &&
+          p50 == other.p50 &&
+          p95 == other.p95 &&
+          auxValue == other.auxValue;
 }
 
 /// Information about a known device quirk, suitable for UI display.

@@ -652,22 +652,15 @@ impl NativeMount for SkyWatcherMount {
             return Err(NativeError::NotConnected);
         }
 
-        // SynScan protocol supports tracking rate changes via motor speed adjustments
-        // For now, we only fully support sidereal rate - others require specific mount commands
         match rate {
             TrackingRate::Sidereal => {
-                // Sidereal is the default tracking mode
                 tracing::info!("Setting tracking rate to Sidereal");
                 Ok(())
             }
-            TrackingRate::Lunar | TrackingRate::Solar | TrackingRate::King => {
-                // These rates require specific motor speed calculations
-                // The SynScan protocol uses motor speed values rather than named rates
-                tracing::info!("Setting tracking rate to {:?}", rate);
-                // TODO: Implement proper motor speed calculations for different rates
-                Ok(())
-            }
-            TrackingRate::Custom => Err(NativeError::NotSupported),
+            TrackingRate::Lunar
+            | TrackingRate::Solar
+            | TrackingRate::King
+            | TrackingRate::Custom => Err(NativeError::NotSupported),
         }
     }
 
@@ -676,13 +669,11 @@ impl NativeMount for SkyWatcherMount {
             return Err(NativeError::NotConnected);
         }
 
-        // SynScan doesn't have a direct query for tracking rate
-        // Default to sidereal
         Ok(TrackingRate::Sidereal)
     }
 
     fn can_set_tracking_rate(&self) -> bool {
-        true
+        false
     }
 }
 

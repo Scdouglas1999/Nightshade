@@ -345,6 +345,7 @@ pub struct MoravianCamera {
     cooler_on: bool,
     target_temp: f64,
     exposure_duration: f64,
+    exposure_started_at: Option<std::time::Instant>,
     use_shutter: bool,
 }
 
@@ -377,6 +378,7 @@ impl MoravianCamera {
             cooler_on: false,
             target_temp: 0.0,
             exposure_duration: 0.0,
+            exposure_started_at: None,
             use_shutter: true,
         }
     }
@@ -576,6 +578,7 @@ impl NativeDevice for MoravianCamera {
         }
         self.connected = false;
         self.state = CameraState::Idle;
+        self.exposure_started_at = None;
 
         tracing::info!("Disconnected from Moravian camera: {}", self.name);
 
@@ -625,9 +628,20 @@ impl NativeCamera for MoravianCamera {
             }
         };
 
-        // Calculate exposure remaining (approximate)
+        // Calculate exposure remaining from elapsed time when exposing.
         let exposure_remaining = if self.state == CameraState::Exposing {
-            Some(self.exposure_duration)
+            match self.exposure_started_at {
+                Some(started) => {
+                    let elapsed_secs = started.elapsed().as_secs_f64();
+                    Some((self.exposure_duration - elapsed_secs).max(0.0))
+                }
+                None => {
+                    tracing::warn!(
+                        "Moravian camera is exposing but exposure start timestamp is unavailable; cannot compute remaining exposure time."
+                    );
+                    None
+                }
+            }
         } else {
             None
         };
@@ -691,6 +705,7 @@ impl NativeCamera for MoravianCamera {
             }
 
             self.exposure_duration = params.duration_secs;
+            self.exposure_started_at = Some(std::time::Instant::now());
             self.state = CameraState::Exposing;
 
             tracing::info!(
@@ -721,6 +736,7 @@ impl NativeCamera for MoravianCamera {
         unsafe { (sdk.end_exposure)(handle, 0, 1) };
 
         self.state = CameraState::Idle;
+        self.exposure_started_at = None;
         tracing::info!("Aborted exposure on Moravian camera");
 
         Ok(())
@@ -796,6 +812,7 @@ impl NativeCamera for MoravianCamera {
         }
 
         self.state = CameraState::Idle;
+        self.exposure_started_at = None;
 
         // Get temperature while we still hold the mutex
         let temperature = {
@@ -834,8 +851,16 @@ impl NativeCamera for MoravianCamera {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
-        // For Moravian, we rely on timing-based exposure completion
-        Ok(self.state != CameraState::Exposing)
+
+        if self.state != CameraState::Exposing {
+            return Ok(true);
+        }
+
+        let started_at = match self.exposure_started_at {
+            Some(started) => started,
+            None => return Ok(false),
+        };
+        Ok(started_at.elapsed().as_secs_f64() >= self.exposure_duration.max(0.0))
     }
 
     async fn set_cooler(&mut self, enabled: bool, target_temp: f64) -> Result<(), NativeError> {

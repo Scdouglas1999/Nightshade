@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
@@ -57,10 +58,10 @@ class LanPushReceiver {
     if (_server != null) return;
 
     _server = await ServerSocket.bind(InternetAddress.anyIPv4, pushPort);
-    print('[LanPushReceiver] Listening on port $pushPort');
+    developer.log('Listening on port $pushPort', name: 'LanPushReceiver', level: 800);
 
     _server!.listen(_handleConnection, onError: (error) {
-      print('[LanPushReceiver] Server error: $error');
+      developer.log('Server error: $error', name: 'LanPushReceiver', level: 1000);
       onError?.call('Server error: $error');
     });
   }
@@ -74,7 +75,7 @@ class LanPushReceiver {
   /// Handle incoming connection from push tool
   void _handleConnection(Socket socket) async {
     final remoteAddress = socket.remoteAddress.address;
-    print('[LanPushReceiver] Connection from $remoteAddress');
+    developer.log('Connection from $remoteAddress', name: 'LanPushReceiver', level: 800);
 
     if (_isReceiving) {
       // Already receiving an update, reject
@@ -89,7 +90,7 @@ class LanPushReceiver {
     try {
       await _receiveUpdate(socket);
     } catch (e) {
-      print('[LanPushReceiver] Error receiving update: $e');
+      developer.log('Error receiving update: $e', name: 'LanPushReceiver', level: 1000);
       onError?.call(e.toString());
     } finally {
       _isReceiving = false;
@@ -179,7 +180,7 @@ class LanPushReceiver {
 
         // Break out of loop once we've received all expected bytes
         if (receivedPackageBytes >= packageSize!) {
-          print('[LanPushReceiver] All $receivedPackageBytes bytes received, breaking out of receive loop');
+          developer.log('All $receivedPackageBytes bytes received, breaking out of receive loop', name: 'LanPushReceiver');
           break;
         }
       }
@@ -223,7 +224,7 @@ class LanPushReceiver {
 
     // Write ready marker
     final markerFile = File(path.join(staging.path, 'ready.json'));
-    print('[LanPushReceiver] Writing ready marker to: ${markerFile.path}');
+    developer.log('Writing ready marker to: ${markerFile.path}', name: 'LanPushReceiver');
     await markerFile.writeAsString(jsonEncode({
       'version': manifest.version,
       'buildNumber': manifest.buildNumber,
@@ -231,7 +232,7 @@ class LanPushReceiver {
       'extractPath': extractDir.path,
       'source': 'lan_push',
     }));
-    print('[LanPushReceiver] Ready marker written successfully');
+    developer.log('Ready marker written successfully', name: 'LanPushReceiver');
 
     // Send success response (may fail if pusher already disconnected, which is OK)
     try {
@@ -242,7 +243,7 @@ class LanPushReceiver {
       await socket.flush();
     } catch (e) {
       // Pusher may have disconnected - that's fine, update is complete
-      print('[LanPushReceiver] Could not send completion response (pusher disconnected): $e');
+      developer.log('Could not send completion response (pusher disconnected): $e', name: 'LanPushReceiver', level: 900);
     }
 
     onProgress?.call(actualSize, actualSize, 1.0, 'Update ready!');

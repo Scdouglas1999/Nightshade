@@ -10,12 +10,19 @@ class AnalyticsHandlers {
 
   AnalyticsHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'AnalyticsHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'AnalyticsHandlers');
+
   // ===========================================================================
   // Get All Sessions
   // ===========================================================================
 
   Future<Response> handleGetAllSessions(Request request) async {
-    print('[API] GET /api/sessions');
+    _logInfo('[API] GET /api/sessions');
     try {
       final database = container.read(databaseProvider);
       final sessions = await database.sessionsDao.getAllSessions();
@@ -27,7 +34,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get all sessions error: $e');
+      _logError('[API] Get all sessions error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -40,7 +47,7 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleGetSessionById(Request request, String id) async {
-    print('[API] GET /api/sessions/$id');
+    _logInfo('[API] GET /api/sessions/$id');
     try {
       final sessionId = int.parse(id);
       final database = container.read(databaseProvider);
@@ -58,7 +65,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get session by ID error: $e');
+      _logError('[API] Get session by ID error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -71,7 +78,7 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleGetActiveSession(Request request) async {
-    print('[API] GET /api/sessions/active');
+    _logInfo('[API] GET /api/sessions/active');
     try {
       final database = container.read(databaseProvider);
       final activeSessions = await database.sessionsDao.getActiveSessions();
@@ -89,7 +96,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get active session error: $e');
+      _logError('[API] Get active session error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -104,10 +111,11 @@ class AnalyticsHandlers {
   Future<Response> handleGetRecentSessions(Request request) async {
     final limitStr = request.url.queryParameters['limit'] ?? '10';
     final limit = int.tryParse(limitStr) ?? 10;
-    print('[API] GET /api/sessions/recent?limit=$limit');
+    _logInfo('[API] GET /api/sessions/recent?limit=$limit');
     try {
       final database = container.read(databaseProvider);
-      final sessions = await database.sessionsDao.getRecentSessions(limit: limit);
+      final sessions =
+          await database.sessionsDao.getRecentSessions(limit: limit);
 
       return Response.ok(
         jsonEncode({
@@ -116,7 +124,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get recent sessions error: $e');
+      _logError('[API] Get recent sessions error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -129,7 +137,7 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleCreateSession(Request request) async {
-    print('[API] POST /api/sessions');
+    _logInfo('[API] POST /api/sessions');
     try {
       final payload = jsonDecode(await request.readAsString());
       final database = container.read(databaseProvider);
@@ -146,7 +154,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Create session error: $e');
+      _logError('[API] Create session error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -159,7 +167,7 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleUpdateSession(Request request, String id) async {
-    print('[API] PUT /api/sessions/$id');
+    _logInfo('[API] PUT /api/sessions/$id');
     try {
       final sessionId = int.parse(id);
       final payload = jsonDecode(await request.readAsString());
@@ -178,7 +186,8 @@ class AnalyticsHandlers {
           totalExposures: payload['totalExposures'] as int?,
           successfulExposures: payload['successfulExposures'] as int?,
           failedExposures: payload['failedExposures'] as int?,
-          totalIntegrationSecs: (payload['totalIntegrationSecs'] as num?)?.toDouble(),
+          totalIntegrationSecs:
+              (payload['totalIntegrationSecs'] as num?)?.toDouble(),
           avgHfr: (payload['avgHfr'] as num?)?.toDouble(),
           avgGuidingRms: (payload['avgGuidingRms'] as num?)?.toDouble(),
           autofocusCount: payload['autofocusCount'] as int?,
@@ -187,12 +196,14 @@ class AnalyticsHandlers {
 
       // Update notes if provided
       if (payload.containsKey('notes')) {
-        await database.sessionsDao.updateNotes(sessionId, payload['notes'] as String);
+        await database.sessionsDao
+            .updateNotes(sessionId, payload['notes'] as String);
       }
 
       // Update status if provided
       if (payload.containsKey('status')) {
-        await database.sessionsDao.updateSessionStatus(sessionId, payload['status'] as String);
+        await database.sessionsDao
+            .updateSessionStatus(sessionId, payload['status'] as String);
       }
 
       return Response.ok(
@@ -200,7 +211,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Update session error: $e');
+      _logError('[API] Update session error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -213,7 +224,7 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleEndSession(Request request, String id) async {
-    print('[API] POST /api/sessions/$id/end');
+    _logInfo('[API] POST /api/sessions/$id/end');
     try {
       final sessionId = int.parse(id);
       final payload = jsonDecode(await request.readAsString());
@@ -227,7 +238,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] End session error: $e');
+      _logError('[API] End session error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -240,7 +251,7 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleDeleteSession(Request request, String id) async {
-    print('[API] DELETE /api/sessions/$id');
+    _logInfo('[API] DELETE /api/sessions/$id');
     try {
       final sessionId = int.parse(id);
       final database = container.read(databaseProvider);
@@ -258,7 +269,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Delete session error: $e');
+      _logError('[API] Delete session error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -271,7 +282,7 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleGetSessionStats(Request request, String id) async {
-    print('[API] GET /api/sessions/$id/stats');
+    _logInfo('[API] GET /api/sessions/$id/stats');
     try {
       final sessionId = int.parse(id);
       final database = container.read(databaseProvider);
@@ -347,7 +358,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get session stats error: $e');
+      _logError('[API] Get session stats error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -360,7 +371,7 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleGetAnalyticsSummary(Request request) async {
-    print('[API] GET /api/analytics/summary');
+    _logInfo('[API] GET /api/analytics/summary');
     try {
       final database = container.read(databaseProvider);
 
@@ -372,7 +383,8 @@ class AnalyticsHandlers {
       if (startDateStr != null && endDateStr != null) {
         final startDate = DateTime.parse(startDateStr);
         final endDate = DateTime.parse(endDateStr);
-        sessions = await database.sessionsDao.getSessionsInRange(startDate, endDate);
+        sessions =
+            await database.sessionsDao.getSessionsInRange(startDate, endDate);
       } else {
         sessions = await database.sessionsDao.getAllSessions();
       }
@@ -392,7 +404,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get analytics summary error: $e');
+      _logError('[API] Get analytics summary error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -405,7 +417,7 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleGetTotalIntegrationTime(Request request) async {
-    print('[API] GET /api/analytics/integration-time');
+    _logInfo('[API] GET /api/analytics/integration-time');
     try {
       final database = container.read(databaseProvider);
       final stats = await database.sessionsDao.getTotalStatistics();
@@ -418,7 +430,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get total integration time error: $e');
+      _logError('[API] Get total integration time error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -430,8 +442,9 @@ class AnalyticsHandlers {
   // Get Target Statistics
   // ===========================================================================
 
-  Future<Response> handleGetTargetStatistics(Request request, String targetId) async {
-    print('[API] GET /api/analytics/target/$targetId');
+  Future<Response> handleGetTargetStatistics(
+      Request request, String targetId) async {
+    _logInfo('[API] GET /api/analytics/target/$targetId');
     try {
       final tid = int.parse(targetId);
       final database = container.read(databaseProvider);
@@ -442,7 +455,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get target statistics error: $e');
+      _logError('[API] Get target statistics error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -454,8 +467,9 @@ class AnalyticsHandlers {
   // Get Sessions For Target
   // ===========================================================================
 
-  Future<Response> handleGetSessionsForTarget(Request request, String targetId) async {
-    print('[API] GET /api/analytics/target/$targetId/sessions');
+  Future<Response> handleGetSessionsForTarget(
+      Request request, String targetId) async {
+    _logInfo('[API] GET /api/analytics/target/$targetId/sessions');
     try {
       final tid = int.parse(targetId);
       final database = container.read(databaseProvider);
@@ -468,7 +482,7 @@ class AnalyticsHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get sessions for target error: $e');
+      _logError('[API] Get sessions for target error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

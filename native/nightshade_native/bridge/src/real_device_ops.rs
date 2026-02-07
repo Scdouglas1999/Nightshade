@@ -790,7 +790,7 @@ impl DeviceOps for RealDeviceOps {
 
             // Use guard to ensure disconnect on any error
             let result = with_alpaca_connection(&mount, "mount_can_flip", async {
-                let can_flip = mount.can_slew().await.unwrap_or(true);
+                let can_flip = mount.can_slew().await.map_err(|e| e.to_string())?;
                 Ok::<bool, String>(can_flip)
             })
             .await;
@@ -1050,12 +1050,12 @@ impl DeviceOps for RealDeviceOps {
                                 tracing::warn!("Failed to set offset: {}", e);
                             }
                         }
-                        if let Err(e) = camera.set_bin_x(bin_x) {
-                            tracing::warn!("Failed to set bin_x: {}", e);
-                        }
-                        if let Err(e) = camera.set_bin_y(bin_y) {
-                            tracing::warn!("Failed to set bin_y: {}", e);
-                        }
+                        camera
+                            .set_bin_x(bin_x)
+                            .map_err(|e| format!("Failed to set ASCOM bin_x: {}", e))?;
+                        camera
+                            .set_bin_y(bin_y)
+                            .map_err(|e| format!("Failed to set ASCOM bin_y: {}", e))?;
 
                         // Start exposure
                         camera.start_exposure(duration_secs, true)?; // true = light frame
@@ -1112,7 +1112,7 @@ impl DeviceOps for RealDeviceOps {
                             let offset_y = camera.bayer_offset_y().ok();
                             match (offset_x, offset_y) {
                                 (Some(x), Some(y)) => Some((x, y)),
-                                _ => Some((0, 0)), // Default to RGGB if color but no offset info
+                                _ => None,
                             }
                         } else {
                             None
@@ -1156,12 +1156,25 @@ impl DeviceOps for RealDeviceOps {
 
                 // Set parameters
                 if let Some(g) = gain {
-                    camera.set_gain(g).await.ok();
+                    if let Err(e) = camera.set_gain(g).await {
+                        tracing::warn!(
+                            "Failed to set INDI gain (device may not support gain control): {}",
+                            e
+                        );
+                    }
                 }
                 if let Some(o) = offset {
-                    camera.set_offset(o).await.ok();
+                    if let Err(e) = camera.set_offset(o).await {
+                        tracing::warn!(
+                            "Failed to set INDI offset (device may not support offset control): {}",
+                            e
+                        );
+                    }
                 }
-                camera.set_binning(bin_x, bin_y).await.ok();
+                camera
+                    .set_binning(bin_x, bin_y)
+                    .await
+                    .map_err(|e| format!("Failed to set INDI binning: {}", e))?;
 
                 // Capture image
                 let data = camera
@@ -1375,13 +1388,15 @@ impl DeviceOps for RealDeviceOps {
                 let offset_y = camera.bayer_offset_y().await.ok();
                 match (offset_x, offset_y) {
                     (Some(x), Some(y)) => Some((x, y)),
-                    _ => Some((0, 0)), // Default to RGGB
+                    _ => None,
                 }
             } else {
                 None
             };
 
-            camera.disconnect().await.ok(); // Clean disconnect
+            if let Err(e) = camera.disconnect().await {
+                tracing::warn!("Alpaca camera disconnect warning: {}", e);
+            }
 
             return Ok(SeqImageData {
                 width,
@@ -1679,9 +1694,18 @@ impl DeviceOps for RealDeviceOps {
         }
 
         if camera_id.starts_with("indi:") {
-            // INDI doesn't always expose cooler power in a standard way
-            // For now return 0.0
-            return Ok(0.0);
+            if let Some(client) = self.device_manager.get_indi_client(camera_id).await {
+                let (_, _, device_name) = parse_indi_device_id(camera_id)?;
+                let camera = IndiCamera::new(client, &device_name);
+                if let Some(power) = camera.get_cooler_power().await {
+                    return Ok(power);
+                }
+                return Err(format!(
+                    "INDI camera {} does not report cooler power",
+                    camera_id
+                ));
+            }
+            return Err(format!("INDI camera {} is not connected", camera_id));
         }
 
         if camera_id.starts_with("alpaca:") {
@@ -1705,7 +1729,7 @@ impl DeviceOps for RealDeviceOps {
     }
 
     // =========================================================================
-    // FOCUSER OPERATIONS (Placeholder - to be implemented)
+    // FOCUSER OPERATIONS
     // =========================================================================
 
     async fn focuser_move_to(&self, focuser_id: &str, position: i32) -> DeviceResult<()> {
@@ -1768,7 +1792,7 @@ impl DeviceOps for RealDeviceOps {
                     focuser.move_to(position).await.map_err(|e| e.to_string())?;
 
                     // Wait for move to complete
-                    while focuser.is_moving().await.unwrap_or(false) {
+                    while focuser.is_moving().await.map_err(|e| e.to_string())? {
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                     }
                     return Ok(());
@@ -1952,7 +1976,7 @@ impl DeviceOps for RealDeviceOps {
     }
 
     // =========================================================================
-    // FILTER WHEEL OPERATIONS (Placeholder - to be implemented)
+    // FILTER WHEEL OPERATIONS
     // =========================================================================
 
     async fn filterwheel_set_position(&self, fw_id: &str, position: i32) -> DeviceResult<()> {
@@ -2018,7 +2042,7 @@ impl DeviceOps for RealDeviceOps {
                         .map_err(|e| e.to_string())?;
 
                     // Wait for move to complete
-                    while fw.is_moving().await.unwrap_or(false) {
+                    while fw.is_moving().await.map_err(|e| e.to_string())? {
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                     }
 
@@ -2165,7 +2189,7 @@ impl DeviceOps for RealDeviceOps {
     }
 
     // =========================================================================
-    // ROTATOR OPERATIONS (Placeholder - to be implemented)
+    // ROTATOR OPERATIONS
     // =========================================================================
 
     async fn rotator_move_to(&self, rotator_id: &str, angle: f64) -> DeviceResult<()> {
@@ -2606,7 +2630,7 @@ impl DeviceOps for RealDeviceOps {
     }
 
     // =========================================================================
-    // IMAGE SAVING (Placeholder - to be implemented)
+    // IMAGE SAVING
     // =========================================================================
 
     async fn save_fits(
@@ -2642,7 +2666,8 @@ impl DeviceOps for RealDeviceOps {
             telescope: None,
             instrument: None,
             observer: None,
-            bin_x: 1, // TODO: Get from actual binning settings
+            // Capture metadata currently does not include binning in ImageData.
+            bin_x: 1,
             bin_y: 1,
             focal_length: None,
             aperture: None,

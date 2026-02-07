@@ -562,7 +562,13 @@ class ProfileService {
       try {
         existingOffsets = (jsonDecode(activeProfile.filterFocusOffsets!) as Map)
             .cast<String, int>();
-      } catch (_) {}
+      } catch (error, stack) {
+        debugPrint(
+          'ProfileService: Failed to parse filterFocusOffsets for profile '
+          '"${activeProfile.name}" (id=${activeProfile.id}). '
+          'Value=${activeProfile.filterFocusOffsets} Error=$error\n$stack',
+        );
+      }
     }
 
     // Build new offsets map, preserving existing offsets for matching filter names
@@ -607,7 +613,13 @@ class ProfileService {
       try {
         existingOffsets = (jsonDecode(profile.filterFocusOffsets!) as Map)
             .cast<String, int>();
-      } catch (_) {}
+      } catch (error, stack) {
+        debugPrint(
+          'ProfileService: Failed to parse filterFocusOffsets for profile '
+          '"${profile.name}" (id=${profile.id}). '
+          'Value=${profile.filterFocusOffsets} Error=$error\n$stack',
+        );
+      }
     }
 
     // Build new offsets map
@@ -773,4 +785,3 @@ class ProfileExportData {
 final profileServiceProvider = Provider<ProfileService>((ref) {
   return ProfileService(ref);
 });
-

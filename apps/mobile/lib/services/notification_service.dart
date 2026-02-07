@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/foundation.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
   // Notification IDs
@@ -24,7 +26,8 @@ class NotificationService {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -49,7 +52,8 @@ class NotificationService {
     // Request permissions for iOS
     if (Platform.isIOS) {
       await _notifications
-          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
           ?.requestPermissions(
             alert: true,
             badge: true,
@@ -88,8 +92,9 @@ class NotificationService {
       enableVibration: false,
     );
 
-    final androidImplementation = _notifications.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final androidImplementation =
+        _notifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
 
     await androidImplementation?.createNotificationChannel(sequenceChannel);
     await androidImplementation?.createNotificationChannel(warningChannel);
@@ -102,8 +107,8 @@ class NotificationService {
 
     // Handle navigation based on payload
     // This would integrate with go_router to navigate to appropriate screen
-    // For now, we just log it
-    print('[NotificationService] Notification tapped: $payload');
+    // Current behavior records tap payload until deep-link routing is wired.
+    debugPrint('[NotificationService] Notification tapped: $payload');
   }
 
   Future<void> notifySequenceComplete(String targetName, int imageCount) async {
@@ -117,7 +122,8 @@ class NotificationService {
         android: AndroidNotificationDetails(
           'nightshade_sequence',
           'Sequence Events',
-          channelDescription: 'Notifications for sequence completion and failures',
+          channelDescription:
+              'Notifications for sequence completion and failures',
           importance: Importance.high,
           priority: Priority.high,
           playSound: true,
@@ -134,7 +140,8 @@ class NotificationService {
     );
   }
 
-  Future<void> notifySequenceFailed(String targetName, String errorMessage) async {
+  Future<void> notifySequenceFailed(
+      String targetName, String errorMessage) async {
     if (!enableSequenceNotifications) return;
 
     await _notifications.show(
@@ -145,7 +152,8 @@ class NotificationService {
         android: AndroidNotificationDetails(
           'nightshade_sequence',
           'Sequence Events',
-          channelDescription: 'Notifications for sequence completion and failures',
+          channelDescription:
+              'Notifications for sequence completion and failures',
           importance: Importance.high,
           priority: Priority.high,
           playSound: true,
@@ -165,7 +173,8 @@ class NotificationService {
   Future<void> notifyMeridianFlip(String targetName, DateTime flipTime) async {
     if (!enableMeridianFlipNotifications) return;
 
-    final timeStr = '${flipTime.hour.toString().padLeft(2, '0')}:${flipTime.minute.toString().padLeft(2, '0')}';
+    final timeStr =
+        '${flipTime.hour.toString().padLeft(2, '0')}:${flipTime.minute.toString().padLeft(2, '0')}';
 
     await _notifications.show(
       _meridianFlipId,
@@ -202,7 +211,8 @@ class NotificationService {
         android: AndroidNotificationDetails(
           'nightshade_warnings',
           'Warnings',
-          channelDescription: 'Important warnings about battery, disk space, etc.',
+          channelDescription:
+              'Important warnings about battery, disk space, etc.',
           importance: Importance.high,
           priority: Priority.high,
           playSound: true,
@@ -224,9 +234,11 @@ class NotificationService {
 
     String message;
     if (percentage <= 10) {
-      message = 'Critical battery level ($percentage%). Sequence will be paused to protect data.';
+      message =
+          'Critical battery level ($percentage%). Sequence will be paused to protect data.';
     } else if (percentage <= 15) {
-      message = 'Very low battery ($percentage%). Consider pausing the sequence.';
+      message =
+          'Very low battery ($percentage%). Consider pausing the sequence.';
     } else {
       message = 'Battery is low ($percentage%). Please connect charger.';
     }
@@ -239,7 +251,8 @@ class NotificationService {
         android: AndroidNotificationDetails(
           'nightshade_warnings',
           'Warnings',
-          channelDescription: 'Important warnings about battery, disk space, etc.',
+          channelDescription:
+              'Important warnings about battery, disk space, etc.',
           importance: Importance.high,
           priority: Priority.high,
           playSound: true,

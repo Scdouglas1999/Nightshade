@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide DeviceType, PlateSolveResult;
-import 'package:nightshade_core/src/services/plate_solve_service.dart' show PlateSolveResult;
+import 'package:nightshade_core/nightshade_core.dart' hide DeviceType;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../services/mount_command_service.dart';
@@ -49,7 +48,9 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
           deviceType: DeviceType.mount,
           isConnected: _isConnected,
           selectedDevice: _selectedDeviceId,
-          availableDevices: widget.availableMounts.valueOrNull?.map((d) => d.id).toList() ?? [],
+          availableDevices:
+              widget.availableMounts.valueOrNull?.map((d) => d.id).toList() ??
+                  [],
           onDeviceSelected: (id) => setState(() => _selectedDeviceId = id),
           onConnect: _handleConnect,
           onDisconnect: _handleDisconnect,
@@ -59,7 +60,9 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
               Text(
                 _getStatusLabel(),
                 style: TextStyle(
-                  color: _isConnected ? widget.colors.success : widget.colors.textSecondary,
+                  color: _isConnected
+                      ? widget.colors.success
+                      : widget.colors.textSecondary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -103,7 +106,13 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
                   label: widget.mountState.isParked ? 'Unpark' : 'Park',
                   icon: LucideIcons.parkingSquare,
                   variant: ButtonVariant.outline,
-                  onPressed: () => ref.read(mountCommandServiceProvider).togglePark(context),
+                  onPressed: () async {
+                    final result = await ref
+                        .read(mountCommandServiceProvider)
+                        .togglePark();
+                    if (!mounted) return;
+                    context.showCommandActionResult(result);
+                  },
                 ),
               ),
               const SizedBox(width: 12),
@@ -111,8 +120,16 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
                 child: NightshadeButton(
                   label: widget.mountState.isTracking ? 'Stop Track' : 'Track',
                   icon: LucideIcons.activity,
-                  variant: widget.mountState.isTracking ? ButtonVariant.primary : ButtonVariant.outline,
-                  onPressed: () => ref.read(mountCommandServiceProvider).toggleTracking(context),
+                  variant: widget.mountState.isTracking
+                      ? ButtonVariant.primary
+                      : ButtonVariant.outline,
+                  onPressed: () async {
+                    final result = await ref
+                        .read(mountCommandServiceProvider)
+                        .toggleTracking();
+                    if (!mounted) return;
+                    context.showCommandActionResult(result);
+                  },
                 ),
               ),
             ],
@@ -173,16 +190,16 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
         binningY: userSettings.binningY > 0 ? userSettings.binningY : 2,
         frameType: FrameType.light,
       );
-      
+
       final image = await imagingService.captureImage(
         settings: settings,
         targetName: 'Plate Solve',
       );
-      
+
       if (image == null || image.filePath == null) {
         throw Exception('Failed to capture image');
       }
-      
+
       // 2. Plate Solve
       final plateSolveService = ref.read(plateSolveServiceProvider);
       // PlateSolveService tries backend.plateSolve() first (works for both local and remote)
@@ -190,45 +207,48 @@ class _MountControlPanelState extends ConsumerState<MountControlPanel> {
 
       // Get ASTAP path from app settings for local fallback
       final appSettings = ref.read(appSettingsProvider).value;
-      final executablePath = await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
+      final executablePath =
+          await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
 
-      PlateSolveResult result;
+      final result =
+          (widget.mountState.ra != null && widget.mountState.dec != null)
+              ? await plateSolveService.solve(
+                  image.filePath!,
+                  PlateSolverConfig(
+                    type: PlateSolverType.astap,
+                    hintRa: widget.mountState.ra,
+                    hintDec: widget.mountState.dec,
+                    searchRadius: 10.0, // 10 degrees search
+                    // Provide path for local fallback - backend is tried first
+                    executablePath: executablePath ?? '',
+                  ),
+                )
+              : await plateSolveService.solve(
+                  image.filePath!,
+                  PlateSolverConfig(
+                    type: PlateSolverType.astap,
+                    // Provide path for local fallback - backend is tried first
+                    executablePath: executablePath ?? '',
+                    searchRadius: 180.0, // Blind solve
+                  ),
+                );
 
-      if (widget.mountState.ra != null && widget.mountState.dec != null) {
-         result = await plateSolveService.solve(
-          image.filePath!,
-          PlateSolverConfig(
-            type: PlateSolverType.astap,
-            hintRa: widget.mountState.ra,
-            hintDec: widget.mountState.dec,
-            searchRadius: 10.0, // 10 degrees search
-            // Provide path for local fallback - backend is tried first
-            executablePath: executablePath ?? '',
-          ),
-        );
-      } else {
-        result = await plateSolveService.solve(
-          image.filePath!,
-          PlateSolverConfig(
-            type: PlateSolverType.astap,
-            // Provide path for local fallback - backend is tried first
-            executablePath: executablePath ?? '',
-            searchRadius: 180.0, // Blind solve
-          ),
-        );
-      }
-      
       if (!result.success) {
         throw Exception('Plate solving failed: ${result.errorMessage}');
       }
-      
+
       if (result.ra == null || result.dec == null) {
-         throw Exception('Plate solving succeeded but returned null coordinates');
+        throw Exception(
+            'Plate solving succeeded but returned null coordinates');
       }
 
-      // 3. Sync Mount using the service (service shows its own success message)
-      await ref.read(mountCommandServiceProvider).sync(context, result.ra!, result.dec!);
-      
+      // 3. Sync Mount and show typed feedback in UI layer.
+      final syncResult = await ref
+          .read(mountCommandServiceProvider)
+          .sync(result.ra!, result.dec!);
+      if (mounted) {
+        context.showCommandActionResult(syncResult);
+      }
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Error: $e');

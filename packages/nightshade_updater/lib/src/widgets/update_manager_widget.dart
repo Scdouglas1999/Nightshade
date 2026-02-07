@@ -1,3 +1,7 @@
+// ignore_for_file: unused_local_variable
+
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -17,7 +21,8 @@ class UpdateManagerWidget extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<UpdateManagerWidget> createState() => _UpdateManagerWidgetState();
+  ConsumerState<UpdateManagerWidget> createState() =>
+      _UpdateManagerWidgetState();
 }
 
 class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
@@ -52,20 +57,21 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
   Future<void> _checkForStagedUpdate() async {
     if (!mounted) return;
     if (!_isUpdateConfigured()) {
-      print(_disabledUpdatesLog);
+      developer.log(_disabledUpdatesLog, name: 'UpdateManager');
       return;
     }
 
-    print('[UpdateManager] Checking for staged updates...');
+    developer.log('Checking for staged updates...', name: 'UpdateManager');
     final updateNotifier = ref.read(updateProvider.notifier);
     await updateNotifier.checkStagedUpdate();
 
     final state = ref.read(updateProvider);
     if (state.status == UpdateStatus.staged) {
-      print('[UpdateManager] Found staged update: ${state.availableUpdate?.version}');
+      developer.log('Found staged update: ${state.availableUpdate?.version}',
+          name: 'UpdateManager', level: 800);
       _showLanPushBannerDirect(state.availableUpdate?.version ?? 'Unknown');
     } else {
-      print('[UpdateManager] No staged update found');
+      developer.log('No staged update found', name: 'UpdateManager');
     }
   }
 
@@ -75,16 +81,20 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
 
     switch (event) {
       case LanPushReceivedEvent(:final manifest, :final stagingPath):
-        print('[UpdateManager] LAN push received: ${manifest.version}');
+        developer.log('LAN push received: ${manifest.version}',
+            name: 'UpdateManager', level: 800);
         // Update provider state so applyUpdate() works
-        ref.read(updateProvider.notifier).setStagedFromLanPush(manifest, stagingPath);
+        ref
+            .read(updateProvider.notifier)
+            .setStagedFromLanPush(manifest, stagingPath);
         _showLanPushBannerDirect(manifest.version);
         break;
       case LanPushProgressEvent(:final progress, :final message):
         // Could show progress indicator if desired
         break;
       case LanPushErrorEvent(:final error):
-        print('[UpdateManager] LAN push error: $error');
+        developer.log('LAN push error: $error',
+            name: 'UpdateManager', level: 1000);
         _showErrorBanner('LAN push error: $error');
         break;
     }
@@ -93,7 +103,8 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
   void _showLanPushBannerDirect(String version) {
     if (!mounted) return;
 
-    print('[UpdateManager] Showing banner for version: $version');
+    developer.log('Showing banner for version: $version',
+        name: 'UpdateManager');
     setState(() {
       _showingBanner = true;
       _bannerVersion = version;
@@ -134,7 +145,7 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
   Future<void> _checkForUpdates() async {
     if (!mounted) return;
     if (!_isUpdateConfigured()) {
-      print(_disabledUpdatesLog);
+      developer.log(_disabledUpdatesLog, name: 'UpdateManager');
       return;
     }
 
@@ -228,7 +239,8 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
           case UpdateStatus.staged:
             // If banner is already showing (from LAN push), don't show dialog
             if (_showingBanner) {
-              print('[UpdateManager] Banner already showing, skipping dialog');
+              developer.log('Banner already showing, skipping dialog',
+                  name: 'UpdateManager');
               break;
             }
             // If came from downloading, dialog handles it
@@ -237,12 +249,14 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
             } else {
               // For non-LAN push staged updates, show banner instead of dialog
               // (dialogs don't work in MaterialApp.builder context)
-              _showLanPushBannerDirect(next.availableUpdate?.version ?? 'Unknown');
+              _showLanPushBannerDirect(
+                  next.availableUpdate?.version ?? 'Unknown');
             }
             break;
           case UpdateStatus.error:
             if (next.errorMessage != null) {
-              print('[UpdateManager] Error: ${next.errorMessage}');
+              developer.log('Error: ${next.errorMessage}',
+                  name: 'UpdateManager', level: 1000);
               // Show error in banner instead of snackbar (more reliable in builder context)
               _showErrorBanner(next.errorMessage!);
             }

@@ -227,14 +227,21 @@ impl DeviceOps for UnifiedDeviceOps {
     }
 
     async fn mount_can_flip(&self, mount_id: &str) -> DeviceResult<bool> {
-        // Check if mount is a GEM (German Equatorial Mount) that can flip
         let status = get_device_manager()
             .mount_get_status(mount_id)
             .await
             .map_err(|e| format!("Failed to get mount status: {}", e))?;
 
-        // GEM mounts that can track generally support flipping
-        Ok(status.tracking || !status.parked)
+        if !status.can_slew {
+            return Ok(false);
+        }
+        if matches!(status.side_of_pier, crate::device::PierSide::Unknown) {
+            return Err(
+                "Mount does not report side-of-pier state; flip capability cannot be determined"
+                    .to_string(),
+            );
+        }
+        Ok(true)
     }
 
     async fn mount_side_of_pier(
@@ -466,7 +473,7 @@ impl DeviceOps for UnifiedDeviceOps {
             );
 
             // Apply auto-stretch to create display-ready data
-            let display_data = if is_color {
+            let display_data_raw = if is_color {
                 // Color: debayer and stretch
                 // Get bayer pattern from offset
                 let bayer_pattern = match bayer_offset {
@@ -511,7 +518,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 nightshade_imaging::apply_stretch(&image, &stretch_params)
             };
 
-            // Calculate stats and histogram
+            // Calculate stats and histogram from pre-RGBA data
             let stats = nightshade_imaging::calculate_stats_u16(&image);
             let stars = nightshade_imaging::detect_stars(
                 &image,
@@ -520,9 +527,12 @@ impl DeviceOps for UnifiedDeviceOps {
             let star_count = stars.len() as u32;
 
             let mut histogram = vec![0u32; 256];
-            for &pixel in &display_data {
+            for &pixel in &display_data_raw {
                 histogram[pixel as usize] += 1;
             }
+
+            // Convert to RGBA for Flutter rendering (parallel, fast in Rust)
+            let display_data = crate::api::display_data_to_rgba(&display_data_raw, is_color);
 
             // Create and store the display result
             let display_result = CapturedImageResult {

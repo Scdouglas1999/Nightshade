@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database.dart';
+import '../models/backend/event_types.dart';
 import '../models/meridian_flip_settings.dart';
 import '../models/meridian_flip_event.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 
 /// Key used to store global meridian flip settings in app_settings table
@@ -38,7 +41,7 @@ class GlobalMeridianFlipSettingsNotifier extends StateNotifier<MeridianFlipSetti
         state = MeridianFlipSettings.fromJson(json);
       }
     } catch (e) {
-      print('[MERIDIAN] Failed to load settings: $e');
+      developer.log('Failed to load settings: $e', name: 'MeridianFlip', level: 1000);
     }
   }
 
@@ -59,7 +62,7 @@ class GlobalMeridianFlipSettingsNotifier extends StateNotifier<MeridianFlipSetti
             ),
           );
     } catch (e) {
-      print('[MERIDIAN] Failed to save settings: $e');
+      developer.log('Failed to save settings: $e', name: 'MeridianFlip', level: 1000);
     }
   }
 
@@ -174,22 +177,30 @@ final effectiveMeridianFlipSettingsProvider = Provider<MeridianFlipSettings>((re
     final merged = {...globalJson, ...overrides};
     return MeridianFlipSettings.fromJson(merged);
   } catch (e) {
-    print('[MERIDIAN] Failed to parse profile overrides: $e');
+    developer.log('Failed to parse profile overrides: $e', name: 'MeridianFlip', level: 1000);
     return global;
   }
 });
 
-/// Stream of meridian flip events during flip execution
+/// Stream of meridian flip events during flip execution.
 ///
-/// This stream will be connected to the Rust event stream via the backend
-/// when the flip executor is running. It provides real-time updates about
-/// flip progress, step completion, errors, and retries.
+/// Listens to the backend event stream for equipment events with
+/// meridian-flip-related event types and maps them to [MeridianFlipEvent].
 final meridianFlipEventStreamProvider = StreamProvider<MeridianFlipEvent?>((ref) {
-  // This will be connected to the Rust event stream via the backend
-  // when the meridian flip executor is implemented in Task 6.
-  // For now, return an empty stream that will be replaced when the
-  // backend integration is complete.
-  return const Stream.empty();
+  final backend = ref.watch(backendProvider);
+
+  return backend.eventStream
+      .where((event) =>
+          event.category == EventCategory.equipment &&
+          event.eventType.startsWith('MeridianFlip'))
+      .map((event) {
+    try {
+      return MeridianFlipEvent.fromJson(event.data);
+    } catch (e) {
+      // If parsing fails, emit null rather than crashing the stream
+      return null;
+    }
+  });
 });
 
 /// Current flip state for UI

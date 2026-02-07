@@ -11,12 +11,19 @@ class ImagingHandlers {
 
   ImagingHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'ImagingHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'ImagingHandlers');
+
   // ===========================================================================
   // Plate Solving
   // ===========================================================================
 
   Future<Response> handlePlateSolve(Request request) async {
-    print('[API] POST /api/plate-solve');
+    _logInfo('[API] POST /api/plate-solve');
     try {
       final payload = jsonDecode(await request.readAsString());
       final imagePath = payload['imagePath'] as String;
@@ -47,7 +54,7 @@ class ImagingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Plate solve error: $e');
+      _logError('[API] Plate solve error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -60,7 +67,7 @@ class ImagingHandlers {
   // ===========================================================================
 
   Future<Response> handleGetImageStats(Request request) async {
-    print('[API] POST /api/imaging/stats');
+    _logInfo('[API] POST /api/imaging/stats');
     try {
       final payload = jsonDecode(await request.readAsString());
       final width = payload['width'] as int;
@@ -75,7 +82,7 @@ class ImagingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get image stats error: $e');
+      _logError('[API] Get image stats error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -84,7 +91,7 @@ class ImagingHandlers {
   }
 
   Future<Response> handleAutoStretchImage(Request request) async {
-    print('[API] POST /api/imaging/stretch');
+    _logInfo('[API] POST /api/imaging/stretch');
     try {
       final payload = jsonDecode(await request.readAsString());
       final width = payload['width'] as int;
@@ -99,7 +106,7 @@ class ImagingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Auto stretch error: $e');
+      _logError('[API] Auto stretch error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -108,7 +115,7 @@ class ImagingHandlers {
   }
 
   Future<Response> handleDebayerImage(Request request) async {
-    print('[API] POST /api/imaging/debayer');
+    _logInfo('[API] POST /api/imaging/debayer');
     try {
       final payload = jsonDecode(await request.readAsString());
       final width = payload['width'] as int;
@@ -119,13 +126,14 @@ class ImagingHandlers {
       final algorithm = payload['algorithm'] as String;
 
       final backend = container.read(backendProvider);
-      final debayered = await backend.debayerImage(width, height, data, pattern, algorithm);
+      final debayered =
+          await backend.debayerImage(width, height, data, pattern, algorithm);
       return Response.ok(
         jsonEncode({"data": debayered.toList()}),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Debayer error: $e');
+      _logError('[API] Debayer error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -148,7 +156,7 @@ class ImagingHandlers {
         },
       );
     } catch (e) {
-      print('[API] Get raw image data error: $e');
+      _logError('[API] Get raw image data error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -157,7 +165,7 @@ class ImagingHandlers {
   }
 
   Future<Response> handleSaveFitsFile(Request request) async {
-    print('[API] POST /api/imaging/save-fits');
+    _logInfo('[API] POST /api/imaging/save-fits');
     try {
       final payload = jsonDecode(await request.readAsString());
       final filePath = payload['filePath'] as String;
@@ -180,7 +188,7 @@ class ImagingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Save FITS file error: $e');
+      _logError('[API] Save FITS file error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -189,7 +197,7 @@ class ImagingHandlers {
   }
 
   Future<Response> handleSaveFitsFromLastCapture(Request request) async {
-    print('[API] POST /api/imaging/save-fits-from-capture');
+    _logInfo('[API] POST /api/imaging/save-fits-from-capture');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -208,7 +216,7 @@ class ImagingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Save FITS from capture error: $e');
+      _logError('[API] Save FITS from capture error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -216,8 +224,9 @@ class ImagingHandlers {
     }
   }
 
-  Future<Response> handleClearDeviceImage(Request request, String deviceId) async {
-    print('[API] DELETE /api/imaging/device-image/$deviceId');
+  Future<Response> handleClearDeviceImage(
+      Request request, String deviceId) async {
+    _logInfo('[API] DELETE /api/imaging/device-image/$deviceId');
     try {
       final backend = container.read(backendProvider);
       await backend.clearDeviceImage(deviceId);
@@ -226,7 +235,7 @@ class ImagingHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Clear device image error: $e');
+      _logError('[API] Clear device image error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

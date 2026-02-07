@@ -293,7 +293,6 @@ impl AppState {
             }
             Err(_) => {
                 // Lock is held for write, return None rather than blocking
-                eprintln!("[RUST-STATE] get_observer_location: lock busy, returning None");
                 tracing::debug!("Observer location lock busy, returning None");
                 Ok(None)
             }
@@ -303,13 +302,8 @@ impl AppState {
     /// Set observer location in-memory and optionally persist to file
     /// This updates the runtime state that all components use
     pub fn set_observer_location(&self, location: Option<ObserverLocation>) -> Result<(), String> {
-        eprintln!("[RUST-STATE] set_observer_location called");
         match &location {
             Some(loc) => {
-                eprintln!(
-                    "[RUST-STATE] Setting observer location: lat={}, lon={}, elev={}",
-                    loc.latitude, loc.longitude, loc.elevation
-                );
                 tracing::info!(
                     "Setting observer location: lat={}, lon={}, elev={}",
                     loc.latitude,
@@ -318,7 +312,6 @@ impl AppState {
                 );
             }
             None => {
-                eprintln!("[RUST-STATE] Clearing observer location");
                 tracing::info!("Clearing observer location");
             }
         }
@@ -328,16 +321,13 @@ impl AppState {
         match self.observer_location.try_write() {
             Ok(mut loc_guard) => {
                 *loc_guard = location.clone();
-                eprintln!("[RUST-STATE] Observer location updated in memory (try_write succeeded)");
                 tracing::debug!("Observer location updated in memory");
             }
             Err(_) => {
                 // Lock is held for read, try to wait a bit and retry
-                eprintln!("[RUST-STATE] try_write failed, using blocking_write");
                 tracing::warn!("Observer location lock busy for write, using blocking fallback");
                 let mut loc_guard = self.observer_location.blocking_write();
                 *loc_guard = location.clone();
-                eprintln!("[RUST-STATE] Observer location updated in memory (blocking)");
                 tracing::debug!("Observer location updated in memory (blocking)");
             }
         }

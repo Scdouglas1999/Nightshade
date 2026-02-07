@@ -1131,17 +1131,13 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
 
 /// Check if PHD2 is running
 pub fn is_phd2_running() -> bool {
-    // Try to connect briefly
-    match TcpStream::connect_timeout(
-        &"127.0.0.1:4400".parse().unwrap(),
-        Duration::from_millis(500),
-    ) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    let Ok(addr) = "127.0.0.1:4400".parse() else {
+        return false;
+    };
+    TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
 }
 
-/// Check if PHD2 is installed (Windows only for now)
+/// Check if PHD2 is installed
 pub fn is_phd2_installed() -> bool {
     #[cfg(target_os = "windows")]
     {
@@ -1158,8 +1154,35 @@ pub fn is_phd2_installed() -> bool {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        // TODO: Implement for Linux/Mac
-        false
+        use std::path::Path;
+        use std::process::Command;
+
+        #[cfg(target_os = "macos")]
+        {
+            if Path::new("/Applications/PHD2.app").exists()
+                || Path::new("/Applications/PHD2.app/Contents/MacOS/PHD2").exists()
+            {
+                return true;
+            }
+        }
+
+        for candidate in [
+            "/usr/bin/phd2",
+            "/usr/local/bin/phd2",
+            "/snap/bin/phd2",
+            "/opt/homebrew/bin/phd2",
+        ] {
+            if Path::new(candidate).exists() {
+                return true;
+            }
+        }
+
+        // PATH-based check for Linux/macOS.
+        Command::new("sh")
+            .args(["-lc", "command -v phd2 >/dev/null 2>&1"])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
     }
 }
 
@@ -1203,6 +1226,37 @@ pub fn launch_phd2() -> Result<(), String> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        Err("Auto-launch not supported on this platform".to_string())
+        use std::path::Path;
+        use std::process::Command;
+
+        #[cfg(target_os = "macos")]
+        {
+            let status = Command::new("open")
+                .args(["-a", "PHD2"])
+                .status()
+                .map_err(|e| format!("Failed to launch PHD2 via open: {}", e))?;
+            if status.success() {
+                return Ok(());
+            }
+        }
+
+        for candidate in [
+            "/usr/bin/phd2",
+            "/usr/local/bin/phd2",
+            "/snap/bin/phd2",
+            "/opt/homebrew/bin/phd2",
+        ] {
+            if Path::new(candidate).exists() {
+                Command::new(candidate)
+                    .spawn()
+                    .map_err(|e| format!("Failed to launch PHD2 from {}: {}", candidate, e))?;
+                return Ok(());
+            }
+        }
+
+        Command::new("phd2")
+            .spawn()
+            .map_err(|e| format!("Failed to launch PHD2: {}", e))?;
+        Ok(())
     }
 }

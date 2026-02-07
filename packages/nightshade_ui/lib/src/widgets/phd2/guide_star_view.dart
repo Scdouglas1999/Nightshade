@@ -34,7 +34,7 @@ class GuideStarView extends StatefulWidget {
   final void Function(double x, double y)? onStarSelected;
 
   /// Message to show when no star image is available
-  final String placeholderMessage;
+  final String statusMessage;
 
   const GuideStarView({
     super.key,
@@ -46,7 +46,7 @@ class GuideStarView extends StatefulWidget {
     this.snr = 0,
     this.showCrosshairs = true,
     this.onStarSelected,
-    this.placeholderMessage = 'No star selected',
+    this.statusMessage = 'No star selected',
   });
 
   /// Check if this widget has valid image data to display
@@ -104,11 +104,11 @@ class _GuideStarViewState extends State<GuideStarView> {
               borderRadius: BorderRadius.circular(10),
               child: Stack(
                 children: [
-                  // Star image or placeholder
+                  // Star image or empty state
                   if (widget.hasValidImage)
                     _buildStarImage(constraints, colors)
                   else
-                    _buildPlaceholder(constraints, colors),
+                    _buildEmptyState(constraints, colors),
 
                   // Crosshairs overlay (only if we have valid image)
                   if (widget.showCrosshairs && widget.hasValidImage)
@@ -129,7 +129,8 @@ class _GuideStarViewState extends State<GuideStarView> {
                       left: 8,
                       bottom: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: colors.surface.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(6),
@@ -179,12 +180,12 @@ class _GuideStarViewState extends State<GuideStarView> {
             ),
           );
         }
-        return _buildPlaceholder(constraints, colors);
+        return _buildEmptyState(constraints, colors);
       },
     );
   }
 
-  Widget _buildPlaceholder(BoxConstraints constraints, NightshadeColors colors) {
+  Widget _buildEmptyState(BoxConstraints constraints, NightshadeColors colors) {
     return Container(
       width: constraints.maxWidth,
       height: constraints.maxHeight,
@@ -207,7 +208,7 @@ class _GuideStarViewState extends State<GuideStarView> {
             ),
             const SizedBox(height: 8),
             Text(
-              widget.placeholderMessage,
+              widget.statusMessage,
               style: TextStyle(color: colors.textMuted, fontSize: 11),
               textAlign: TextAlign.center,
             ),
@@ -254,10 +255,10 @@ class _GuideStarViewState extends State<GuideStarView> {
       final normalized = (value16 - minVal) / range;
       final stretched = (255 * normalized).round().clamp(0, 255);
 
-      rgbaPixels[i * 4] = stretched;     // R
+      rgbaPixels[i * 4] = stretched; // R
       rgbaPixels[i * 4 + 1] = stretched; // G
       rgbaPixels[i * 4 + 2] = stretched; // B
-      rgbaPixels[i * 4 + 3] = 255;       // A
+      rgbaPixels[i * 4 + 3] = 255; // A
     }
 
     final codec = await ui.ImageDescriptor.raw(
@@ -337,8 +338,8 @@ class _CrosshairsPainter extends CustomPainter {
   @override
   bool shouldRepaint(_CrosshairsPainter oldDelegate) {
     return starX != oldDelegate.starX ||
-           starY != oldDelegate.starY ||
-           color != oldDelegate.color;
+        starY != oldDelegate.starY ||
+        color != oldDelegate.color;
   }
 }
 
@@ -351,13 +352,15 @@ class _ImagePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final srcRect = Rect.fromLTWH(
-      0, 0,
+      0,
+      0,
       image.width.toDouble(),
       image.height.toDouble(),
     );
     final dstRect = Rect.fromLTWH(0, 0, size.width, size.height);
 
-    canvas.drawImageRect(image, srcRect, dstRect, Paint()..filterQuality = FilterQuality.low);
+    canvas.drawImageRect(
+        image, srcRect, dstRect, Paint()..filterQuality = FilterQuality.low);
   }
 
   @override

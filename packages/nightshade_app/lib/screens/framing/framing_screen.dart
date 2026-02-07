@@ -9,7 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:nightshade_core/nightshade_core.dart' hide TargetSearchState, targetSearchProvider;
+import 'package:nightshade_core/nightshade_core.dart'
+    hide TargetSearchState, targetSearchProvider;
 import 'package:nightshade_core/src/providers/framing_provider.dart'
     as framing_provider show MosaicConfig, MosaicPanel;
 import 'framing_search_provider.dart';
@@ -103,11 +104,11 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     final settingsAsync = ref.read(appSettingsProvider);
     final settings = settingsAsync.valueOrNull;
     if (settings == null) return;
-    
+
     // Use location from settings
     final lat = settings.latitude;
     final lon = settings.longitude;
-    
+
     // If no location set, use defaults
     if (lat == 0.0 && lon == 0.0) {
       setState(() {
@@ -150,10 +151,12 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
             index: _currentTabIndex,
             children: [
               // Tab 0: Framing
-              _buildFramingContent(colors, framingState, searchState, equipmentResult),
+              _buildFramingContent(
+                  colors, framingState, searchState, equipmentResult),
               // Tab 1: Suggestions
               _SuggestionsTab(
-                onTargetSelected: (suggestion) => _navigateToFramingWithTarget(suggestion),
+                onTargetSelected: (suggestion) =>
+                    _navigateToFramingWithTarget(suggestion),
               ),
             ],
           ),
@@ -212,7 +215,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                   const SizedBox(width: 4),
                   IconButton(
                     icon: const Icon(LucideIcons.slidersHorizontal, size: 18),
-                    onPressed: () => _showSuggestionFilterSheet(context, colors),
+                    onPressed: () =>
+                        _showSuggestionFilterSheet(context, colors),
                     tooltip: 'Filter options',
                     color: colors.textSecondary,
                   ),
@@ -235,7 +239,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
       screenId: 'framing',
       tourCategory: TutorialCategory.framingTour,
       title: 'Framing Tour',
-      description: 'Learn how to frame and compose your astrophotography targets.',
+      description:
+          'Learn how to frame and compose your astrophotography targets.',
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
       child: Row(
@@ -294,15 +299,18 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                         children: [
                           _buildEquipmentSection(colors, equipmentResult),
                           const SizedBox(height: 20),
-                          _buildFramingControls(colors, framingState, equipmentResult),
+                          _buildFramingControls(
+                              colors, framingState, equipmentResult),
                           const SizedBox(height: 20),
                           _buildCoordinatesPanel(colors, framingState),
                           const SizedBox(height: 20),
                           _buildAltitudePanel(colors, framingState),
                           const SizedBox(height: 20),
-                          _buildMosaicPanel(colors, framingState, equipmentResult),
+                          _buildMosaicPanel(
+                              colors, framingState, equipmentResult),
                           const SizedBox(height: 20),
-                          _buildActionsPanel(colors, framingState, equipmentResult),
+                          _buildActionsPanel(
+                              colors, framingState, equipmentResult),
                         ],
                       ),
                     ),
@@ -317,7 +325,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
   }
 
   /// Shows the suggestion filter sheet
-  void _showSuggestionFilterSheet(BuildContext context, NightshadeColors colors) {
+  void _showSuggestionFilterSheet(
+      BuildContext context, NightshadeColors colors) {
     showModalBottomSheet(
       context: context,
       backgroundColor: colors.surface,
@@ -337,10 +346,10 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
   void _navigateToFramingWithTarget(TargetSuggestion suggestion) {
     // Set the target in the framing provider
     ref.read(framingProvider.notifier).setTargetCoordinates(
-      suggestion.raHours,
-      suggestion.decDegrees,
-      name: suggestion.targetName,
-    );
+          suggestion.raHours,
+          suggestion.decDegrees,
+          name: suggestion.targetName,
+        );
 
     // Switch to framing tab
     _tabController.animateTo(0);
@@ -353,7 +362,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     _updateAltAz();
   }
 
-  Widget _buildTargetSearch(NightshadeColors colors, TargetSearchState searchState) {
+  Widget _buildTargetSearch(
+      NightshadeColors colors, TargetSearchState searchState) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -379,7 +389,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
             decoration: InputDecoration(
               hintText: 'Search by name (M42, NGC7000, Orion)',
               hintStyle: TextStyle(fontSize: 12, color: colors.textMuted),
-              prefixIcon: Icon(LucideIcons.search, size: 14, color: colors.textMuted),
+              prefixIcon:
+                  Icon(LucideIcons.search, size: 14, color: colors.textMuted),
               suffixIcon: searchState.isSearching
                   ? const SizedBox(
                       width: 14,
@@ -388,7 +399,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                     )
                   : _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: Icon(LucideIcons.x, size: 14, color: colors.textMuted),
+                          icon: Icon(LucideIcons.x,
+                              size: 14, color: colors.textMuted),
                           onPressed: () {
                             _searchController.clear();
                             ref.read(targetSearchProvider.notifier).clear();
@@ -409,7 +421,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: colors.primary),
               ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
             onChanged: (value) {
               ref.read(targetSearchProvider.notifier).search(value);
@@ -442,7 +455,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                   return InkWell(
                     onTap: () => _selectTarget(target),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       child: Row(
                         children: [
                           Icon(
@@ -463,7 +477,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                                     color: colors.textPrimary,
                                   ),
                                 ),
-                                if (target.catalogId != null && target.catalogId != target.name)
+                                if (target.catalogId != null &&
+                                    target.catalogId != target.name)
                                   Text(
                                     target.catalogId!,
                                     style: TextStyle(
@@ -500,7 +515,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                   style: TextStyle(fontSize: 11, color: colors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'RA',
-                    labelStyle: TextStyle(fontSize: 10, color: colors.textMuted),
+                    labelStyle:
+                        TextStyle(fontSize: 10, color: colors.textMuted),
                     hintText: '05h 35m 17s',
                     hintStyle: TextStyle(fontSize: 10, color: colors.textMuted),
                     filled: true,
@@ -509,7 +525,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                       borderRadius: BorderRadius.circular(6),
                       borderSide: BorderSide(color: colors.border),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   ),
                 ),
               ),
@@ -520,7 +537,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                   style: TextStyle(fontSize: 11, color: colors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Dec',
-                    labelStyle: TextStyle(fontSize: 10, color: colors.textMuted),
+                    labelStyle:
+                        TextStyle(fontSize: 10, color: colors.textMuted),
                     hintText: '-05° 23\' 28"',
                     hintStyle: TextStyle(fontSize: 10, color: colors.textMuted),
                     filled: true,
@@ -529,7 +547,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                       borderRadius: BorderRadius.circular(6),
                       borderSide: BorderSide(color: colors.border),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   ),
                 ),
               ),
@@ -579,7 +598,9 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     final dec = CoordinateUtils.parseDec(_decController.text);
 
     if (ra != null && dec != null) {
-      ref.read(framingProvider.notifier).setTargetCoordinates(ra, dec, name: 'Custom Location');
+      ref
+          .read(framingProvider.notifier)
+          .setTargetCoordinates(ra, dec, name: 'Custom Location');
       _updateAltAz();
     } else {
       context.showInfoSnackBar('Invalid coordinates');
@@ -603,7 +624,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     }
   }
 
-  Widget _buildEquipmentSection(NightshadeColors colors, AsyncValue<FramingEquipmentResult> equipmentAsync) {
+  Widget _buildEquipmentSection(NightshadeColors colors,
+      AsyncValue<FramingEquipmentResult> equipmentAsync) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -624,7 +646,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.checkCircle, size: 12, color: colors.success),
+                      Icon(LucideIcons.checkCircle,
+                          size: 12, color: colors.success),
                       const SizedBox(width: 4),
                       Text(
                         result.profileName ?? 'Ready',
@@ -636,7 +659,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(LucideIcons.alertCircle, size: 12, color: colors.warning),
+                    Icon(LucideIcons.alertCircle,
+                        size: 12, color: colors.warning),
                     const SizedBox(width: 4),
                     Text(
                       'Not Configured',
@@ -651,7 +675,6 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
           ],
         ),
         const SizedBox(height: 12),
-        
         equipmentAsync.when(
           data: (result) {
             // Show appropriate content based on equipment status
@@ -661,35 +684,38 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                   colors: colors,
                   icon: LucideIcons.settings,
                   title: 'No Equipment Profile',
-                  message: 'Create and activate an equipment profile in Settings → Equipment to enable framing preview.',
+                  message:
+                      'Create and activate an equipment profile in Settings → Equipment to enable framing preview.',
                   actionLabel: 'Open Settings',
                   onAction: () {
                     // Navigate to settings
                   },
                 );
-              
+
               case EquipmentStatus.noFocalLength:
                 return _EquipmentWarningCard(
                   colors: colors,
                   icon: LucideIcons.focus,
                   title: 'Optical Specs Missing',
-                  message: 'Set the focal length in profile "${result.profileName}" to enable FOV preview.',
+                  message:
+                      'Set the focal length in profile "${result.profileName}" to enable FOV preview.',
                   actionLabel: 'Edit Profile',
                   onAction: () {
                     // Navigate to profile editor
                   },
                 );
-              
+
               case EquipmentStatus.noCameraSpecs:
                 return _EquipmentWarningCard(
                   colors: colors,
                   icon: LucideIcons.camera,
                   title: 'Camera Not Configured',
-                  message: 'Connect a camera or configure camera specs to enable accurate FOV preview.',
+                  message:
+                      'Connect a camera or configure camera specs to enable accurate FOV preview.',
                   actionLabel: null,
                   onAction: null,
                 );
-              
+
               case EquipmentStatus.ready:
                 final equipment = result.equipment!;
                 return Column(
@@ -703,7 +729,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                     const SizedBox(height: 6),
                     _InfoRow(
                       label: 'Telescope',
-                      value: '${equipment.effectiveFocalLength.round()}mm f/${equipment.focalRatio.toStringAsFixed(1)}',
+                      value:
+                          '${equipment.effectiveFocalLength.round()}mm f/${equipment.focalRatio.toStringAsFixed(1)}',
                       colors: colors,
                     ),
                     // Show warning if using default sensor specs
@@ -714,16 +741,19 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                         decoration: BoxDecoration(
                           color: colors.warning.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
+                          border: Border.all(
+                              color: colors.warning.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
-                            Icon(LucideIcons.info, size: 12, color: colors.warning),
+                            Icon(LucideIcons.info,
+                                size: 12, color: colors.warning),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 result.message!,
-                                style: TextStyle(fontSize: 10, color: colors.warning),
+                                style: TextStyle(
+                                    fontSize: 10, color: colors.warning),
                               ),
                             ),
                           ],
@@ -759,7 +789,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     final result = equipmentAsync.valueOrNull;
     final equipment = result?.equipment;
     final hasEquipment = result?.isReady ?? false;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -792,7 +822,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
         if (hasEquipment && equipment != null) ...[
           _InfoRow(
             label: 'FOV',
-            value: '${equipment.fovWidthDeg.toStringAsFixed(2)}° × ${equipment.fovHeightDeg.toStringAsFixed(2)}°',
+            value:
+                '${equipment.fovWidthDeg.toStringAsFixed(2)}° × ${equipment.fovHeightDeg.toStringAsFixed(2)}°',
             colors: colors,
             highlight: true,
           ),
@@ -832,7 +863,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
         ],
 
         const SizedBox(height: 16),
-        
+
         // Preview FOV control (always available for browsing)
         Text(
           'Preview Field of View',
@@ -848,9 +879,11 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
             ref.read(framingProvider.notifier).setPreviewFov(value);
           },
         ),
-        
+
         // Equipment FOV overlay controls (only when equipment is configured and preview FOV > equipment FOV)
-        if (hasEquipment && equipment != null && framingState.previewFovDegrees > equipment.fovWidthDeg) ...[
+        if (hasEquipment &&
+            equipment != null &&
+            framingState.previewFovDegrees > equipment.fovWidthDeg) ...[
           const SizedBox(height: 16),
           _EquipmentFovOverlayControls(
             colors: colors,
@@ -860,11 +893,13 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
               ref.read(framingProvider.notifier).toggleEquipmentFovOverlay();
             },
             onOpacityChanged: (value) {
-              ref.read(framingProvider.notifier).setEquipmentFovOverlayOpacity(value);
+              ref
+                  .read(framingProvider.notifier)
+                  .setEquipmentFovOverlayOpacity(value);
             },
           ),
         ],
-        
+
         const SizedBox(height: 16),
 
         // Survey source dropdown (always available - can browse sky without FOV)
@@ -924,7 +959,9 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                 label: 'Directions',
                 isActive: framingState.showCardinalDirections,
                 colors: colors,
-                onTap: () => ref.read(framingProvider.notifier).toggleCardinalDirections(),
+                onTap: () => ref
+                    .read(framingProvider.notifier)
+                    .toggleCardinalDirections(),
               ),
           ],
         ),
@@ -932,7 +969,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     );
   }
 
-  Widget _buildCoordinatesPanel(NightshadeColors colors, FramingState framingState) {
+  Widget _buildCoordinatesPanel(
+      NightshadeColors colors, FramingState framingState) {
     final target = framingState.target;
 
     return Container(
@@ -959,7 +997,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
               ),
               if (target != null)
                 IconButton(
-                  icon: Icon(LucideIcons.copy, size: 12, color: colors.textMuted),
+                  icon:
+                      Icon(LucideIcons.copy, size: 12, color: colors.textMuted),
                   tooltip: 'Copy coordinates',
                   onPressed: () {
                     Clipboard.setData(ClipboardData(
@@ -987,7 +1026,9 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
           const Divider(height: 20),
           _CoordRow(
             label: 'Alt',
-            value: _currentAltAz != null ? '${_currentAltAz!.$1.toStringAsFixed(1)}°' : '--',
+            value: _currentAltAz != null
+                ? '${_currentAltAz!.$1.toStringAsFixed(1)}°'
+                : '--',
             colors: colors,
             isGood: _currentAltAz != null && _currentAltAz!.$1 > 30,
             isBad: _currentAltAz != null && _currentAltAz!.$1 < 15,
@@ -995,7 +1036,9 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
           const SizedBox(height: 6),
           _CoordRow(
             label: 'Az',
-            value: _currentAltAz != null ? '${_currentAltAz!.$2.toStringAsFixed(1)}°' : '--',
+            value: _currentAltAz != null
+                ? '${_currentAltAz!.$2.toStringAsFixed(1)}°'
+                : '--',
             colors: colors,
           ),
           if (_currentAltAz != null && _currentAltAz!.$1 < 0)
@@ -1003,7 +1046,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  Icon(LucideIcons.alertTriangle, size: 12, color: colors.warning),
+                  Icon(LucideIcons.alertTriangle,
+                      size: 12, color: colors.warning),
                   const SizedBox(width: 6),
                   Text(
                     'Target below horizon',
@@ -1017,7 +1061,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     );
   }
 
-  Widget _buildAltitudePanel(NightshadeColors colors, FramingState framingState) {
+  Widget _buildAltitudePanel(
+      NightshadeColors colors, FramingState framingState) {
     final target = framingState.target;
 
     if (target == null) {
@@ -1102,7 +1147,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
             ),
             Switch(
               value: framingState.mosaicEnabled,
-              onChanged: hasEquipment ? (v) => notifier.setMosaicEnabled(v) : null,
+              onChanged:
+                  hasEquipment ? (v) => notifier.setMosaicEnabled(v) : null,
               activeTrackColor: colors.primary,
               thumbColor: WidgetStateProperty.all(Colors.white),
             ),
@@ -1225,7 +1271,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
               children: [
                 Row(
                   children: [
-                    Icon(LucideIcons.layoutGrid, size: 14, color: colors.primary),
+                    Icon(LucideIcons.layoutGrid,
+                        size: 14, color: colors.primary),
                     const SizedBox(width: 8),
                     Text(
                       '${config.totalPanels} Panels',
@@ -1245,7 +1292,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                       itemCount: framingState.mosaicPanels.length,
                       itemBuilder: (context, index) {
                         final panel = framingState.mosaicPanels[index];
-                        final isSelected = index == framingState.selectedPanelIndex;
+                        final isSelected =
+                            index == framingState.selectedPanelIndex;
                         return InkWell(
                           onTap: () => notifier.selectPanel(index),
                           child: Container(
@@ -1367,7 +1415,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                   dec: framingState.target!.decDegrees,
                   targetName: framingState.target!.name,
                   // Use the rotation angle from framing state
-                  targetRotation: framingState.rotation != 0 ? framingState.rotation : null,
+                  targetRotation:
+                      framingState.rotation != 0 ? framingState.rotation : null,
                   isEnabled: canSlew,
                   icon: LucideIcons.compass,
                   label: 'Slew to Target',
@@ -1393,7 +1442,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
               textAlign: TextAlign.center,
             ),
           ),
-        
+
         const SizedBox(height: 8),
         Row(
           children: [
@@ -1403,7 +1452,9 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                 label: 'Add to Sequence',
                 colors: colors,
                 isEnabled: hasTarget,
-                onTap: hasTarget ? () => _addToSequence(framingState.target!) : null,
+                onTap: hasTarget
+                    ? () => _addToSequence(framingState.target!)
+                    : null,
               ),
             ),
             const SizedBox(width: 8),
@@ -1427,7 +1478,8 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                 label: 'Cache Image',
                 colors: colors,
                 isEnabled: framingState.surveyImageBytes != null,
-                onTap: framingState.surveyImageBytes != null ? _cacheImage : null,
+                onTap:
+                    framingState.surveyImageBytes != null ? _cacheImage : null,
               ),
             ),
             const SizedBox(width: 8),
@@ -1512,12 +1564,12 @@ class _FramingCanvasState extends State<_FramingCanvas> {
 
   FramingEquipment? get _equipment => widget.equipmentResult?.equipment;
   bool get _hasEquipment => widget.equipmentResult?.isReady ?? false;
-  
+
   /// Whether to show the equipment FOV overlay (preview FOV > equipment FOV)
   bool get _showEquipmentOverlay {
     if (!_hasEquipment || _equipment == null) return false;
     return widget.framingState.previewFovDegrees > _equipment!.fovWidthDeg &&
-           widget.framingState.showEquipmentFovOverlay;
+        widget.framingState.showEquipmentFovOverlay;
   }
 
   @override
@@ -1530,10 +1582,11 @@ class _FramingCanvasState extends State<_FramingCanvas> {
           MediaQuery.of(context).size.height / 2,
         );
         final distance = (details.localPosition - center).distance;
-        
+
         // If clicking near the rotation handle, rotate instead of pan
         if (_hasEquipment && _equipment != null) {
-          final fovHeight = _equipment!.fovHeightDeg * 60 * widget.framingState.zoom;
+          final fovHeight =
+              _equipment!.fovHeightDeg * 60 * widget.framingState.zoom;
           if (distance > fovHeight / 2 + 10 && distance < fovHeight / 2 + 40) {
             _isRotating = true;
           } else {
@@ -1595,7 +1648,7 @@ class _FramingCanvasState extends State<_FramingCanvas> {
                 ),
               )
             else
-              // Placeholder star field
+              // Static star field backdrop
               CustomPaint(
                 painter: _StarBackgroundPainter(colors: widget.colors),
                 size: Size.infinite,
@@ -1617,7 +1670,8 @@ class _FramingCanvasState extends State<_FramingCanvas> {
             if (_showEquipmentOverlay && _equipment != null)
               Center(
                 child: Transform.translate(
-                  offset: Offset(widget.framingState.panX, widget.framingState.panY),
+                  offset: Offset(
+                      widget.framingState.panX, widget.framingState.panY),
                   child: Transform.rotate(
                     angle: widget.framingState.rotation * math.pi / 180,
                     child: CustomPaint(
@@ -1628,7 +1682,8 @@ class _FramingCanvasState extends State<_FramingCanvas> {
                         zoom: widget.framingState.zoom,
                         colors: widget.colors,
                         opacity: widget.framingState.equipmentFovOverlayOpacity,
-                        showDirections: widget.framingState.showCardinalDirections,
+                        showDirections:
+                            widget.framingState.showCardinalDirections,
                       ),
                       size: Size.infinite,
                     ),
@@ -1640,7 +1695,8 @@ class _FramingCanvasState extends State<_FramingCanvas> {
             if (_hasEquipment && _equipment != null && !_showEquipmentOverlay)
               Center(
                 child: Transform.translate(
-                  offset: Offset(widget.framingState.panX, widget.framingState.panY),
+                  offset: Offset(
+                      widget.framingState.panX, widget.framingState.panY),
                   child: Transform.rotate(
                     angle: widget.framingState.rotation * math.pi / 180,
                     child: CustomPaint(
@@ -1650,7 +1706,8 @@ class _FramingCanvasState extends State<_FramingCanvas> {
                         fovHeight: _equipment!.fovHeightDeg,
                         zoom: widget.framingState.zoom,
                         colors: widget.colors,
-                        showDirections: widget.framingState.showCardinalDirections,
+                        showDirections:
+                            widget.framingState.showCardinalDirections,
                       ),
                       size: Size.infinite,
                     ),
@@ -1659,10 +1716,13 @@ class _FramingCanvasState extends State<_FramingCanvas> {
               ),
 
             // Mosaic grid overlay
-            if (widget.framingState.mosaicEnabled && _hasEquipment && _equipment != null)
+            if (widget.framingState.mosaicEnabled &&
+                _hasEquipment &&
+                _equipment != null)
               Center(
                 child: Transform.translate(
-                  offset: Offset(widget.framingState.panX, widget.framingState.panY),
+                  offset: Offset(
+                      widget.framingState.panX, widget.framingState.panY),
                   child: Transform.rotate(
                     angle: widget.framingState.rotation * math.pi / 180,
                     child: CustomPaint(
@@ -1675,7 +1735,8 @@ class _FramingCanvasState extends State<_FramingCanvas> {
                         colors: widget.colors,
                         showPanelNumbers: widget.framingState.showPanelNumbers,
                         showSequencePath: widget.framingState.showSequencePath,
-                        selectedPanelIndex: widget.framingState.selectedPanelIndex,
+                        selectedPanelIndex:
+                            widget.framingState.selectedPanelIndex,
                       ),
                       size: Size.infinite,
                     ),
@@ -1712,12 +1773,14 @@ class _FramingCanvasState extends State<_FramingCanvas> {
                   decoration: BoxDecoration(
                     color: widget.colors.info.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: widget.colors.info.withValues(alpha: 0.5)),
+                    border: Border.all(
+                        color: widget.colors.info.withValues(alpha: 0.5)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.eye, size: 14, color: widget.colors.info),
+                      Icon(LucideIcons.eye,
+                          size: 14, color: widget.colors.info),
                       const SizedBox(width: 8),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1770,7 +1833,8 @@ class _FramingCanvasState extends State<_FramingCanvas> {
             ),
 
             // Target info overlay
-            if (widget.framingState.target != null && widget.framingState.showLabels)
+            if (widget.framingState.target != null &&
+                widget.framingState.showLabels)
               Positioned(
                 top: 60,
                 left: 16,
@@ -1824,11 +1888,11 @@ class _SurveyImagePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..filterQuality = FilterQuality.high;
-    
+
     // Calculate scaling to fit image to canvas
     final imageAspect = image.width / image.height;
     final canvasAspect = size.width / size.height;
-    
+
     double drawWidth, drawHeight;
     if (imageAspect > canvasAspect) {
       drawWidth = size.width * zoom;
@@ -1837,16 +1901,17 @@ class _SurveyImagePainter extends CustomPainter {
       drawHeight = size.height * zoom;
       drawWidth = drawHeight * imageAspect;
     }
-    
+
     final center = Offset(size.width / 2 + panX, size.height / 2 + panY);
     final destRect = Rect.fromCenter(
       center: center,
       width: drawWidth,
       height: drawHeight,
     );
-    
-    final srcRect = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
-    
+
+    final srcRect =
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+
     canvas.drawImageRect(image, srcRect, destRect, paint);
   }
 
@@ -1956,13 +2021,16 @@ class _GridPainter extends CustomPainter {
     // Draw center lines (brighter)
     paint.color = color.withValues(alpha: 0.5);
     paint.strokeWidth = 1;
-    canvas.drawLine(Offset(center.dx, 0), Offset(center.dx, size.height), paint);
+    canvas.drawLine(
+        Offset(center.dx, 0), Offset(center.dx, size.height), paint);
     canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), paint);
   }
 
   @override
   bool shouldRepaint(covariant _GridPainter oldDelegate) {
-    return zoom != oldDelegate.zoom || panX != oldDelegate.panX || panY != oldDelegate.panY;
+    return zoom != oldDelegate.zoom ||
+        panX != oldDelegate.panX ||
+        panY != oldDelegate.panY;
   }
 }
 
@@ -2047,7 +2115,8 @@ class _FOVPainter extends CustomPainter {
     }
 
     // Draw FOV dimensions
-    final fovText = '${fovWidth.toStringAsFixed(2)}° × ${fovHeight.toStringAsFixed(2)}°';
+    final fovText =
+        '${fovWidth.toStringAsFixed(2)}° × ${fovHeight.toStringAsFixed(2)}°';
     final textPainter = TextPainter(
       text: TextSpan(
         text: fovText,
@@ -2073,7 +2142,8 @@ class _FOVPainter extends CustomPainter {
     );
     textPainter.paint(
       canvas,
-      Offset(center.dx - textPainter.width / 2, center.dy + rectHeight / 2 + 15),
+      Offset(
+          center.dx - textPainter.width / 2, center.dy + rectHeight / 2 + 15),
     );
   }
 
@@ -2082,23 +2152,32 @@ class _FOVPainter extends CustomPainter {
     paint.strokeWidth = 3;
 
     // Top-left
-    canvas.drawLine(Offset(rect.left, rect.top + cornerLength), rect.topLeft, paint);
-    canvas.drawLine(rect.topLeft, Offset(rect.left + cornerLength, rect.top), paint);
+    canvas.drawLine(
+        Offset(rect.left, rect.top + cornerLength), rect.topLeft, paint);
+    canvas.drawLine(
+        rect.topLeft, Offset(rect.left + cornerLength, rect.top), paint);
 
     // Top-right
-    canvas.drawLine(Offset(rect.right - cornerLength, rect.top), rect.topRight, paint);
-    canvas.drawLine(rect.topRight, Offset(rect.right, rect.top + cornerLength), paint);
+    canvas.drawLine(
+        Offset(rect.right - cornerLength, rect.top), rect.topRight, paint);
+    canvas.drawLine(
+        rect.topRight, Offset(rect.right, rect.top + cornerLength), paint);
 
     // Bottom-right
-    canvas.drawLine(Offset(rect.right, rect.bottom - cornerLength), rect.bottomRight, paint);
-    canvas.drawLine(rect.bottomRight, Offset(rect.right - cornerLength, rect.bottom), paint);
+    canvas.drawLine(Offset(rect.right, rect.bottom - cornerLength),
+        rect.bottomRight, paint);
+    canvas.drawLine(rect.bottomRight,
+        Offset(rect.right - cornerLength, rect.bottom), paint);
 
     // Bottom-left
-    canvas.drawLine(Offset(rect.left + cornerLength, rect.bottom), rect.bottomLeft, paint);
-    canvas.drawLine(rect.bottomLeft, Offset(rect.left, rect.bottom - cornerLength), paint);
+    canvas.drawLine(
+        Offset(rect.left + cornerLength, rect.bottom), rect.bottomLeft, paint);
+    canvas.drawLine(
+        rect.bottomLeft, Offset(rect.left, rect.bottom - cornerLength), paint);
   }
 
-  void _drawCardinalDirections(Canvas canvas, Offset center, double width, double height) {
+  void _drawCardinalDirections(
+      Canvas canvas, Offset center, double width, double height) {
     final style = TextStyle(
       color: Colors.white.withValues(alpha: 0.6),
       fontSize: 10,
@@ -2187,7 +2266,7 @@ class _EquipmentFOVOverlayPainter extends CustomPainter {
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
       ..addRect(rect)
       ..fillType = PathFillType.evenOdd;
-    
+
     canvas.drawPath(
       path,
       Paint()..color = Colors.black.withValues(alpha: opacity),
@@ -2202,7 +2281,8 @@ class _EquipmentFOVOverlayPainter extends CustomPainter {
     _drawCornerBrackets(canvas, rect, borderPaint);
 
     // Draw equipment FOV label
-    final fovText = 'Equipment FOV: ${fovWidth.toStringAsFixed(2)}° × ${fovHeight.toStringAsFixed(2)}°';
+    final fovText =
+        'Equipment FOV: ${fovWidth.toStringAsFixed(2)}° × ${fovHeight.toStringAsFixed(2)}°';
     final textPainter = TextPainter(
       text: TextSpan(
         text: fovText,
@@ -2235,7 +2315,8 @@ class _EquipmentFOVOverlayPainter extends CustomPainter {
     );
     textPainter.paint(
       canvas,
-      Offset(center.dx - textPainter.width / 2, rect.top - textPainter.height / 2 - 16),
+      Offset(center.dx - textPainter.width / 2,
+          rect.top - textPainter.height / 2 - 16),
     );
 
     // Draw cardinal directions inside the equipment FOV
@@ -2249,23 +2330,32 @@ class _EquipmentFOVOverlayPainter extends CustomPainter {
     paint.strokeWidth = 3;
 
     // Top-left bracket
-    canvas.drawLine(Offset(rect.left - 2, rect.top + bracketLength), Offset(rect.left - 2, rect.top - 2), paint);
-    canvas.drawLine(Offset(rect.left - 2, rect.top - 2), Offset(rect.left + bracketLength, rect.top - 2), paint);
+    canvas.drawLine(Offset(rect.left - 2, rect.top + bracketLength),
+        Offset(rect.left - 2, rect.top - 2), paint);
+    canvas.drawLine(Offset(rect.left - 2, rect.top - 2),
+        Offset(rect.left + bracketLength, rect.top - 2), paint);
 
     // Top-right bracket
-    canvas.drawLine(Offset(rect.right - bracketLength, rect.top - 2), Offset(rect.right + 2, rect.top - 2), paint);
-    canvas.drawLine(Offset(rect.right + 2, rect.top - 2), Offset(rect.right + 2, rect.top + bracketLength), paint);
+    canvas.drawLine(Offset(rect.right - bracketLength, rect.top - 2),
+        Offset(rect.right + 2, rect.top - 2), paint);
+    canvas.drawLine(Offset(rect.right + 2, rect.top - 2),
+        Offset(rect.right + 2, rect.top + bracketLength), paint);
 
     // Bottom-right bracket
-    canvas.drawLine(Offset(rect.right + 2, rect.bottom - bracketLength), Offset(rect.right + 2, rect.bottom + 2), paint);
-    canvas.drawLine(Offset(rect.right + 2, rect.bottom + 2), Offset(rect.right - bracketLength, rect.bottom + 2), paint);
+    canvas.drawLine(Offset(rect.right + 2, rect.bottom - bracketLength),
+        Offset(rect.right + 2, rect.bottom + 2), paint);
+    canvas.drawLine(Offset(rect.right + 2, rect.bottom + 2),
+        Offset(rect.right - bracketLength, rect.bottom + 2), paint);
 
     // Bottom-left bracket
-    canvas.drawLine(Offset(rect.left + bracketLength, rect.bottom + 2), Offset(rect.left - 2, rect.bottom + 2), paint);
-    canvas.drawLine(Offset(rect.left - 2, rect.bottom + 2), Offset(rect.left - 2, rect.bottom - bracketLength), paint);
+    canvas.drawLine(Offset(rect.left + bracketLength, rect.bottom + 2),
+        Offset(rect.left - 2, rect.bottom + 2), paint);
+    canvas.drawLine(Offset(rect.left - 2, rect.bottom + 2),
+        Offset(rect.left - 2, rect.bottom - bracketLength), paint);
   }
 
-  void _drawCardinalDirections(Canvas canvas, Offset center, double width, double height) {
+  void _drawCardinalDirections(
+      Canvas canvas, Offset center, double width, double height) {
     final style = TextStyle(
       color: colors.info.withValues(alpha: 0.7),
       fontSize: 10,
@@ -2321,7 +2411,8 @@ class _CrosshairPainter extends CustomPainter {
     canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), paint);
 
     // Vertical line
-    canvas.drawLine(Offset(center.dx, 0), Offset(center.dx, size.height), paint);
+    canvas.drawLine(
+        Offset(center.dx, 0), Offset(center.dx, size.height), paint);
 
     // Center circle
     paint.style = PaintingStyle.stroke;
@@ -2590,7 +2681,8 @@ class _CanvasControls extends StatelessWidget {
             const Spacer(),
             if (framingState.isLoadingImage)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(8),
@@ -2680,7 +2772,8 @@ class _ControlChipState extends State<_ControlChip> {
                 widget.label,
                 style: TextStyle(
                   fontSize: 11,
-                  color: widget.isActive ? widget.colors.primary : Colors.white70,
+                  color:
+                      widget.isActive ? widget.colors.primary : Colors.white70,
                 ),
               ),
             ],
@@ -2731,11 +2824,13 @@ class _ZoomControls extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          _ZoomButton(icon: LucideIcons.minus, colors: colors, onTap: onZoomOut),
+          _ZoomButton(
+              icon: LucideIcons.minus, colors: colors, onTap: onZoomOut),
           const SizedBox(height: 4),
           Container(height: 1, width: 20, color: colors.border),
           const SizedBox(height: 4),
-          _ZoomButton(icon: LucideIcons.maximize2, colors: colors, onTap: onReset),
+          _ZoomButton(
+              icon: LucideIcons.maximize2, colors: colors, onTap: onReset),
         ],
       ),
     );
@@ -2893,8 +2988,10 @@ class _TargetInfoOverlay extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 [
-                  if (target.magnitude != null) 'Mag ${target.magnitude!.toStringAsFixed(1)}',
-                  if (target.sizeArcmin != null) "${target.sizeArcmin!.toStringAsFixed(0)}'",
+                  if (target.magnitude != null)
+                    'Mag ${target.magnitude!.toStringAsFixed(1)}',
+                  if (target.sizeArcmin != null)
+                    "${target.sizeArcmin!.toStringAsFixed(0)}'",
                 ].join('  '),
                 style: TextStyle(
                   fontSize: 10,
@@ -2974,7 +3071,8 @@ class _EquipmentWarningCard extends StatelessWidget {
             GestureDetector(
               onTap: onAction,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: colors.warning.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
@@ -2991,7 +3089,8 @@ class _EquipmentWarningCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    Icon(LucideIcons.arrowRight, size: 12, color: colors.warning),
+                    Icon(LucideIcons.arrowRight,
+                        size: 12, color: colors.warning),
                   ],
                 ),
               ),
@@ -3179,10 +3278,14 @@ class _ToggleChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isActive ? colors.primary.withValues(alpha: 0.2) : colors.surfaceAlt,
+          color: isActive
+              ? colors.primary.withValues(alpha: 0.2)
+              : colors.surfaceAlt,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: isActive ? colors.primary.withValues(alpha: 0.5) : colors.border,
+            color: isActive
+                ? colors.primary.withValues(alpha: 0.5)
+                : colors.border,
           ),
         ),
         child: Text(
@@ -3225,7 +3328,9 @@ class _ActionButtonState extends State<_ActionButton> {
 
   Color _darkenColor(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
   }
 
   @override
@@ -3252,13 +3357,17 @@ class _ActionButtonState extends State<_ActionButton> {
             color: widget.isPrimary
                 ? null
                 : enabled
-                    ? (_isHovered ? widget.colors.surfaceAlt : widget.colors.background)
+                    ? (_isHovered
+                        ? widget.colors.surfaceAlt
+                        : widget.colors.background)
                     : widget.colors.surfaceAlt.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(8),
             border: widget.isPrimary
                 ? null
                 : Border.all(
-                    color: enabled ? widget.colors.border : widget.colors.border.withValues(alpha: 0.5),
+                    color: enabled
+                        ? widget.colors.border
+                        : widget.colors.border.withValues(alpha: 0.5),
                   ),
             boxShadow: widget.isPrimary && _isHovered && enabled
                 ? [
@@ -3278,7 +3387,9 @@ class _ActionButtonState extends State<_ActionButton> {
                 size: 14,
                 color: widget.isPrimary
                     ? (enabled ? Colors.white : Colors.white60)
-                    : (enabled ? widget.colors.textSecondary : widget.colors.textMuted),
+                    : (enabled
+                        ? widget.colors.textSecondary
+                        : widget.colors.textMuted),
               ),
               const SizedBox(width: 6),
               Text(
@@ -3288,7 +3399,9 @@ class _ActionButtonState extends State<_ActionButton> {
                   fontWeight: FontWeight.w500,
                   color: widget.isPrimary
                       ? (enabled ? Colors.white : Colors.white60)
-                      : (enabled ? widget.colors.textSecondary : widget.colors.textMuted),
+                      : (enabled
+                          ? widget.colors.textSecondary
+                          : widget.colors.textMuted),
                 ),
               ),
             ],
@@ -3332,7 +3445,8 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: _isHovered ? widget.colors.primary : widget.colors.surfaceAlt,
+              color:
+                  _isHovered ? widget.colors.primary : widget.colors.surfaceAlt,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: widget.colors.border),
             ),
@@ -3393,11 +3507,13 @@ class _PreviewFovSlider extends StatelessWidget {
               ),
               if (hasEquipment && equipmentFov != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: colors.info.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: colors.info.withValues(alpha: 0.3)),
+                    border:
+                        Border.all(color: colors.info.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     'Equipment: ${equipmentFov!.toStringAsFixed(2)}°',
@@ -3431,21 +3547,43 @@ class _PreviewFovSlider extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('0.1°', style: TextStyle(fontSize: 9, color: colors.textMuted)),
-              Text('10°', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+              Text('0.1°',
+                  style: TextStyle(fontSize: 9, color: colors.textMuted)),
+              Text('10°',
+                  style: TextStyle(fontSize: 9, color: colors.textMuted)),
             ],
           ),
           const SizedBox(height: 8),
           // Quick presets
           Row(
             children: [
-              _FovPresetButton(label: '0.5°', value: 0.5, currentValue: value, colors: colors, onTap: () => onChanged(0.5)),
+              _FovPresetButton(
+                  label: '0.5°',
+                  value: 0.5,
+                  currentValue: value,
+                  colors: colors,
+                  onTap: () => onChanged(0.5)),
               const SizedBox(width: 6),
-              _FovPresetButton(label: '1°', value: 1.0, currentValue: value, colors: colors, onTap: () => onChanged(1.0)),
+              _FovPresetButton(
+                  label: '1°',
+                  value: 1.0,
+                  currentValue: value,
+                  colors: colors,
+                  onTap: () => onChanged(1.0)),
               const SizedBox(width: 6),
-              _FovPresetButton(label: '2°', value: 2.0, currentValue: value, colors: colors, onTap: () => onChanged(2.0)),
+              _FovPresetButton(
+                  label: '2°',
+                  value: 2.0,
+                  currentValue: value,
+                  colors: colors,
+                  onTap: () => onChanged(2.0)),
               const SizedBox(width: 6),
-              _FovPresetButton(label: '5°', value: 5.0, currentValue: value, colors: colors, onTap: () => onChanged(5.0)),
+              _FovPresetButton(
+                  label: '5°',
+                  value: 5.0,
+                  currentValue: value,
+                  colors: colors,
+                  onTap: () => onChanged(5.0)),
               if (hasEquipment && equipmentFov != null) ...[
                 const SizedBox(width: 6),
                 _FovPresetButton(
@@ -3486,7 +3624,7 @@ class _FovPresetButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isSelected = (currentValue - value).abs() < 0.05;
     final color = isEquipment ? colors.info : colors.primary;
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -3576,7 +3714,8 @@ class _EquipmentFovOverlayControls extends StatelessWidget {
                       inactiveTrackColor: colors.border,
                       thumbColor: colors.info,
                       overlayColor: colors.info.withValues(alpha: 0.1),
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      thumbShape:
+                          const RoundSliderThumbShape(enabledThumbRadius: 6),
                     ),
                     child: Slider(
                       value: opacity,
@@ -3904,7 +4043,8 @@ class _ExportMosaicButton extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_ExportMosaicButton> createState() => _ExportMosaicButtonState();
+  ConsumerState<_ExportMosaicButton> createState() =>
+      _ExportMosaicButtonState();
 }
 
 class _ExportMosaicButtonState extends ConsumerState<_ExportMosaicButton> {
@@ -3930,7 +4070,8 @@ class _ExportMosaicButtonState extends ConsumerState<_ExportMosaicButton> {
       }
 
       if (!mounted) return;
-      context.showSuccessSnackBar('Exported ${widget.panels.length} panels to targets');
+      context.showSuccessSnackBar(
+          'Exported ${widget.panels.length} panels to targets');
     } catch (e) {
       context.showErrorSnackBar('Error exporting: $e');
       if (!mounted) return;
@@ -4071,7 +4212,8 @@ class _TabButtonState extends State<_TabButton> {
                 widget.label,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: widget.isSelected ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight:
+                      widget.isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: widget.isSelected
                       ? widget.colors.primary
                       : widget.colors.textSecondary,
@@ -4100,12 +4242,13 @@ class _SuggestionsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+    final suggestionsAsync = ref.watch(filteredSuggestionsProvider);
 
     return suggestionsAsync.when(
       data: (suggestions) => _buildDataState(context, ref, colors, suggestions),
       loading: () => _buildLoadingState(colors),
-      error: (error, stackTrace) => _buildErrorState(context, ref, colors, error),
+      error: (error, stackTrace) =>
+          _buildErrorState(context, ref, colors, error),
     );
   }
 
@@ -4149,7 +4292,8 @@ class _SuggestionsTab extends ConsumerWidget {
             itemCount: suggestions.length,
             itemBuilder: (context, index) {
               return Padding(
-                padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+                padding:
+                    const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
                 child: SuggestionCard(
                   suggestion: suggestions[index],
                   onViewInFraming: () => onTargetSelected(suggestions[index]),
@@ -4162,13 +4306,22 @@ class _SuggestionsTab extends ConsumerWidget {
           );
         } else {
           // Grid layout for tablet/desktop
+          // Calculate card height for ~1.5 rows visible (matching mobile feel)
+          final availableHeight = constraints.maxHeight;
+          final cardHeight = (availableHeight * 0.6).clamp(280.0, 420.0);
+          const hPad = NightshadeTokens.space2xl * 2;
+          const gap = NightshadeTokens.spaceLg;
+          final cardWidth =
+              (width - hPad - (crossAxisCount - 1) * gap) / crossAxisCount;
+          final aspectRatio = cardWidth / cardHeight;
+
           content = GridView.builder(
             padding: NightshadeTokens.screenPadding,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               crossAxisSpacing: NightshadeTokens.spaceLg,
               mainAxisSpacing: NightshadeTokens.spaceLg,
-              childAspectRatio: 1.6, // Cards are wider than tall
+              childAspectRatio: aspectRatio,
             ),
             itemCount: suggestions.length,
             itemBuilder: (context, index) {
@@ -4208,7 +4361,16 @@ class _SuggestionsTab extends ConsumerWidget {
         final isMobile = width < NightshadeTokens.breakpointTablet;
         final crossAxisCount = isMobile ? 1 : 2;
 
-        // Show shimmer loading placeholders
+        // Match data-state card sizing
+        final availableHeight = constraints.maxHeight;
+        final cardHeight = (availableHeight * 0.6).clamp(280.0, 420.0);
+        const hPad = NightshadeTokens.space2xl * 2;
+        const gap = NightshadeTokens.spaceLg;
+        final cardWidth =
+            (width - hPad - (crossAxisCount - 1) * gap) / crossAxisCount;
+        final aspectRatio = cardWidth / cardHeight;
+
+        // Show shimmer loading states
         return ShimmerLoading(
           child: crossAxisCount == 1
               ? ListView.builder(
@@ -4218,7 +4380,8 @@ class _SuggestionsTab extends ConsumerWidget {
                   itemCount: 6,
                   itemBuilder: (context, index) {
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+                      padding: const EdgeInsets.only(
+                          bottom: NightshadeTokens.spaceMd),
                       child: _SuggestionCardSkeleton(colors: colors),
                     );
                   },
@@ -4229,7 +4392,7 @@ class _SuggestionsTab extends ConsumerWidget {
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: NightshadeTokens.spaceLg,
                     mainAxisSpacing: NightshadeTokens.spaceLg,
-                    childAspectRatio: 1.6,
+                    childAspectRatio: aspectRatio,
                   ),
                   itemCount: 6,
                   itemBuilder: (context, index) {
@@ -4241,7 +4404,8 @@ class _SuggestionsTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, WidgetRef ref, NightshadeColors colors) {
+  Widget _buildEmptyState(
+      BuildContext context, WidgetRef ref, NightshadeColors colors) {
     // Check if location is configured
     final settingsAsync = ref.watch(appSettingsProvider);
     final settings = settingsAsync.valueOrNull;
@@ -4353,7 +4517,8 @@ class _SuggestionsTab extends ConsumerWidget {
     );
   }
 
-  void _showFilterSheet(BuildContext context, WidgetRef ref, NightshadeColors colors) {
+  void _showFilterSheet(
+      BuildContext context, WidgetRef ref, NightshadeColors colors) {
     showModalBottomSheet(
       context: context,
       backgroundColor: colors.surface,
@@ -4409,7 +4574,9 @@ class _SuggestionsTab extends ConsumerWidget {
                 );
 
                 // Add target to sequence via provider
-                ref.read(currentSequenceProvider.notifier).addTargetHeader(targetNode);
+                ref
+                    .read(currentSequenceProvider.notifier)
+                    .addTargetHeader(targetNode);
 
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -4427,7 +4594,7 @@ class _SuggestionsTab extends ConsumerWidget {
   }
 }
 
-/// Skeleton placeholder for suggestion cards during loading
+/// Skeleton loading cards for suggestions
 class _SuggestionCardSkeleton extends StatelessWidget {
   final NightshadeColors colors;
 
@@ -4450,7 +4617,10 @@ class _SuggestionCardSkeleton extends StatelessWidget {
             children: [
               SkeletonBox(width: 150, height: 18),
               Spacer(),
-              SkeletonBox(width: 60, height: 24, borderRadius: NightshadeTokens.radiusFull),
+              SkeletonBox(
+                  width: 60,
+                  height: 24,
+                  borderRadius: NightshadeTokens.radiusFull),
             ],
           ),
           SizedBox(height: NightshadeTokens.spaceMd),

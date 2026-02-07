@@ -1,0 +1,5 @@
+# Placeholder audit allowlist
+# Entries can be:
+# - path/to/file.ext
+# - path/to/file.ext:line
+# - path/to/file.ext:line:full matching line

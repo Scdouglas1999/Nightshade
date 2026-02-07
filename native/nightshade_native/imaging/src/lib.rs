@@ -801,9 +801,11 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
                 header.insert("FOCALLEN".to_string(), focal.to_string());
             }
             if let Some(ts) = raw_metadata.timestamp {
-                // Convert timestamp to ISO string if possible, or just number
-                // For now just number string
-                header.insert("DATETIME".to_string(), ts.to_string());
+                if let Some(dt) = chrono::DateTime::<chrono::Utc>::from_timestamp(ts, 0) {
+                    header.insert("DATETIME".to_string(), dt.to_rfc3339());
+                } else {
+                    header.insert("DATETIME".to_string(), ts.to_string());
+                }
             }
 
             Ok(ImageReadResult {
@@ -812,6 +814,9 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
                 header,
             })
         }
-        _ => Err(format!("Format {:?} not implemented yet", format)),
+        _ => Err(format!(
+            "Reading {:?} is not supported by the current image reader pipeline",
+            format
+        )),
     }
 }

@@ -19,6 +19,10 @@ mixin _$ScienceDaoMixin on DatabaseAccessor<NightshadeDatabase> {
   $TransparencySamplesTable get transparencySamples =>
       attachedDatabase.transparencySamples;
   $PsfFieldTilesTable get psfFieldTiles => attachedDatabase.psfFieldTiles;
+  $ScienceFrameQualityMetricsTable get scienceFrameQualityMetrics =>
+      attachedDatabase.scienceFrameQualityMetrics;
+  $ScienceTileMetricsTable get scienceTileMetrics =>
+      attachedDatabase.scienceTileMetrics;
   $AstrometryResidualVectorsTable get astrometryResidualVectors =>
       attachedDatabase.astrometryResidualVectors;
   $MovingObjectCandidatesTable get movingObjectCandidates =>

@@ -209,8 +209,8 @@ impl ExecutionContext {
     pub fn calculate_altitude(&self) -> Option<f64> {
         let ra_hours = self.target_ra?;
         let dec_degrees = self.target_dec?;
-        let lat = self.latitude.unwrap_or(0.0);
-        let lon = self.longitude.unwrap_or(0.0);
+        let lat = self.latitude?;
+        let lon = self.longitude?;
 
         // Get current time
         let now = chrono::Utc::now();
@@ -280,10 +280,10 @@ impl ExecutionContext {
     }
 
     /// Check if it's currently dark (astronomical twilight has ended)
-    pub fn is_dark(&self) -> bool {
+    pub fn is_dark(&self) -> Option<bool> {
         // Calculate sun altitude
-        let lat = self.latitude.unwrap_or(0.0);
-        let lon = self.longitude.unwrap_or(0.0);
+        let lat = self.latitude?;
+        let lon = self.longitude?;
 
         let now = chrono::Utc::now();
         let jd = julian_day(&now);
@@ -320,11 +320,11 @@ impl ExecutionContext {
         .to_degrees();
 
         // Astronomical twilight is when sun is below -18 degrees
-        sun_alt < -18.0
+        Some(sun_alt < -18.0)
     }
 
     /// Set the next meridian flip time in the trigger state (if available)
-    /// This is a no-op if trigger state is not accessible.
+    /// If trigger state is not accessible, the timestamp is skipped.
     pub async fn set_next_meridian_flip_time(&self, timestamp: Option<i64>) {
         if let Some(trigger_state_lock) = &self.trigger_state {
             let mut trigger_state = trigger_state_lock.write().await;
@@ -1518,7 +1518,13 @@ impl RuntimeNode {
 
         // Check altitude if configured
         if let Some(min_alt) = config.min_altitude {
-            let current_alt = context.calculate_altitude().unwrap_or(90.0);
+            let Some(current_alt) = context.calculate_altitude() else {
+                tracing::error!(
+                    "Target {} has altitude constraints but missing target coordinates or observer location",
+                    display_name
+                );
+                return NodeStatus::Failure;
+            };
             if current_alt < min_alt {
                 tracing::warn!(
                     "Target {} is below minimum altitude ({:.1}° < {:.1}°)",
@@ -1531,7 +1537,13 @@ impl RuntimeNode {
         }
 
         if let Some(max_alt) = config.max_altitude {
-            let current_alt = context.calculate_altitude().unwrap_or(0.0);
+            let Some(current_alt) = context.calculate_altitude() else {
+                tracing::error!(
+                    "Target {} has altitude constraints but missing target coordinates or observer location",
+                    display_name
+                );
+                return NodeStatus::Failure;
+            };
             if current_alt > max_alt {
                 tracing::warn!(
                     "Target {} is above maximum altitude ({:.1}° > {:.1}°)",
@@ -1591,7 +1603,12 @@ impl RuntimeNode {
                 }
                 LoopCondition::AltitudeBelow => {
                     if let Some(threshold) = config.condition_value {
-                        let current_alt = context.calculate_altitude().unwrap_or(90.0);
+                        let Some(current_alt) = context.calculate_altitude() else {
+                            tracing::error!(
+                                "Loop condition AltitudeBelow requires target coordinates and observer location"
+                            );
+                            return NodeStatus::Failure;
+                        };
                         current_alt >= threshold
                     } else {
                         false
@@ -1599,7 +1616,12 @@ impl RuntimeNode {
                 }
                 LoopCondition::AltitudeAbove => {
                     if let Some(threshold) = config.condition_value {
-                        let current_alt = context.calculate_altitude().unwrap_or(0.0);
+                        let Some(current_alt) = context.calculate_altitude() else {
+                            tracing::error!(
+                                "Loop condition AltitudeAbove requires target coordinates and observer location"
+                            );
+                            return NodeStatus::Failure;
+                        };
                         current_alt <= threshold
                     } else {
                         false
@@ -1615,7 +1637,15 @@ impl RuntimeNode {
                     }
                 }
                 LoopCondition::Forever => true,
-                LoopCondition::WhileDark => context.is_dark(),
+                LoopCondition::WhileDark => {
+                    let Some(is_dark) = context.is_dark() else {
+                        tracing::error!(
+                            "Loop condition WhileDark requires observer latitude/longitude"
+                        );
+                        return NodeStatus::Failure;
+                    };
+                    is_dark
+                }
             };
 
             if !should_continue {
@@ -1897,7 +1927,12 @@ impl RuntimeNode {
         let condition_met = match &config.condition {
             ConditionalCheck::Always => true,
             ConditionalCheck::AltitudeAbove(min_alt) => {
-                let current_alt = context.calculate_altitude().unwrap_or(0.0);
+                let Some(current_alt) = context.calculate_altitude() else {
+                    tracing::error!(
+                        "Conditional AltitudeAbove requires target coordinates and observer location"
+                    );
+                    return NodeStatus::Failure;
+                };
                 current_alt > *min_alt
             }
             ConditionalCheck::TimeAfter(after) => chrono::Utc::now().timestamp() > *after,
@@ -1944,22 +1979,28 @@ impl RuntimeNode {
                         is_safe
                     }
                     Err(e) => {
-                        // Handle error based on configured safety fail mode
+                        // Strict production behavior: safety read errors are always unsafe.
                         match context.safety_fail_mode {
                             SafetyFailMode::FailOpen => {
                                 tracing::warn!(
-                                    "Weather safety check error: {} - assuming safe (fail-open)",
+                                    "Weather safety check error: {} - fail_open requested but strict fail-closed is enforced",
                                     e
                                 );
-                                true
+                                false
                             }
                             SafetyFailMode::FailClosed => {
-                                tracing::warn!("Weather safety check error: {} - assuming UNSAFE (fail-closed)", e);
+                                tracing::warn!(
+                                    "Weather safety check error: {} - treating as unsafe (fail-closed)",
+                                    e
+                                );
                                 false
                             }
                             SafetyFailMode::WarnOnly => {
-                                tracing::warn!("Weather safety check error: {} - continuing with warning (warn-only)", e);
-                                true
+                                tracing::warn!(
+                                    "Weather safety check error: {} - warn_only requested but strict fail-closed is enforced",
+                                    e
+                                );
+                                false
                             }
                         }
                     }
@@ -1967,9 +2008,11 @@ impl RuntimeNode {
             }
             ConditionalCheck::MoonSeparationAbove(degrees) => {
                 // Calculate moon separation from target
-                context
-                    .calculate_moon_separation()
-                    .map_or(true, |sep| sep > *degrees)
+                let Some(separation) = context.calculate_moon_separation() else {
+                    tracing::error!("Conditional MoonSeparationAbove requires target coordinates");
+                    return NodeStatus::Failure;
+                };
+                separation > *degrees
             }
             ConditionalCheck::SafetyMonitorSafe => {
                 // Check dedicated safety monitor device
@@ -1982,22 +2025,28 @@ impl RuntimeNode {
                         is_safe
                     }
                     Err(e) => {
-                        // Handle error based on configured safety fail mode
+                        // Strict production behavior: safety read errors are always unsafe.
                         match context.safety_fail_mode {
                             SafetyFailMode::FailOpen => {
                                 tracing::warn!(
-                                    "Safety monitor check error: {} - assuming safe (fail-open)",
+                                    "Safety monitor check error: {} - fail_open requested but strict fail-closed is enforced",
                                     e
                                 );
-                                true
+                                false
                             }
                             SafetyFailMode::FailClosed => {
-                                tracing::warn!("Safety monitor check error: {} - assuming UNSAFE (fail-closed)", e);
+                                tracing::warn!(
+                                    "Safety monitor check error: {} - treating as unsafe (fail-closed)",
+                                    e
+                                );
                                 false
                             }
                             SafetyFailMode::WarnOnly => {
-                                tracing::warn!("Safety monitor check error: {} - continuing with warning (warn-only)", e);
-                                true
+                                tracing::warn!(
+                                    "Safety monitor check error: {} - warn_only requested but strict fail-closed is enforced",
+                                    e
+                                );
+                                false
                             }
                         }
                     }

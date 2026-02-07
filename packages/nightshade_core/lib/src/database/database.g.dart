@@ -2,7 +2,7 @@
 
 part of 'database.dart';
 
-// ignore_for_file: type=lint
+// ignore_for_file: type=lint, unnecessary_null_comparison, unnecessary_non_null_assertion
 class $EquipmentProfilesTable extends EquipmentProfiles
     with TableInfo<$EquipmentProfilesTable, EquipmentProfile> {
   @override
@@ -12866,6 +12866,1506 @@ class PsfFieldTilesCompanion extends UpdateCompanion<PsfFieldTileRow> {
   }
 }
 
+class $ScienceFrameQualityMetricsTable extends ScienceFrameQualityMetrics
+    with
+        TableInfo<$ScienceFrameQualityMetricsTable,
+            ScienceFrameQualityMetricsRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScienceFrameQualityMetricsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _capturedImageIdMeta =
+      const VerificationMeta('capturedImageId');
+  @override
+  late final GeneratedColumn<int> capturedImageId = GeneratedColumn<int>(
+      'captured_image_id', aliasedName, true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES captured_images (id) ON DELETE CASCADE'));
+  static const VerificationMeta _sessionIdMeta =
+      const VerificationMeta('sessionId');
+  @override
+  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
+      'session_id', aliasedName, true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES imaging_sessions (id) ON DELETE CASCADE'));
+  static const VerificationMeta _timestampMeta =
+      const VerificationMeta('timestamp');
+  @override
+  late final GeneratedColumn<DateTime> timestamp = GeneratedColumn<DateTime>(
+      'timestamp', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
+  static const VerificationMeta _medianMeta = const VerificationMeta('median');
+  @override
+  late final GeneratedColumn<double> median = GeneratedColumn<double>(
+      'median', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _meanMeta = const VerificationMeta('mean');
+  @override
+  late final GeneratedColumn<double> mean = GeneratedColumn<double>(
+      'mean', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _stdDevMeta = const VerificationMeta('stdDev');
+  @override
+  late final GeneratedColumn<double> stdDev = GeneratedColumn<double>(
+      'std_dev', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _madMeta = const VerificationMeta('mad');
+  @override
+  late final GeneratedColumn<double> mad = GeneratedColumn<double>(
+      'mad', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _backgroundMeta =
+      const VerificationMeta('background');
+  @override
+  late final GeneratedColumn<double> background = GeneratedColumn<double>(
+      'background', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _noiseMeta = const VerificationMeta('noise');
+  @override
+  late final GeneratedColumn<double> noise = GeneratedColumn<double>(
+      'noise', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _snrMeta = const VerificationMeta('snr');
+  @override
+  late final GeneratedColumn<double> snr = GeneratedColumn<double>(
+      'snr', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _dynamicRangeP1P99Meta =
+      const VerificationMeta('dynamicRangeP1P99');
+  @override
+  late final GeneratedColumn<double> dynamicRangeP1P99 =
+      GeneratedColumn<double>('dynamic_range_p1_p99', aliasedName, false,
+          type: DriftSqlType.double,
+          requiredDuringInsert: false,
+          defaultValue: const Constant(0.0));
+  static const VerificationMeta _lowClipPercentMeta =
+      const VerificationMeta('lowClipPercent');
+  @override
+  late final GeneratedColumn<double> lowClipPercent = GeneratedColumn<double>(
+      'low_clip_percent', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _highClipPercentMeta =
+      const VerificationMeta('highClipPercent');
+  @override
+  late final GeneratedColumn<double> highClipPercent = GeneratedColumn<double>(
+      'high_clip_percent', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _uniformityCvMeta =
+      const VerificationMeta('uniformityCv');
+  @override
+  late final GeneratedColumn<double> uniformityCv = GeneratedColumn<double>(
+      'uniformity_cv', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _gradientXMeta =
+      const VerificationMeta('gradientX');
+  @override
+  late final GeneratedColumn<double> gradientX = GeneratedColumn<double>(
+      'gradient_x', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _gradientYMeta =
+      const VerificationMeta('gradientY');
+  @override
+  late final GeneratedColumn<double> gradientY = GeneratedColumn<double>(
+      'gradient_y', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _processingTierMeta =
+      const VerificationMeta('processingTier');
+  @override
+  late final GeneratedColumn<String> processingTier = GeneratedColumn<String>(
+      'processing_tier', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('live'));
+  static const VerificationMeta _processingMsMeta =
+      const VerificationMeta('processingMs');
+  @override
+  late final GeneratedColumn<int> processingMs = GeneratedColumn<int>(
+      'processing_ms', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        capturedImageId,
+        sessionId,
+        timestamp,
+        median,
+        mean,
+        stdDev,
+        mad,
+        background,
+        noise,
+        snr,
+        dynamicRangeP1P99,
+        lowClipPercent,
+        highClipPercent,
+        uniformityCv,
+        gradientX,
+        gradientY,
+        processingTier,
+        processingMs
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'science_frame_quality_metrics';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<ScienceFrameQualityMetricsRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('captured_image_id')) {
+      context.handle(
+          _capturedImageIdMeta,
+          capturedImageId.isAcceptableOrUnknown(
+              data['captured_image_id']!, _capturedImageIdMeta));
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(_sessionIdMeta,
+          sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta));
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(_timestampMeta,
+          timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta));
+    }
+    if (data.containsKey('median')) {
+      context.handle(_medianMeta,
+          median.isAcceptableOrUnknown(data['median']!, _medianMeta));
+    }
+    if (data.containsKey('mean')) {
+      context.handle(
+          _meanMeta, mean.isAcceptableOrUnknown(data['mean']!, _meanMeta));
+    }
+    if (data.containsKey('std_dev')) {
+      context.handle(_stdDevMeta,
+          stdDev.isAcceptableOrUnknown(data['std_dev']!, _stdDevMeta));
+    }
+    if (data.containsKey('mad')) {
+      context.handle(
+          _madMeta, mad.isAcceptableOrUnknown(data['mad']!, _madMeta));
+    }
+    if (data.containsKey('background')) {
+      context.handle(
+          _backgroundMeta,
+          background.isAcceptableOrUnknown(
+              data['background']!, _backgroundMeta));
+    }
+    if (data.containsKey('noise')) {
+      context.handle(
+          _noiseMeta, noise.isAcceptableOrUnknown(data['noise']!, _noiseMeta));
+    }
+    if (data.containsKey('snr')) {
+      context.handle(
+          _snrMeta, snr.isAcceptableOrUnknown(data['snr']!, _snrMeta));
+    }
+    if (data.containsKey('dynamic_range_p1_p99')) {
+      context.handle(
+          _dynamicRangeP1P99Meta,
+          dynamicRangeP1P99.isAcceptableOrUnknown(
+              data['dynamic_range_p1_p99']!, _dynamicRangeP1P99Meta));
+    }
+    if (data.containsKey('low_clip_percent')) {
+      context.handle(
+          _lowClipPercentMeta,
+          lowClipPercent.isAcceptableOrUnknown(
+              data['low_clip_percent']!, _lowClipPercentMeta));
+    }
+    if (data.containsKey('high_clip_percent')) {
+      context.handle(
+          _highClipPercentMeta,
+          highClipPercent.isAcceptableOrUnknown(
+              data['high_clip_percent']!, _highClipPercentMeta));
+    }
+    if (data.containsKey('uniformity_cv')) {
+      context.handle(
+          _uniformityCvMeta,
+          uniformityCv.isAcceptableOrUnknown(
+              data['uniformity_cv']!, _uniformityCvMeta));
+    }
+    if (data.containsKey('gradient_x')) {
+      context.handle(_gradientXMeta,
+          gradientX.isAcceptableOrUnknown(data['gradient_x']!, _gradientXMeta));
+    }
+    if (data.containsKey('gradient_y')) {
+      context.handle(_gradientYMeta,
+          gradientY.isAcceptableOrUnknown(data['gradient_y']!, _gradientYMeta));
+    }
+    if (data.containsKey('processing_tier')) {
+      context.handle(
+          _processingTierMeta,
+          processingTier.isAcceptableOrUnknown(
+              data['processing_tier']!, _processingTierMeta));
+    }
+    if (data.containsKey('processing_ms')) {
+      context.handle(
+          _processingMsMeta,
+          processingMs.isAcceptableOrUnknown(
+              data['processing_ms']!, _processingMsMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ScienceFrameQualityMetricsRow map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScienceFrameQualityMetricsRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      capturedImageId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}captured_image_id']),
+      sessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}session_id']),
+      timestamp: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}timestamp'])!,
+      median: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}median'])!,
+      mean: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}mean'])!,
+      stdDev: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}std_dev'])!,
+      mad: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}mad'])!,
+      background: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}background'])!,
+      noise: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}noise'])!,
+      snr: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}snr'])!,
+      dynamicRangeP1P99: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}dynamic_range_p1_p99'])!,
+      lowClipPercent: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}low_clip_percent'])!,
+      highClipPercent: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}high_clip_percent'])!,
+      uniformityCv: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}uniformity_cv'])!,
+      gradientX: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}gradient_x'])!,
+      gradientY: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}gradient_y'])!,
+      processingTier: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}processing_tier'])!,
+      processingMs: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}processing_ms'])!,
+    );
+  }
+
+  @override
+  $ScienceFrameQualityMetricsTable createAlias(String alias) {
+    return $ScienceFrameQualityMetricsTable(attachedDatabase, alias);
+  }
+}
+
+class ScienceFrameQualityMetricsRow extends DataClass
+    implements Insertable<ScienceFrameQualityMetricsRow> {
+  final int id;
+  final int? capturedImageId;
+  final int? sessionId;
+  final DateTime timestamp;
+  final double median;
+  final double mean;
+  final double stdDev;
+  final double mad;
+  final double background;
+  final double noise;
+  final double snr;
+  final double dynamicRangeP1P99;
+  final double lowClipPercent;
+  final double highClipPercent;
+  final double uniformityCv;
+  final double gradientX;
+  final double gradientY;
+  final String processingTier;
+  final int processingMs;
+  const ScienceFrameQualityMetricsRow(
+      {required this.id,
+      this.capturedImageId,
+      this.sessionId,
+      required this.timestamp,
+      required this.median,
+      required this.mean,
+      required this.stdDev,
+      required this.mad,
+      required this.background,
+      required this.noise,
+      required this.snr,
+      required this.dynamicRangeP1P99,
+      required this.lowClipPercent,
+      required this.highClipPercent,
+      required this.uniformityCv,
+      required this.gradientX,
+      required this.gradientY,
+      required this.processingTier,
+      required this.processingMs});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || capturedImageId != null) {
+      map['captured_image_id'] = Variable<int>(capturedImageId);
+    }
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<int>(sessionId);
+    }
+    map['timestamp'] = Variable<DateTime>(timestamp);
+    map['median'] = Variable<double>(median);
+    map['mean'] = Variable<double>(mean);
+    map['std_dev'] = Variable<double>(stdDev);
+    map['mad'] = Variable<double>(mad);
+    map['background'] = Variable<double>(background);
+    map['noise'] = Variable<double>(noise);
+    map['snr'] = Variable<double>(snr);
+    map['dynamic_range_p1_p99'] = Variable<double>(dynamicRangeP1P99);
+    map['low_clip_percent'] = Variable<double>(lowClipPercent);
+    map['high_clip_percent'] = Variable<double>(highClipPercent);
+    map['uniformity_cv'] = Variable<double>(uniformityCv);
+    map['gradient_x'] = Variable<double>(gradientX);
+    map['gradient_y'] = Variable<double>(gradientY);
+    map['processing_tier'] = Variable<String>(processingTier);
+    map['processing_ms'] = Variable<int>(processingMs);
+    return map;
+  }
+
+  ScienceFrameQualityMetricsCompanion toCompanion(bool nullToAbsent) {
+    return ScienceFrameQualityMetricsCompanion(
+      id: Value(id),
+      capturedImageId: capturedImageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(capturedImageId),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
+      timestamp: Value(timestamp),
+      median: Value(median),
+      mean: Value(mean),
+      stdDev: Value(stdDev),
+      mad: Value(mad),
+      background: Value(background),
+      noise: Value(noise),
+      snr: Value(snr),
+      dynamicRangeP1P99: Value(dynamicRangeP1P99),
+      lowClipPercent: Value(lowClipPercent),
+      highClipPercent: Value(highClipPercent),
+      uniformityCv: Value(uniformityCv),
+      gradientX: Value(gradientX),
+      gradientY: Value(gradientY),
+      processingTier: Value(processingTier),
+      processingMs: Value(processingMs),
+    );
+  }
+
+  factory ScienceFrameQualityMetricsRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScienceFrameQualityMetricsRow(
+      id: serializer.fromJson<int>(json['id']),
+      capturedImageId: serializer.fromJson<int?>(json['capturedImageId']),
+      sessionId: serializer.fromJson<int?>(json['sessionId']),
+      timestamp: serializer.fromJson<DateTime>(json['timestamp']),
+      median: serializer.fromJson<double>(json['median']),
+      mean: serializer.fromJson<double>(json['mean']),
+      stdDev: serializer.fromJson<double>(json['stdDev']),
+      mad: serializer.fromJson<double>(json['mad']),
+      background: serializer.fromJson<double>(json['background']),
+      noise: serializer.fromJson<double>(json['noise']),
+      snr: serializer.fromJson<double>(json['snr']),
+      dynamicRangeP1P99: serializer.fromJson<double>(json['dynamicRangeP1P99']),
+      lowClipPercent: serializer.fromJson<double>(json['lowClipPercent']),
+      highClipPercent: serializer.fromJson<double>(json['highClipPercent']),
+      uniformityCv: serializer.fromJson<double>(json['uniformityCv']),
+      gradientX: serializer.fromJson<double>(json['gradientX']),
+      gradientY: serializer.fromJson<double>(json['gradientY']),
+      processingTier: serializer.fromJson<String>(json['processingTier']),
+      processingMs: serializer.fromJson<int>(json['processingMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'capturedImageId': serializer.toJson<int?>(capturedImageId),
+      'sessionId': serializer.toJson<int?>(sessionId),
+      'timestamp': serializer.toJson<DateTime>(timestamp),
+      'median': serializer.toJson<double>(median),
+      'mean': serializer.toJson<double>(mean),
+      'stdDev': serializer.toJson<double>(stdDev),
+      'mad': serializer.toJson<double>(mad),
+      'background': serializer.toJson<double>(background),
+      'noise': serializer.toJson<double>(noise),
+      'snr': serializer.toJson<double>(snr),
+      'dynamicRangeP1P99': serializer.toJson<double>(dynamicRangeP1P99),
+      'lowClipPercent': serializer.toJson<double>(lowClipPercent),
+      'highClipPercent': serializer.toJson<double>(highClipPercent),
+      'uniformityCv': serializer.toJson<double>(uniformityCv),
+      'gradientX': serializer.toJson<double>(gradientX),
+      'gradientY': serializer.toJson<double>(gradientY),
+      'processingTier': serializer.toJson<String>(processingTier),
+      'processingMs': serializer.toJson<int>(processingMs),
+    };
+  }
+
+  ScienceFrameQualityMetricsRow copyWith(
+          {int? id,
+          Value<int?> capturedImageId = const Value.absent(),
+          Value<int?> sessionId = const Value.absent(),
+          DateTime? timestamp,
+          double? median,
+          double? mean,
+          double? stdDev,
+          double? mad,
+          double? background,
+          double? noise,
+          double? snr,
+          double? dynamicRangeP1P99,
+          double? lowClipPercent,
+          double? highClipPercent,
+          double? uniformityCv,
+          double? gradientX,
+          double? gradientY,
+          String? processingTier,
+          int? processingMs}) =>
+      ScienceFrameQualityMetricsRow(
+        id: id ?? this.id,
+        capturedImageId: capturedImageId.present
+            ? capturedImageId.value
+            : this.capturedImageId,
+        sessionId: sessionId.present ? sessionId.value : this.sessionId,
+        timestamp: timestamp ?? this.timestamp,
+        median: median ?? this.median,
+        mean: mean ?? this.mean,
+        stdDev: stdDev ?? this.stdDev,
+        mad: mad ?? this.mad,
+        background: background ?? this.background,
+        noise: noise ?? this.noise,
+        snr: snr ?? this.snr,
+        dynamicRangeP1P99: dynamicRangeP1P99 ?? this.dynamicRangeP1P99,
+        lowClipPercent: lowClipPercent ?? this.lowClipPercent,
+        highClipPercent: highClipPercent ?? this.highClipPercent,
+        uniformityCv: uniformityCv ?? this.uniformityCv,
+        gradientX: gradientX ?? this.gradientX,
+        gradientY: gradientY ?? this.gradientY,
+        processingTier: processingTier ?? this.processingTier,
+        processingMs: processingMs ?? this.processingMs,
+      );
+  ScienceFrameQualityMetricsRow copyWithCompanion(
+      ScienceFrameQualityMetricsCompanion data) {
+    return ScienceFrameQualityMetricsRow(
+      id: data.id.present ? data.id.value : this.id,
+      capturedImageId: data.capturedImageId.present
+          ? data.capturedImageId.value
+          : this.capturedImageId,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+      median: data.median.present ? data.median.value : this.median,
+      mean: data.mean.present ? data.mean.value : this.mean,
+      stdDev: data.stdDev.present ? data.stdDev.value : this.stdDev,
+      mad: data.mad.present ? data.mad.value : this.mad,
+      background:
+          data.background.present ? data.background.value : this.background,
+      noise: data.noise.present ? data.noise.value : this.noise,
+      snr: data.snr.present ? data.snr.value : this.snr,
+      dynamicRangeP1P99: data.dynamicRangeP1P99.present
+          ? data.dynamicRangeP1P99.value
+          : this.dynamicRangeP1P99,
+      lowClipPercent: data.lowClipPercent.present
+          ? data.lowClipPercent.value
+          : this.lowClipPercent,
+      highClipPercent: data.highClipPercent.present
+          ? data.highClipPercent.value
+          : this.highClipPercent,
+      uniformityCv: data.uniformityCv.present
+          ? data.uniformityCv.value
+          : this.uniformityCv,
+      gradientX: data.gradientX.present ? data.gradientX.value : this.gradientX,
+      gradientY: data.gradientY.present ? data.gradientY.value : this.gradientY,
+      processingTier: data.processingTier.present
+          ? data.processingTier.value
+          : this.processingTier,
+      processingMs: data.processingMs.present
+          ? data.processingMs.value
+          : this.processingMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScienceFrameQualityMetricsRow(')
+          ..write('id: $id, ')
+          ..write('capturedImageId: $capturedImageId, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('median: $median, ')
+          ..write('mean: $mean, ')
+          ..write('stdDev: $stdDev, ')
+          ..write('mad: $mad, ')
+          ..write('background: $background, ')
+          ..write('noise: $noise, ')
+          ..write('snr: $snr, ')
+          ..write('dynamicRangeP1P99: $dynamicRangeP1P99, ')
+          ..write('lowClipPercent: $lowClipPercent, ')
+          ..write('highClipPercent: $highClipPercent, ')
+          ..write('uniformityCv: $uniformityCv, ')
+          ..write('gradientX: $gradientX, ')
+          ..write('gradientY: $gradientY, ')
+          ..write('processingTier: $processingTier, ')
+          ..write('processingMs: $processingMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      capturedImageId,
+      sessionId,
+      timestamp,
+      median,
+      mean,
+      stdDev,
+      mad,
+      background,
+      noise,
+      snr,
+      dynamicRangeP1P99,
+      lowClipPercent,
+      highClipPercent,
+      uniformityCv,
+      gradientX,
+      gradientY,
+      processingTier,
+      processingMs);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScienceFrameQualityMetricsRow &&
+          other.id == this.id &&
+          other.capturedImageId == this.capturedImageId &&
+          other.sessionId == this.sessionId &&
+          other.timestamp == this.timestamp &&
+          other.median == this.median &&
+          other.mean == this.mean &&
+          other.stdDev == this.stdDev &&
+          other.mad == this.mad &&
+          other.background == this.background &&
+          other.noise == this.noise &&
+          other.snr == this.snr &&
+          other.dynamicRangeP1P99 == this.dynamicRangeP1P99 &&
+          other.lowClipPercent == this.lowClipPercent &&
+          other.highClipPercent == this.highClipPercent &&
+          other.uniformityCv == this.uniformityCv &&
+          other.gradientX == this.gradientX &&
+          other.gradientY == this.gradientY &&
+          other.processingTier == this.processingTier &&
+          other.processingMs == this.processingMs);
+}
+
+class ScienceFrameQualityMetricsCompanion
+    extends UpdateCompanion<ScienceFrameQualityMetricsRow> {
+  final Value<int> id;
+  final Value<int?> capturedImageId;
+  final Value<int?> sessionId;
+  final Value<DateTime> timestamp;
+  final Value<double> median;
+  final Value<double> mean;
+  final Value<double> stdDev;
+  final Value<double> mad;
+  final Value<double> background;
+  final Value<double> noise;
+  final Value<double> snr;
+  final Value<double> dynamicRangeP1P99;
+  final Value<double> lowClipPercent;
+  final Value<double> highClipPercent;
+  final Value<double> uniformityCv;
+  final Value<double> gradientX;
+  final Value<double> gradientY;
+  final Value<String> processingTier;
+  final Value<int> processingMs;
+  const ScienceFrameQualityMetricsCompanion({
+    this.id = const Value.absent(),
+    this.capturedImageId = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    this.median = const Value.absent(),
+    this.mean = const Value.absent(),
+    this.stdDev = const Value.absent(),
+    this.mad = const Value.absent(),
+    this.background = const Value.absent(),
+    this.noise = const Value.absent(),
+    this.snr = const Value.absent(),
+    this.dynamicRangeP1P99 = const Value.absent(),
+    this.lowClipPercent = const Value.absent(),
+    this.highClipPercent = const Value.absent(),
+    this.uniformityCv = const Value.absent(),
+    this.gradientX = const Value.absent(),
+    this.gradientY = const Value.absent(),
+    this.processingTier = const Value.absent(),
+    this.processingMs = const Value.absent(),
+  });
+  ScienceFrameQualityMetricsCompanion.insert({
+    this.id = const Value.absent(),
+    this.capturedImageId = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    this.median = const Value.absent(),
+    this.mean = const Value.absent(),
+    this.stdDev = const Value.absent(),
+    this.mad = const Value.absent(),
+    this.background = const Value.absent(),
+    this.noise = const Value.absent(),
+    this.snr = const Value.absent(),
+    this.dynamicRangeP1P99 = const Value.absent(),
+    this.lowClipPercent = const Value.absent(),
+    this.highClipPercent = const Value.absent(),
+    this.uniformityCv = const Value.absent(),
+    this.gradientX = const Value.absent(),
+    this.gradientY = const Value.absent(),
+    this.processingTier = const Value.absent(),
+    this.processingMs = const Value.absent(),
+  });
+  static Insertable<ScienceFrameQualityMetricsRow> custom({
+    Expression<int>? id,
+    Expression<int>? capturedImageId,
+    Expression<int>? sessionId,
+    Expression<DateTime>? timestamp,
+    Expression<double>? median,
+    Expression<double>? mean,
+    Expression<double>? stdDev,
+    Expression<double>? mad,
+    Expression<double>? background,
+    Expression<double>? noise,
+    Expression<double>? snr,
+    Expression<double>? dynamicRangeP1P99,
+    Expression<double>? lowClipPercent,
+    Expression<double>? highClipPercent,
+    Expression<double>? uniformityCv,
+    Expression<double>? gradientX,
+    Expression<double>? gradientY,
+    Expression<String>? processingTier,
+    Expression<int>? processingMs,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (capturedImageId != null) 'captured_image_id': capturedImageId,
+      if (sessionId != null) 'session_id': sessionId,
+      if (timestamp != null) 'timestamp': timestamp,
+      if (median != null) 'median': median,
+      if (mean != null) 'mean': mean,
+      if (stdDev != null) 'std_dev': stdDev,
+      if (mad != null) 'mad': mad,
+      if (background != null) 'background': background,
+      if (noise != null) 'noise': noise,
+      if (snr != null) 'snr': snr,
+      if (dynamicRangeP1P99 != null) 'dynamic_range_p1_p99': dynamicRangeP1P99,
+      if (lowClipPercent != null) 'low_clip_percent': lowClipPercent,
+      if (highClipPercent != null) 'high_clip_percent': highClipPercent,
+      if (uniformityCv != null) 'uniformity_cv': uniformityCv,
+      if (gradientX != null) 'gradient_x': gradientX,
+      if (gradientY != null) 'gradient_y': gradientY,
+      if (processingTier != null) 'processing_tier': processingTier,
+      if (processingMs != null) 'processing_ms': processingMs,
+    });
+  }
+
+  ScienceFrameQualityMetricsCompanion copyWith(
+      {Value<int>? id,
+      Value<int?>? capturedImageId,
+      Value<int?>? sessionId,
+      Value<DateTime>? timestamp,
+      Value<double>? median,
+      Value<double>? mean,
+      Value<double>? stdDev,
+      Value<double>? mad,
+      Value<double>? background,
+      Value<double>? noise,
+      Value<double>? snr,
+      Value<double>? dynamicRangeP1P99,
+      Value<double>? lowClipPercent,
+      Value<double>? highClipPercent,
+      Value<double>? uniformityCv,
+      Value<double>? gradientX,
+      Value<double>? gradientY,
+      Value<String>? processingTier,
+      Value<int>? processingMs}) {
+    return ScienceFrameQualityMetricsCompanion(
+      id: id ?? this.id,
+      capturedImageId: capturedImageId ?? this.capturedImageId,
+      sessionId: sessionId ?? this.sessionId,
+      timestamp: timestamp ?? this.timestamp,
+      median: median ?? this.median,
+      mean: mean ?? this.mean,
+      stdDev: stdDev ?? this.stdDev,
+      mad: mad ?? this.mad,
+      background: background ?? this.background,
+      noise: noise ?? this.noise,
+      snr: snr ?? this.snr,
+      dynamicRangeP1P99: dynamicRangeP1P99 ?? this.dynamicRangeP1P99,
+      lowClipPercent: lowClipPercent ?? this.lowClipPercent,
+      highClipPercent: highClipPercent ?? this.highClipPercent,
+      uniformityCv: uniformityCv ?? this.uniformityCv,
+      gradientX: gradientX ?? this.gradientX,
+      gradientY: gradientY ?? this.gradientY,
+      processingTier: processingTier ?? this.processingTier,
+      processingMs: processingMs ?? this.processingMs,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (capturedImageId.present) {
+      map['captured_image_id'] = Variable<int>(capturedImageId.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<int>(sessionId.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<DateTime>(timestamp.value);
+    }
+    if (median.present) {
+      map['median'] = Variable<double>(median.value);
+    }
+    if (mean.present) {
+      map['mean'] = Variable<double>(mean.value);
+    }
+    if (stdDev.present) {
+      map['std_dev'] = Variable<double>(stdDev.value);
+    }
+    if (mad.present) {
+      map['mad'] = Variable<double>(mad.value);
+    }
+    if (background.present) {
+      map['background'] = Variable<double>(background.value);
+    }
+    if (noise.present) {
+      map['noise'] = Variable<double>(noise.value);
+    }
+    if (snr.present) {
+      map['snr'] = Variable<double>(snr.value);
+    }
+    if (dynamicRangeP1P99.present) {
+      map['dynamic_range_p1_p99'] = Variable<double>(dynamicRangeP1P99.value);
+    }
+    if (lowClipPercent.present) {
+      map['low_clip_percent'] = Variable<double>(lowClipPercent.value);
+    }
+    if (highClipPercent.present) {
+      map['high_clip_percent'] = Variable<double>(highClipPercent.value);
+    }
+    if (uniformityCv.present) {
+      map['uniformity_cv'] = Variable<double>(uniformityCv.value);
+    }
+    if (gradientX.present) {
+      map['gradient_x'] = Variable<double>(gradientX.value);
+    }
+    if (gradientY.present) {
+      map['gradient_y'] = Variable<double>(gradientY.value);
+    }
+    if (processingTier.present) {
+      map['processing_tier'] = Variable<String>(processingTier.value);
+    }
+    if (processingMs.present) {
+      map['processing_ms'] = Variable<int>(processingMs.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScienceFrameQualityMetricsCompanion(')
+          ..write('id: $id, ')
+          ..write('capturedImageId: $capturedImageId, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('median: $median, ')
+          ..write('mean: $mean, ')
+          ..write('stdDev: $stdDev, ')
+          ..write('mad: $mad, ')
+          ..write('background: $background, ')
+          ..write('noise: $noise, ')
+          ..write('snr: $snr, ')
+          ..write('dynamicRangeP1P99: $dynamicRangeP1P99, ')
+          ..write('lowClipPercent: $lowClipPercent, ')
+          ..write('highClipPercent: $highClipPercent, ')
+          ..write('uniformityCv: $uniformityCv, ')
+          ..write('gradientX: $gradientX, ')
+          ..write('gradientY: $gradientY, ')
+          ..write('processingTier: $processingTier, ')
+          ..write('processingMs: $processingMs')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ScienceTileMetricsTable extends ScienceTileMetrics
+    with TableInfo<$ScienceTileMetricsTable, ScienceTileMetricRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScienceTileMetricsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _capturedImageIdMeta =
+      const VerificationMeta('capturedImageId');
+  @override
+  late final GeneratedColumn<int> capturedImageId = GeneratedColumn<int>(
+      'captured_image_id', aliasedName, true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES captured_images (id) ON DELETE CASCADE'));
+  static const VerificationMeta _sessionIdMeta =
+      const VerificationMeta('sessionId');
+  @override
+  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
+      'session_id', aliasedName, true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES imaging_sessions (id) ON DELETE CASCADE'));
+  static const VerificationMeta _timestampMeta =
+      const VerificationMeta('timestamp');
+  @override
+  late final GeneratedColumn<DateTime> timestamp = GeneratedColumn<DateTime>(
+      'timestamp', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
+  static const VerificationMeta _layerTypeMeta =
+      const VerificationMeta('layerType');
+  @override
+  late final GeneratedColumn<String> layerType = GeneratedColumn<String>(
+      'layer_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _tileRowMeta =
+      const VerificationMeta('tileRow');
+  @override
+  late final GeneratedColumn<int> tileRow = GeneratedColumn<int>(
+      'tile_row', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _tileColMeta =
+      const VerificationMeta('tileCol');
+  @override
+  late final GeneratedColumn<int> tileCol = GeneratedColumn<int>(
+      'tile_col', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _sampleCountMeta =
+      const VerificationMeta('sampleCount');
+  @override
+  late final GeneratedColumn<int> sampleCount = GeneratedColumn<int>(
+      'sample_count', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<double> value = GeneratedColumn<double>(
+      'value', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _p05Meta = const VerificationMeta('p05');
+  @override
+  late final GeneratedColumn<double> p05 = GeneratedColumn<double>(
+      'p05', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _p50Meta = const VerificationMeta('p50');
+  @override
+  late final GeneratedColumn<double> p50 = GeneratedColumn<double>(
+      'p50', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _p95Meta = const VerificationMeta('p95');
+  @override
+  late final GeneratedColumn<double> p95 = GeneratedColumn<double>(
+      'p95', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _auxValueMeta =
+      const VerificationMeta('auxValue');
+  @override
+  late final GeneratedColumn<double> auxValue = GeneratedColumn<double>(
+      'aux_value', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        capturedImageId,
+        sessionId,
+        timestamp,
+        layerType,
+        tileRow,
+        tileCol,
+        sampleCount,
+        value,
+        p05,
+        p50,
+        p95,
+        auxValue
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'science_tile_metrics';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<ScienceTileMetricRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('captured_image_id')) {
+      context.handle(
+          _capturedImageIdMeta,
+          capturedImageId.isAcceptableOrUnknown(
+              data['captured_image_id']!, _capturedImageIdMeta));
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(_sessionIdMeta,
+          sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta));
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(_timestampMeta,
+          timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta));
+    }
+    if (data.containsKey('layer_type')) {
+      context.handle(_layerTypeMeta,
+          layerType.isAcceptableOrUnknown(data['layer_type']!, _layerTypeMeta));
+    } else if (isInserting) {
+      context.missing(_layerTypeMeta);
+    }
+    if (data.containsKey('tile_row')) {
+      context.handle(_tileRowMeta,
+          tileRow.isAcceptableOrUnknown(data['tile_row']!, _tileRowMeta));
+    } else if (isInserting) {
+      context.missing(_tileRowMeta);
+    }
+    if (data.containsKey('tile_col')) {
+      context.handle(_tileColMeta,
+          tileCol.isAcceptableOrUnknown(data['tile_col']!, _tileColMeta));
+    } else if (isInserting) {
+      context.missing(_tileColMeta);
+    }
+    if (data.containsKey('sample_count')) {
+      context.handle(
+          _sampleCountMeta,
+          sampleCount.isAcceptableOrUnknown(
+              data['sample_count']!, _sampleCountMeta));
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+          _valueMeta, value.isAcceptableOrUnknown(data['value']!, _valueMeta));
+    }
+    if (data.containsKey('p05')) {
+      context.handle(
+          _p05Meta, p05.isAcceptableOrUnknown(data['p05']!, _p05Meta));
+    }
+    if (data.containsKey('p50')) {
+      context.handle(
+          _p50Meta, p50.isAcceptableOrUnknown(data['p50']!, _p50Meta));
+    }
+    if (data.containsKey('p95')) {
+      context.handle(
+          _p95Meta, p95.isAcceptableOrUnknown(data['p95']!, _p95Meta));
+    }
+    if (data.containsKey('aux_value')) {
+      context.handle(_auxValueMeta,
+          auxValue.isAcceptableOrUnknown(data['aux_value']!, _auxValueMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ScienceTileMetricRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScienceTileMetricRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      capturedImageId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}captured_image_id']),
+      sessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}session_id']),
+      timestamp: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}timestamp'])!,
+      layerType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}layer_type'])!,
+      tileRow: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}tile_row'])!,
+      tileCol: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}tile_col'])!,
+      sampleCount: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}sample_count'])!,
+      value: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}value'])!,
+      p05: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}p05'])!,
+      p50: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}p50'])!,
+      p95: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}p95'])!,
+      auxValue: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}aux_value'])!,
+    );
+  }
+
+  @override
+  $ScienceTileMetricsTable createAlias(String alias) {
+    return $ScienceTileMetricsTable(attachedDatabase, alias);
+  }
+}
+
+class ScienceTileMetricRow extends DataClass
+    implements Insertable<ScienceTileMetricRow> {
+  final int id;
+  final int? capturedImageId;
+  final int? sessionId;
+  final DateTime timestamp;
+  final String layerType;
+  final int tileRow;
+  final int tileCol;
+  final int sampleCount;
+  final double value;
+  final double p05;
+  final double p50;
+  final double p95;
+  final double auxValue;
+  const ScienceTileMetricRow(
+      {required this.id,
+      this.capturedImageId,
+      this.sessionId,
+      required this.timestamp,
+      required this.layerType,
+      required this.tileRow,
+      required this.tileCol,
+      required this.sampleCount,
+      required this.value,
+      required this.p05,
+      required this.p50,
+      required this.p95,
+      required this.auxValue});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || capturedImageId != null) {
+      map['captured_image_id'] = Variable<int>(capturedImageId);
+    }
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<int>(sessionId);
+    }
+    map['timestamp'] = Variable<DateTime>(timestamp);
+    map['layer_type'] = Variable<String>(layerType);
+    map['tile_row'] = Variable<int>(tileRow);
+    map['tile_col'] = Variable<int>(tileCol);
+    map['sample_count'] = Variable<int>(sampleCount);
+    map['value'] = Variable<double>(value);
+    map['p05'] = Variable<double>(p05);
+    map['p50'] = Variable<double>(p50);
+    map['p95'] = Variable<double>(p95);
+    map['aux_value'] = Variable<double>(auxValue);
+    return map;
+  }
+
+  ScienceTileMetricsCompanion toCompanion(bool nullToAbsent) {
+    return ScienceTileMetricsCompanion(
+      id: Value(id),
+      capturedImageId: capturedImageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(capturedImageId),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
+      timestamp: Value(timestamp),
+      layerType: Value(layerType),
+      tileRow: Value(tileRow),
+      tileCol: Value(tileCol),
+      sampleCount: Value(sampleCount),
+      value: Value(value),
+      p05: Value(p05),
+      p50: Value(p50),
+      p95: Value(p95),
+      auxValue: Value(auxValue),
+    );
+  }
+
+  factory ScienceTileMetricRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScienceTileMetricRow(
+      id: serializer.fromJson<int>(json['id']),
+      capturedImageId: serializer.fromJson<int?>(json['capturedImageId']),
+      sessionId: serializer.fromJson<int?>(json['sessionId']),
+      timestamp: serializer.fromJson<DateTime>(json['timestamp']),
+      layerType: serializer.fromJson<String>(json['layerType']),
+      tileRow: serializer.fromJson<int>(json['tileRow']),
+      tileCol: serializer.fromJson<int>(json['tileCol']),
+      sampleCount: serializer.fromJson<int>(json['sampleCount']),
+      value: serializer.fromJson<double>(json['value']),
+      p05: serializer.fromJson<double>(json['p05']),
+      p50: serializer.fromJson<double>(json['p50']),
+      p95: serializer.fromJson<double>(json['p95']),
+      auxValue: serializer.fromJson<double>(json['auxValue']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'capturedImageId': serializer.toJson<int?>(capturedImageId),
+      'sessionId': serializer.toJson<int?>(sessionId),
+      'timestamp': serializer.toJson<DateTime>(timestamp),
+      'layerType': serializer.toJson<String>(layerType),
+      'tileRow': serializer.toJson<int>(tileRow),
+      'tileCol': serializer.toJson<int>(tileCol),
+      'sampleCount': serializer.toJson<int>(sampleCount),
+      'value': serializer.toJson<double>(value),
+      'p05': serializer.toJson<double>(p05),
+      'p50': serializer.toJson<double>(p50),
+      'p95': serializer.toJson<double>(p95),
+      'auxValue': serializer.toJson<double>(auxValue),
+    };
+  }
+
+  ScienceTileMetricRow copyWith(
+          {int? id,
+          Value<int?> capturedImageId = const Value.absent(),
+          Value<int?> sessionId = const Value.absent(),
+          DateTime? timestamp,
+          String? layerType,
+          int? tileRow,
+          int? tileCol,
+          int? sampleCount,
+          double? value,
+          double? p05,
+          double? p50,
+          double? p95,
+          double? auxValue}) =>
+      ScienceTileMetricRow(
+        id: id ?? this.id,
+        capturedImageId: capturedImageId.present
+            ? capturedImageId.value
+            : this.capturedImageId,
+        sessionId: sessionId.present ? sessionId.value : this.sessionId,
+        timestamp: timestamp ?? this.timestamp,
+        layerType: layerType ?? this.layerType,
+        tileRow: tileRow ?? this.tileRow,
+        tileCol: tileCol ?? this.tileCol,
+        sampleCount: sampleCount ?? this.sampleCount,
+        value: value ?? this.value,
+        p05: p05 ?? this.p05,
+        p50: p50 ?? this.p50,
+        p95: p95 ?? this.p95,
+        auxValue: auxValue ?? this.auxValue,
+      );
+  ScienceTileMetricRow copyWithCompanion(ScienceTileMetricsCompanion data) {
+    return ScienceTileMetricRow(
+      id: data.id.present ? data.id.value : this.id,
+      capturedImageId: data.capturedImageId.present
+          ? data.capturedImageId.value
+          : this.capturedImageId,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+      layerType: data.layerType.present ? data.layerType.value : this.layerType,
+      tileRow: data.tileRow.present ? data.tileRow.value : this.tileRow,
+      tileCol: data.tileCol.present ? data.tileCol.value : this.tileCol,
+      sampleCount:
+          data.sampleCount.present ? data.sampleCount.value : this.sampleCount,
+      value: data.value.present ? data.value.value : this.value,
+      p05: data.p05.present ? data.p05.value : this.p05,
+      p50: data.p50.present ? data.p50.value : this.p50,
+      p95: data.p95.present ? data.p95.value : this.p95,
+      auxValue: data.auxValue.present ? data.auxValue.value : this.auxValue,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScienceTileMetricRow(')
+          ..write('id: $id, ')
+          ..write('capturedImageId: $capturedImageId, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('layerType: $layerType, ')
+          ..write('tileRow: $tileRow, ')
+          ..write('tileCol: $tileCol, ')
+          ..write('sampleCount: $sampleCount, ')
+          ..write('value: $value, ')
+          ..write('p05: $p05, ')
+          ..write('p50: $p50, ')
+          ..write('p95: $p95, ')
+          ..write('auxValue: $auxValue')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, capturedImageId, sessionId, timestamp,
+      layerType, tileRow, tileCol, sampleCount, value, p05, p50, p95, auxValue);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScienceTileMetricRow &&
+          other.id == this.id &&
+          other.capturedImageId == this.capturedImageId &&
+          other.sessionId == this.sessionId &&
+          other.timestamp == this.timestamp &&
+          other.layerType == this.layerType &&
+          other.tileRow == this.tileRow &&
+          other.tileCol == this.tileCol &&
+          other.sampleCount == this.sampleCount &&
+          other.value == this.value &&
+          other.p05 == this.p05 &&
+          other.p50 == this.p50 &&
+          other.p95 == this.p95 &&
+          other.auxValue == this.auxValue);
+}
+
+class ScienceTileMetricsCompanion
+    extends UpdateCompanion<ScienceTileMetricRow> {
+  final Value<int> id;
+  final Value<int?> capturedImageId;
+  final Value<int?> sessionId;
+  final Value<DateTime> timestamp;
+  final Value<String> layerType;
+  final Value<int> tileRow;
+  final Value<int> tileCol;
+  final Value<int> sampleCount;
+  final Value<double> value;
+  final Value<double> p05;
+  final Value<double> p50;
+  final Value<double> p95;
+  final Value<double> auxValue;
+  const ScienceTileMetricsCompanion({
+    this.id = const Value.absent(),
+    this.capturedImageId = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    this.layerType = const Value.absent(),
+    this.tileRow = const Value.absent(),
+    this.tileCol = const Value.absent(),
+    this.sampleCount = const Value.absent(),
+    this.value = const Value.absent(),
+    this.p05 = const Value.absent(),
+    this.p50 = const Value.absent(),
+    this.p95 = const Value.absent(),
+    this.auxValue = const Value.absent(),
+  });
+  ScienceTileMetricsCompanion.insert({
+    this.id = const Value.absent(),
+    this.capturedImageId = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    required String layerType,
+    required int tileRow,
+    required int tileCol,
+    this.sampleCount = const Value.absent(),
+    this.value = const Value.absent(),
+    this.p05 = const Value.absent(),
+    this.p50 = const Value.absent(),
+    this.p95 = const Value.absent(),
+    this.auxValue = const Value.absent(),
+  })  : layerType = Value(layerType),
+        tileRow = Value(tileRow),
+        tileCol = Value(tileCol);
+  static Insertable<ScienceTileMetricRow> custom({
+    Expression<int>? id,
+    Expression<int>? capturedImageId,
+    Expression<int>? sessionId,
+    Expression<DateTime>? timestamp,
+    Expression<String>? layerType,
+    Expression<int>? tileRow,
+    Expression<int>? tileCol,
+    Expression<int>? sampleCount,
+    Expression<double>? value,
+    Expression<double>? p05,
+    Expression<double>? p50,
+    Expression<double>? p95,
+    Expression<double>? auxValue,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (capturedImageId != null) 'captured_image_id': capturedImageId,
+      if (sessionId != null) 'session_id': sessionId,
+      if (timestamp != null) 'timestamp': timestamp,
+      if (layerType != null) 'layer_type': layerType,
+      if (tileRow != null) 'tile_row': tileRow,
+      if (tileCol != null) 'tile_col': tileCol,
+      if (sampleCount != null) 'sample_count': sampleCount,
+      if (value != null) 'value': value,
+      if (p05 != null) 'p05': p05,
+      if (p50 != null) 'p50': p50,
+      if (p95 != null) 'p95': p95,
+      if (auxValue != null) 'aux_value': auxValue,
+    });
+  }
+
+  ScienceTileMetricsCompanion copyWith(
+      {Value<int>? id,
+      Value<int?>? capturedImageId,
+      Value<int?>? sessionId,
+      Value<DateTime>? timestamp,
+      Value<String>? layerType,
+      Value<int>? tileRow,
+      Value<int>? tileCol,
+      Value<int>? sampleCount,
+      Value<double>? value,
+      Value<double>? p05,
+      Value<double>? p50,
+      Value<double>? p95,
+      Value<double>? auxValue}) {
+    return ScienceTileMetricsCompanion(
+      id: id ?? this.id,
+      capturedImageId: capturedImageId ?? this.capturedImageId,
+      sessionId: sessionId ?? this.sessionId,
+      timestamp: timestamp ?? this.timestamp,
+      layerType: layerType ?? this.layerType,
+      tileRow: tileRow ?? this.tileRow,
+      tileCol: tileCol ?? this.tileCol,
+      sampleCount: sampleCount ?? this.sampleCount,
+      value: value ?? this.value,
+      p05: p05 ?? this.p05,
+      p50: p50 ?? this.p50,
+      p95: p95 ?? this.p95,
+      auxValue: auxValue ?? this.auxValue,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (capturedImageId.present) {
+      map['captured_image_id'] = Variable<int>(capturedImageId.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<int>(sessionId.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<DateTime>(timestamp.value);
+    }
+    if (layerType.present) {
+      map['layer_type'] = Variable<String>(layerType.value);
+    }
+    if (tileRow.present) {
+      map['tile_row'] = Variable<int>(tileRow.value);
+    }
+    if (tileCol.present) {
+      map['tile_col'] = Variable<int>(tileCol.value);
+    }
+    if (sampleCount.present) {
+      map['sample_count'] = Variable<int>(sampleCount.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<double>(value.value);
+    }
+    if (p05.present) {
+      map['p05'] = Variable<double>(p05.value);
+    }
+    if (p50.present) {
+      map['p50'] = Variable<double>(p50.value);
+    }
+    if (p95.present) {
+      map['p95'] = Variable<double>(p95.value);
+    }
+    if (auxValue.present) {
+      map['aux_value'] = Variable<double>(auxValue.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScienceTileMetricsCompanion(')
+          ..write('id: $id, ')
+          ..write('capturedImageId: $capturedImageId, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('layerType: $layerType, ')
+          ..write('tileRow: $tileRow, ')
+          ..write('tileCol: $tileCol, ')
+          ..write('sampleCount: $sampleCount, ')
+          ..write('value: $value, ')
+          ..write('p05: $p05, ')
+          ..write('p50: $p50, ')
+          ..write('p95: $p95, ')
+          ..write('auxValue: $auxValue')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $AstrometryResidualVectorsTable extends AstrometryResidualVectors
     with
         TableInfo<$AstrometryResidualVectorsTable,
@@ -14677,6 +16177,10 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final $TransparencySamplesTable transparencySamples =
       $TransparencySamplesTable(this);
   late final $PsfFieldTilesTable psfFieldTiles = $PsfFieldTilesTable(this);
+  late final $ScienceFrameQualityMetricsTable scienceFrameQualityMetrics =
+      $ScienceFrameQualityMetricsTable(this);
+  late final $ScienceTileMetricsTable scienceTileMetrics =
+      $ScienceTileMetricsTable(this);
   late final $AstrometryResidualVectorsTable astrometryResidualVectors =
       $AstrometryResidualVectorsTable(this);
   late final $MovingObjectCandidatesTable movingObjectCandidates =
@@ -14802,6 +16306,18 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final Index idxPsfFieldTilesTimestamp = Index(
       'idx_psf_field_tiles_timestamp',
       'CREATE INDEX idx_psf_field_tiles_timestamp ON psf_field_tiles (timestamp)');
+  late final Index idxScienceFrameQualityMetricsImage = Index(
+      'idx_science_frame_quality_metrics_image',
+      'CREATE INDEX idx_science_frame_quality_metrics_image ON science_frame_quality_metrics (captured_image_id)');
+  late final Index idxScienceFrameQualityMetricsSessionLayerTimestamp = Index(
+      'idx_science_frame_quality_metrics_session_layer_timestamp',
+      'CREATE INDEX idx_science_frame_quality_metrics_session_layer_timestamp ON science_frame_quality_metrics (session_id, processing_tier, timestamp)');
+  late final Index idxScienceTileMetricsSessionLayerTimestamp = Index(
+      'idx_science_tile_metrics_session_layer_timestamp',
+      'CREATE INDEX idx_science_tile_metrics_session_layer_timestamp ON science_tile_metrics (session_id, layer_type, timestamp)');
+  late final Index idxScienceTileMetricsImageLayer = Index(
+      'idx_science_tile_metrics_image_layer',
+      'CREATE INDEX idx_science_tile_metrics_image_layer ON science_tile_metrics (captured_image_id, layer_type)');
   late final Index idxAstrometryResidualVectorsImage = Index(
       'idx_astrometry_residual_vectors_image',
       'CREATE INDEX idx_astrometry_residual_vectors_image ON astrometry_residual_vectors (captured_image_id)');
@@ -14871,6 +16387,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         framePhotometricCalibration,
         transparencySamples,
         psfFieldTiles,
+        scienceFrameQualityMetrics,
+        scienceTileMetrics,
         astrometryResidualVectors,
         movingObjectCandidates,
         lineRatioProducts,
@@ -14925,6 +16443,10 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         idxPsfFieldTilesImage,
         idxPsfFieldTilesSession,
         idxPsfFieldTilesTimestamp,
+        idxScienceFrameQualityMetricsImage,
+        idxScienceFrameQualityMetricsSessionLayerTimestamp,
+        idxScienceTileMetricsSessionLayerTimestamp,
+        idxScienceTileMetricsImageLayer,
         idxAstrometryResidualVectorsImage,
         idxAstrometryResidualVectorsSession,
         idxAstrometryResidualVectorsTimestamp,
@@ -15043,6 +16565,36 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
                 limitUpdateKind: UpdateKind.delete),
             result: [
               TableUpdate('psf_field_tiles', kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('captured_images',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('science_frame_quality_metrics',
+                  kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('imaging_sessions',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('science_frame_quality_metrics',
+                  kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('captured_images',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('science_tile_metrics', kind: UpdateKind.delete),
+            ],
+          ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('imaging_sessions',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('science_tile_metrics', kind: UpdateKind.delete),
             ],
           ),
           WritePropagation(
@@ -17188,6 +18740,43 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
         manager.$state.copyWith(prefetchedData: cache));
   }
 
+  static MultiTypedResultKey<$ScienceFrameQualityMetricsTable,
+      List<ScienceFrameQualityMetricsRow>> _scienceFrameQualityMetricsRefsTable(
+          _$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(db.scienceFrameQualityMetrics,
+          aliasName: $_aliasNameGenerator(
+              db.imagingSessions.id, db.scienceFrameQualityMetrics.sessionId));
+
+  $$ScienceFrameQualityMetricsTableProcessedTableManager
+      get scienceFrameQualityMetricsRefs {
+    final manager = $$ScienceFrameQualityMetricsTableTableManager(
+            $_db, $_db.scienceFrameQualityMetrics)
+        .filter((f) => f.sessionId.id($_item.id));
+
+    final cache = $_typedResult
+        .readTableOrNull(_scienceFrameQualityMetricsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$ScienceTileMetricsTable,
+      List<ScienceTileMetricRow>> _scienceTileMetricsRefsTable(
+          _$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(db.scienceTileMetrics,
+          aliasName: $_aliasNameGenerator(
+              db.imagingSessions.id, db.scienceTileMetrics.sessionId));
+
+  $$ScienceTileMetricsTableProcessedTableManager get scienceTileMetricsRefs {
+    final manager =
+        $$ScienceTileMetricsTableTableManager($_db, $_db.scienceTileMetrics)
+            .filter((f) => f.sessionId.id($_item.id));
+
+    final cache =
+        $_typedResult.readTableOrNull(_scienceTileMetricsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+
   static MultiTypedResultKey<$AstrometryResidualVectorsTable,
       List<AstrometryResidualVectorRow>> _astrometryResidualVectorsRefsTable(
           _$NightshadeDatabase db) =>
@@ -17495,6 +19084,51 @@ class $$ImagingSessionsTableFilterComposer
             $$PsfFieldTilesTableFilterComposer(
               $db: $db,
               $table: $db.psfFieldTiles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> scienceFrameQualityMetricsRefs(
+      Expression<bool> Function(
+              $$ScienceFrameQualityMetricsTableFilterComposer f)
+          f) {
+    final $$ScienceFrameQualityMetricsTableFilterComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.scienceFrameQualityMetrics,
+            getReferencedColumn: (t) => t.sessionId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$ScienceFrameQualityMetricsTableFilterComposer(
+                  $db: $db,
+                  $table: $db.scienceFrameQualityMetrics,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+
+  Expression<bool> scienceTileMetricsRefs(
+      Expression<bool> Function($$ScienceTileMetricsTableFilterComposer f) f) {
+    final $$ScienceTileMetricsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.scienceTileMetrics,
+        getReferencedColumn: (t) => t.sessionId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ScienceTileMetricsTableFilterComposer(
+              $db: $db,
+              $table: $db.scienceTileMetrics,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -17957,6 +19591,52 @@ class $$ImagingSessionsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> scienceFrameQualityMetricsRefs<T extends Object>(
+      Expression<T> Function(
+              $$ScienceFrameQualityMetricsTableAnnotationComposer a)
+          f) {
+    final $$ScienceFrameQualityMetricsTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.scienceFrameQualityMetrics,
+            getReferencedColumn: (t) => t.sessionId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$ScienceFrameQualityMetricsTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.scienceFrameQualityMetrics,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+
+  Expression<T> scienceTileMetricsRefs<T extends Object>(
+      Expression<T> Function($$ScienceTileMetricsTableAnnotationComposer a) f) {
+    final $$ScienceTileMetricsTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.scienceTileMetrics,
+            getReferencedColumn: (t) => t.sessionId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$ScienceTileMetricsTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.scienceTileMetrics,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+
   Expression<T> astrometryResidualVectorsRefs<T extends Object>(
       Expression<T> Function(
               $$AstrometryResidualVectorsTableAnnotationComposer a)
@@ -18048,6 +19728,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
         bool framePhotometricCalibrationRefs,
         bool transparencySamplesRefs,
         bool psfFieldTilesRefs,
+        bool scienceFrameQualityMetricsRefs,
+        bool scienceTileMetricsRefs,
         bool astrometryResidualVectorsRefs,
         bool movingObjectCandidatesRefs,
         bool lineRatioProductsRefs})> {
@@ -18166,6 +19848,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
               framePhotometricCalibrationRefs = false,
               transparencySamplesRefs = false,
               psfFieldTilesRefs = false,
+              scienceFrameQualityMetricsRefs = false,
+              scienceTileMetricsRefs = false,
               astrometryResidualVectorsRefs = false,
               movingObjectCandidatesRefs = false,
               lineRatioProductsRefs = false}) {
@@ -18179,6 +19863,9 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                   db.framePhotometricCalibration,
                 if (transparencySamplesRefs) db.transparencySamples,
                 if (psfFieldTilesRefs) db.psfFieldTiles,
+                if (scienceFrameQualityMetricsRefs)
+                  db.scienceFrameQualityMetrics,
+                if (scienceTileMetricsRefs) db.scienceTileMetrics,
                 if (astrometryResidualVectorsRefs) db.astrometryResidualVectors,
                 if (movingObjectCandidatesRefs) db.movingObjectCandidates,
                 if (lineRatioProductsRefs) db.lineRatioProducts
@@ -18304,6 +19991,30 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                             (item, referencedItems) => referencedItems
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
+                  if (scienceFrameQualityMetricsRefs)
+                    await $_getPrefetchedData(
+                        currentTable: table,
+                        referencedTable: $$ImagingSessionsTableReferences
+                            ._scienceFrameQualityMetricsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$ImagingSessionsTableReferences(db, table, p0)
+                                .scienceFrameQualityMetricsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.sessionId == item.id),
+                        typedResults: items),
+                  if (scienceTileMetricsRefs)
+                    await $_getPrefetchedData(
+                        currentTable: table,
+                        referencedTable: $$ImagingSessionsTableReferences
+                            ._scienceTileMetricsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$ImagingSessionsTableReferences(db, table, p0)
+                                .scienceTileMetricsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.sessionId == item.id),
+                        typedResults: items),
                   if (astrometryResidualVectorsRefs)
                     await $_getPrefetchedData(
                         currentTable: table,
@@ -18368,6 +20079,8 @@ typedef $$ImagingSessionsTableProcessedTableManager = ProcessedTableManager<
         bool framePhotometricCalibrationRefs,
         bool transparencySamplesRefs,
         bool psfFieldTilesRefs,
+        bool scienceFrameQualityMetricsRefs,
+        bool scienceTileMetricsRefs,
         bool astrometryResidualVectorsRefs,
         bool movingObjectCandidatesRefs,
         bool lineRatioProductsRefs})>;
@@ -19344,6 +21057,43 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
         manager.$state.copyWith(prefetchedData: cache));
   }
 
+  static MultiTypedResultKey<$ScienceFrameQualityMetricsTable,
+      List<ScienceFrameQualityMetricsRow>> _scienceFrameQualityMetricsRefsTable(
+          _$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(db.scienceFrameQualityMetrics,
+          aliasName: $_aliasNameGenerator(db.capturedImages.id,
+              db.scienceFrameQualityMetrics.capturedImageId));
+
+  $$ScienceFrameQualityMetricsTableProcessedTableManager
+      get scienceFrameQualityMetricsRefs {
+    final manager = $$ScienceFrameQualityMetricsTableTableManager(
+            $_db, $_db.scienceFrameQualityMetrics)
+        .filter((f) => f.capturedImageId.id($_item.id));
+
+    final cache = $_typedResult
+        .readTableOrNull(_scienceFrameQualityMetricsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+
+  static MultiTypedResultKey<$ScienceTileMetricsTable,
+      List<ScienceTileMetricRow>> _scienceTileMetricsRefsTable(
+          _$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(db.scienceTileMetrics,
+          aliasName: $_aliasNameGenerator(
+              db.capturedImages.id, db.scienceTileMetrics.capturedImageId));
+
+  $$ScienceTileMetricsTableProcessedTableManager get scienceTileMetricsRefs {
+    final manager =
+        $$ScienceTileMetricsTableTableManager($_db, $_db.scienceTileMetrics)
+            .filter((f) => f.capturedImageId.id($_item.id));
+
+    final cache =
+        $_typedResult.readTableOrNull(_scienceTileMetricsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
+
   static MultiTypedResultKey<$AstrometryResidualVectorsTable,
       List<AstrometryResidualVectorRow>> _astrometryResidualVectorsRefsTable(
           _$NightshadeDatabase db) =>
@@ -19657,6 +21407,51 @@ class $$CapturedImagesTableFilterComposer
             $$PsfFieldTilesTableFilterComposer(
               $db: $db,
               $table: $db.psfFieldTiles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
+
+  Expression<bool> scienceFrameQualityMetricsRefs(
+      Expression<bool> Function(
+              $$ScienceFrameQualityMetricsTableFilterComposer f)
+          f) {
+    final $$ScienceFrameQualityMetricsTableFilterComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.scienceFrameQualityMetrics,
+            getReferencedColumn: (t) => t.capturedImageId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$ScienceFrameQualityMetricsTableFilterComposer(
+                  $db: $db,
+                  $table: $db.scienceFrameQualityMetrics,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+
+  Expression<bool> scienceTileMetricsRefs(
+      Expression<bool> Function($$ScienceTileMetricsTableFilterComposer f) f) {
+    final $$ScienceTileMetricsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.scienceTileMetrics,
+        getReferencedColumn: (t) => t.capturedImageId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ScienceTileMetricsTableFilterComposer(
+              $db: $db,
+              $table: $db.scienceTileMetrics,
               $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
               joinBuilder: joinBuilder,
               $removeJoinBuilderFromRootComposer:
@@ -20171,6 +21966,52 @@ class $$CapturedImagesTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> scienceFrameQualityMetricsRefs<T extends Object>(
+      Expression<T> Function(
+              $$ScienceFrameQualityMetricsTableAnnotationComposer a)
+          f) {
+    final $$ScienceFrameQualityMetricsTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.scienceFrameQualityMetrics,
+            getReferencedColumn: (t) => t.capturedImageId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$ScienceFrameQualityMetricsTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.scienceFrameQualityMetrics,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+
+  Expression<T> scienceTileMetricsRefs<T extends Object>(
+      Expression<T> Function($$ScienceTileMetricsTableAnnotationComposer a) f) {
+    final $$ScienceTileMetricsTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.id,
+            referencedTable: $db.scienceTileMetrics,
+            getReferencedColumn: (t) => t.capturedImageId,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$ScienceTileMetricsTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.scienceTileMetrics,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return f(composer);
+  }
+
   Expression<T> astrometryResidualVectorsRefs<T extends Object>(
       Expression<T> Function(
               $$AstrometryResidualVectorsTableAnnotationComposer a)
@@ -20238,6 +22079,8 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
         bool framePhotometricCalibrationRefs,
         bool transparencySamplesRefs,
         bool psfFieldTilesRefs,
+        bool scienceFrameQualityMetricsRefs,
+        bool scienceTileMetricsRefs,
         bool astrometryResidualVectorsRefs,
         bool movingObjectCandidatesRefs})> {
   $$CapturedImagesTableTableManager(
@@ -20437,6 +22280,8 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
               framePhotometricCalibrationRefs = false,
               transparencySamplesRefs = false,
               psfFieldTilesRefs = false,
+              scienceFrameQualityMetricsRefs = false,
+              scienceTileMetricsRefs = false,
               astrometryResidualVectorsRefs = false,
               movingObjectCandidatesRefs = false}) {
             return PrefetchHooks(
@@ -20448,6 +22293,9 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                   db.framePhotometricCalibration,
                 if (transparencySamplesRefs) db.transparencySamples,
                 if (psfFieldTilesRefs) db.psfFieldTiles,
+                if (scienceFrameQualityMetricsRefs)
+                  db.scienceFrameQualityMetrics,
+                if (scienceTileMetricsRefs) db.scienceTileMetrics,
                 if (astrometryResidualVectorsRefs) db.astrometryResidualVectors,
                 if (movingObjectCandidatesRefs) db.movingObjectCandidates
               ],
@@ -20549,6 +22397,30 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                             (item, referencedItems) => referencedItems
                                 .where((e) => e.capturedImageId == item.id),
                         typedResults: items),
+                  if (scienceFrameQualityMetricsRefs)
+                    await $_getPrefetchedData(
+                        currentTable: table,
+                        referencedTable: $$CapturedImagesTableReferences
+                            ._scienceFrameQualityMetricsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$CapturedImagesTableReferences(db, table, p0)
+                                .scienceFrameQualityMetricsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.capturedImageId == item.id),
+                        typedResults: items),
+                  if (scienceTileMetricsRefs)
+                    await $_getPrefetchedData(
+                        currentTable: table,
+                        referencedTable: $$CapturedImagesTableReferences
+                            ._scienceTileMetricsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$CapturedImagesTableReferences(db, table, p0)
+                                .scienceTileMetricsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.capturedImageId == item.id),
+                        typedResults: items),
                   if (astrometryResidualVectorsRefs)
                     await $_getPrefetchedData(
                         currentTable: table,
@@ -20599,6 +22471,8 @@ typedef $$CapturedImagesTableProcessedTableManager = ProcessedTableManager<
         bool framePhotometricCalibrationRefs,
         bool transparencySamplesRefs,
         bool psfFieldTilesRefs,
+        bool scienceFrameQualityMetricsRefs,
+        bool scienceTileMetricsRefs,
         bool astrometryResidualVectorsRefs,
         bool movingObjectCandidatesRefs})>;
 typedef $$ImageMetadataTableCreateCompanionBuilder = ImageMetadataCompanion
@@ -24300,6 +26174,1059 @@ typedef $$PsfFieldTilesTableProcessedTableManager = ProcessedTableManager<
     (PsfFieldTileRow, $$PsfFieldTilesTableReferences),
     PsfFieldTileRow,
     PrefetchHooks Function({bool capturedImageId, bool sessionId})>;
+typedef $$ScienceFrameQualityMetricsTableCreateCompanionBuilder
+    = ScienceFrameQualityMetricsCompanion Function({
+  Value<int> id,
+  Value<int?> capturedImageId,
+  Value<int?> sessionId,
+  Value<DateTime> timestamp,
+  Value<double> median,
+  Value<double> mean,
+  Value<double> stdDev,
+  Value<double> mad,
+  Value<double> background,
+  Value<double> noise,
+  Value<double> snr,
+  Value<double> dynamicRangeP1P99,
+  Value<double> lowClipPercent,
+  Value<double> highClipPercent,
+  Value<double> uniformityCv,
+  Value<double> gradientX,
+  Value<double> gradientY,
+  Value<String> processingTier,
+  Value<int> processingMs,
+});
+typedef $$ScienceFrameQualityMetricsTableUpdateCompanionBuilder
+    = ScienceFrameQualityMetricsCompanion Function({
+  Value<int> id,
+  Value<int?> capturedImageId,
+  Value<int?> sessionId,
+  Value<DateTime> timestamp,
+  Value<double> median,
+  Value<double> mean,
+  Value<double> stdDev,
+  Value<double> mad,
+  Value<double> background,
+  Value<double> noise,
+  Value<double> snr,
+  Value<double> dynamicRangeP1P99,
+  Value<double> lowClipPercent,
+  Value<double> highClipPercent,
+  Value<double> uniformityCv,
+  Value<double> gradientX,
+  Value<double> gradientY,
+  Value<String> processingTier,
+  Value<int> processingMs,
+});
+
+final class $$ScienceFrameQualityMetricsTableReferences extends BaseReferences<
+    _$NightshadeDatabase,
+    $ScienceFrameQualityMetricsTable,
+    ScienceFrameQualityMetricsRow> {
+  $$ScienceFrameQualityMetricsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $CapturedImagesTable _capturedImageIdTable(_$NightshadeDatabase db) =>
+      db.capturedImages.createAlias($_aliasNameGenerator(
+          db.scienceFrameQualityMetrics.capturedImageId, db.capturedImages.id));
+
+  $$CapturedImagesTableProcessedTableManager? get capturedImageId {
+    if ($_item.capturedImageId == null) return null;
+    final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
+        .filter((f) => f.id($_item.capturedImageId!));
+    final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $ImagingSessionsTable _sessionIdTable(_$NightshadeDatabase db) =>
+      db.imagingSessions.createAlias($_aliasNameGenerator(
+          db.scienceFrameQualityMetrics.sessionId, db.imagingSessions.id));
+
+  $$ImagingSessionsTableProcessedTableManager? get sessionId {
+    if ($_item.sessionId == null) return null;
+    final manager =
+        $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
+            .filter((f) => f.id($_item.sessionId!));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$ScienceFrameQualityMetricsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $ScienceFrameQualityMetricsTable> {
+  $$ScienceFrameQualityMetricsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get median => $composableBuilder(
+      column: $table.median, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get mean => $composableBuilder(
+      column: $table.mean, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get stdDev => $composableBuilder(
+      column: $table.stdDev, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get mad => $composableBuilder(
+      column: $table.mad, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get background => $composableBuilder(
+      column: $table.background, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get noise => $composableBuilder(
+      column: $table.noise, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get snr => $composableBuilder(
+      column: $table.snr, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get dynamicRangeP1P99 => $composableBuilder(
+      column: $table.dynamicRangeP1P99,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get lowClipPercent => $composableBuilder(
+      column: $table.lowClipPercent,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get highClipPercent => $composableBuilder(
+      column: $table.highClipPercent,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get uniformityCv => $composableBuilder(
+      column: $table.uniformityCv, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get gradientX => $composableBuilder(
+      column: $table.gradientX, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get gradientY => $composableBuilder(
+      column: $table.gradientY, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get processingTier => $composableBuilder(
+      column: $table.processingTier,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get processingMs => $composableBuilder(
+      column: $table.processingMs, builder: (column) => ColumnFilters(column));
+
+  $$CapturedImagesTableFilterComposer get capturedImageId {
+    final $$CapturedImagesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.capturedImageId,
+        referencedTable: $db.capturedImages,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$CapturedImagesTableFilterComposer(
+              $db: $db,
+              $table: $db.capturedImages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$ImagingSessionsTableFilterComposer get sessionId {
+    final $$ImagingSessionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sessionId,
+        referencedTable: $db.imagingSessions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ImagingSessionsTableFilterComposer(
+              $db: $db,
+              $table: $db.imagingSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ScienceFrameQualityMetricsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $ScienceFrameQualityMetricsTable> {
+  $$ScienceFrameQualityMetricsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get median => $composableBuilder(
+      column: $table.median, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get mean => $composableBuilder(
+      column: $table.mean, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get stdDev => $composableBuilder(
+      column: $table.stdDev, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get mad => $composableBuilder(
+      column: $table.mad, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get background => $composableBuilder(
+      column: $table.background, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get noise => $composableBuilder(
+      column: $table.noise, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get snr => $composableBuilder(
+      column: $table.snr, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get dynamicRangeP1P99 => $composableBuilder(
+      column: $table.dynamicRangeP1P99,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get lowClipPercent => $composableBuilder(
+      column: $table.lowClipPercent,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get highClipPercent => $composableBuilder(
+      column: $table.highClipPercent,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get uniformityCv => $composableBuilder(
+      column: $table.uniformityCv,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get gradientX => $composableBuilder(
+      column: $table.gradientX, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get gradientY => $composableBuilder(
+      column: $table.gradientY, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get processingTier => $composableBuilder(
+      column: $table.processingTier,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get processingMs => $composableBuilder(
+      column: $table.processingMs,
+      builder: (column) => ColumnOrderings(column));
+
+  $$CapturedImagesTableOrderingComposer get capturedImageId {
+    final $$CapturedImagesTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.capturedImageId,
+        referencedTable: $db.capturedImages,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$CapturedImagesTableOrderingComposer(
+              $db: $db,
+              $table: $db.capturedImages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$ImagingSessionsTableOrderingComposer get sessionId {
+    final $$ImagingSessionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sessionId,
+        referencedTable: $db.imagingSessions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ImagingSessionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.imagingSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ScienceFrameQualityMetricsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $ScienceFrameQualityMetricsTable> {
+  $$ScienceFrameQualityMetricsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+
+  GeneratedColumn<double> get median =>
+      $composableBuilder(column: $table.median, builder: (column) => column);
+
+  GeneratedColumn<double> get mean =>
+      $composableBuilder(column: $table.mean, builder: (column) => column);
+
+  GeneratedColumn<double> get stdDev =>
+      $composableBuilder(column: $table.stdDev, builder: (column) => column);
+
+  GeneratedColumn<double> get mad =>
+      $composableBuilder(column: $table.mad, builder: (column) => column);
+
+  GeneratedColumn<double> get background => $composableBuilder(
+      column: $table.background, builder: (column) => column);
+
+  GeneratedColumn<double> get noise =>
+      $composableBuilder(column: $table.noise, builder: (column) => column);
+
+  GeneratedColumn<double> get snr =>
+      $composableBuilder(column: $table.snr, builder: (column) => column);
+
+  GeneratedColumn<double> get dynamicRangeP1P99 => $composableBuilder(
+      column: $table.dynamicRangeP1P99, builder: (column) => column);
+
+  GeneratedColumn<double> get lowClipPercent => $composableBuilder(
+      column: $table.lowClipPercent, builder: (column) => column);
+
+  GeneratedColumn<double> get highClipPercent => $composableBuilder(
+      column: $table.highClipPercent, builder: (column) => column);
+
+  GeneratedColumn<double> get uniformityCv => $composableBuilder(
+      column: $table.uniformityCv, builder: (column) => column);
+
+  GeneratedColumn<double> get gradientX =>
+      $composableBuilder(column: $table.gradientX, builder: (column) => column);
+
+  GeneratedColumn<double> get gradientY =>
+      $composableBuilder(column: $table.gradientY, builder: (column) => column);
+
+  GeneratedColumn<String> get processingTier => $composableBuilder(
+      column: $table.processingTier, builder: (column) => column);
+
+  GeneratedColumn<int> get processingMs => $composableBuilder(
+      column: $table.processingMs, builder: (column) => column);
+
+  $$CapturedImagesTableAnnotationComposer get capturedImageId {
+    final $$CapturedImagesTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.capturedImageId,
+        referencedTable: $db.capturedImages,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$CapturedImagesTableAnnotationComposer(
+              $db: $db,
+              $table: $db.capturedImages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$ImagingSessionsTableAnnotationComposer get sessionId {
+    final $$ImagingSessionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sessionId,
+        referencedTable: $db.imagingSessions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ImagingSessionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.imagingSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ScienceFrameQualityMetricsTableTableManager extends RootTableManager<
+    _$NightshadeDatabase,
+    $ScienceFrameQualityMetricsTable,
+    ScienceFrameQualityMetricsRow,
+    $$ScienceFrameQualityMetricsTableFilterComposer,
+    $$ScienceFrameQualityMetricsTableOrderingComposer,
+    $$ScienceFrameQualityMetricsTableAnnotationComposer,
+    $$ScienceFrameQualityMetricsTableCreateCompanionBuilder,
+    $$ScienceFrameQualityMetricsTableUpdateCompanionBuilder,
+    (
+      ScienceFrameQualityMetricsRow,
+      $$ScienceFrameQualityMetricsTableReferences
+    ),
+    ScienceFrameQualityMetricsRow,
+    PrefetchHooks Function({bool capturedImageId, bool sessionId})> {
+  $$ScienceFrameQualityMetricsTableTableManager(
+      _$NightshadeDatabase db, $ScienceFrameQualityMetricsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScienceFrameQualityMetricsTableFilterComposer(
+                  $db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ScienceFrameQualityMetricsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ScienceFrameQualityMetricsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int?> capturedImageId = const Value.absent(),
+            Value<int?> sessionId = const Value.absent(),
+            Value<DateTime> timestamp = const Value.absent(),
+            Value<double> median = const Value.absent(),
+            Value<double> mean = const Value.absent(),
+            Value<double> stdDev = const Value.absent(),
+            Value<double> mad = const Value.absent(),
+            Value<double> background = const Value.absent(),
+            Value<double> noise = const Value.absent(),
+            Value<double> snr = const Value.absent(),
+            Value<double> dynamicRangeP1P99 = const Value.absent(),
+            Value<double> lowClipPercent = const Value.absent(),
+            Value<double> highClipPercent = const Value.absent(),
+            Value<double> uniformityCv = const Value.absent(),
+            Value<double> gradientX = const Value.absent(),
+            Value<double> gradientY = const Value.absent(),
+            Value<String> processingTier = const Value.absent(),
+            Value<int> processingMs = const Value.absent(),
+          }) =>
+              ScienceFrameQualityMetricsCompanion(
+            id: id,
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            median: median,
+            mean: mean,
+            stdDev: stdDev,
+            mad: mad,
+            background: background,
+            noise: noise,
+            snr: snr,
+            dynamicRangeP1P99: dynamicRangeP1P99,
+            lowClipPercent: lowClipPercent,
+            highClipPercent: highClipPercent,
+            uniformityCv: uniformityCv,
+            gradientX: gradientX,
+            gradientY: gradientY,
+            processingTier: processingTier,
+            processingMs: processingMs,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int?> capturedImageId = const Value.absent(),
+            Value<int?> sessionId = const Value.absent(),
+            Value<DateTime> timestamp = const Value.absent(),
+            Value<double> median = const Value.absent(),
+            Value<double> mean = const Value.absent(),
+            Value<double> stdDev = const Value.absent(),
+            Value<double> mad = const Value.absent(),
+            Value<double> background = const Value.absent(),
+            Value<double> noise = const Value.absent(),
+            Value<double> snr = const Value.absent(),
+            Value<double> dynamicRangeP1P99 = const Value.absent(),
+            Value<double> lowClipPercent = const Value.absent(),
+            Value<double> highClipPercent = const Value.absent(),
+            Value<double> uniformityCv = const Value.absent(),
+            Value<double> gradientX = const Value.absent(),
+            Value<double> gradientY = const Value.absent(),
+            Value<String> processingTier = const Value.absent(),
+            Value<int> processingMs = const Value.absent(),
+          }) =>
+              ScienceFrameQualityMetricsCompanion.insert(
+            id: id,
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            median: median,
+            mean: mean,
+            stdDev: stdDev,
+            mad: mad,
+            background: background,
+            noise: noise,
+            snr: snr,
+            dynamicRangeP1P99: dynamicRangeP1P99,
+            lowClipPercent: lowClipPercent,
+            highClipPercent: highClipPercent,
+            uniformityCv: uniformityCv,
+            gradientX: gradientX,
+            gradientY: gradientY,
+            processingTier: processingTier,
+            processingMs: processingMs,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$ScienceFrameQualityMetricsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: (
+              {capturedImageId = false, sessionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (capturedImageId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.capturedImageId,
+                    referencedTable: $$ScienceFrameQualityMetricsTableReferences
+                        ._capturedImageIdTable(db),
+                    referencedColumn:
+                        $$ScienceFrameQualityMetricsTableReferences
+                            ._capturedImageIdTable(db)
+                            .id,
+                  ) as T;
+                }
+                if (sessionId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.sessionId,
+                    referencedTable: $$ScienceFrameQualityMetricsTableReferences
+                        ._sessionIdTable(db),
+                    referencedColumn:
+                        $$ScienceFrameQualityMetricsTableReferences
+                            ._sessionIdTable(db)
+                            .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$ScienceFrameQualityMetricsTableProcessedTableManager
+    = ProcessedTableManager<
+        _$NightshadeDatabase,
+        $ScienceFrameQualityMetricsTable,
+        ScienceFrameQualityMetricsRow,
+        $$ScienceFrameQualityMetricsTableFilterComposer,
+        $$ScienceFrameQualityMetricsTableOrderingComposer,
+        $$ScienceFrameQualityMetricsTableAnnotationComposer,
+        $$ScienceFrameQualityMetricsTableCreateCompanionBuilder,
+        $$ScienceFrameQualityMetricsTableUpdateCompanionBuilder,
+        (
+          ScienceFrameQualityMetricsRow,
+          $$ScienceFrameQualityMetricsTableReferences
+        ),
+        ScienceFrameQualityMetricsRow,
+        PrefetchHooks Function({bool capturedImageId, bool sessionId})>;
+typedef $$ScienceTileMetricsTableCreateCompanionBuilder
+    = ScienceTileMetricsCompanion Function({
+  Value<int> id,
+  Value<int?> capturedImageId,
+  Value<int?> sessionId,
+  Value<DateTime> timestamp,
+  required String layerType,
+  required int tileRow,
+  required int tileCol,
+  Value<int> sampleCount,
+  Value<double> value,
+  Value<double> p05,
+  Value<double> p50,
+  Value<double> p95,
+  Value<double> auxValue,
+});
+typedef $$ScienceTileMetricsTableUpdateCompanionBuilder
+    = ScienceTileMetricsCompanion Function({
+  Value<int> id,
+  Value<int?> capturedImageId,
+  Value<int?> sessionId,
+  Value<DateTime> timestamp,
+  Value<String> layerType,
+  Value<int> tileRow,
+  Value<int> tileCol,
+  Value<int> sampleCount,
+  Value<double> value,
+  Value<double> p05,
+  Value<double> p50,
+  Value<double> p95,
+  Value<double> auxValue,
+});
+
+final class $$ScienceTileMetricsTableReferences extends BaseReferences<
+    _$NightshadeDatabase, $ScienceTileMetricsTable, ScienceTileMetricRow> {
+  $$ScienceTileMetricsTableReferences(
+      super.$_db, super.$_table, super.$_typedResult);
+
+  static $CapturedImagesTable _capturedImageIdTable(_$NightshadeDatabase db) =>
+      db.capturedImages.createAlias($_aliasNameGenerator(
+          db.scienceTileMetrics.capturedImageId, db.capturedImages.id));
+
+  $$CapturedImagesTableProcessedTableManager? get capturedImageId {
+    if ($_item.capturedImageId == null) return null;
+    final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
+        .filter((f) => f.id($_item.capturedImageId!));
+    final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $ImagingSessionsTable _sessionIdTable(_$NightshadeDatabase db) =>
+      db.imagingSessions.createAlias($_aliasNameGenerator(
+          db.scienceTileMetrics.sessionId, db.imagingSessions.id));
+
+  $$ImagingSessionsTableProcessedTableManager? get sessionId {
+    if ($_item.sessionId == null) return null;
+    final manager =
+        $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
+            .filter((f) => f.id($_item.sessionId!));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$ScienceTileMetricsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $ScienceTileMetricsTable> {
+  $$ScienceTileMetricsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get layerType => $composableBuilder(
+      column: $table.layerType, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get tileRow => $composableBuilder(
+      column: $table.tileRow, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get tileCol => $composableBuilder(
+      column: $table.tileCol, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get sampleCount => $composableBuilder(
+      column: $table.sampleCount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get value => $composableBuilder(
+      column: $table.value, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get p05 => $composableBuilder(
+      column: $table.p05, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get p50 => $composableBuilder(
+      column: $table.p50, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get p95 => $composableBuilder(
+      column: $table.p95, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get auxValue => $composableBuilder(
+      column: $table.auxValue, builder: (column) => ColumnFilters(column));
+
+  $$CapturedImagesTableFilterComposer get capturedImageId {
+    final $$CapturedImagesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.capturedImageId,
+        referencedTable: $db.capturedImages,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$CapturedImagesTableFilterComposer(
+              $db: $db,
+              $table: $db.capturedImages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$ImagingSessionsTableFilterComposer get sessionId {
+    final $$ImagingSessionsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sessionId,
+        referencedTable: $db.imagingSessions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ImagingSessionsTableFilterComposer(
+              $db: $db,
+              $table: $db.imagingSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ScienceTileMetricsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $ScienceTileMetricsTable> {
+  $$ScienceTileMetricsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get timestamp => $composableBuilder(
+      column: $table.timestamp, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get layerType => $composableBuilder(
+      column: $table.layerType, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get tileRow => $composableBuilder(
+      column: $table.tileRow, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get tileCol => $composableBuilder(
+      column: $table.tileCol, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get sampleCount => $composableBuilder(
+      column: $table.sampleCount, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get value => $composableBuilder(
+      column: $table.value, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get p05 => $composableBuilder(
+      column: $table.p05, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get p50 => $composableBuilder(
+      column: $table.p50, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get p95 => $composableBuilder(
+      column: $table.p95, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get auxValue => $composableBuilder(
+      column: $table.auxValue, builder: (column) => ColumnOrderings(column));
+
+  $$CapturedImagesTableOrderingComposer get capturedImageId {
+    final $$CapturedImagesTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.capturedImageId,
+        referencedTable: $db.capturedImages,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$CapturedImagesTableOrderingComposer(
+              $db: $db,
+              $table: $db.capturedImages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$ImagingSessionsTableOrderingComposer get sessionId {
+    final $$ImagingSessionsTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sessionId,
+        referencedTable: $db.imagingSessions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ImagingSessionsTableOrderingComposer(
+              $db: $db,
+              $table: $db.imagingSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ScienceTileMetricsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $ScienceTileMetricsTable> {
+  $$ScienceTileMetricsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+
+  GeneratedColumn<String> get layerType =>
+      $composableBuilder(column: $table.layerType, builder: (column) => column);
+
+  GeneratedColumn<int> get tileRow =>
+      $composableBuilder(column: $table.tileRow, builder: (column) => column);
+
+  GeneratedColumn<int> get tileCol =>
+      $composableBuilder(column: $table.tileCol, builder: (column) => column);
+
+  GeneratedColumn<int> get sampleCount => $composableBuilder(
+      column: $table.sampleCount, builder: (column) => column);
+
+  GeneratedColumn<double> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+
+  GeneratedColumn<double> get p05 =>
+      $composableBuilder(column: $table.p05, builder: (column) => column);
+
+  GeneratedColumn<double> get p50 =>
+      $composableBuilder(column: $table.p50, builder: (column) => column);
+
+  GeneratedColumn<double> get p95 =>
+      $composableBuilder(column: $table.p95, builder: (column) => column);
+
+  GeneratedColumn<double> get auxValue =>
+      $composableBuilder(column: $table.auxValue, builder: (column) => column);
+
+  $$CapturedImagesTableAnnotationComposer get capturedImageId {
+    final $$CapturedImagesTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.capturedImageId,
+        referencedTable: $db.capturedImages,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$CapturedImagesTableAnnotationComposer(
+              $db: $db,
+              $table: $db.capturedImages,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+
+  $$ImagingSessionsTableAnnotationComposer get sessionId {
+    final $$ImagingSessionsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.sessionId,
+        referencedTable: $db.imagingSessions,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$ImagingSessionsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.imagingSessions,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$ScienceTileMetricsTableTableManager extends RootTableManager<
+    _$NightshadeDatabase,
+    $ScienceTileMetricsTable,
+    ScienceTileMetricRow,
+    $$ScienceTileMetricsTableFilterComposer,
+    $$ScienceTileMetricsTableOrderingComposer,
+    $$ScienceTileMetricsTableAnnotationComposer,
+    $$ScienceTileMetricsTableCreateCompanionBuilder,
+    $$ScienceTileMetricsTableUpdateCompanionBuilder,
+    (ScienceTileMetricRow, $$ScienceTileMetricsTableReferences),
+    ScienceTileMetricRow,
+    PrefetchHooks Function({bool capturedImageId, bool sessionId})> {
+  $$ScienceTileMetricsTableTableManager(
+      _$NightshadeDatabase db, $ScienceTileMetricsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScienceTileMetricsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ScienceTileMetricsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ScienceTileMetricsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int?> capturedImageId = const Value.absent(),
+            Value<int?> sessionId = const Value.absent(),
+            Value<DateTime> timestamp = const Value.absent(),
+            Value<String> layerType = const Value.absent(),
+            Value<int> tileRow = const Value.absent(),
+            Value<int> tileCol = const Value.absent(),
+            Value<int> sampleCount = const Value.absent(),
+            Value<double> value = const Value.absent(),
+            Value<double> p05 = const Value.absent(),
+            Value<double> p50 = const Value.absent(),
+            Value<double> p95 = const Value.absent(),
+            Value<double> auxValue = const Value.absent(),
+          }) =>
+              ScienceTileMetricsCompanion(
+            id: id,
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            layerType: layerType,
+            tileRow: tileRow,
+            tileCol: tileCol,
+            sampleCount: sampleCount,
+            value: value,
+            p05: p05,
+            p50: p50,
+            p95: p95,
+            auxValue: auxValue,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int?> capturedImageId = const Value.absent(),
+            Value<int?> sessionId = const Value.absent(),
+            Value<DateTime> timestamp = const Value.absent(),
+            required String layerType,
+            required int tileRow,
+            required int tileCol,
+            Value<int> sampleCount = const Value.absent(),
+            Value<double> value = const Value.absent(),
+            Value<double> p05 = const Value.absent(),
+            Value<double> p50 = const Value.absent(),
+            Value<double> p95 = const Value.absent(),
+            Value<double> auxValue = const Value.absent(),
+          }) =>
+              ScienceTileMetricsCompanion.insert(
+            id: id,
+            capturedImageId: capturedImageId,
+            sessionId: sessionId,
+            timestamp: timestamp,
+            layerType: layerType,
+            tileRow: tileRow,
+            tileCol: tileCol,
+            sampleCount: sampleCount,
+            value: value,
+            p05: p05,
+            p50: p50,
+            p95: p95,
+            auxValue: auxValue,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$ScienceTileMetricsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: (
+              {capturedImageId = false, sessionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (capturedImageId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.capturedImageId,
+                    referencedTable: $$ScienceTileMetricsTableReferences
+                        ._capturedImageIdTable(db),
+                    referencedColumn: $$ScienceTileMetricsTableReferences
+                        ._capturedImageIdTable(db)
+                        .id,
+                  ) as T;
+                }
+                if (sessionId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.sessionId,
+                    referencedTable:
+                        $$ScienceTileMetricsTableReferences._sessionIdTable(db),
+                    referencedColumn: $$ScienceTileMetricsTableReferences
+                        ._sessionIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$ScienceTileMetricsTableProcessedTableManager = ProcessedTableManager<
+    _$NightshadeDatabase,
+    $ScienceTileMetricsTable,
+    ScienceTileMetricRow,
+    $$ScienceTileMetricsTableFilterComposer,
+    $$ScienceTileMetricsTableOrderingComposer,
+    $$ScienceTileMetricsTableAnnotationComposer,
+    $$ScienceTileMetricsTableCreateCompanionBuilder,
+    $$ScienceTileMetricsTableUpdateCompanionBuilder,
+    (ScienceTileMetricRow, $$ScienceTileMetricsTableReferences),
+    ScienceTileMetricRow,
+    PrefetchHooks Function({bool capturedImageId, bool sessionId})>;
 typedef $$AstrometryResidualVectorsTableCreateCompanionBuilder
     = AstrometryResidualVectorsCompanion Function({
   Value<int> id,
@@ -25864,6 +28791,12 @@ class $NightshadeDatabaseManager {
       $$TransparencySamplesTableTableManager(_db, _db.transparencySamples);
   $$PsfFieldTilesTableTableManager get psfFieldTiles =>
       $$PsfFieldTilesTableTableManager(_db, _db.psfFieldTiles);
+  $$ScienceFrameQualityMetricsTableTableManager
+      get scienceFrameQualityMetrics =>
+          $$ScienceFrameQualityMetricsTableTableManager(
+              _db, _db.scienceFrameQualityMetrics);
+  $$ScienceTileMetricsTableTableManager get scienceTileMetrics =>
+      $$ScienceTileMetricsTableTableManager(_db, _db.scienceTileMetrics);
   $$AstrometryResidualVectorsTableTableManager get astrometryResidualVectors =>
       $$AstrometryResidualVectorsTableTableManager(
           _db, _db.astrometryResidualVectors);

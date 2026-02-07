@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:developer' as developer;
 import 'dart:ui' as ui;
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_planetarium/src/catalogs/catalog_manager.dart'; // Explicit import to fix visibility issue
 
@@ -18,47 +17,15 @@ import 'database_provider.dart';
 import 'equipment_provider.dart';
 
 // =============================================================================
-// TRUSTED ASTRONOMY SERVERS HTTP CLIENT
+// ASTRONOMY HTTP CLIENT
 // =============================================================================
 
-/// Trusted astronomy survey domains that may have certificate chain issues
-/// on some Windows systems. These are well-established scientific services.
-const _trustedAstronomyDomains = [
-  'alasky.cds.unistra.fr',
-  'skyview.gsfc.nasa.gov',
-  'simbad.cds.unistra.fr',
-  'cds.unistra.fr',
-];
-
-/// HTTP client that bypasses certificate verification for trusted astronomy servers.
-/// This is necessary because some Windows systems have incomplete certificate stores.
+/// Shared HTTP client for astronomy server requests.
+/// Uses standard certificate verification — no SSL bypass.
 http.Client? _astronomyHttpClient;
 
 http.Client _getAstronomyHttpClient() {
-  if (_astronomyHttpClient != null) return _astronomyHttpClient!;
-
-  try {
-    // Create an HttpClient that accepts certificates from trusted astronomy domains
-    final httpClient = HttpClient()
-      ..badCertificateCallback = (cert, host, port) {
-        // Only allow bypass for known trusted astronomy servers
-        final isTrusted =
-            _trustedAstronomyDomains.any((domain) => host.endsWith(domain));
-        if (isTrusted) {
-          print(
-              'SSL: Accepting certificate for trusted astronomy server: $host');
-          return true;
-        }
-        return false;
-      };
-
-    _astronomyHttpClient = IOClient(httpClient);
-  } catch (e) {
-    // Fallback to standard client if IOClient creation fails
-    print('Warning: Could not create custom HTTP client: $e');
-    _astronomyHttpClient = http.Client();
-  }
-
+  _astronomyHttpClient ??= http.Client();
   return _astronomyHttpClient!;
 }
 
@@ -825,9 +792,40 @@ class FramingNotifier extends StateNotifier<FramingState> {
       final profile = await profilesDao.getActiveProfile();
 
       if (profile != null && profile.focalLength > 0) {
-        // Estimate sensor size from common cameras (default to APS-C if unknown)
-        const sensorWidth = 23.5; // APS-C default
-        const sensorHeight = 15.6;
+        if (profile.cameraId == null || profile.cameraId!.isEmpty) {
+          developer.log(
+            'Cannot compute profile FOV for "${profile.name}" without a configured camera.',
+            name: 'Framing',
+            level: 900,
+          );
+          return null;
+        }
+
+        final cameraState = _ref.read(cameraStateProvider);
+        if (cameraState.connectionState != DeviceConnectionState.connected) {
+          developer.log(
+            'Cannot compute profile FOV for "${profile.name}" because the camera is not connected.',
+            name: 'Framing',
+            level: 900,
+          );
+          return null;
+        }
+
+        final backend = _ref.read(backendProvider);
+        final status = await backend.getCameraStatus(profile.cameraId!);
+        if (status.sensorWidth <= 0 ||
+            status.sensorHeight <= 0 ||
+            status.pixelSizeX <= 0) {
+          developer.log(
+            'Camera status lacks sensor dimensions for "${profile.name}" (width=${status.sensorWidth}, height=${status.sensorHeight}, pixelSize=${status.pixelSizeX}).',
+            name: 'Framing',
+            level: 1000,
+          );
+          return null;
+        }
+
+        final sensorWidth = (status.sensorWidth * status.pixelSizeX) / 1000.0;
+        final sensorHeight = (status.sensorHeight * status.pixelSizeY) / 1000.0;
 
         final fovWidthRad =
             2 * FramingEquipment._atan(sensorWidth / (2 * profile.focalLength));
@@ -839,7 +837,15 @@ class FramingNotifier extends StateNotifier<FramingState> {
           fovHeightRad * 180 / 3.14159265359
         );
       }
-    } catch (_) {}
+    } catch (error, stack) {
+      developer.log(
+        'Failed to compute framing FOV from active profile.',
+        name: 'Framing',
+        level: 1000,
+        error: error,
+        stackTrace: stack,
+      );
+    }
 
     return null;
   }
@@ -1016,12 +1022,15 @@ class FramingNotifier extends StateNotifier<FramingState> {
   /// Get mosaic total coverage info
   (double widthDeg, double heightDeg) getMosaicCoverage() {
     final config = state.mosaicConfig;
-    // This is a placeholder - actual calculation would need current FOV
+    final baseWidthDeg = state.customEquipment?.fovWidthDeg ?? state.previewFovDegrees;
+    final baseHeightDeg = state.customEquipment?.fovHeightDeg ??
+        (state.surveyImage != null && state.surveyImage!.width > 0
+            ? state.previewFovDegrees *
+                (state.surveyImage!.height / state.surveyImage!.width)
+            : state.previewFovDegrees);
     return (
-      config.effectiveWidthMultiplier * state.previewFovDegrees,
-      config.effectiveHeightMultiplier *
-          state.previewFovDegrees *
-          0.67, // Assume 3:2 aspect
+      config.effectiveWidthMultiplier * baseWidthDeg,
+      config.effectiveHeightMultiplier * baseHeightDeg,
     );
   }
 
@@ -1173,12 +1182,12 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
 
   final telescopeName = profile.name;
 
-  // Try to get actual camera sensor specs from connected camera
-  double sensorWidthMm = 23.5; // APS-C default
-  double sensorHeightMm = 15.6;
-  double pixelSizeMicrons = 3.76;
-  int pixelsX = 6248;
-  int pixelsY = 4176;
+  // Require real camera sensor specs; do not approximate with guessed defaults.
+  double? sensorWidthMm;
+  double? sensorHeightMm;
+  double? pixelSizeMicrons;
+  int? pixelsX;
+  int? pixelsY;
   String? cameraMessage;
 
   // Check if camera is connected and get real specs
@@ -1199,19 +1208,34 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
 
         // Calculate sensor physical size from pixel count and pixel size
         sensorWidthMm = (pixelsX * pixelSizeMicrons) / 1000;
-        sensorHeightMm = (pixelsY * pixelSizeMicrons) / 1000;
+        sensorHeightMm = (pixelsY * status.pixelSizeY) / 1000;
 
         cameraMessage = null; // No message needed - using real data
+      } else {
+        cameraMessage =
+            'Camera is connected but did not report valid sensor dimensions.';
       }
     } catch (e) {
-      // Failed to get camera specs - use defaults
-      cameraMessage = 'Could not query camera specs. Using defaults.';
+      cameraMessage = 'Could not query camera specs: $e';
     }
   } else if (profile.cameraId == null) {
     cameraMessage =
-        'Using default camera sensor specs. Connect a camera for accurate FOV.';
+        'Camera is not configured for this profile. Configure and connect a camera to enable FOV.';
   } else {
-    cameraMessage = 'Camera not connected. Using default sensor specs.';
+    cameraMessage = 'Camera is not connected. Connect it to compute FOV.';
+  }
+
+  if (sensorWidthMm == null ||
+      sensorHeightMm == null ||
+      pixelSizeMicrons == null ||
+      pixelsX == null ||
+      pixelsY == null) {
+    return FramingEquipmentResult(
+      status: EquipmentStatus.noCameraSpecs,
+      profileName: profile.name,
+      message: cameraMessage ??
+          'Camera sensor dimensions are unavailable. Connect camera hardware to compute FOV.',
+    );
   }
 
   return FramingEquipmentResult(
@@ -1304,7 +1328,14 @@ class SimbadResolver {
         decDegrees: decDeg,
         objectType: 'Unknown',
       );
-    } catch (_) {
+    } catch (error, stack) {
+      developer.log(
+        'SIMBAD primary resolver failed for "$name"; trying TAP fallback.',
+        name: 'Framing',
+        level: 1000,
+        error: error,
+        stackTrace: stack,
+      );
       return _resolveTAP(name);
     }
   }
@@ -1344,7 +1375,14 @@ class SimbadResolver {
         objectType: row[3] as String? ?? 'Unknown',
         magnitude: row.length > 4 ? (row[4] as num?)?.toDouble() : null,
       );
-    } catch (_) {
+    } catch (error, stack) {
+      developer.log(
+        'SIMBAD TAP resolver failed for "$name".',
+        name: 'Framing',
+        level: 1000,
+        error: error,
+        stackTrace: stack,
+      );
       return null;
     }
   }
@@ -1387,7 +1425,14 @@ class SimbadResolver {
           objectType: r[3] as String? ?? 'Unknown',
         );
       }).toList();
-    } catch (_) {
+    } catch (error, stack) {
+      developer.log(
+        'SIMBAD search failed for "$query".',
+        name: 'Framing',
+        level: 1000,
+        error: error,
+        stackTrace: stack,
+      );
       return [];
     }
   }
@@ -1496,7 +1541,7 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
           }
         }
       } catch (e) {
-        print('Catalog search error: $e');
+        developer.log('Catalog search error: $e', name: 'Framing', level: 1000);
       }
 
       // 3. Fallback to SIMBAD (Live Internet Search)
@@ -1540,7 +1585,14 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
         (t) => t.name.toLowerCase() == type.toLowerCase(),
         orElse: () => TargetType.other,
       );
-    } catch (_) {
+    } catch (error, stack) {
+      developer.log(
+        'Unrecognized target type "$type". Falling back to TargetType.other.',
+        name: 'Framing',
+        level: 900,
+        error: error,
+        stackTrace: stack,
+      );
       return TargetType.other;
     }
   }

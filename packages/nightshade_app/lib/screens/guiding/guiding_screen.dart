@@ -4,7 +4,11 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart'
     hide Phd2GuidingState, GuideErrorPoint;
 import 'package:nightshade_ui/nightshade_ui.dart' as ui
-    show Phd2GuidingState, GuideErrorPoint, GuideTargetDisplay, GuideControlsPanel;
+    show
+        Phd2GuidingState,
+        GuideErrorPoint,
+        GuideTargetDisplay,
+        GuideControlsPanel;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 import 'package:nightshade_app/widgets/phd2_connection_dialog.dart';
@@ -75,8 +79,10 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             // Main content - responsive layout
             Expanded(
               child: Responsive.isMobile(context)
-                  ? _buildMobileLayout(colors, isConnected, phd2State, guideStats)
-                  : _buildDesktopLayout(colors, isConnected, phd2State, guideStats),
+                  ? _buildMobileLayout(
+                      colors, isConnected, phd2State, guideStats)
+                  : _buildDesktopLayout(
+                      colors, isConnected, phd2State, guideStats),
             ),
           ],
         ),
@@ -208,11 +214,12 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                             ? IconButton(
                                 icon: Icon(LucideIcons.refreshCw,
                                     size: 14, color: colors.textSecondary),
-                                onPressed: () =>
-                                    ref.read(starImageProvider.notifier).refresh(),
+                                onPressed: () => ref
+                                    .read(starImageProvider.notifier)
+                                    .refresh(),
                                 tooltip: 'Refresh',
-                                constraints:
-                                    const BoxConstraints(minWidth: 44, minHeight: 44),
+                                constraints: const BoxConstraints(
+                                    minWidth: 44, minHeight: 44),
                                 padding: EdgeInsets.zero,
                               )
                             : null,
@@ -228,17 +235,18 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                               starY: image.starY,
                               snr: stats.snr,
                               showCrosshairs: true,
-                              onStarSelected:
-                                  isConnected ? (x, y) => _selectStar(x, y) : null,
-                              placeholderMessage: 'No star selected',
+                              onStarSelected: isConnected
+                                  ? (x, y) => _selectStar(x, y)
+                                  : null,
+                              statusMessage: 'No star selected',
                             ),
                             loading: () => GuideStarView(
                               key: GuidingTutorialKeys.starView,
-                              placeholderMessage: 'Waiting for image...',
+                              statusMessage: 'Waiting for image...',
                             ),
                             error: (_, __) => GuideStarView(
                               key: GuidingTutorialKeys.starView,
-                              placeholderMessage: 'No star selected',
+                              statusMessage: 'No star selected',
                             ),
                           ),
                         ),
@@ -286,8 +294,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                             onPressed: () =>
                                 ref.read(starImageProvider.notifier).refresh(),
                             tooltip: 'Refresh',
-                            constraints:
-                                const BoxConstraints(minWidth: 44, minHeight: 44),
+                            constraints: const BoxConstraints(
+                                minWidth: 44, minHeight: 44),
                             padding: EdgeInsets.zero,
                           )
                         : null,
@@ -305,15 +313,15 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                           showCrosshairs: true,
                           onStarSelected:
                               isConnected ? (x, y) => _selectStar(x, y) : null,
-                          placeholderMessage: 'No star selected',
+                          statusMessage: 'No star selected',
                         ),
                         loading: () => GuideStarView(
                           key: GuidingTutorialKeys.starView,
-                          placeholderMessage: 'Waiting for image...',
+                          statusMessage: 'Waiting for image...',
                         ),
                         error: (_, __) => GuideStarView(
                           key: GuidingTutorialKeys.starView,
-                          placeholderMessage: 'No star selected',
+                          statusMessage: 'No star selected',
                         ),
                       ),
                     ),
@@ -354,14 +362,14 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildStatRow(
-                    'SNR', stats.snr.toStringAsFixed(1), _getSnrColor(stats.snr, colors), colors),
+                _buildStatRow('SNR', stats.snr.toStringAsFixed(1),
+                    _getSnrColor(stats.snr, colors), colors),
                 const SizedBox(height: 10),
-                _buildStatRow(
-                    'Star Mass', stats.starMass.toStringAsFixed(0), colors.textPrimary, colors),
+                _buildStatRow('Star Mass', stats.starMass.toStringAsFixed(0),
+                    colors.textPrimary, colors),
                 const SizedBox(height: 10),
-                _buildStatRow(
-                    'Frame Count', stats.frameCount.toString(), colors.textPrimary, colors),
+                _buildStatRow('Frame Count', stats.frameCount.toString(),
+                    colors.textPrimary, colors),
               ],
             ),
           ),
@@ -393,10 +401,13 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                   key: GuidingTutorialKeys.controls,
                   state: _mapPhd2State(phd2State),
                   isConnected: isConnected,
-                  onStartGuiding: () => ref.read(phd2ControllerProvider).startGuiding(),
-                  onStopGuiding: () => ref.read(phd2ControllerProvider).stopGuiding(),
+                  onStartGuiding: () =>
+                      ref.read(phd2ControllerProvider).startGuiding(),
+                  onStopGuiding: () =>
+                      ref.read(phd2ControllerProvider).stopGuiding(),
                   onLoop: () => ref.read(phd2ControllerProvider).loop(),
-                  onFindStar: () => ref.read(lockPositionProvider.notifier).findStar(),
+                  onFindStar: () =>
+                      ref.read(lockPositionProvider.notifier).findStar(),
                   onDeselectStar: () => _deselectStar(),
                   onDither: () => ref.read(phd2ControllerProvider).dither(),
                 ),
@@ -408,7 +419,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
           LayoutBuilder(
             builder: (context, constraints) {
               // Adjust calibration panel height based on screen width
-              final calibrationHeight = constraints.maxWidth < 360 ? 180.0 : 200.0;
+              final calibrationHeight =
+                  constraints.maxWidth < 360 ? 180.0 : 200.0;
               return SizedBox(
                 height: calibrationHeight,
                 child: CalibrationPanel(
@@ -442,9 +454,11 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
           // Brain settings toggle and panel
           NightshadeButton(
             key: GuidingTutorialKeys.brainBtn,
-            label: _showBrainPanel ? 'Hide Brain Settings' : 'Show Brain Settings',
+            label:
+                _showBrainPanel ? 'Hide Brain Settings' : 'Show Brain Settings',
             icon: LucideIcons.brain,
-            variant: _showBrainPanel ? ButtonVariant.primary : ButtonVariant.outline,
+            variant:
+                _showBrainPanel ? ButtonVariant.primary : ButtonVariant.outline,
             onPressed: () => setState(() => _showBrainPanel = !_showBrainPanel),
           ),
           if (_showBrainPanel) ...[
@@ -508,22 +522,27 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
       builder: (context, constraints) {
         // Calculate panel widths based on available space
         // Minimum space needed: 2 side panels + graph + gaps
-        final availableWidth = constraints.maxWidth - 32; // Account for outer padding
+        final availableWidth =
+            constraints.maxWidth - 32; // Account for outer padding
         final isCompact = availableWidth < 900;
 
         // Adaptive panel widths based on available space
-        final leftPanelWidth = isCompact ? 220.0 : Responsive.value(
-          context,
-          mobile: 240.0,
-          tablet: 240.0,
-          desktop: 280.0,
-        );
-        final rightPanelWidth = isCompact ? 240.0 : Responsive.value(
-          context,
-          mobile: 260.0,
-          tablet: 260.0,
-          desktop: 300.0,
-        );
+        final leftPanelWidth = isCompact
+            ? 220.0
+            : Responsive.value(
+                context,
+                mobile: 240.0,
+                tablet: 240.0,
+                desktop: 280.0,
+              );
+        final rightPanelWidth = isCompact
+            ? 240.0
+            : Responsive.value(
+                context,
+                mobile: 260.0,
+                tablet: 260.0,
+                desktop: 300.0,
+              );
 
         return Padding(
           padding: const EdgeInsets.all(16),
@@ -639,7 +658,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
               // Show only total RMS on mobile with key
               Container(
                 key: GuidingTutorialKeys.rmsDisplay,
-                child: _buildRmsChip('Total', guideStats.rmsTotal, colors.primary, colors,
+                child: _buildRmsChip(
+                    'Total', guideStats.rmsTotal, colors.primary, colors,
                     bold: true, compact: true),
               ),
             ] else ...[
@@ -648,12 +668,13 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
               const SizedBox(width: 10),
               _buildRmsChip('Dec', guideStats.rmsDec, colors.info, colors),
               const SizedBox(width: 10),
-              _buildRmsChip('Total', guideStats.rmsTotal, colors.primary, colors,
+              _buildRmsChip(
+                  'Total', guideStats.rmsTotal, colors.primary, colors,
                   bold: true),
             ],
             SizedBox(width: isMobile ? 8 : 20),
           ] else if (isMobile) ...[
-            // Show placeholder on mobile when not guiding to keep the key in the tree
+            // Keep star panel mounted on mobile when not guiding
             Container(
               key: GuidingTutorialKeys.rmsDisplay,
               padding: const EdgeInsets.symmetric(
@@ -699,7 +720,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
               borderRadius: BorderRadius.circular(8),
             ),
             child: IconButton(
-              icon: Icon(LucideIcons.settings, color: colors.textSecondary, size: 18),
+              icon: Icon(LucideIcons.settings,
+                  color: colors.textSecondary, size: 18),
               onPressed: () => _showConnectionDialog(),
               tooltip: 'Connection Settings',
               constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
@@ -768,9 +790,11 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                 ? IconButton(
                     icon: Icon(LucideIcons.refreshCw,
                         size: 14, color: colors.textSecondary),
-                    onPressed: () => ref.read(starImageProvider.notifier).refresh(),
+                    onPressed: () =>
+                        ref.read(starImageProvider.notifier).refresh(),
                     tooltip: 'Refresh',
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
                     padding: EdgeInsets.zero,
                   )
                 : null,
@@ -786,14 +810,15 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                   starY: image.starY,
                   snr: stats.snr,
                   showCrosshairs: true,
-                  onStarSelected: isConnected ? (x, y) => _selectStar(x, y) : null,
-                  placeholderMessage: 'No star selected',
+                  onStarSelected:
+                      isConnected ? (x, y) => _selectStar(x, y) : null,
+                  statusMessage: 'No star selected',
                 ),
                 loading: () => const GuideStarView(
-                  placeholderMessage: 'Waiting for image...',
+                  statusMessage: 'Waiting for image...',
                 ),
                 error: (_, __) => const GuideStarView(
-                  placeholderMessage: 'No star selected',
+                  statusMessage: 'No star selected',
                 ),
               ),
             ),
@@ -886,7 +911,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             padding: headerPadding,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(
               children: [
@@ -959,7 +985,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             ),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(
               children: [
@@ -969,7 +996,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                     color: colors.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Icon(LucideIcons.lineChart, size: iconSize, color: colors.primary),
+                  child: Icon(LucideIcons.lineChart,
+                      size: iconSize, color: colors.primary),
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -991,11 +1019,14 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                         key: GuidingTutorialKeys.rmsDisplay,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildCompactRms('RA', stats.rmsRa, Colors.redAccent, colors),
+                          _buildCompactRms(
+                              'RA', stats.rmsRa, Colors.redAccent, colors),
                           const SizedBox(width: 12),
-                          _buildCompactRms('Dec', stats.rmsDec, colors.info, colors),
+                          _buildCompactRms(
+                              'Dec', stats.rmsDec, colors.info, colors),
                           const SizedBox(width: 12),
-                          _buildCompactRms('Total', stats.rmsTotal, colors.primary, colors,
+                          _buildCompactRms(
+                              'Total', stats.rmsTotal, colors.primary, colors,
                               bold: true),
                         ],
                       ),
@@ -1022,7 +1053,8 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                 rmsRa: stats.rmsRa,
                 rmsDec: stats.rmsDec,
                 rmsTotal: stats.rmsTotal,
-                onTimeScaleChanged: (scale) => setState(() => _timeScale = scale),
+                onTimeScaleChanged: (scale) =>
+                    setState(() => _timeScale = scale),
                 onYScaleChanged: (scale) => setState(() => _yScale = scale),
               ),
             ),
@@ -1071,10 +1103,12 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             key: GuidingTutorialKeys.controls,
             state: _mapPhd2State(phd2State),
             isConnected: isConnected,
-            onStartGuiding: () => ref.read(phd2ControllerProvider).startGuiding(),
+            onStartGuiding: () =>
+                ref.read(phd2ControllerProvider).startGuiding(),
             onStopGuiding: () => ref.read(phd2ControllerProvider).stopGuiding(),
             onLoop: () => ref.read(phd2ControllerProvider).loop(),
-            onFindStar: () => ref.read(lockPositionProvider.notifier).findStar(),
+            onFindStar: () =>
+                ref.read(lockPositionProvider.notifier).findStar(),
             onDeselectStar: () => _deselectStar(),
             onDither: () => ref.read(phd2ControllerProvider).dither(),
           ),

@@ -643,6 +643,7 @@ fn variant_to_string(var: &VARIANT) -> Option<String> {
 }
 
 /// Extract string array from VARIANT (for ASCOM SupportedActions, etc.)
+#[allow(dead_code)]
 fn variant_to_string_array(var: &VARIANT) -> Option<Vec<String>> {
     unsafe { extract_safearray_string(var).ok() }
 }

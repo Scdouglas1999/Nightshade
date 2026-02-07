@@ -11,12 +11,19 @@ class SessionHandlers {
 
   SessionHandlers(this.container);
 
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'SessionHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'SessionHandlers');
+
   // ===========================================================================
   // Polar Alignment
   // ===========================================================================
 
   Future<Response> handleStartPolarAlignment(Request request) async {
-    print('[API] POST /api/polar-alignment/start');
+    _logInfo('[API] POST /api/polar-alignment/start');
     try {
       final payload = jsonDecode(await request.readAsString());
       final exposureTime = (payload['exposure_time'] as num).toDouble();
@@ -48,7 +55,7 @@ class SessionHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Start polar alignment error: $e');
+      _logError('[API] Start polar alignment error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -57,7 +64,7 @@ class SessionHandlers {
   }
 
   Future<Response> handleStopPolarAlignment(Request request) async {
-    print('[API] POST /api/polar-alignment/stop');
+    _logInfo('[API] POST /api/polar-alignment/stop');
     try {
       final backend = container.read(backendProvider);
       await backend.stopPolarAlignment();
@@ -66,7 +73,7 @@ class SessionHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Stop polar alignment error: $e');
+      _logError('[API] Stop polar alignment error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -78,36 +85,39 @@ class SessionHandlers {
   // Session Images
   // ===========================================================================
 
-  Future<Response> handleGetSessionImages(Request request, String sessionId) async {
-    print('[API] GET /api/sessions/$sessionId/images');
+  Future<Response> handleGetSessionImages(
+      Request request, String sessionId) async {
+    _logInfo('[API] GET /api/sessions/$sessionId/images');
     try {
       final sid = int.parse(sessionId);
       final backend = container.read(backendProvider);
       final images = await backend.getSessionImages(sid);
 
       // Convert to JSON-serializable format
-      final imagesJson = images.map((img) => {
-        'image_id': img.id,
-        'file_path': img.filePath,
-        'captured_at': img.capturedAt.millisecondsSinceEpoch ~/ 1000,
-        'exposure_duration': img.settings.exposureTime,
-        'gain': img.settings.gain,
-        'offset': img.settings.offset,
-        'bin_x': img.settings.binningX,
-        'bin_y': img.settings.binningY,
-        'filter': img.settings.filter,
-        'frame_type': img.settings.frameType.name,
-        'hfr': img.stats?.hfr,
-        'star_count': img.stats?.starCount,
-        'file_format': img.format.name,
-      }).toList();
+      final imagesJson = images
+          .map((img) => {
+                'image_id': img.id,
+                'file_path': img.filePath,
+                'captured_at': img.capturedAt.millisecondsSinceEpoch ~/ 1000,
+                'exposure_duration': img.settings.exposureTime,
+                'gain': img.settings.gain,
+                'offset': img.settings.offset,
+                'bin_x': img.settings.binningX,
+                'bin_y': img.settings.binningY,
+                'filter': img.settings.filter,
+                'frame_type': img.settings.frameType.name,
+                'hfr': img.stats?.hfr,
+                'star_count': img.stats?.starCount,
+                'file_format': img.format.name,
+              })
+          .toList();
 
       return Response.ok(
         jsonEncode({"images": imagesJson}),
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Get session images error: $e');
+      _logError('[API] Get session images error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -115,7 +125,8 @@ class SessionHandlers {
     }
   }
 
-  Future<Response> handleGetImageThumbnail(Request request, String imageId) async {
+  Future<Response> handleGetImageThumbnail(
+      Request request, String imageId) async {
     try {
       final iid = int.parse(imageId);
       final backend = container.read(backendProvider);
@@ -129,7 +140,7 @@ class SessionHandlers {
         },
       );
     } catch (e) {
-      print('[API] Get image thumbnail error: $e');
+      _logError('[API] Get image thumbnail error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -140,7 +151,7 @@ class SessionHandlers {
   Future<Response> handleDownloadImage(Request request, String imageId) async {
     try {
       final iid = int.parse(imageId);
-      print('[API] GET /api/images/$iid/download');
+      _logInfo('[API] GET /api/images/$iid/download');
 
       // Look up the image from the database
       final database = container.read(databaseProvider);
@@ -191,7 +202,7 @@ class SessionHandlers {
         },
       );
     } catch (e) {
-      print('[API] Download image error: $e');
+      _logError('[API] Download image error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},

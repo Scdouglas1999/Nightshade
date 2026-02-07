@@ -42,17 +42,13 @@ pub async fn execute_autofocus_complete(config: &AutofocusConfig, ctx: &Instruct
     // Get current temperature for prediction and recording
     let current_temperature = ctx.device_ops.focuser_get_temperature(&focuser_id).await.ok();
 
-    // Initialize autofocus engine
-    let af_config = crate::autofocus::AutofocusConfig {
-        method: config.method,
-        step_size: config.step_size,
-        steps_out: config.steps_out,
-        exposure_duration: config.exposure_duration,
-        backlash_compensation: 50,  // TODO: Make configurable via settings
-        use_temperature_prediction: true,
-        max_star_count_change: Some(0.5),  // Reject data if star count changes >50%
-        outlier_rejection_sigma: 3.0,
-    };
+    // Initialize autofocus engine from central defaults, overriding user-supplied
+    // sequencing parameters so advanced autofocus defaults stay in one place.
+    let mut af_config = crate::autofocus::AutofocusConfig::default();
+    af_config.method = config.method;
+    af_config.step_size = config.step_size;
+    af_config.steps_out = config.steps_out;
+    af_config.exposure_duration = config.exposure_duration;
 
     let af_engine = VCurveAutofocus::new(af_config.clone());
     let backlash = BacklashCompensation::new(af_config.backlash_compensation);

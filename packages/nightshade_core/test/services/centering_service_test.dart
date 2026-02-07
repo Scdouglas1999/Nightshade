@@ -75,7 +75,7 @@ void main() {
         final capturedImage = CapturedImageData(
           width: 1920,
           height: 1080,
-          displayData: Uint8List(1920 * 1080),
+          displayData: Uint8List(1920 * 1080 * 4),
           histogram: List.filled(256, 0),
           stats: const ImageStats(mean: 100.0, stdDev: 10.0),
           capturedAt: DateTime.now(),
@@ -146,7 +146,7 @@ void main() {
         final capturedImage = CapturedImageData(
           width: 1920,
           height: 1080,
-          displayData: Uint8List(1920 * 1080),
+          displayData: Uint8List(1920 * 1080 * 4),
           histogram: List.filled(256, 0),
           stats: const ImageStats(mean: 100.0, stdDev: 10.0),
           capturedAt: DateTime.now(),
@@ -236,7 +236,7 @@ void main() {
         final capturedImage = CapturedImageData(
           width: 1920,
           height: 1080,
-          displayData: Uint8List(1920 * 1080),
+          displayData: Uint8List(1920 * 1080 * 4),
           histogram: List.filled(256, 0),
           stats: const ImageStats(mean: 100.0, stdDev: 10.0),
           capturedAt: DateTime.now(),
@@ -373,7 +373,7 @@ void main() {
         final capturedImage = CapturedImageData(
           width: 1920,
           height: 1080,
-          displayData: Uint8List(1920 * 1080),
+          displayData: Uint8List(1920 * 1080 * 4),
           histogram: List.filled(256, 0),
           stats: const ImageStats(mean: 100.0, stdDev: 10.0),
           capturedAt: DateTime.now(),
@@ -424,7 +424,7 @@ void main() {
         final capturedImage = CapturedImageData(
           width: 1920,
           height: 1080,
-          displayData: Uint8List(1920 * 1080),
+          displayData: Uint8List(1920 * 1080 * 4),
           histogram: List.filled(256, 0),
           stats: const ImageStats(mean: 100.0, stdDev: 10.0),
           capturedAt: DateTime.now(),
@@ -521,7 +521,7 @@ void main() {
         final capturedImage = CapturedImageData(
           width: 1920,
           height: 1080,
-          displayData: Uint8List(1920 * 1080),
+          displayData: Uint8List(1920 * 1080 * 4),
           histogram: List.filled(256, 0),
           stats: const ImageStats(mean: 100.0, stdDev: 10.0),
           capturedAt: DateTime.now(),
@@ -582,7 +582,7 @@ void main() {
         final capturedImage = CapturedImageData(
           width: 1920,
           height: 1080,
-          displayData: Uint8List(1920 * 1080),
+          displayData: Uint8List(1920 * 1080 * 4),
           histogram: List.filled(256, 0),
           stats: const ImageStats(mean: 100.0, stdDev: 10.0),
           capturedAt: DateTime.now(),
@@ -641,7 +641,7 @@ void main() {
         final capturedImage = CapturedImageData(
           width: 1920,
           height: 1080,
-          displayData: Uint8List(1920 * 1080),
+          displayData: Uint8List(1920 * 1080 * 4),
           histogram: List.filled(256, 0),
           stats: const ImageStats(mean: 100.0, stdDev: 10.0),
           capturedAt: DateTime.now(),

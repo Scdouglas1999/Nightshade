@@ -212,7 +212,7 @@ async fn setup_flat_panel(
             .device_ops
             .cover_calibrator_get_cover_state(device_id)
             .await
-            .unwrap_or(4); // Default to Unknown
+            .map_err(|e| format!("Failed to read cover state: {}", e))?;
 
         if state == 3 {
             // Open
@@ -259,7 +259,7 @@ async fn setup_flat_panel(
             .device_ops
             .cover_calibrator_get_calibrator_state(device_id)
             .await
-            .unwrap_or(4); // Default to Unknown
+            .map_err(|e| format!("Failed to read calibrator state: {}", e))?;
 
         if state == 3 {
             // Ready
@@ -305,8 +305,14 @@ async fn cleanup_flat_panel(ctx: &InstructionContext) -> Result<(), String> {
         let state = ctx
             .device_ops
             .cover_calibrator_get_cover_state(cc_id)
-            .await
-            .unwrap_or(4);
+            .await;
+        let state = match state {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("Failed to read cover state during cleanup: {}", e);
+                break;
+            }
+        };
         if state == 1 {
             // Closed
             tracing::info!("Cover closed");
@@ -339,7 +345,7 @@ async fn set_panel_brightness(ctx: &InstructionContext, brightness: i32) -> Resu
             .device_ops
             .cover_calibrator_get_calibrator_state(cc_id)
             .await
-            .unwrap_or(4);
+            .map_err(|e| format!("Failed to read calibrator state: {}", e))?;
         if state == 3 {
             // Ready
             break;
@@ -369,7 +375,9 @@ async fn position_for_flats(
 
                 // Slew to zenith or a safe position (altitude 80, azimuth 180)
                 // Most flat panels are positioned near zenith
-                let (lat, lon) = ctx.device_ops.get_observer_location().unwrap_or((0.0, 0.0));
+                let (lat, lon) = ctx.device_ops.get_observer_location().ok_or_else(|| {
+                    "Observer location is required for flat-panel positioning".to_string()
+                })?;
 
                 // Calculate zenith RA/Dec based on current LST
                 let now = chrono::Utc::now();
@@ -407,7 +415,9 @@ async fn position_for_flats(
             tracing::info!("Positioning for {:?} sky flats", config.panel_location);
 
             if let Some(mount_id) = &ctx.mount_id {
-                let (_lat, lon) = ctx.device_ops.get_observer_location().unwrap_or((0.0, 0.0));
+                let (lat, lon) = ctx.device_ops.get_observer_location().ok_or_else(|| {
+                    "Observer location is required for sky-flat positioning".to_string()
+                })?;
 
                 // Emit progress for slew
                 if let Some(cb) = progress_callback {
@@ -424,11 +434,13 @@ async fn position_for_flats(
                 let target_azimuth = match config.panel_location {
                     PanelLocation::DawnSky => 90.0,  // East
                     PanelLocation::DuskSky => 270.0, // West
-                    _ => 180.0,                      // South (fallback)
+                    PanelLocation::FlatPanel => {
+                        return Err("Invalid panel location for sky-flat positioning".to_string());
+                    }
                 };
 
                 // Convert alt/az to RA/Dec
-                let (ra, dec) = altaz_to_radec(target_altitude, target_azimuth, lon);
+                let (ra, dec) = altaz_to_radec(target_altitude, target_azimuth, lat, lon);
 
                 tracing::info!(
                     "Slewing to sky flat position: Alt={:.1}, Az={:.1} (RA={:.4}h, Dec={:.4})",
@@ -458,15 +470,16 @@ async fn position_for_flats(
 }
 
 /// Convert altitude/azimuth to RA/Dec
-fn altaz_to_radec(altitude_deg: f64, azimuth_deg: f64, longitude_deg: f64) -> (f64, f64) {
+fn altaz_to_radec(
+    altitude_deg: f64,
+    azimuth_deg: f64,
+    latitude_deg: f64,
+    longitude_deg: f64,
+) -> (f64, f64) {
     // Get current LST
     let now = chrono::Utc::now();
     let jd = crate::node::julian_day(&now);
     let lst = crate::node::local_sidereal_time(jd, longitude_deg);
-
-    // Get observer latitude from context (use 0 if not available)
-    // In production, this should come from context
-    let latitude_deg: f64 = 45.0; // Default fallback
 
     let alt_rad = altitude_deg.to_radians();
     let az_rad = azimuth_deg.to_radians();
@@ -504,6 +517,7 @@ async fn find_optimal_exposure_with_brightness(
     let mut min_exp = config.min_exposure;
     let mut max_exp = config.max_exposure;
     let max_iterations = 10; // Prevent infinite loops
+    let mut last_adu: Option<u16> = None;
 
     tracing::info!(
         "Binary search: target={} +/- {} ADU, range={:.3}s-{:.1}s, brightness={}",
@@ -553,6 +567,7 @@ async fn find_optimal_exposure_with_brightness(
 
         // Calculate median ADU from image
         let median_adu = calculate_median_adu(&image_data);
+        last_adu = Some(median_adu);
 
         tracing::info!("Test exposure: {:.3}s -> {} ADU", test_exposure, median_adu);
 
@@ -630,37 +645,32 @@ async fn find_optimal_exposure_with_brightness(
 
         // Check if range is too narrow to continue
         if (max_exp - min_exp) < 0.001 {
-            tracing::warn!(
-                "Search range too narrow ({:.4}s), using {:.3}s",
+            let message = format!(
+                "Flat wizard did not converge: exposure search range collapsed to {:.4}s at {:.3}s (ADU={}, target={}±{}). \
+Try adjusting panel brightness or widening exposure limits.",
                 max_exp - min_exp,
-                test_exposure
+                test_exposure,
+                median_adu,
+                target_adu,
+                tolerance
             );
-            return Ok((test_exposure, median_adu, *current_brightness));
+            tracing::warn!("{}", message);
+            return Err(message);
         }
     }
 
-    // Max iterations reached, return best guess
-    let final_exposure = (min_exp + max_exp) / 2.0;
-    tracing::warn!(
-        "Max iterations reached, using {:.3}s (may not be optimal)",
-        final_exposure
+    let message = format!(
+        "Flat wizard did not converge after {} iterations (range {:.3}s-{:.3}s, last ADU={:?}, target={}±{}). \
+Try adjusting panel brightness or exposure bounds.",
+        max_iterations,
+        min_exp,
+        max_exp,
+        last_adu,
+        target_adu,
+        tolerance
     );
-
-    // Emit progress for final verification
-    if let Some(cb) = progress_callback {
-        cb(87.0, "Verifying flat quality".to_string());
-    }
-
-    // Take final test to get actual ADU
-    let final_image = ctx
-        .device_ops
-        .camera_start_exposure(camera_id, final_exposure, None, None, 1, 1)
-        .await
-        .map_err(|e| format!("Final test exposure failed: {}", e))?;
-
-    let final_adu = calculate_median_adu(&final_image);
-
-    Ok((final_exposure, final_adu, *current_brightness))
+    tracing::warn!("{}", message);
+    Err(message)
 }
 
 /// Calculate median ADU value from image data
@@ -757,7 +767,7 @@ mod tests {
     #[test]
     fn test_altaz_to_radec_zenith() {
         // Zenith (alt=90, any azimuth) should give Dec = latitude
-        let (_ra, dec) = altaz_to_radec(90.0, 180.0, 0.0);
+        let (_ra, dec) = altaz_to_radec(90.0, 180.0, 45.0, 0.0);
         // For latitude 45°, zenith Dec should be ~45°
         assert!((dec - 45.0).abs() < 1.0);
     }

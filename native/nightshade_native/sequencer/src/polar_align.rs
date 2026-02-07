@@ -615,6 +615,6 @@ mod tests {
         // Axis: (0, 0, 1) rotated by 1 deg around Y axis -> (sin(1), 0, cos(1))
         // This corresponds to Dec = 89, RA = 0 (or 180 depending on definition).
 
-        // Let's trust the math for now and just verify it runs and gives reasonable results for the simple case.
+        // Verify the simple case as a regression guard for the current math path.
     }
 }

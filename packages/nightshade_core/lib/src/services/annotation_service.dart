@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
+import 'logging_service.dart';
+
 /// Calculate angular distance between two points on a sphere (in degrees)
 /// Uses the Haversine formula for better numerical stability
 double _angularDistance(double ra1, double dec1, double ra2, double dec2) {
@@ -146,6 +148,8 @@ class AnnotationService {
   PlateSolveData? _lastPlateSolve;
   final Set<String> _revealedObjectIds = {};
 
+  LoggingService get _logger => _ref.read(loggingServiceProvider);
+
   AnnotationService(this._ref, {CatalogManager? catalogManager})
       : _catalogManager = catalogManager ?? CatalogManager.instance {
     _initListener();
@@ -222,8 +226,8 @@ class AnnotationService {
     }
 
     // Trigger progressive re-annotation
-    print('[ANNOTATION] SNR improved from ${_lastAnnotationSnr?.toStringAsFixed(1) ?? "N/A"} to ${currentSnr.toStringAsFixed(1)}, '
-        'updating magnitude limit from ${_currentSnrMagnitudeLimit.toStringAsFixed(1)} to ${newMagnitudeLimit.toStringAsFixed(1)}');
+    _logger.info('SNR improved from ${_lastAnnotationSnr?.toStringAsFixed(1) ?? "N/A"} to ${currentSnr.toStringAsFixed(1)}, '
+        'updating magnitude limit from ${_currentSnrMagnitudeLimit.toStringAsFixed(1)} to ${newMagnitudeLimit.toStringAsFixed(1)}', source: 'Annotation');
 
     _progressiveReAnnotate(currentSnr, newMagnitudeLimit);
   }
@@ -251,7 +255,7 @@ class AnnotationService {
       final newObjects = additionalObjects.where((obj) => !_revealedObjectIds.contains(obj.id)).toList();
 
       if (newObjects.isEmpty) {
-        print('[ANNOTATION] No new objects found at magnitude ${newMagnitudeLimit.toStringAsFixed(1)}');
+        _logger.debug('No new objects found at magnitude ${newMagnitudeLimit.toStringAsFixed(1)}', source: 'Annotation');
         _ref.read(annotationStateProvider.notifier).state =
             AnnotationState.complete(currentAnnotation.objects.length);
         return;
@@ -262,7 +266,7 @@ class AnnotationService {
         _revealedObjectIds.add(obj.id);
       }
 
-      print('[ANNOTATION] Found ${newObjects.length} new objects (total: ${_revealedObjectIds.length})');
+      _logger.info('Found ${newObjects.length} new objects (total: ${_revealedObjectIds.length})', source: 'Annotation');
 
       // Merge new objects with existing annotation
       final mergedObjects = [...currentAnnotation.objects, ...newObjects];
@@ -282,7 +286,7 @@ class AnnotationService {
           AnnotationState.complete(updatedAnnotation.objects.length);
 
     } catch (e) {
-      print('[ANNOTATION] Error during progressive re-annotation: $e');
+      _logger.error('Error during progressive re-annotation: $e', source: 'Annotation');
       _ref.read(annotationStateProvider.notifier).state =
           AnnotationState.error(e.toString());
     }
@@ -345,26 +349,26 @@ class AnnotationService {
 
   Future<void> _processNewImage(CapturedImageData image) async {
     if (image.filePath == null) {
-      print('[ANNOTATION] Skipping - no file path');
+      _logger.debug('Skipping annotation - no file path', source: 'Annotation');
       return;
     }
 
     // Check if auto-annotate is enabled
     final settings = _ref.read(annotationSettingsProvider).valueOrNull;
     if (settings != null && !settings.autoAnnotate) {
-      print('[ANNOTATION] Auto-annotate disabled, skipping');
+      _logger.debug('Auto-annotate disabled, skipping', source: 'Annotation');
       _ref.read(annotationStateProvider.notifier).state = const AnnotationState.idle();
       return;
     }
 
     // Check if annotations are enabled at all
     if (settings != null && !settings.enabled) {
-      print('[ANNOTATION] Annotations disabled, skipping');
+      _logger.debug('Annotations disabled, skipping', source: 'Annotation');
       _ref.read(annotationStateProvider.notifier).state = const AnnotationState.idle();
       return;
     }
 
-    print('[ANNOTATION] New image detected: ${image.filePath}');
+    _logger.info('New image detected: ${image.filePath}', source: 'Annotation');
 
     try {
       // =====================================================================
@@ -373,7 +377,7 @@ class AnnotationService {
       _ref.read(annotationStateProvider.notifier).state = const AnnotationState.checking();
 
       if (!_catalogManager.isInitialized) {
-        print('[ANNOTATION] CatalogManager not initialized - catalogs not available');
+        _logger.warning('CatalogManager not initialized - catalogs not available', source: 'Annotation');
         // CatalogManager should be initialized by the app on startup
         // If not initialized here, it means catalogs haven't been set up
         _ref.read(annotationStateProvider.notifier).state =
@@ -393,20 +397,20 @@ class AnnotationService {
       final hasAnnotationCatalog = annotationStatus.isInstalled;
 
       if (!hasDsoCatalog && !hasStarCatalog && !hasAnnotationCatalog) {
-        print('[ANNOTATION] No catalogs installed - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog');
+        _logger.warning('No catalogs installed - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog', source: 'Annotation');
         _ref.read(annotationStateProvider.notifier).state =
             const AnnotationState.catalogsNotInstalled();
         return;
       }
 
-      print('[ANNOTATION] Catalogs available - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog');
+      _logger.info('Catalogs available - DSO: $hasDsoCatalog, Stars: $hasStarCatalog, Annotation: $hasAnnotationCatalog', source: 'Annotation');
 
       // =====================================================================
       // PRE-FLIGHT CHECK 3: Verify backend is available
       // =====================================================================
       final backend = _ref.read(backendProvider);
       if (backend is DisconnectedBackend) {
-        print('[ANNOTATION] Backend disconnected, cannot plate solve');
+        _logger.error('Backend disconnected, cannot plate solve', source: 'Annotation');
         _ref.read(annotationStateProvider.notifier).state =
             const AnnotationState.error('Backend not connected');
         return;
@@ -416,7 +420,7 @@ class AnnotationService {
       // STEP 1: Plate Solve
       // =====================================================================
       _ref.read(annotationStateProvider.notifier).state = const AnnotationState.plateSolving();
-      print('[ANNOTATION] Starting plate solve for: ${image.filePath}');
+      _logger.info('Starting plate solve for: ${image.filePath}', source: 'Annotation');
 
       // Try to get mount position hints for faster solving
       double? hintRa;
@@ -427,11 +431,11 @@ class AnnotationService {
           // Mount RA is typically tracked in hours; plate-solve hints expect degrees.
           hintRa = _normalizeRaHintDegrees(mountState.ra!);
           hintDec = mountState.dec;
-          print('[ANNOTATION] Using mount position hints: RA=$hintRa, Dec=$hintDec');
+          _logger.debug('Using mount position hints: RA=$hintRa, Dec=$hintDec', source: 'Annotation');
         }
       } catch (e) {
         // Mount state not available, continue without hints
-        print('[ANNOTATION] Mount position hints not available');
+        _logger.debug('Mount position hints not available', source: 'Annotation');
       }
 
       final result = await backend.plateSolve(
@@ -441,16 +445,16 @@ class AnnotationService {
       );
 
       if (!result.success) {
-        print('[ANNOTATION] Plate solve failed: ${result.error}');
+        _logger.warning('Plate solve failed: ${result.error}', source: 'Annotation');
         _ref.read(annotationStateProvider.notifier).state =
             AnnotationState.plateSolveFailed(result.error ?? 'Unknown error');
         return;
       }
 
-      print('[ANNOTATION] Plate solve success: RA=${result.ra.toStringAsFixed(4)}, '
+      _logger.info('Plate solve success: RA=${result.ra.toStringAsFixed(4)}, '
           'Dec=${result.dec.toStringAsFixed(4)}, '
           'Scale=${result.pixelScale.toStringAsFixed(2)}"/px, '
-          'Rotation=${result.rotation.toStringAsFixed(1)}°');
+          'Rotation=${result.rotation.toStringAsFixed(1)} deg', source: 'Annotation');
 
       // =====================================================================
       // STEP 2: Create PlateSolveData
@@ -478,11 +482,11 @@ class AnnotationService {
       if (currentSnr != null && currentSnr >= _SnrAnnotationConstants.minimumSnrThreshold) {
         initialMagnitudeLimit = _calculateSnrBasedMagnitudeLimit(currentSnr);
         _lastAnnotationSnr = currentSnr;
-        print('[ANNOTATION] Initial SNR: ${currentSnr.toStringAsFixed(2)}, magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}');
+        _logger.debug('Initial SNR: ${currentSnr.toStringAsFixed(2)}, magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}', source: 'Annotation');
       } else {
         // If no SNR available or too low, use conservative base magnitude
         initialMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
-        print('[ANNOTATION] SNR not available or too low, using base magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}');
+        _logger.debug('SNR not available or too low, using base magnitude limit: ${initialMagnitudeLimit.toStringAsFixed(1)}', source: 'Annotation');
       }
 
       _currentSnrMagnitudeLimit = initialMagnitudeLimit;
@@ -500,9 +504,9 @@ class AnnotationService {
       // Use the minimum of SNR-based limit and user setting for initial search
       final effectiveMagnitudeLimit = math.min(initialMagnitudeLimit, userMagnitudeCutoff);
 
-      print('[ANNOTATION] Searching catalogs with magnitude cutoff: ${effectiveMagnitudeLimit.toStringAsFixed(1)} '
+      _logger.debug('Searching catalogs with magnitude cutoff: ${effectiveMagnitudeLimit.toStringAsFixed(1)} '
           '(SNR-based: ${initialMagnitudeLimit.toStringAsFixed(1)}, user: ${userMagnitudeCutoff.toStringAsFixed(1)}), '
-          'include stars: $includeStars');
+          'include stars: $includeStars', source: 'Annotation');
 
       final annotation = await annotateImage(
         imagePath: image.filePath!,
@@ -524,11 +528,10 @@ class AnnotationService {
       _ref.read(annotationStateProvider.notifier).state =
           AnnotationState.complete(annotation.objects.length);
 
-      print('[ANNOTATION] ✓ Annotation complete: ${annotation.objects.length} objects found');
+      _logger.info('Annotation complete: ${annotation.objects.length} objects found', source: 'Annotation');
 
     } catch (e, stackTrace) {
-      print('[ANNOTATION] Error processing image: $e');
-      print('[ANNOTATION] Stack trace: $stackTrace');
+      _logger.error('Error processing image: $e\nStack trace: $stackTrace', source: 'Annotation');
       _ref.read(annotationStateProvider.notifier).state =
           AnnotationState.error(e.toString());
     }
@@ -547,7 +550,7 @@ class AnnotationService {
     // Convert pixels to RA/Dec
     final coords = plateSolve.pixelToSky(x, y);
     
-    print('[ANNOTATION] Identifying object at $x, $y -> RA: ${coords.ra}, Dec: ${coords.dec}');
+    _logger.debug('Identifying object at $x, $y -> RA: ${coords.ra}, Dec: ${coords.dec}', source: 'Annotation');
     
     // Search for object at these coordinates
     final settings = _ref.read(annotationSettingsProvider).valueOrNull;
@@ -596,7 +599,7 @@ class AnnotationService {
     double minSize = 0.5,
     double? snrBasedMagnitudeCutoff,
   }) async {
-    print('[ANNOTATION] Starting annotation for $imagePath');
+    _logger.info('Starting annotation for $imagePath', source: 'Annotation');
 
     final objects = await findObjectsInFov(
       plateSolve: plateSolve,
@@ -606,7 +609,7 @@ class AnnotationService {
       snrBasedMagnitudeCutoff: snrBasedMagnitudeCutoff,
     );
 
-    print('[ANNOTATION] Found ${objects.length} objects in FOV');
+    _logger.info('Found ${objects.length} objects in FOV', source: 'Annotation');
 
     return ImageAnnotation(
       imagePath: imagePath,
@@ -637,8 +640,8 @@ class AnnotationService {
             plateSolve.fieldHeight * plateSolve.fieldHeight);
     final searchRadius = fovDiagonal / 2 * 1.1; // Add 10% margin
 
-    print('[ANNOTATION] Searching DSO catalog within $searchRadius degrees of RA=${plateSolve.ra}, Dec=${plateSolve.dec}, '
-        'magnitude cutoff: ${effectiveMagnitudeCutoff.toStringAsFixed(1)}');
+    _logger.debug('Searching DSO catalog within $searchRadius degrees of RA=${plateSolve.ra}, Dec=${plateSolve.dec}, '
+        'magnitude cutoff: ${effectiveMagnitudeCutoff.toStringAsFixed(1)}', source: 'Annotation');
 
     final annotationCatalog = await _loadAnnotationCatalog();
     if (annotationCatalog != null && annotationCatalog.isAvailable) {
@@ -650,7 +653,7 @@ class AnnotationService {
           maxMagnitude: effectiveMagnitudeCutoff,
         );
 
-        print('[ANNOTATION] Found ${objects.length} annotation objects in search area');
+        _logger.debug('Found ${objects.length} annotation objects in search area', source: 'Annotation');
 
         for (final obj in objects) {
           if (obj.majorAxis != null && obj.majorAxis! < minSize) {
@@ -684,7 +687,7 @@ class AnnotationService {
           ));
         }
       } catch (e) {
-        print('[ANNOTATION] Error querying annotation catalog: $e');
+        _logger.error('Error querying annotation catalog: $e', source: 'Annotation');
       }
     } else {
       // Query DSO catalog
@@ -696,7 +699,7 @@ class AnnotationService {
           maxMagnitude: effectiveMagnitudeCutoff,
         );
 
-        print('[ANNOTATION] Found ${dsos.length} DSOs in search area');
+        _logger.debug('Found ${dsos.length} DSOs in search area', source: 'Annotation');
 
         for (final dso in dsos) {
           // Filter by size (skip very small objects)
@@ -732,7 +735,7 @@ class AnnotationService {
           ));
         }
       } catch (e) {
-        print('[ANNOTATION] Error querying DSO catalog: $e');
+        _logger.error('Error querying DSO catalog: $e', source: 'Annotation');
       }
     }
 
@@ -748,7 +751,7 @@ class AnnotationService {
           maxMagnitude: starMagnitudeCutoff,
         );
 
-        print('[ANNOTATION] Found ${stars.length} stars in search area');
+        _logger.debug('Found ${stars.length} stars in search area', source: 'Annotation');
 
         for (final star in stars.take(100)) {
           final pixelCoords = plateSolve.skyToPixel(star.ra, star.dec);
@@ -773,11 +776,11 @@ class AnnotationService {
           ));
         }
       } catch (e) {
-        print('[ANNOTATION] Error querying star catalog: $e');
+        _logger.error('Error querying star catalog: $e', source: 'Annotation');
       }
     }
 
-    print('[ANNOTATION] Total annotations: ${annotations.length}');
+    _logger.debug('Total annotations: ${annotations.length}', source: 'Annotation');
     return annotations;
   }
 
@@ -819,10 +822,10 @@ class AnnotationService {
           dataSource: 'Local Catalog',
         );
 
-        print('[ANNOTATION] Found in local DSO catalog: ${closest.displayName}');
+        _logger.debug('Found in local DSO catalog: ${closest.displayName}', source: 'Annotation');
       }
     } catch (e) {
-      print('[ANNOTATION] Error searching local DSO catalog: $e');
+      _logger.error('Error searching local DSO catalog: $e', source: 'Annotation');
     }
 
     // Also check local star catalog
@@ -856,10 +859,10 @@ class AnnotationService {
             dataSource: 'Local Catalog',
           );
 
-          print('[ANNOTATION] Found in local star catalog: ${closest.name}');
+          _logger.debug('Found in local star catalog: ${closest.name}', source: 'Annotation');
         }
       } catch (e) {
-        print('[ANNOTATION] Error searching local star catalog: $e');
+        _logger.error('Error searching local star catalog: $e', source: 'Annotation');
       }
     }
 
@@ -871,7 +874,7 @@ class AnnotationService {
         result = _mergeObjectData(result, simbadData);
       }
     } catch (e) {
-      print('[ANNOTATION] SIMBAD query failed: $e');
+      _logger.warning('SIMBAD query failed: $e', source: 'Annotation');
     }
 
     // 3. Query Gaia for stellar properties (if it looks like a star)
@@ -882,7 +885,7 @@ class AnnotationService {
           result = _mergeObjectData(result, gaiaData);
         }
       } catch (e) {
-        print('[ANNOTATION] Gaia query failed: $e');
+        _logger.warning('Gaia query failed: $e', source: 'Annotation');
       }
     }
 
@@ -900,7 +903,7 @@ class AnnotationService {
             result = result.copyWith(exoplanets: planets);
           }
         } catch (e) {
-          print('[ANNOTATION] Exoplanet query failed: $e');
+          _logger.warning('Exoplanet query failed: $e', source: 'Annotation');
         }
       }
     }

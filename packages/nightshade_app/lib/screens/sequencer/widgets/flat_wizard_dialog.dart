@@ -25,26 +25,130 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
   double _maxExposure = 10.0;
   final double _tolerancePercent = 5.0;
   FlatPanelLocation _panelLocation = FlatPanelLocation.duskSky;
-  String? _selectedFilter;
+  String? _selectedFilter = _kFallbackFilters.first;
 
   bool _isCalculating = false;
   double? _calculatedExposure;
+  double? _measuredAdu;
+  String? _errorMessage;
+  String? _calculationStatus;
 
   Future<void> _calculateExposure() async {
-    setState(() => _isCalculating = true);
-    
-    // Simulate exposure calculation
-    // In production, this would take a test exposure and adjust
-    await Future.delayed(const Duration(seconds: 2));
-    
+    if (_selectedFilter == null || _selectedFilter!.isEmpty) {
+      setState(() {
+        _errorMessage = 'Select a filter before calibration.';
+      });
+      return;
+    }
+
+    final cameraState = ref.read(cameraStateProvider);
+    if (cameraState.connectionState != DeviceConnectionState.connected ||
+        cameraState.deviceId == null) {
+      setState(() {
+        _errorMessage = 'Connect a camera before calibration.';
+      });
+      return;
+    }
+
     setState(() {
-      _calculatedExposure = 2.5; // Placeholder
-      _isCalculating = false;
+      _isCalculating = true;
+      _errorMessage = null;
+      _calculationStatus = null;
+      _calculatedExposure = null;
+      _measuredAdu = null;
     });
+
+    try {
+      final flatService = ref.read(flatWizardServiceProvider);
+      final result = await flatService.calibrateFilter(
+        deviceId: cameraState.deviceId!,
+        filter: _selectedFilter!,
+        targetAdu: _targetAdu.toDouble(),
+        tolerance: _tolerancePercent,
+        minExposure: _minExposure,
+        maxExposure: _maxExposure,
+        onProgress: (iteration, exposure, adu) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            _calculationStatus =
+                'Iteration $iteration: ${exposure.toStringAsFixed(3)}s, ADU ${adu.toStringAsFixed(0)}';
+          });
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        if (result.success) {
+          _calculatedExposure = result.exposure;
+          _measuredAdu = result.adu;
+          _calculationStatus = 'Calibration complete';
+        } else {
+          _errorMessage = result.errorMessage ??
+              'Calibration did not converge within limits.';
+        }
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = 'Calibration failed: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCalculating = false;
+        });
+      }
+    }
   }
 
   void _generateFlatSequence() {
-    // Generate flat frame sequence and add to sequencer
+    if (_calculatedExposure == null || _selectedFilter == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Run calibration successfully first.')),
+      );
+      return;
+    }
+
+    final cameraState = ref.read(cameraStateProvider);
+    final flatService = ref.read(flatWizardServiceProvider);
+    final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
+
+    final nodes = flatService.generateFlatSequence(
+      calibrations: [
+        FlatResult(
+          filter: _selectedFilter!,
+          exposure: _calculatedExposure!,
+          adu: _measuredAdu ?? _targetAdu.toDouble(),
+          success: true,
+        ),
+      ],
+      framesPerFilter: 25,
+      gain: cameraState.gain,
+      offset: cameraState.offset,
+      onlySuccessful: true,
+    );
+
+    if (nodes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No flat nodes were generated.')),
+      );
+      return;
+    }
+
+    for (final node in nodes) {
+      sequenceNotifier.addNode(node);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Added ${nodes.length} flat capture node(s).')),
+    );
     Navigator.of(context).pop();
   }
 
@@ -77,182 +181,224 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
             ],
           ),
           child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: colors.border)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.wb_sunny, color: colors.primary, size: 28),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Flat Frame Wizard',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-
-            // Stepper
-            Expanded(
-              child: Stepper(
-                currentStep: _currentStep,
-                onStepContinue: () {
-                  if (_currentStep < 2) {
-                    setState(() => _currentStep++);
-                  } else {
-                    _generateFlatSequence();
-                  }
-                },
-                onStepCancel: () {
-                  if (_currentStep > 0) {
-                    setState(() => _currentStep--);
-                  } else {
-                    Navigator.of(context).pop();
-                  }
-                },
-                controlsBuilder: (context, details) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: Row(
-                      children: [
-                        NightshadeButton(
-                          onPressed: details.onStepContinue,
-                          label: _currentStep == 2 ? 'Generate' : 'Continue',
-                          variant: ButtonVariant.primary,
-                        ),
-                        const SizedBox(width: 12),
-                        NightshadeButton(
-                          onPressed: details.onStepCancel,
-                          label: _currentStep == 0 ? 'Cancel' : 'Back',
-                          variant: ButtonVariant.ghost,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                steps: [
-                  // Step 1: Configuration
-                  Step(
-                    title: const Text('Configuration'),
-                    isActive: _currentStep >= 0,
-                    state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-                    content: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildTargetAduSlider(colors),
-                        const SizedBox(height: 24),
-                        _buildPanelLocationSelector(colors),
-                        const SizedBox(height: 24),
-                        _buildFilterSelector(colors),
-                        const SizedBox(height: 24),
-                        _buildExposureLimits(colors),
-                      ],
-                    ),
-                  ),
-
-                  // Step 2: Auto-Calculate
-                  Step(
-                    title: const Text('Calculate Exposure'),
-                    isActive: _currentStep >= 1,
-                    state: _currentStep > 1 ? StepState.complete : StepState.indexed,
-                    content: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_calculatedExposure == null)
-                          Column(
-                            children: [
-                              Text(
-                                'Click "Calculate" to automatically determine the optimal exposure time.',
-                                style: theme.textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: 16),
-                              NightshadeButton(
-                                onPressed: _isCalculating ? null : _calculateExposure,
-                                icon: Icons.calculate,
-                                label: _isCalculating ? 'Calculating...' : 'Calculate',
-                                variant: ButtonVariant.primary,
-                                isLoading: _isCalculating,
-                              ),
-                            ],
-                          )
-                        else
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: colors.success.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: colors.success),
-                            ),
-                            child: Column(
-                              children: [
-                                Icon(Icons.check_circle, color: colors.success, size: 48),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Optimal Exposure Time',
-                                  style: theme.textTheme.titleMedium,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '${_calculatedExposure!.toStringAsFixed(3)}s',
-                                  style: theme.textTheme.headlineMedium?.copyWith(
-                                    color: colors.success,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Target ADU: $_targetAdu ± ${(_targetAdu * _tolerancePercent / 100).toStringAsFixed(0)}',
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                  // Step 3: Review
-                  Step(
-                    title: const Text('Review'),
-                    isActive: _currentStep >= 2,
-                    content: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: colors.border),
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: colors.border)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.wb_sunny, color: colors.primary, size: 28),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Flat Frame Wizard',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Stepper
+              Expanded(
+                child: Stepper(
+                  currentStep: _currentStep,
+                  onStepContinue: () {
+                    if (_currentStep < 2) {
+                      setState(() => _currentStep++);
+                    } else {
+                      _generateFlatSequence();
+                    }
+                  },
+                  onStepCancel: () {
+                    if (_currentStep > 0) {
+                      setState(() => _currentStep--);
+                    } else {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  controlsBuilder: (context, details) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Row(
                         children: [
-                          _buildReviewRow('Filter:', _selectedFilter ?? 'All'),
-                          _buildReviewRow('Panel Location:', _panelLocationName()),
-                          _buildReviewRow('Target ADU:', '$_targetAdu'),
-                          _buildReviewRow('Exposure Time:', 
-                              _calculatedExposure != null 
-                                  ? '${_calculatedExposure!.toStringAsFixed(3)}s'
-                                  : 'Not calculated'),
-                          _buildReviewRow('Frame Count:', '25'),
+                          NightshadeButton(
+                            onPressed: details.onStepContinue,
+                            label: _currentStep == 2 ? 'Generate' : 'Continue',
+                            variant: ButtonVariant.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          NightshadeButton(
+                            onPressed: details.onStepCancel,
+                            label: _currentStep == 0 ? 'Cancel' : 'Back',
+                            variant: ButtonVariant.ghost,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  steps: [
+                    // Step 1: Configuration
+                    Step(
+                      title: const Text('Configuration'),
+                      isActive: _currentStep >= 0,
+                      state: _currentStep > 0
+                          ? StepState.complete
+                          : StepState.indexed,
+                      content: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildTargetAduSlider(colors),
+                          const SizedBox(height: 24),
+                          _buildPanelLocationSelector(colors),
+                          const SizedBox(height: 24),
+                          _buildFilterSelector(colors),
+                          const SizedBox(height: 24),
+                          _buildExposureLimits(colors),
                         ],
                       ),
                     ),
-                  ),
-                ],
+
+                    // Step 2: Auto-Calculate
+                    Step(
+                      title: const Text('Calculate Exposure'),
+                      isActive: _currentStep >= 1,
+                      state: _currentStep > 1
+                          ? StepState.complete
+                          : StepState.indexed,
+                      content: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_calculatedExposure == null)
+                            Column(
+                              children: [
+                                Text(
+                                  'Click "Calculate" to automatically determine the optimal exposure time.',
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                                const SizedBox(height: 16),
+                                if (_calculationStatus != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Text(
+                                      _calculationStatus!,
+                                      style: theme.textTheme.bodySmall,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                if (_errorMessage != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Text(
+                                      _errorMessage!,
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
+                                        color: colors.error,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                NightshadeButton(
+                                  onPressed: _isCalculating
+                                      ? null
+                                      : _calculateExposure,
+                                  icon: Icons.calculate,
+                                  label: _isCalculating
+                                      ? 'Calculating...'
+                                      : 'Calculate',
+                                  variant: ButtonVariant.primary,
+                                  isLoading: _isCalculating,
+                                ),
+                              ],
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: colors.success.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: colors.success),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.check_circle,
+                                      color: colors.success, size: 48),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Optimal Exposure Time',
+                                    style: theme.textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    '${_calculatedExposure!.toStringAsFixed(3)}s',
+                                    style: theme.textTheme.headlineMedium
+                                        ?.copyWith(
+                                      color: colors.success,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Target ADU: $_targetAdu +/- ${(_targetAdu * _tolerancePercent / 100).toStringAsFixed(0)}',
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                  if (_measuredAdu != null) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Measured ADU: ${_measuredAdu!.toStringAsFixed(0)}',
+                                      style: theme.textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    // Step 3: Review
+                    Step(
+                      title: const Text('Review'),
+                      isActive: _currentStep >= 2,
+                      content: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildReviewRow(
+                                'Filter:', _selectedFilter ?? 'All'),
+                            _buildReviewRow(
+                                'Panel Location:', _panelLocationName()),
+                            _buildReviewRow('Target ADU:', '$_targetAdu'),
+                            _buildReviewRow(
+                                'Exposure Time:',
+                                _calculatedExposure != null
+                                    ? '${_calculatedExposure!.toStringAsFixed(3)}s'
+                                    : 'Not calculated'),
+                            _buildReviewRow('Frame Count:', '25'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
@@ -325,21 +471,32 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
     final profileFilters = ref.watch(profileFiltersProvider);
     final availableFilters =
         profileFilters.isNotEmpty ? profileFilters : _kFallbackFilters;
+    final effectiveSelected = availableFilters.contains(_selectedFilter)
+        ? _selectedFilter
+        : (availableFilters.isNotEmpty ? availableFilters.first : null);
+
+    if (effectiveSelected != _selectedFilter && effectiveSelected != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _selectedFilter = effectiveSelected;
+          });
+        }
+      });
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Filter (optional)'),
+        const Text('Filter'),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          initialValue: _selectedFilter,
+          initialValue: effectiveSelected,
           decoration: InputDecoration(
-            border:
-                OutlineInputBorder(borderSide: BorderSide(color: colors.border)),
-            hintText: 'All filters',
+            border: OutlineInputBorder(
+                borderSide: BorderSide(color: colors.border)),
           ),
           items: [
-            const DropdownMenuItem(value: null, child: Text('All filters')),
             ...availableFilters
                 .map((f) => DropdownMenuItem(value: f, child: Text(f))),
           ],
@@ -374,8 +531,8 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
     return Row(
       children: [
         Expanded(
-          child: TextField(
-            controller: TextEditingController(text: _minExposure.toString()),
+          child: TextFormField(
+            initialValue: _minExposure.toString(),
             decoration: const InputDecoration(labelText: 'Min Exposure (s)'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (v) {
@@ -386,8 +543,8 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: TextField(
-            controller: TextEditingController(text: _maxExposure.toString()),
+          child: TextFormField(
+            initialValue: _maxExposure.toString(),
             decoration: const InputDecoration(labelText: 'Max Exposure (s)'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (v) {

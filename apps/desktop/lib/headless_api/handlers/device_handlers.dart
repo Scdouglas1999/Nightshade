@@ -7,15 +7,21 @@ import 'package:shelf/shelf.dart';
 /// Handlers for device control endpoints (camera, mount, focuser, filter wheel, rotator)
 class DeviceHandlers {
   final ProviderContainer container;
-
   DeviceHandlers(this.container);
+
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'DeviceHandlers');
+  void _logError(String message) =>
+      _logger.error(message, source: 'DeviceHandlers');
 
   // ===========================================================================
   // Camera Control
   // ===========================================================================
 
   Future<Response> handleCameraExpose(Request request) async {
-    print('[API] POST /api/camera/expose');
+    _logInfo('[API] POST /api/camera/expose');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -43,7 +49,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Camera expose error: $e');
+      _logError('[API] Camera expose error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -52,7 +58,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleCameraAbort(Request request) async {
-    print('[API] POST /api/camera/abort');
+    _logInfo('[API] POST /api/camera/abort');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -65,7 +71,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Camera abort error: $e');
+      _logError('[API] Camera abort error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -111,7 +117,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Camera get last image error: $e');
+      _logError('[API] Camera get last image error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -120,7 +126,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleCameraSetCooling(Request request) async {
-    print('[API] POST /api/camera/cooling');
+    _logInfo('[API] POST /api/camera/cooling');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -139,7 +145,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Camera set cooling error: $e');
+      _logError('[API] Camera set cooling error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -148,7 +154,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleCameraSetGain(Request request) async {
-    print('[API] POST /api/camera/gain');
+    _logInfo('[API] POST /api/camera/gain');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -162,7 +168,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Camera set gain error: $e');
+      _logError('[API] Camera set gain error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -171,7 +177,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleCameraSetOffset(Request request) async {
-    print('[API] POST /api/camera/offset');
+    _logInfo('[API] POST /api/camera/offset');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -185,7 +191,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Camera set offset error: $e');
+      _logError('[API] Camera set offset error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -198,7 +204,7 @@ class DeviceHandlers {
   // ===========================================================================
 
   Future<Response> handleMountSlew(Request request) async {
-    print('[API] POST /api/mount/slew');
+    _logInfo('[API] POST /api/mount/slew');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -213,7 +219,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount slew error: $e');
+      _logError('[API] Mount slew error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -222,7 +228,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleMountSync(Request request) async {
-    print('[API] POST /api/mount/sync');
+    _logInfo('[API] POST /api/mount/sync');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -237,7 +243,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount sync error: $e');
+      _logError('[API] Mount sync error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -246,7 +252,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleMountPark(Request request) async {
-    print('[API] POST /api/mount/park');
+    _logInfo('[API] POST /api/mount/park');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -259,7 +265,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount park error: $e');
+      _logError('[API] Mount park error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -268,7 +274,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleMountUnpark(Request request) async {
-    print('[API] POST /api/mount/unpark');
+    _logInfo('[API] POST /api/mount/unpark');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -281,7 +287,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount unpark error: $e');
+      _logError('[API] Mount unpark error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -290,7 +296,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleMountSetTracking(Request request) async {
-    print('[API] POST /api/mount/tracking');
+    _logInfo('[API] POST /api/mount/tracking');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -304,7 +310,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount set tracking error: $e');
+      _logError('[API] Mount set tracking error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -313,7 +319,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleMountPulseGuide(Request request) async {
-    print('[API] POST /api/mount/pulse-guide');
+    _logInfo('[API] POST /api/mount/pulse-guide');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -332,7 +338,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount pulse guide error: $e');
+      _logError('[API] Mount pulse guide error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -341,7 +347,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleMountAbort(Request request) async {
-    print('[API] POST /api/mount/abort');
+    _logInfo('[API] POST /api/mount/abort');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -354,7 +360,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount abort error: $e');
+      _logError('[API] Mount abort error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -374,7 +380,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount get status error: $e');
+      _logError('[API] Mount get status error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -383,7 +389,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleMountSetTrackingRate(Request request) async {
-    print('[API] POST /api/mount/set-tracking-rate');
+    _logInfo('[API] POST /api/mount/set-tracking-rate');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -397,7 +403,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount set tracking rate error: $e');
+      _logError('[API] Mount set tracking rate error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -406,7 +412,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleMountMoveAxis(Request request) async {
-    print('[API] POST /api/mount/move-axis');
+    _logInfo('[API] POST /api/mount/move-axis');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -421,7 +427,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Mount move axis error: $e');
+      _logError('[API] Mount move axis error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -434,7 +440,7 @@ class DeviceHandlers {
   // ===========================================================================
 
   Future<Response> handleFocuserMoveTo(Request request) async {
-    print('[API] POST /api/focuser/move-to');
+    _logInfo('[API] POST /api/focuser/move-to');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -448,7 +454,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Focuser move to error: $e');
+      _logError('[API] Focuser move to error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -457,7 +463,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleFocuserMoveRelative(Request request) async {
-    print('[API] POST /api/focuser/move-relative');
+    _logInfo('[API] POST /api/focuser/move-relative');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -471,7 +477,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Focuser move relative error: $e');
+      _logError('[API] Focuser move relative error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -480,7 +486,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleFocuserHalt(Request request) async {
-    print('[API] POST /api/focuser/halt');
+    _logInfo('[API] POST /api/focuser/halt');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -493,7 +499,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Focuser halt error: $e');
+      _logError('[API] Focuser halt error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -502,7 +508,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleAutofocusStart(Request request) async {
-    print('[API] POST /api/focuser/autofocus/start');
+    _logInfo('[API] POST /api/focuser/autofocus/start');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -529,7 +535,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Autofocus start error: $e');
+      _logError('[API] Autofocus start error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -538,7 +544,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleAutofocusCancel(Request request) async {
-    print('[API] POST /api/focuser/autofocus/cancel');
+    _logInfo('[API] POST /api/focuser/autofocus/cancel');
     try {
       final backend = container.read(backendProvider);
       await backend.autofocusCancel();
@@ -548,7 +554,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Autofocus cancel error: $e');
+      _logError('[API] Autofocus cancel error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -561,7 +567,7 @@ class DeviceHandlers {
   // ===========================================================================
 
   Future<Response> handleFilterWheelSetPosition(Request request) async {
-    print('[API] POST /api/filter-wheel/position');
+    _logInfo('[API] POST /api/filter-wheel/position');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -575,7 +581,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Filter wheel set position error: $e');
+      _logError('[API] Filter wheel set position error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -595,7 +601,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Filter wheel get names error: $e');
+      _logError('[API] Filter wheel get names error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -604,7 +610,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleFilterWheelSetByName(Request request) async {
-    print('[API] POST /api/filter-wheel/set-by-name');
+    _logInfo('[API] POST /api/filter-wheel/set-by-name');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -618,7 +624,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Filter wheel set by name error: $e');
+      _logError('[API] Filter wheel set by name error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -631,7 +637,7 @@ class DeviceHandlers {
   // ===========================================================================
 
   Future<Response> handleRotatorMoveTo(Request request) async {
-    print('[API] POST /api/rotator/move-to');
+    _logInfo('[API] POST /api/rotator/move-to');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -645,7 +651,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Rotator move to error: $e');
+      _logError('[API] Rotator move to error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -654,7 +660,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleRotatorMoveRelative(Request request) async {
-    print('[API] POST /api/rotator/move-relative');
+    _logInfo('[API] POST /api/rotator/move-relative');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -668,7 +674,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Rotator move relative error: $e');
+      _logError('[API] Rotator move relative error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -688,7 +694,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Rotator get status error: $e');
+      _logError('[API] Rotator get status error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -697,7 +703,7 @@ class DeviceHandlers {
   }
 
   Future<Response> handleRotatorHalt(Request request) async {
-    print('[API] POST /api/rotator/halt');
+    _logInfo('[API] POST /api/rotator/halt');
     try {
       final payload = jsonDecode(await request.readAsString());
       final deviceId = payload['deviceId'] as String;
@@ -710,7 +716,7 @@ class DeviceHandlers {
         headers: {'content-type': 'application/json'},
       );
     } catch (e) {
-      print('[API] Rotator halt error: $e');
+      _logError('[API] Rotator halt error: $e');
       return Response.internalServerError(
         body: jsonEncode({"error": e.toString()}),
         headers: {'content-type': 'application/json'},
@@ -724,12 +730,18 @@ class DeviceHandlers {
 
   FrameType _parseFrameType(String type) {
     switch (type.toLowerCase()) {
-      case 'light': return FrameType.light;
-      case 'dark': return FrameType.dark;
-      case 'flat': return FrameType.flat;
-      case 'bias': return FrameType.bias;
-      case 'darkflat': return FrameType.darkFlat;
-      default: return FrameType.light;
+      case 'light':
+        return FrameType.light;
+      case 'dark':
+        return FrameType.dark;
+      case 'flat':
+        return FrameType.flat;
+      case 'bias':
+        return FrameType.bias;
+      case 'darkflat':
+        return FrameType.darkFlat;
+      default:
+        return FrameType.light;
     }
   }
 }

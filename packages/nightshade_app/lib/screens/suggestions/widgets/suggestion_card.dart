@@ -68,8 +68,8 @@ class SuggestionCard extends ConsumerWidget {
 
                 SizedBox(height: isCompact ? NightshadeTokens.spaceXs : NightshadeTokens.spaceSm),
 
-                // Quick stats row: altitude, moon distance, transit time, airmass
-                _buildQuickStats(colors, isCompact),
+                // Quick stats row: peak altitude, moon distance, transit, imaging hours
+                _buildQuickStats(colors, isCompact, settings?.latitude),
 
                 SizedBox(height: isCompact ? NightshadeTokens.spaceXs : NightshadeTokens.spaceSm),
 
@@ -187,6 +187,11 @@ class SuggestionCard extends ConsumerWidget {
       ));
     }
 
+    // Informational tags (e.g., "Mosaic recommended")
+    for (final tag in suggestion.tags) {
+      details.add(_buildInfoTag(colors, tag));
+    }
+
     if (details.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -220,6 +225,38 @@ class SuggestionCard extends ConsumerWidget {
             style: TextStyle(
               fontSize: 10,
               color: colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoTag(NightshadeColors colors, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: colors.info.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+        border: Border.all(
+          color: colors.info.withValues(alpha: 0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(LucideIcons.info, size: 10, color: colors.info),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: colors.info,
             ),
           ),
         ],
@@ -302,20 +339,26 @@ class SuggestionCard extends ConsumerWidget {
     }
   }
 
-  /// Builds the quick stats row showing altitude, moon distance, transit, and airmass.
-  Widget _buildQuickStats(NightshadeColors colors, bool isCompact) {
+  /// Builds the quick stats row showing peak altitude, moon distance, transit, and imaging hours.
+  Widget _buildQuickStats(NightshadeColors colors, bool isCompact, double? latitude) {
     final visibility = suggestion.visibility;
+    final peakAlt = visibility.peakAltitude ?? visibility.currentAltitude;
+
+    // Direction at peak: target transits north of zenith if dec > observer latitude
+    final dirSuffix = latitude != null
+        ? (suggestion.decDegrees > latitude ? ' N' : ' S')
+        : '';
 
     return Wrap(
       spacing: isCompact ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg,
       runSpacing: NightshadeTokens.spaceXs,
       children: [
-        // Current altitude
+        // Peak altitude during the night with N/S direction
         _buildStatItem(
           colors,
           LucideIcons.mountain,
-          '${visibility.currentAltitude.round()}°',
-          'Alt',
+          '${peakAlt.round()}°$dirSuffix',
+          'Peak',
           isCompact,
         ),
         // Moon distance
@@ -334,12 +377,16 @@ class SuggestionCard extends ConsumerWidget {
           'Transit',
           isCompact,
         ),
-        // Airmass
+        // Imaging hours above minimum altitude
         _buildStatItem(
           colors,
-          LucideIcons.wind,
-          visibility.airmass < 10 ? visibility.airmass.toStringAsFixed(2) : '>10',
-          'Airmass',
+          LucideIcons.timer,
+          visibility.hoursAboveMinAlt != null
+              ? '${visibility.hoursAboveMinAlt!.toStringAsFixed(1)}h'
+              : visibility.airmass < 10
+                  ? visibility.airmass.toStringAsFixed(2)
+                  : '>10',
+          visibility.hoursAboveMinAlt != null ? 'Imaging' : 'Airmass',
           isCompact,
         ),
       ],
