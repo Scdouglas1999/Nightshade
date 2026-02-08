@@ -706,6 +706,12 @@ impl DeviceManager {
         devices.contains_key(device_id)
     }
 
+    /// Get the display name for a registered device, if it exists.
+    pub async fn get_device_display_name(&self, device_id: &str) -> Option<String> {
+        let devices = self.devices.read().await;
+        devices.get(device_id).map(|d| d.info.display_name.clone())
+    }
+
     /// Connect to a device
     pub async fn connect_device(&self, device_id: &str) -> Result<(), String> {
         let device_info = {
@@ -854,6 +860,21 @@ impl DeviceManager {
             }
             DeviceType::FilterWheel => {
                 use crate::ascom_wrapper_filterwheel::AscomFilterWheelWrapper;
+
+                // Disconnect and remove old wrapper BEFORE creating new one.
+                // If we don't, the old wrapper's Drop will disconnect the COM device
+                // after the new wrapper has already connected to it, killing the connection.
+                {
+                    let mut ascom_filter_wheels = self.ascom_filter_wheels.write().await;
+                    if let Some(old_fw) = ascom_filter_wheels.remove(&info.id) {
+                        let mut old = old_fw.write().await;
+                        let _ = old.disconnect().await;
+                        drop(old);
+                        drop(old_fw);
+                        tracing::info!("Disconnected old ASCOM filter wheel wrapper for {}", info.id);
+                    }
+                }
+
                 let mut fw = AscomFilterWheelWrapper::new(prog_id.to_string())?;
                 fw.connect().await.map_err(|e| e.to_string())?;
 
@@ -1172,6 +1193,16 @@ impl DeviceManager {
 
         // Handle filter wheels
         if info.device_type == DeviceType::FilterWheel {
+            // Disconnect and remove old native filter wheel before creating new one
+            // to avoid leaving stale SDK handles open
+            {
+                let mut native_filter_wheels = self.native_filter_wheels.write().await;
+                if let Some(mut old_fw) = native_filter_wheels.remove(&info.id) {
+                    let _ = old_fw.disconnect().await;
+                    tracing::info!("Disconnected old native filter wheel for {}", info.id);
+                }
+            }
+
             let mut filterwheel: Box<dyn NativeFilterWheel + Send + Sync> = match vendor {
                 "zwo" | "zwo_efw" => {
                     let id = id_str
@@ -5158,13 +5189,16 @@ impl DeviceManager {
     }
 
     pub async fn filter_wheel_get_position(&self, device_id: &str) -> Result<i32, String> {
-        let devices = self.devices.read().await;
-        let info = devices
-            .get(device_id)
-            .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+        let driver_type = {
+            let devices = self.devices.read().await;
+            let info = devices
+                .get(device_id)
+                .map(|d| d.info.clone())
+                .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            info.driver_type
+        }; // devices lock dropped here before acquiring other locks
 
-        match info.driver_type {
+        match driver_type {
             DriverType::Ascom => {
                 #[cfg(windows)]
                 {
@@ -5217,13 +5251,16 @@ impl DeviceManager {
     }
 
     pub async fn filter_wheel_is_moving(&self, device_id: &str) -> Result<bool, String> {
-        let devices = self.devices.read().await;
-        let info = devices
-            .get(device_id)
-            .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+        let driver_type = {
+            let devices = self.devices.read().await;
+            let info = devices
+                .get(device_id)
+                .map(|d| d.info.clone())
+                .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            info.driver_type
+        }; // devices lock dropped here
 
-        match info.driver_type {
+        match driver_type {
             DriverType::Ascom => {
                 #[cfg(windows)]
                 {

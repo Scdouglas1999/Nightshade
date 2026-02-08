@@ -619,6 +619,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     );
   }
 
+  void setDeviceName(String deviceName) {
+    state = state.copyWith(deviceName: deviceName);
+  }
+
   void setDisconnected() {
     state = const FilterWheelState();
   }

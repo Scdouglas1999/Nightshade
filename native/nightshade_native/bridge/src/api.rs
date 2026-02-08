@@ -997,6 +997,97 @@ pub async fn api_discover_devices(
 // Device Connection
 // =============================================================================
 
+/// Try to construct a DeviceInfo from a device ID string without running discovery.
+/// This avoids opening/closing hardware (e.g. ZWO EFW) which can interfere with
+/// subsequent position reads.
+fn device_info_from_id(device_id: &str, device_type: DeviceType) -> Option<DeviceInfo> {
+    if device_id.starts_with("native:") {
+        let parts: Vec<&str> = device_id.split(':').collect();
+        if parts.len() >= 3 {
+            let vendor = parts[1];
+            let name = match vendor {
+                "zwo" => format!("ZWO Camera {}", parts[2]),
+                "zwo_eaf" => format!("ZWO EAF {}", parts[2]),
+                "zwo_efw" => format!("ZWO EFW {}", parts[2]),
+                "qhy" => format!("QHY {}", parts[2]),
+                "qhy_cfw" => format!("QHY CFW ({})", parts[2]),
+                "fli" | "fli_fw" | "fli_focuser" => format!("FLI {}", parts[2]),
+                "player_one" | "playerone" => format!("Player One {}", parts[2]),
+                "svbony" => format!("SVBony {}", parts[2]),
+                "atik" => format!("Atik {}", parts[2]),
+                "moravian" => format!("Moravian {}", parts[2]),
+                "touptek" => format!("Touptek {}", parts.get(2).unwrap_or(&"")),
+                _ => format!("{} {}", vendor, parts[2]),
+            };
+            return Some(DeviceInfo {
+                id: device_id.to_string(),
+                name: name.clone(),
+                device_type,
+                driver_type: DriverType::Native,
+                description: format!("Native {} driver", vendor),
+                driver_version: "Native".to_string(),
+                serial_number: None,
+                unique_id: None,
+                display_name: name,
+            });
+        }
+    } else if device_id.starts_with("ascom:") {
+        let prog_id = &device_id[6..]; // strip "ascom:"
+        let name = prog_id
+            .split('.')
+            .skip(1)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let name = if name.is_empty() {
+            prog_id.to_string()
+        } else {
+            name
+        };
+        return Some(DeviceInfo {
+            id: device_id.to_string(),
+            name: name.clone(),
+            device_type,
+            driver_type: DriverType::Ascom,
+            description: format!("ASCOM driver: {}", prog_id),
+            driver_version: "ASCOM".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: name,
+        });
+    } else if device_id.starts_with("alpaca:") {
+        return Some(DeviceInfo {
+            id: device_id.to_string(),
+            name: "Alpaca Device".to_string(),
+            device_type,
+            driver_type: DriverType::Alpaca,
+            description: "Alpaca device".to_string(),
+            driver_version: "Alpaca".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Alpaca Device".to_string(),
+        });
+    } else if device_id.starts_with("indi:") {
+        let parts: Vec<&str> = device_id.split(':').collect();
+        let name = if parts.len() >= 4 {
+            parts[3..].join(":")
+        } else {
+            device_id.to_string()
+        };
+        return Some(DeviceInfo {
+            id: device_id.to_string(),
+            name: name.clone(),
+            device_type,
+            driver_type: DriverType::Indi,
+            description: "INDI device".to_string(),
+            driver_version: "INDI".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: name,
+        });
+    }
+    None
+}
+
 /// Connect to a device
 pub async fn api_connect_device(
     device_type: DeviceType,
@@ -1053,28 +1144,40 @@ pub async fn api_connect_device(
     // Check if device is already registered
     let is_registered = device_manager.is_device_registered(&device_id).await;
 
-    // If not registered, discover and register the device
+    // If not registered, register it so the DeviceManager can connect.
+    // Try to construct DeviceInfo from the device ID first (avoids running
+    // native discovery which opens/closes hardware and can interfere with
+    // subsequent position reads on filter wheels).
     if !is_registered {
         tracing::info!(
-            "Device {} not registered, discovering and registering...",
+            "Device {} not registered, registering...",
             device_id
         );
 
-        // Discover devices of this type to find the one we want
-        let discovered_devices = api_discover_devices(device_type.clone()).await?;
-
-        // Find the device we're trying to connect to
-        if let Some(device_info) = discovered_devices.iter().find(|d| d.id == device_id) {
-            // Register the device before connecting
+        let device_info = device_info_from_id(&device_id, device_type.clone());
+        if let Some(info) = device_info {
             device_manager
-                .register_device(device_info.clone(), false)
+                .register_device(info.clone(), false)
                 .await;
-            tracing::info!("Registered device: {} ({})", device_info.name, device_id);
+            tracing::info!("Registered device from ID: {} ({})", info.name, device_id);
         } else {
-            return Err(NightshadeError::connection_failed(
-                &device_id,
-                "Device not found during discovery",
-            ));
+            // Fallback: run full discovery to find the device
+            tracing::info!(
+                "Could not construct DeviceInfo from ID, running discovery for {}",
+                device_id
+            );
+            let discovered_devices = api_discover_devices(device_type.clone()).await?;
+            if let Some(info) = discovered_devices.iter().find(|d| d.id == device_id) {
+                device_manager
+                    .register_device(info.clone(), false)
+                    .await;
+                tracing::info!("Registered device via discovery: {} ({})", info.name, device_id);
+            } else {
+                return Err(NightshadeError::connection_failed(
+                    &device_id,
+                    "Device not found during discovery",
+                ));
+            }
         }
     }
 
@@ -1083,6 +1186,15 @@ pub async fn api_connect_device(
         .connect_device(&device_id)
         .await
         .map_err(|e| NightshadeError::connection_failed(&device_id, e))
+}
+
+/// Get the display name for a device that's already registered in the device manager.
+/// Returns None if the device isn't registered.
+/// This avoids running a full discovery just to resolve a device name.
+pub async fn api_get_device_display_name(device_id: String) -> Option<String> {
+    get_device_manager()
+        .get_device_display_name(&device_id)
+        .await
 }
 
 /// Disconnect from a device
@@ -2614,6 +2726,11 @@ pub async fn api_get_filterwheel_status(
             .filter_wheel_get_position(&device_id)
             .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
+        tracing::info!(
+            "[api_get_filterwheel_status] device={}, raw position from SDK={}",
+            device_id,
+            position
+        );
         let is_moving = mgr
             .filter_wheel_is_moving(&device_id)
             .await
@@ -2622,6 +2739,14 @@ pub async fn api_get_filterwheel_status(
             .filter_wheel_get_config(&device_id)
             .await
             .map_err(|e| NightshadeError::OperationFailed(e))?;
+
+        tracing::info!(
+            "[api_get_filterwheel_status] Returning: position={}, moving={}, filter_count={}, names={:?}",
+            position,
+            is_moving,
+            filter_count,
+            filter_names
+        );
 
         Ok(FilterWheelStatus {
             connected: true,
@@ -2700,7 +2825,7 @@ pub async fn api_filterwheel_set_by_name(
         };
 
         if let Some(pos) = position {
-            api_filterwheel_set_position(device_id, (pos + 1) as i32).await
+            api_filterwheel_set_position(device_id, pos as i32).await
         } else {
             Err(NightshadeError::OperationFailed(format!(
                 "Filter {} not found",
@@ -2720,7 +2845,7 @@ pub async fn api_filterwheel_set_by_name(
         let position = filter_names
             .iter()
             .position(|n| n.eq_ignore_ascii_case(&name))
-            .map(|p| (p + 1) as i32)
+            .map(|p| p as i32)
             .ok_or_else(|| {
                 NightshadeError::OperationFailed(format!(
                     "Filter '{}' not found. Available: {:?}",

@@ -2298,6 +2298,29 @@ impl NativeDevice for ZwoFilterWheel {
         cleanup_guard.defuse();
 
         self.connected = true;
+
+        // Drop the mutex before the async sleep so other operations aren't blocked
+        drop(_lock);
+
+        // Give the firmware time to read the encoder position after EFWOpen.
+        // Some ZWO EFW firmware returns position 0 or -1 immediately after open
+        // because the encoder hasn't been polled yet. A short settle delay lets
+        // the firmware synchronise with the physical slot position.
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        // Read initial position to pre-warm the SDK and verify it works
+        {
+            let _lock = zwo_efw_mutex().lock().await;
+            let mut position: c_int = -999;
+            let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
+            tracing::info!(
+                "[ZWO EFW] Post-connect initial position read: hw_id={}, SDK result={}, position={}",
+                self.filterwheel_id,
+                result,
+                position
+            );
+        }
+
         tracing::info!(
             "Connected to ZWO EFW: {} ({} slots)",
             self.name,
@@ -2358,8 +2381,14 @@ impl NativeFilterWheel for ZwoFilterWheel {
 
         let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_efw_mutex().lock().await;
-        let mut position: c_int = 0;
+        let mut position: c_int = -999; // sentinel to detect if SDK writes
         let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
+        tracing::info!(
+            "[ZWO EFW] get_position(hw_id={}) => SDK result={}, position={}",
+            self.filterwheel_id,
+            result,
+            position
+        );
         check_efw_error(result)?;
         Ok(position)
     }
@@ -2371,8 +2400,14 @@ impl NativeFilterWheel for ZwoFilterWheel {
 
         let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_efw_mutex().lock().await;
-        let mut position: c_int = 0;
+        let mut position: c_int = -999; // sentinel to detect if SDK writes
         let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
+        tracing::info!(
+            "[ZWO EFW] is_moving(hw_id={}) => SDK result={}, position={}",
+            self.filterwheel_id,
+            result,
+            position
+        );
         check_efw_error(result)?;
         // Position is -1 when moving
         Ok(position == -1)

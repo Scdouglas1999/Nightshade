@@ -3,7 +3,7 @@ use nightshade_ascom::{init_com, uninit_com, AscomFilterWheel};
 use nightshade_native::traits::{NativeDevice, NativeError, NativeFilterWheel};
 use nightshade_native::NativeVendor;
 use std::fmt::Debug;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -11,7 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug)]
 enum AscomFilterWheelCommand {
-    Connect(oneshot::Sender<Result<(), String>>),
+    Connect(oneshot::Sender<Result<i32, String>>), // Returns filter count on success
     Disconnect(oneshot::Sender<Result<(), String>>),
     SetPosition(i32, oneshot::Sender<Result<(), String>>),
     GetPosition(oneshot::Sender<Result<i32, String>>),
@@ -29,10 +29,8 @@ pub struct AscomFilterWheelWrapper {
     sender: mpsc::Sender<AscomFilterWheelCommand>,
     _thread_handle: Arc<thread::JoinHandle<()>>,
     connected: AtomicBool,
-    // Cache filter count and names to avoid async calls if possible,
-    // but names might change? Unlikely for ASCOM.
-    // NativeFilterWheel::get_filter_count is synchronous.
-    filter_count: i32,
+    // Cache filter count - updated after connect when we can actually read device properties.
+    filter_count: AtomicI32,
 }
 
 impl Debug for AscomFilterWheelWrapper {
@@ -68,21 +66,42 @@ impl AscomFilterWheelWrapper {
                 }
             };
 
-            // Fetch filter names to determine count
-            let names = fw.names().unwrap_or_default();
-            let count = names.len() as i32;
-            tracing::info!(
-                "ASCOM FilterWheel initialized with {} filters: {:?}",
-                count,
-                names
-            );
-
-            let _ = init_tx.send(Ok(count));
+            // Don't read names() here - the device isn't connected yet.
+            // Filter count will be updated after connect() when we can actually
+            // read device properties.
+            let _ = init_tx.send(Ok(()));
+            tracing::info!("ASCOM FilterWheel COM object created for: {}", prog_id_clone);
 
             while let Some(cmd) = rx.blocking_recv() {
                 match cmd {
                     AscomFilterWheelCommand::Connect(reply) => {
-                        let _ = reply.send(fw.connect().map_err(|e| e.to_string()));
+                        let result = fw.connect().map_err(|e| e.to_string());
+                        let _ = reply.send(result.and_then(|()| {
+                            // Now that we're connected, read filter names to get count
+                            let names = fw.names().unwrap_or_default();
+                            let count = names.len() as i32;
+                            tracing::info!(
+                                "ASCOM FilterWheel connected with {} filters: {:?}",
+                                count,
+                                names
+                            );
+
+                            // Give the ASCOM driver a moment to settle, then
+                            // read initial position for diagnostic logging.
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                            match fw.position() {
+                                Ok(pos) => tracing::info!(
+                                    "[ASCOM FW] Post-connect initial position read: {}",
+                                    pos
+                                ),
+                                Err(e) => tracing::warn!(
+                                    "[ASCOM FW] Post-connect position read failed: {}",
+                                    e
+                                ),
+                            }
+
+                            Ok(count)
+                        }));
                     }
                     AscomFilterWheelCommand::Disconnect(reply) => {
                         let _ = reply.send(fw.disconnect().map_err(|e| e.to_string()));
@@ -91,7 +110,18 @@ impl AscomFilterWheelWrapper {
                         let _ = reply.send(fw.set_position(pos).map_err(|e| e.to_string()));
                     }
                     AscomFilterWheelCommand::GetPosition(reply) => {
-                        let _ = reply.send(fw.position().map_err(|e| e.to_string()));
+                        let result = fw.position().map_err(|e| e.to_string());
+                        match &result {
+                            Ok(pos) => tracing::info!(
+                                "[ASCOM FW] GetPosition returned position={}",
+                                pos
+                            ),
+                            Err(e) => tracing::error!(
+                                "[ASCOM FW] GetPosition failed: {}",
+                                e
+                            ),
+                        }
+                        let _ = reply.send(result);
                     }
                     AscomFilterWheelCommand::GetNames(reply) => {
                         let result = fw.names();
@@ -124,7 +154,7 @@ impl AscomFilterWheelWrapper {
         });
 
         // Wait for initialization
-        let count = init_rx
+        init_rx
             .recv()
             .map_err(|e| format!("Failed to receive init result: {}", e))??;
 
@@ -134,7 +164,7 @@ impl AscomFilterWheelWrapper {
             sender: tx,
             _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
-            filter_count: count,
+            filter_count: AtomicI32::new(0),
         })
     }
 
@@ -182,11 +212,16 @@ impl NativeDevice for AscomFilterWheelWrapper {
             .send(AscomFilterWheelCommand::Connect(tx))
             .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
-        let result = Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await;
-        if result.is_ok() {
-            self.connected.store(true, Ordering::SeqCst);
+        let result: Result<i32, NativeError> =
+            Self::recv_with_timeout(rx, Timeouts::connection(), "connect").await;
+        match result {
+            Ok(count) => {
+                self.connected.store(true, Ordering::SeqCst);
+                self.filter_count.store(count, Ordering::SeqCst);
+                Ok(())
+            }
+            Err(e) => Err(e),
         }
-        result
     }
 
     async fn disconnect(&mut self) -> Result<(), NativeError> {
@@ -231,7 +266,7 @@ impl NativeFilterWheel for AscomFilterWheelWrapper {
     }
 
     fn get_filter_count(&self) -> i32 {
-        self.filter_count
+        self.filter_count.load(Ordering::SeqCst)
     }
 
     async fn get_filter_names(&self) -> Result<Vec<String>, NativeError> {

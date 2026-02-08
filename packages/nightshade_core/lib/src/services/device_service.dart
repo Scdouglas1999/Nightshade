@@ -1259,31 +1259,83 @@ class DeviceService {
   Future<void> connectFilterWheel(String deviceId) async {
     final notifier = _ref.read(filterWheelStateProvider.notifier);
 
-    final devices = await discoverDevices(DeviceType.filterWheel);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Filter wheel not found: $deviceId'),
-    );
+    // Derive a friendly name from the device ID without running discovery.
+    // Discovery opens/closes hardware (e.g. ZWO EFW via native SDK) which
+    // can interfere with subsequent position reads.  The device manager will
+    // register the full DeviceInfo during api_connect_device anyway.
+    String deviceName = _friendlyNameFromId(deviceId);
 
-    notifier.setConnecting(deviceId, device.name);
+    notifier.setConnecting(deviceId, deviceName);
 
     try {
       await _backend.connectDevice(DeviceType.filterWheel, deviceId);
 
-      // Fetch current filter wheel status (position + names) from backend
-      final status = await _backend.getFilterWheelStatus(deviceId);
+      // Give the filter wheel firmware time to synchronise the actual
+      // encoder position after the USB/COM connection is established.
+      // Some SDKs (ZWO EFW, ASCOM wrappers) report position 0 or -1
+      // immediately after opening before the firmware has read the encoder.
+      // Poll up to 5 times over ~2.5 s to get a stable reading.
+      FilterWheelStatus status;
+      int pollAttempts = 0;
+      const maxPolls = 5;
+      const pollDelay = Duration(milliseconds: 500);
+
+      status = await _backend.getFilterWheelStatus(deviceId);
       debugPrint(
-          '[DeviceService] connectFilterWheel: backend returned ${status.filterNames.length} filter names: ${status.filterNames}');
+          '[DeviceService] connectFilterWheel poll #0: position=${status.position}, moving=${status.moving}');
+
+      // Keep polling while position is -1 (moving/initializing)
+      while (status.position < 0 && pollAttempts < maxPolls) {
+        pollAttempts++;
+        await Future.delayed(pollDelay);
+        status = await _backend.getFilterWheelStatus(deviceId);
+        debugPrint(
+            '[DeviceService] connectFilterWheel poll #$pollAttempts: position=${status.position}, moving=${status.moving}');
+      }
+
+      debugPrint(
+          '[DeviceService] connectFilterWheel: final status - ${status.filterNames.length} filter names: ${status.filterNames}, position: ${status.position}');
 
       notifier.setConnected(
         filterNames: status.filterNames,
       );
+      notifier.setDeviceName(deviceName);
       notifier.updatePosition(status.position);
       notifier.setMoving(status.moving);
     } catch (e) {
       notifier.setDisconnected();
       rethrow;
     }
+  }
+
+  /// Derive a human-readable name from a device ID without running discovery.
+  /// e.g. "native:zwo_efw:0" → "ZWO EFW 0"
+  ///      "ascom:ASCOM.EFWmini.FilterWheel" → "EFWmini FilterWheel"
+  String _friendlyNameFromId(String deviceId) {
+    if (deviceId.startsWith('native:zwo_efw:')) {
+      final hwId = deviceId.split(':').last;
+      return 'ZWO EFW $hwId';
+    }
+    if (deviceId.startsWith('native:qhy_cfw:')) {
+      final camId = deviceId.split(':').last;
+      return 'QHY CFW ($camId)';
+    }
+    if (deviceId.startsWith('native:fli_fw:')) {
+      return 'FLI Filter Wheel';
+    }
+    if (deviceId.startsWith('ascom:')) {
+      // "ascom:ASCOM.Vendor.FilterWheel" → keep last two segments
+      final progId = deviceId.substring(6); // strip "ascom:"
+      final parts = progId.split('.');
+      if (parts.length >= 2) {
+        return parts.sublist(1).join(' ');
+      }
+      return progId;
+    }
+    if (deviceId.startsWith('alpaca:')) {
+      return 'Alpaca Filter Wheel';
+    }
+    return deviceId;
   }
 
   /// Disconnect filter wheel
