@@ -622,7 +622,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     final childIds =
         (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
     final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
-    final isEnabled = json['isEnabled'] as bool? ?? false;
+    final isEnabled = json['isEnabled'] as bool? ?? true;
 
     switch (nodeType) {
       case 'targetheader':
@@ -642,11 +642,22 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         );
 
       case 'loop':
+        final loopCondition = _parseLoopType(json['conditionType']);
+        DateTime? repeatUntil;
+        if (json['repeatUntil'] != null) {
+          final millis = (json['repeatUntil'] as num).toInt();
+          repeatUntil = DateTime.fromMillisecondsSinceEpoch(millis);
+        }
         return LoopNode(
           id: id,
           name: name ?? 'Loop',
-          conditionType: _parseLoopType(json['conditionType']),
+          conditionType: loopCondition,
           repeatCount: (json['repeatCount'] as num?)?.toInt(),
+          repeatUntil: repeatUntil,
+          repeatUntilAltitude:
+              (json['repeatUntilAltitude'] as num?)?.toDouble(),
+          integrationTimeTarget:
+              (json['integrationTimeTarget'] as num?)?.toDouble(),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -682,6 +693,12 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           name: name ?? 'Recovery',
           recoveryAction: _parseRecoveryAction(json['recoveryAction']),
           maxRetries: (json['maxRetries'] as num?)?.toInt() ?? 3,
+          triggerType: _parseTriggerType(json['triggerType']),
+          triggerThreshold: (json['triggerThreshold'] as num?)?.toDouble(),
+          hfrThresholdPercent:
+              (json['hfrThresholdPercent'] as num?)?.toDouble() ?? 20.0,
+          hfrConsecutiveFrames:
+              (json['hfrConsecutiveFrames'] as num?)?.toInt() ?? 3,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -703,7 +720,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return SlewNode(
           id: id,
           name: name ?? 'Slew to Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
+          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
           customRa: (json['customRa'] as num?)?.toDouble(),
           customDec: (json['customDec'] as num?)?.toDouble(),
           parentId: parentId,
@@ -717,9 +734,13 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return CenterNode(
           id: id,
           name: name ?? 'Center Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
+          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          customRa: (json['customRa'] as num?)?.toDouble(),
+          customDec: (json['customDec'] as num?)?.toDouble(),
           accuracyArcsec: (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
           maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 5,
+          exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 5.0,
+          filter: json['filter'] as String?,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -769,6 +790,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           pixels: (json['pixels'] as num?)?.toDouble() ?? 5.0,
           settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 30.0,
+          settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 120.0,
+          raOnly: json['raOnly'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -782,7 +805,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
           settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 60.0,
-          autoSelectStar: json['autoSelectStar'] as bool? ?? false,
+          autoSelectStar: json['autoSelectStar'] as bool? ?? true,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -830,7 +853,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return WarmCameraNode(
           id: id,
           name: name ?? 'Warm Camera',
-          ratePerMin: (json['ratePerMin'] as num?)?.toDouble() ?? 5.0,
+          ratePerMin: (json['ratePerMin'] as num?)?.toDouble() ?? 2.0,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -861,11 +884,22 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
         return MeridianFlipNode(
           id: id,
           name: name ?? 'Meridian Flip',
+          triggerMethod: _parseMeridianTriggerMethod(
+              json['triggerMethod'] as String?),
           minutesPastMeridian:
               (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
-          pauseGuiding: json['pauseGuiding'] as bool? ?? false,
-          autoCenter: json['autoCenter'] as bool? ?? false,
+          minutesBeforeLimit:
+              (json['minutesBeforeLimit'] as num?)?.toDouble() ?? 10.0,
+          hourAngleThreshold:
+              (json['hourAngleThreshold'] as num?)?.toDouble() ?? 0.5,
+          pauseGuiding: json['pauseGuiding'] as bool? ?? true,
+          autoCenter: json['autoCenter'] as bool? ?? true,
+          refocusAfter: json['refocusAfter'] as bool? ?? false,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
+          resumeGuiding: json['resumeGuiding'] as bool? ?? true,
+          maxRetries: json['maxRetries'] as int? ?? 3,
+          failureAction: _parseFlipFailureAction(
+              json['failureAction'] as String?),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -890,6 +924,104 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
           title: json['title'] as String? ?? 'Notification',
           message: json['message'] as String? ?? '',
           level: _parseNotificationLevel(json['level']),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'waitfortime':
+      case 'waittime':
+        return WaitTimeNode(
+          id: id,
+          name: name ?? 'Wait for Time',
+          waitUntil: json['waitUntil'] != null
+              ? DateTime.tryParse(json['waitUntil'] as String)
+              : null,
+          waitForTwilight: _parseTwilightType(json['waitForTwilight']),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'moverotator':
+      case 'rotator':
+        return RotatorNode(
+          id: id,
+          name: name ?? 'Move Rotator',
+          targetAngle: (json['targetAngle'] as num?)?.toDouble() ?? 0.0,
+          relative: json['relative'] as bool? ?? false,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'runscript':
+      case 'script':
+        return ScriptNode(
+          id: id,
+          name: name ?? 'Run Script',
+          scriptPath: json['scriptPath'] as String? ?? '',
+          arguments: (json['arguments'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              const [],
+          timeoutSecs: (json['timeoutSecs'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'opendome':
+        return OpenDomeNode(
+          id: id,
+          name: name ?? 'Open Dome',
+          shutterOnly: json['shutterOnly'] as bool? ?? false,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'closedome':
+        return CloseDomeNode(
+          id: id,
+          name: name ?? 'Close Dome',
+          shutterOnly: json['shutterOnly'] as bool? ?? false,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'parkdome':
+        return ParkDomeNode(
+          id: id,
+          name: name ?? 'Park Dome',
+          shutterOnly: json['shutterOnly'] as bool? ?? false,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'polaralignment':
+        return PolarAlignmentNode(
+          id: id,
+          name: name ?? 'Polar Alignment',
+          exposureDuration:
+              (json['exposureDuration'] as num?)?.toDouble() ?? 2.0,
+          binning: (json['binning'] as num?)?.toInt() ?? 2,
+          startAltitude: (json['startAltitude'] as num?)?.toDouble() ?? 45.0,
+          rotationStep: (json['rotationStep'] as num?)?.toDouble() ?? 20.0,
+          gain: (json['gain'] as num?)?.toInt(),
+          offset: (json['offset'] as num?)?.toInt(),
+          startFromCurrent: json['startFromCurrent'] as bool? ?? true,
+          isNorth: json['isNorth'] as bool? ?? true,
+          manualSlew: json['manualSlew'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -936,6 +1068,15 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     );
   }
 
+  TriggerType? _parseTriggerType(dynamic value) {
+    if (value == null) return null;
+    final str = value.toString().toLowerCase();
+    return TriggerType.values.cast<TriggerType?>().firstWhere(
+      (e) => e?.name.toLowerCase() == str,
+      orElse: () => null,
+    );
+  }
+
   FrameType _parseFrameTypeForSnippet(dynamic value) {
     if (value == null) return FrameType.light;
     final str = value.toString().toLowerCase();
@@ -956,7 +1097,9 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
 
   AutofocusMethod _parseAutofocusMethodForSnippet(dynamic value) {
     if (value == null) return AutofocusMethod.vCurve;
-    final str = value.toString().toLowerCase();
+    var str = value.toString().toLowerCase();
+    // Backward compatibility: 'parabolic' was renamed to 'quadratic'
+    if (str == 'parabolic') str = 'quadratic';
     return AutofocusMethod.values.firstWhere(
       (e) => e.name.toLowerCase() == str,
       orElse: () => AutofocusMethod.vCurve,
@@ -969,6 +1112,33 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?> {
     return NotificationLevel.values.firstWhere(
       (e) => e.name.toLowerCase() == str,
       orElse: () => NotificationLevel.info,
+    );
+  }
+
+  MeridianTriggerMethod _parseMeridianTriggerMethod(dynamic value) {
+    if (value == null) return MeridianTriggerMethod.minutesPastMeridian;
+    final str = value.toString().toLowerCase();
+    return MeridianTriggerMethod.values.firstWhere(
+      (e) => e.name.toLowerCase() == str,
+      orElse: () => MeridianTriggerMethod.minutesPastMeridian,
+    );
+  }
+
+  TwilightType? _parseTwilightType(dynamic value) {
+    if (value == null) return null;
+    final str = value.toString().toLowerCase();
+    return TwilightType.values.cast<TwilightType?>().firstWhere(
+      (e) => e?.name.toLowerCase() == str,
+      orElse: () => null,
+    );
+  }
+
+  FlipFailureAction _parseFlipFailureAction(dynamic value) {
+    if (value == null) return FlipFailureAction.pauseAndAlert;
+    final str = value.toString().toLowerCase();
+    return FlipFailureAction.values.firstWhere(
+      (e) => e.name.toLowerCase() == str,
+      orElse: () => FlipFailureAction.pauseAndAlert,
     );
   }
 
@@ -1496,10 +1666,12 @@ class SequenceExecutor {
       return {
         'type': 'CenterTarget',
         'use_target_coords': node.useTargetCoords,
+        'custom_ra': node.customRa,
+        'custom_dec': node.customDec,
         'accuracy_arcsec': node.accuracyArcsec,
         'max_attempts': node.maxAttempts,
-        'exposure_duration': 3.0, // Default exposure for centering
-        'filter': null,
+        'exposure_duration': node.exposureDuration,
+        'filter': node.filter,
       };
     } else if (node is AutofocusNode) {
       return {
@@ -1517,8 +1689,8 @@ class SequenceExecutor {
         'pixels': node.pixels,
         'settle_pixels': node.settlePixels,
         'settle_time': node.settleTime,
-        'settle_timeout': 60.0, // Default timeout
-        'ra_only': false, // Default to both axes
+        'settle_timeout': node.settleTimeout,
+        'ra_only': node.raOnly,
       };
     } else if (node is StartGuidingNode) {
       return {
@@ -1563,7 +1735,10 @@ class SequenceExecutor {
     } else if (node is WaitTimeNode) {
       return {
         'type': 'WaitForTime',
-        'wait_until': node.waitUntil?.millisecondsSinceEpoch,
+        // Rust expects Unix timestamp in seconds, not milliseconds
+        'wait_until': node.waitUntil != null
+            ? node.waitUntil!.millisecondsSinceEpoch ~/ 1000
+            : null,
         'wait_for_twilight': node.waitForTwilight != null
             ? _twilightToString(node.waitForTwilight!)
             : null,
@@ -1597,8 +1772,13 @@ class SequenceExecutor {
         'min_altitude': node.minAltitude,
         'max_altitude': node.maxAltitude,
         'priority': node.priority,
-        'start_after': node.startAfter?.millisecondsSinceEpoch,
-        'end_before': node.endBefore?.millisecondsSinceEpoch,
+        // Rust expects Unix timestamp in seconds, not milliseconds
+        'start_after': node.startAfter != null
+            ? node.startAfter!.millisecondsSinceEpoch ~/ 1000
+            : null,
+        'end_before': node.endBefore != null
+            ? node.endBefore!.millisecondsSinceEpoch ~/ 1000
+            : null,
         'mosaic_panel': node.mosaicPanel?.toJson(),
       };
     } else if (node is InstructionSetNode) {
@@ -1617,10 +1797,17 @@ class SequenceExecutor {
           conditionValue = node.repeatCount;
           break;
         case LoopConditionType.untilTime:
-          conditionValue = node.repeatUntil?.millisecondsSinceEpoch;
+          // Rust expects Unix timestamp in seconds, not milliseconds
+          conditionValue = node.repeatUntil != null
+              ? node.repeatUntil!.millisecondsSinceEpoch ~/ 1000
+              : null;
           break;
         case LoopConditionType.untilAltitude:
+        case LoopConditionType.altitudeAbove:
           conditionValue = node.repeatUntilAltitude;
+          break;
+        case LoopConditionType.integrationTime:
+          conditionValue = node.integrationTimeTarget;
           break;
         case LoopConditionType.forever:
         case LoopConditionType.whileDark:
@@ -1665,19 +1852,97 @@ class SequenceExecutor {
         },
       };
     } else if (node is RecoveryNode) {
+      // Build the trigger config for the native side
+      Map<String, dynamic>? triggerConfig;
+      if (node.triggerType != null) {
+        switch (node.triggerType!) {
+          case TriggerType.hfrDegraded:
+            triggerConfig = {
+              'HfrDegraded': {
+                'threshold_percent': node.hfrThresholdPercent,
+                'absolute_threshold': node.triggerThreshold ?? 0.0,
+                'consecutive_frames': node.hfrConsecutiveFrames,
+              },
+            };
+            break;
+          case TriggerType.altitudeLimit:
+            triggerConfig = {
+              'AltitudeLimit': {
+                'min_altitude': node.triggerThreshold ?? 30.0,
+              },
+            };
+            break;
+          case TriggerType.guidingFailed:
+            triggerConfig = {
+              'GuidingFailed': {
+                'rms_threshold': node.triggerThreshold ?? 2.0,
+                'duration_secs': 30.0,
+              },
+            };
+            break;
+          case TriggerType.weatherUnsafe:
+            triggerConfig = {'WeatherUnsafe': null};
+            break;
+          case TriggerType.temperatureShift:
+            triggerConfig = {
+              'TemperatureShift': {
+                'degrees': node.triggerThreshold ?? 2.0,
+              },
+            };
+            break;
+          case TriggerType.meridianFlip:
+            triggerConfig = {
+              'MeridianFlip': {
+                'config': {
+                  'trigger_method': 'MinutesPastMeridian',
+                  'minutes_past_meridian': 5.0,
+                  'minutes_before_limit': 10.0,
+                  'hour_angle_threshold': 0.5,
+                  'pause_guiding': true,
+                  'auto_center': true,
+                  'refocus_after': false,
+                  'settle_time': 10.0,
+                  'resume_guiding': true,
+                  'max_retries': 3,
+                  'retry_delays_secs': [30.0, 60.0, 120.0],
+                  'failure_action': 'PauseAndAlert',
+                },
+              },
+            };
+            break;
+          case TriggerType.filterChange:
+            triggerConfig = {'FilterChange': null};
+            break;
+          case TriggerType.dawnApproaching:
+            triggerConfig = {
+              'DawnApproaching': {
+                'minutes_before': node.triggerThreshold ?? 30.0,
+              },
+            };
+            break;
+        }
+      }
       return {
         'type': 'Recovery',
-        'trigger': null,
+        'trigger': triggerConfig,
         'recovery_action': _recoveryActionToString(node.recoveryAction),
         'max_retries': node.maxRetries,
       };
     } else if (node is MeridianFlipNode) {
       return {
         'type': 'MeridianFlip',
+        'trigger_method': _meridianTriggerMethodToString(node.triggerMethod),
         'minutes_past_meridian': node.minutesPastMeridian,
+        'minutes_before_limit': node.minutesBeforeLimit,
+        'hour_angle_threshold': node.hourAngleThreshold,
         'pause_guiding': node.pauseGuiding,
         'auto_center': node.autoCenter,
+        'refocus_after': node.refocusAfter,
         'settle_time': node.settleTime,
+        'resume_guiding': node.resumeGuiding,
+        'max_retries': node.maxRetries,
+        'retry_delays_secs': [30.0, 60.0, 120.0],
+        'failure_action': _flipFailureActionToString(node.failureAction),
       };
     } else if (node is OpenDomeNode) {
       return {
@@ -1730,8 +1995,8 @@ class SequenceExecutor {
         return 'VCurve';
       case AutofocusMethod.hyperbolic:
         return 'Hyperbolic';
-      case AutofocusMethod.parabolic:
-        return 'Parabolic';
+      case AutofocusMethod.quadratic:
+        return 'Quadratic';
     }
   }
 
@@ -1767,6 +2032,10 @@ class SequenceExecutor {
         return 'UntilTime';
       case LoopConditionType.untilAltitude:
         return 'AltitudeBelow';
+      case LoopConditionType.altitudeAbove:
+        return 'AltitudeAbove';
+      case LoopConditionType.integrationTime:
+        return 'IntegrationTime';
       case LoopConditionType.forever:
         return 'Forever';
       case LoopConditionType.whileDark:
@@ -1811,6 +2080,26 @@ class SequenceExecutor {
         return 'ParkAndAbort';
       case RecoveryActionType.customBranch:
         return 'CustomBranch';
+    }
+  }
+
+  String _meridianTriggerMethodToString(MeridianTriggerMethod method) {
+    switch (method) {
+      case MeridianTriggerMethod.minutesPastMeridian:
+        return 'MinutesPastMeridian';
+      case MeridianTriggerMethod.minutesBeforeLimit:
+        return 'MinutesBeforeLimit';
+      case MeridianTriggerMethod.hourAngleThreshold:
+        return 'HourAngleThreshold';
+    }
+  }
+
+  String _flipFailureActionToString(FlipFailureAction action) {
+    switch (action) {
+      case FlipFailureAction.pauseAndAlert:
+        return 'PauseAndAlert';
+      case FlipFailureAction.abortAndPark:
+        return 'AbortAndPark';
     }
   }
 
@@ -2075,12 +2364,19 @@ class SequenceExecutor {
             ? rotatorState.deviceId
             : null;
 
+    // Get filter focus offsets from the active equipment profile
+    final activeProfile = _ref.read(activeEquipmentProfileProvider);
+    final filterFocusOffsets = activeProfile?.filterFocusOffsets;
+
     await backend.sequencerSetDevices(
       cameraId: cameraId,
       mountId: mountId,
       focuserId: focuserId,
       filterwheelId: filterwheelId,
       rotatorId: rotatorId,
+      filterFocusOffsets: (filterFocusOffsets != null && filterFocusOffsets.isNotEmpty)
+          ? filterFocusOffsets
+          : null,
     );
 
     // Convert sequence to JSON and load into native executor via backend
@@ -3083,6 +3379,27 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
             exposureDuration: defaults.autofocusExposureDuration,
           ),
         ),
+        NodePaletteItem(
+          name: 'HFR Triggered AF',
+          icon: 'shield-check',
+          description: 'Auto-refocus when HFR degrades above threshold',
+          createNode: () => RecoveryNode(
+            name: 'HFR Triggered AF',
+            recoveryAction: RecoveryActionType.autofocus,
+            maxRetries: 3,
+            triggerType: TriggerType.hfrDegraded,
+            triggerThreshold: 0.0,
+            hfrThresholdPercent: 20.0,
+            hfrConsecutiveFrames: 3,
+          ),
+          createChildren: () => [
+            AutofocusNode(
+              stepSize: defaults.autofocusStepSize,
+              stepsOut: defaults.autofocusStepsOut,
+              exposureDuration: defaults.autofocusExposureDuration,
+            ),
+          ],
+        ),
       ],
     ),
     NodePaletteCategory(
@@ -3202,10 +3519,15 @@ class NodePaletteItem {
   final String description;
   final SequenceNode Function() createNode;
 
+  /// Optional callback that returns child nodes to be added inside the parent.
+  /// Each child will be added with the parent node as its parent.
+  final List<SequenceNode> Function()? createChildren;
+
   NodePaletteItem({
     required this.name,
     required this.icon,
     required this.description,
     required this.createNode,
+    this.createChildren,
   });
 }

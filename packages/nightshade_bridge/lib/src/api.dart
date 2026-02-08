@@ -12,7 +12,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'state.dart';
 import 'storage.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `compute_quality_maps_from_linear_data`, `display_data_to_rgba`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median`, `percentile_sorted`, `percentile`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_polar_alignment`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
+// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `calculate_rotation_center`, `compute_quality_maps_from_linear_data`, `device_info_from_id`, `display_data_to_rgba`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_discovery_cache`, `get_discovery_lock`, `get_polar_align_cancel`, `get_polar_align_flag`, `get_qhy_discovery_timeout_ms`, `get_sequence_executor`, `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median`, `percentile_sorted`, `percentile`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_polar_alignment`, `store_captured_image_atomically`, `write_temp_fits_for_solve`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `DiscoveryCache`, `RawImageInfo`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`, `get_device_manager`, `get_last_raw_image_info`, `get_phd2_storage`, `get_sim_focuser`, `get_sim_rotator`, `get_state`
@@ -113,6 +113,12 @@ Future<void> apiConnectDevice(
         {required DeviceType deviceType, required String deviceId}) =>
     RustLib.instance.api
         .crateApiApiConnectDevice(deviceType: deviceType, deviceId: deviceId);
+
+/// Get the display name for a device that's already registered in the device manager.
+/// Returns None if the device isn't registered.
+/// This avoids running a full discovery just to resolve a device name.
+Future<String?> apiGetDeviceDisplayName({required String deviceId}) =>
+    RustLib.instance.api.crateApiApiGetDeviceDisplayName(deviceId: deviceId);
 
 /// Disconnect from a device
 Future<void> apiDisconnectDevice(
@@ -1155,14 +1161,16 @@ Future<void> apiSequencerSetDevices(
         String? focuserId,
         String? filterwheelId,
         String? rotatorId,
-        List<String>? filterNames}) =>
+        List<String>? filterNames,
+        Map<String, int>? filterFocusOffsets}) =>
     RustLib.instance.api.crateApiApiSequencerSetDevices(
         cameraId: cameraId,
         mountId: mountId,
         focuserId: focuserId,
         filterwheelId: filterwheelId,
         rotatorId: rotatorId,
-        filterNames: filterNames);
+        filterNames: filterNames,
+        filterFocusOffsets: filterFocusOffsets);
 
 /// Set the safety fail mode for the sequencer.
 /// This determines behavior when safety devices fail or are unavailable:

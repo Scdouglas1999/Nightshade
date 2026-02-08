@@ -12,7 +12,7 @@ Errors are a feature. Silent fallbacks hide bugs for months. Letting a bug slip 
 
 Nightshade 2.0 is a cross-platform astrophotography suite built with Flutter (Dart) and Rust. It provides imaging sequencing, device control, and sky visualization for Windows, macOS, Linux desktops, and iOS/Android mobile platforms.
 
-**Current Version:** 2.0.0 (see `version.yaml` for single source of truth)
+**Current Version:** 2.5.0 (see `version.yaml` for single source of truth)
 
 ## Build Commands
 
@@ -25,6 +25,11 @@ melos bootstrap
 # Code quality
 melos run analyze    # Run dart analyze in all packages
 melos run format     # Format all packages
+
+# Production quality gates
+melos run analyze:production    # Analyzer rollup with zero-error gate
+melos run audit:placeholders   # Scan for placeholder/stub markers
+melos run audit:fail-closed    # Enforce fail-closed backend policy
 
 # Testing
 melos run test       # Run flutter test in all packages
@@ -185,8 +190,8 @@ docs/               # Documentation
 
 **State Management**: Riverpod providers throughout. Provider hierarchy:
 - Backend provider (FfiBackend for local Rust, NetworkBackend for remote, DisconnectedBackend for offline)
-- Database provider (Drift SQLite instance, schema version 5)
-- Equipment/Imaging/Sequence/Settings providers (23+ provider files)
+- Database provider (Drift SQLite instance, schema version 14)
+- Equipment/Imaging/Sequence/Settings providers (35+ provider files)
 - Session management with checkpoint recovery
 
 **FFI Boundary**: Dart ↔ Rust via flutter_rust_bridge 2.11.1. Bindings auto-generated from `native/nightshade_native/bridge/src/lib.rs`.
@@ -196,14 +201,15 @@ docs/               # Documentation
 **Database**: Drift ORM with SQLite. Tables:
 - equipment_profiles, targets, imaging_sessions, captured_images, image_metadata
 - sequences, sequence_nodes, sequence_checkpoints
-- app_settings, weather_settings
+- app_settings, weather_settings, flat_history, tutorial_progress, polar_alignment_history
+- Science tables: science_session_config, photometry_measurements, frame_photometric_calibration, transparency_samples, psf_field_tiles, science_frame_quality_metrics, science_tile_metrics, astrometry_residual_vectors, moving_object_candidates, line_ratio_products
 
 **Sequencer**: Rust behavior tree with three node types:
 - Instruction nodes (hardware actions: expose, slew, autofocus, filter change, etc.)
 - Trigger nodes (parallel watchdogs: HFR monitor, guiding monitor, time triggers)
 - Logic nodes (flow control: loop, parallel, conditional, recovery)
 
-**Services** (23 service classes):
+**Services**:
 - DeviceService, ImagingService, SessionService, ProfileService
 - PlateSolveService, CenteringService, FocusModelService
 - WeatherRadarService, WeatherAlertService, CloudMotionAnalyzer

@@ -14,7 +14,7 @@ import 'snackbar_helper.dart';
 Future<void> connectPhd2(WidgetRef ref, {BuildContext? context}) async {
   try {
     final settings = await ref.read(appSettingsProvider.future);
-    ref.read(phd2ControllerProvider).connect(
+    await ref.read(phd2ControllerProvider).connect(
       settings.phd2Host,
       settings.phd2Port,
     );

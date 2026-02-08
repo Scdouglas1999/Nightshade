@@ -163,6 +163,8 @@ pub struct SequenceExecutor {
     current_checkpoint: Option<crate::checkpoint::SessionCheckpoint>,
     /// Safety fail mode - determines behavior when safety devices fail or are unavailable
     pub safety_fail_mode: SafetyFailMode,
+    /// Filter focus offsets from equipment profile (filter_name -> offset_steps)
+    pub filter_focus_offsets: std::collections::HashMap<String, i32>,
 }
 
 impl SequenceExecutor {
@@ -195,6 +197,7 @@ impl SequenceExecutor {
             checkpoint_manager: None,
             current_checkpoint: None,
             safety_fail_mode: SafetyFailMode::default(),
+            filter_focus_offsets: std::collections::HashMap::new(),
         }
     }
 
@@ -270,6 +273,11 @@ impl SequenceExecutor {
     pub fn set_location(&mut self, lat: Option<f64>, lon: Option<f64>) {
         self.latitude = lat;
         self.longitude = lon;
+    }
+
+    /// Set filter focus offsets from equipment profile
+    pub fn set_filter_focus_offsets(&mut self, offsets: std::collections::HashMap<String, i32>) {
+        self.filter_focus_offsets = offsets;
     }
 
     /// Subscribe to executor events
@@ -635,6 +643,7 @@ impl SequenceExecutor {
         let trigger_manager = self.trigger_manager.clone();
         let triggers_enabled = self.triggers_enabled;
         let safety_fail_mode = self.safety_fail_mode;
+        let filter_focus_offsets = self.filter_focus_offsets.clone();
 
         // Create shared pause state for context
         let is_paused = Arc::new(AtomicBool::new(false));
@@ -669,6 +678,7 @@ impl SequenceExecutor {
             context.latitude = latitude;
             context.longitude = longitude;
             context.safety_fail_mode = safety_fail_mode;
+            context.filter_focus_offsets = filter_focus_offsets;
             // Set trigger state for HFR tracking and exposure counts
             context.trigger_state = Some(trigger_manager.read().await.state());
 
@@ -1147,6 +1157,7 @@ impl SequenceExecutor {
                                             longitude: None,
                                             device_ops: device_ops_for_triggers.clone(),
                                             trigger_state: Some(trigger_state_for_actions.clone()),
+                                            filter_focus_offsets: std::collections::HashMap::new(),
                                         };
 
                                         let af_result = crate::instructions::execute_autofocus(

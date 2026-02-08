@@ -34,6 +34,9 @@ class EquipmentProfiles extends Table {
   RealColumn get defaultCoolingTemp => real().nullable()();
   BoolColumn get coolOnConnect => boolean().withDefault(const Constant(false))();
 
+  // Centering/plate-solve exposure default (seconds)
+  RealColumn get defaultCenteringExposure => real().nullable()();
+
   // Filter configuration (JSON array of filter names)
   TextColumn get filterNames => text().nullable()();
   // Filter focus offsets (JSON object mapping filter name to offset)

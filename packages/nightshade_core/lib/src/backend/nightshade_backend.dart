@@ -380,6 +380,7 @@ abstract class NightshadeBackend {
     String? filterwheelId,
     String? rotatorId,
     List<String>? filterNames,
+    Map<String, int>? filterFocusOffsets,
   });
 
   /// Set the safety fail mode for the sequencer.

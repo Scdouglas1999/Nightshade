@@ -222,6 +222,9 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Sync snapshot exposure defaults from the active equipment profile
+    ref.watch(syncExposureFromProfileProvider);
+
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final selectedPanel = ref.watch(selectedImagingPanelProvider);
     final annotationSettings = ref.watch(annotationSettingsProvider);
@@ -799,25 +802,28 @@ class _LivePreviewArea extends ConsumerWidget {
       currentImage: currentImage,
     );
 
-    final sessionPsfTiles = sessionId == null
-        ? const <PsfFieldTileRow>[]
-        : ref.watch(sessionPsfTilesProvider(sessionId)).valueOrNull ??
+    final sessionPsfTiles = sessionId != null
+        ? ref.watch(sessionPsfTilesProvider(sessionId)).valueOrNull ??
+            const <PsfFieldTileRow>[]
+        : ref.watch(sessionlessPsfTilesProvider).valueOrNull ??
             const <PsfFieldTileRow>[];
     final psfTiles = _selectCurrentFramePsfTiles(
       sessionTiles: sessionPsfTiles,
       capturedImageId: currentFrameImageId,
     );
-    final sessionResidualVectors = sessionId == null
-        ? const <AstrometryResidualVectorRow>[]
-        : ref.watch(sessionResidualVectorsProvider(sessionId)).valueOrNull ??
+    final sessionResidualVectors = sessionId != null
+        ? ref.watch(sessionResidualVectorsProvider(sessionId)).valueOrNull ??
+            const <AstrometryResidualVectorRow>[]
+        : ref.watch(sessionlessResidualVectorsProvider).valueOrNull ??
             const <AstrometryResidualVectorRow>[];
     final residualVectors = _selectCurrentFrameResidualVectors(
       sessionVectors: sessionResidualVectors,
       capturedImageId: currentFrameImageId,
     );
-    final sessionTileMetrics = sessionId == null
-        ? const <ScienceTileMetricRow>[]
-        : ref.watch(sessionTileMetricsProvider(sessionId)).valueOrNull ??
+    final sessionTileMetrics = sessionId != null
+        ? ref.watch(sessionTileMetricsProvider(sessionId)).valueOrNull ??
+            const <ScienceTileMetricRow>[]
+        : ref.watch(sessionlessTileMetricsProvider).valueOrNull ??
             const <ScienceTileMetricRow>[];
     final currentFrameTileMetrics = _selectCurrentFrameTileMetrics(
       sessionTiles: sessionTileMetrics,

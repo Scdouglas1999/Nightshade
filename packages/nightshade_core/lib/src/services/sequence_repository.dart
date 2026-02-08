@@ -95,7 +95,8 @@ class SequenceRepository {
   }
 
   String _getNodeCategory(SequenceNode node) {
-    if (node is TargetGroupNode ||
+    if (node is TargetHeaderNode ||
+        node is InstructionSetNode ||
         node is LoopNode ||
         node is ParallelNode ||
         node is ConditionalNode ||
@@ -190,6 +191,7 @@ class SequenceRepository {
 
     switch (dbNode.specificType) {
       case 'exposure':
+      case 'TakeExposure':
         return ExposureNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -207,10 +209,11 @@ class SequenceRepository {
         );
 
       case 'slew':
+      case 'SlewToTarget':
         return SlewNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          useTargetCoords: props['useTargetCoords'] as bool? ?? false,
+          useTargetCoords: props['useTargetCoords'] as bool? ?? true,
           customRa: (props['customRa'] as num?)?.toDouble(),
           customDec: (props['customDec'] as num?)?.toDouble(),
           parentId: dbNode.parentNodeId,
@@ -219,18 +222,26 @@ class SequenceRepository {
         );
 
       case 'center':
+      case 'CenterTarget':
         return CenterNode(
           id: dbNode.nodeId,
           name: dbNode.name,
-          useTargetCoords: props['useTargetCoords'] as bool? ?? false,
-          accuracyArcsec: (props['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
+          useTargetCoords: props['useTargetCoords'] as bool? ?? true,
+          customRa: (props['customRa'] as num?)?.toDouble(),
+          customDec: (props['customDec'] as num?)?.toDouble(),
+          accuracyArcsec:
+              (props['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
           maxAttempts: (props['maxAttempts'] as num?)?.toInt() ?? 5,
+          exposureDuration:
+              (props['exposureDuration'] as num?)?.toDouble() ?? 5.0,
+          filter: props['filter'] as String?,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
 
       case 'autofocus':
+      case 'Autofocus':
         return AutofocusNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -245,18 +256,23 @@ class SequenceRepository {
         );
 
       case 'dither':
+      case 'Dither':
         return DitherNode(
           id: dbNode.nodeId,
           name: dbNode.name,
           pixels: (props['pixels'] as num?)?.toDouble() ?? 5.0,
           settlePixels: (props['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (props['settleTime'] as num?)?.toDouble() ?? 30.0,
+          settleTimeout:
+              (props['settleTimeout'] as num?)?.toDouble() ?? 120.0,
+          raOnly: props['raOnly'] as bool? ?? false,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
 
       case 'filterChange':
+      case 'ChangeFilter':
         return FilterChangeNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -268,6 +284,7 @@ class SequenceRepository {
         );
 
       case 'coolCamera':
+      case 'CoolCamera':
         return CoolCameraNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -279,6 +296,7 @@ class SequenceRepository {
         );
 
       case 'warmCamera':
+      case 'WarmCamera':
         return WarmCameraNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -289,6 +307,7 @@ class SequenceRepository {
         );
 
       case 'rotator':
+      case 'MoveRotator':
         return RotatorNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -300,6 +319,7 @@ class SequenceRepository {
         );
 
       case 'park':
+      case 'Park':
         return ParkNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -309,6 +329,7 @@ class SequenceRepository {
         );
 
       case 'unpark':
+      case 'Unpark':
         return UnparkNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -318,6 +339,7 @@ class SequenceRepository {
         );
 
       case 'waitTime':
+      case 'WaitForTime':
         return WaitTimeNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -332,6 +354,7 @@ class SequenceRepository {
         );
 
       case 'delay':
+      case 'Delay':
         return DelayNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -342,6 +365,7 @@ class SequenceRepository {
         );
 
       case 'notification':
+      case 'Notification':
         return NotificationNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -354,6 +378,7 @@ class SequenceRepository {
         );
 
       case 'script':
+      case 'RunScript':
         return ScriptNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -367,7 +392,8 @@ class SequenceRepository {
         );
 
       case 'targetGroup':
-        return TargetGroupNode(
+      case 'TargetHeader':
+        return TargetHeaderNode(
           id: dbNode.nodeId,
           name: dbNode.name,
           targetName: props['targetName'] as String? ?? '',
@@ -377,12 +403,19 @@ class SequenceRepository {
           minAltitude: (props['minAltitude'] as num?)?.toDouble(),
           maxAltitude: (props['maxAltitude'] as num?)?.toDouble(),
           priority: (props['priority'] as num?)?.toInt() ?? 0,
+          startAfter: props['startAfter'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(props['startAfter'] as int)
+              : null,
+          endBefore: props['endBefore'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(props['endBefore'] as int)
+              : null,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
 
       case 'loop':
+      case 'Loop':
         return LoopNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -394,12 +427,15 @@ class SequenceRepository {
               : null,
           repeatUntilAltitude:
               (props['repeatUntilAltitude'] as num?)?.toDouble(),
+          integrationTimeTarget:
+              (props['integrationTimeTarget'] as num?)?.toDouble(),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
         );
 
       case 'parallel':
+      case 'Parallel':
         return ParallelNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -410,6 +446,7 @@ class SequenceRepository {
         );
 
       case 'conditional':
+      case 'Conditional':
         return ConditionalNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -426,12 +463,135 @@ class SequenceRepository {
         );
 
       case 'recovery':
+      case 'Recovery':
         return RecoveryNode(
           id: dbNode.nodeId,
           name: dbNode.name,
           recoveryAction:
               _stringToRecoveryAction(props['recoveryAction'] as String?),
           maxRetries: (props['maxRetries'] as num?)?.toInt() ?? 3,
+          triggerType: _stringToTriggerType(props['triggerType'] as String?),
+          triggerThreshold: (props['triggerThreshold'] as num?)?.toDouble(),
+          hfrThresholdPercent:
+              (props['hfrThresholdPercent'] as num?)?.toDouble() ?? 20.0,
+          hfrConsecutiveFrames:
+              (props['hfrConsecutiveFrames'] as num?)?.toInt() ?? 3,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+        );
+
+      case 'startGuiding':
+      case 'StartGuiding':
+        return StartGuidingNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          settlePixels: (props['settlePixels'] as num?)?.toDouble() ?? 1.5,
+          settleTime: (props['settleTime'] as num?)?.toDouble() ?? 10.0,
+          settleTimeout:
+              (props['settleTimeout'] as num?)?.toDouble() ?? 60.0,
+          autoSelectStar: props['autoSelectStar'] as bool? ?? true,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+        );
+
+      case 'stopGuiding':
+      case 'StopGuiding':
+        return StopGuidingNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+        );
+
+      case 'meridianFlip':
+      case 'MeridianFlip':
+        return MeridianFlipNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          triggerMethod: _stringToMeridianTriggerMethod(
+              props['triggerMethod'] as String?),
+          minutesPastMeridian:
+              (props['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
+          minutesBeforeLimit:
+              (props['minutesBeforeLimit'] as num?)?.toDouble() ?? 10.0,
+          hourAngleThreshold:
+              (props['hourAngleThreshold'] as num?)?.toDouble() ?? 0.5,
+          pauseGuiding: props['pauseGuiding'] as bool? ?? true,
+          autoCenter: props['autoCenter'] as bool? ?? true,
+          refocusAfter: props['refocusAfter'] as bool? ?? false,
+          settleTime: (props['settleTime'] as num?)?.toDouble() ?? 10.0,
+          resumeGuiding: props['resumeGuiding'] as bool? ?? true,
+          maxRetries: (props['maxRetries'] as num?)?.toInt() ?? 3,
+          failureAction: _stringToFlipFailureAction(
+              props['failureAction'] as String?),
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+        );
+
+      case 'openDome':
+      case 'OpenDome':
+        return OpenDomeNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          shutterOnly: props['shutterOnly'] as bool? ?? false,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+        );
+
+      case 'closeDome':
+      case 'CloseDome':
+        return CloseDomeNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          shutterOnly: props['shutterOnly'] as bool? ?? false,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+        );
+
+      case 'parkDome':
+      case 'ParkDome':
+        return ParkDomeNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          shutterOnly: props['shutterOnly'] as bool? ?? false,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+        );
+
+      case 'polarAlignment':
+      case 'PolarAlignment':
+        return PolarAlignmentNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          exposureDuration:
+              (props['exposureDuration'] as num?)?.toDouble() ?? 2.0,
+          binning: (props['binning'] as num?)?.toInt() ?? 2,
+          startAltitude:
+              (props['startAltitude'] as num?)?.toDouble() ?? 45.0,
+          rotationStep:
+              (props['rotationStep'] as num?)?.toDouble() ?? 20.0,
+          gain: (props['gain'] as num?)?.toInt(),
+          offset: (props['offset'] as num?)?.toInt(),
+          startFromCurrent: props['startFromCurrent'] as bool? ?? true,
+          isNorth: props['isNorth'] as bool? ?? true,
+          manualSlew: props['manualSlew'] as bool? ?? false,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+        );
+
+      case 'instructionSet':
+      case 'InstructionSet':
+        return InstructionSetNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -463,8 +623,12 @@ class SequenceRepository {
     } else if (node is CenterNode) {
       return {
         'useTargetCoords': node.useTargetCoords,
+        'customRa': node.customRa,
+        'customDec': node.customDec,
         'accuracyArcsec': node.accuracyArcsec,
         'maxAttempts': node.maxAttempts,
+        'exposureDuration': node.exposureDuration,
+        'filter': node.filter,
       };
     } else if (node is AutofocusNode) {
       return {
@@ -478,6 +642,8 @@ class SequenceRepository {
         'pixels': node.pixels,
         'settlePixels': node.settlePixels,
         'settleTime': node.settleTime,
+        'settleTimeout': node.settleTimeout,
+        'raOnly': node.raOnly,
       };
     } else if (node is FilterChangeNode) {
       return {
@@ -521,7 +687,7 @@ class SequenceRepository {
         'arguments': node.arguments,
         'timeoutSecs': node.timeoutSecs,
       };
-    } else if (node is TargetGroupNode) {
+    } else if (node is TargetHeaderNode) {
       return {
         'targetName': node.targetName,
         'raHours': node.raHours,
@@ -530,6 +696,8 @@ class SequenceRepository {
         'minAltitude': node.minAltitude,
         'maxAltitude': node.maxAltitude,
         'priority': node.priority,
+        'startAfter': node.startAfter?.millisecondsSinceEpoch,
+        'endBefore': node.endBefore?.millisecondsSinceEpoch,
       };
     } else if (node is LoopNode) {
       return {
@@ -537,6 +705,7 @@ class SequenceRepository {
         'repeatCount': node.repeatCount,
         'repeatUntil': node.repeatUntil?.millisecondsSinceEpoch,
         'repeatUntilAltitude': node.repeatUntilAltitude,
+        'integrationTimeTarget': node.integrationTimeTarget,
       };
     } else if (node is ParallelNode) {
       return {
@@ -552,6 +721,55 @@ class SequenceRepository {
       return {
         'recoveryAction': _recoveryActionToString(node.recoveryAction),
         'maxRetries': node.maxRetries,
+        'triggerType': node.triggerType?.name,
+        'triggerThreshold': node.triggerThreshold,
+        'hfrThresholdPercent': node.hfrThresholdPercent,
+        'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
+      };
+    } else if (node is MeridianFlipNode) {
+      return {
+        'triggerMethod': node.triggerMethod.name,
+        'minutesPastMeridian': node.minutesPastMeridian,
+        'minutesBeforeLimit': node.minutesBeforeLimit,
+        'hourAngleThreshold': node.hourAngleThreshold,
+        'pauseGuiding': node.pauseGuiding,
+        'autoCenter': node.autoCenter,
+        'refocusAfter': node.refocusAfter,
+        'settleTime': node.settleTime,
+        'resumeGuiding': node.resumeGuiding,
+        'maxRetries': node.maxRetries,
+        'failureAction': node.failureAction.name,
+      };
+    } else if (node is OpenDomeNode) {
+      return {
+        'shutterOnly': node.shutterOnly,
+      };
+    } else if (node is CloseDomeNode) {
+      return {
+        'shutterOnly': node.shutterOnly,
+      };
+    } else if (node is ParkDomeNode) {
+      return {
+        'shutterOnly': node.shutterOnly,
+      };
+    } else if (node is StartGuidingNode) {
+      return {
+        'settlePixels': node.settlePixels,
+        'settleTime': node.settleTime,
+        'settleTimeout': node.settleTimeout,
+        'autoSelectStar': node.autoSelectStar,
+      };
+    } else if (node is PolarAlignmentNode) {
+      return {
+        'exposureDuration': node.exposureDuration,
+        'binning': node.binning,
+        'startAltitude': node.startAltitude,
+        'rotationStep': node.rotationStep,
+        'gain': node.gain,
+        'offset': node.offset,
+        'startFromCurrent': node.startFromCurrent,
+        'isNorth': node.isNorth,
+        'manualSlew': node.manualSlew,
       };
     }
     return {};
@@ -590,8 +808,8 @@ class SequenceRepository {
         return 'vCurve';
       case AutofocusMethod.hyperbolic:
         return 'hyperbolic';
-      case AutofocusMethod.parabolic:
-        return 'parabolic';
+      case AutofocusMethod.quadratic:
+        return 'quadratic';
     }
   }
 
@@ -599,8 +817,9 @@ class SequenceRepository {
     switch (s) {
       case 'hyperbolic':
         return AutofocusMethod.hyperbolic;
-      case 'parabolic':
-        return AutofocusMethod.parabolic;
+      case 'quadratic':
+      case 'parabolic': // Legacy DB entries
+        return AutofocusMethod.quadratic;
       default:
         return AutofocusMethod.vCurve;
     }
@@ -664,6 +883,10 @@ class SequenceRepository {
         return 'untilTime';
       case LoopConditionType.untilAltitude:
         return 'untilAltitude';
+      case LoopConditionType.altitudeAbove:
+        return 'altitudeAbove';
+      case LoopConditionType.integrationTime:
+        return 'integrationTime';
       case LoopConditionType.forever:
         return 'forever';
       case LoopConditionType.whileDark:
@@ -677,6 +900,10 @@ class SequenceRepository {
         return LoopConditionType.untilTime;
       case 'untilAltitude':
         return LoopConditionType.untilAltitude;
+      case 'altitudeAbove':
+        return LoopConditionType.altitudeAbove;
+      case 'integrationTime':
+        return LoopConditionType.integrationTime;
       case 'forever':
         return LoopConditionType.forever;
       case 'whileDark':
@@ -764,6 +991,34 @@ class SequenceRepository {
       default:
         return RecoveryActionType.continueExecution;
     }
+  }
+
+  MeridianTriggerMethod _stringToMeridianTriggerMethod(String? s) {
+    switch (s) {
+      case 'minutesBeforeLimit':
+        return MeridianTriggerMethod.minutesBeforeLimit;
+      case 'hourAngleThreshold':
+        return MeridianTriggerMethod.hourAngleThreshold;
+      default:
+        return MeridianTriggerMethod.minutesPastMeridian;
+    }
+  }
+
+  FlipFailureAction _stringToFlipFailureAction(String? s) {
+    switch (s) {
+      case 'abortAndPark':
+        return FlipFailureAction.abortAndPark;
+      default:
+        return FlipFailureAction.pauseAndAlert;
+    }
+  }
+
+  TriggerType? _stringToTriggerType(String? s) {
+    if (s == null) return null;
+    for (final value in TriggerType.values) {
+      if (value.name == s) return value;
+    }
+    return null;
   }
 }
 

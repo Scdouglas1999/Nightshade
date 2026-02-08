@@ -158,6 +158,16 @@ typedef struct wire_cst_sequence_definition_api {
   struct wire_cst_list_prim_u_8_strict *root_node_id;
 } wire_cst_sequence_definition_api;
 
+typedef struct wire_cst_record_string_i_32 {
+  struct wire_cst_list_prim_u_8_strict *field0;
+  int32_t field1;
+} wire_cst_record_string_i_32;
+
+typedef struct wire_cst_list_record_string_i_32 {
+  struct wire_cst_record_string_i_32 *ptr;
+  int32_t len;
+} wire_cst_list_record_string_i_32;
+
 typedef struct wire_cst_observer_location {
   double latitude;
   double longitude;
@@ -1956,6 +1966,9 @@ void frbgen_nightshade_bridge_wire__crate__api__api_get_device_api_version(int64
 void frbgen_nightshade_bridge_wire__crate__api__api_get_device_capabilities(int64_t port_,
                                                                             struct wire_cst_list_prim_u_8_strict *device_id);
 
+void frbgen_nightshade_bridge_wire__crate__api__api_get_device_display_name(int64_t port_,
+                                                                            struct wire_cst_list_prim_u_8_strict *device_id);
+
 void frbgen_nightshade_bridge_wire__crate__api__api_get_device_health(int64_t port_,
                                                                       struct wire_cst_list_prim_u_8_strict *device_id);
 
@@ -2284,7 +2297,8 @@ void frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_devices(int64_
                                                                           struct wire_cst_list_prim_u_8_strict *focuser_id,
                                                                           struct wire_cst_list_prim_u_8_strict *filterwheel_id,
                                                                           struct wire_cst_list_prim_u_8_strict *rotator_id,
-                                                                          struct wire_cst_list_String *filter_names);
+                                                                          struct wire_cst_list_String *filter_names,
+                                                                          struct wire_cst_list_record_string_i_32 *filter_focus_offsets);
 
 void frbgen_nightshade_bridge_wire__crate__api__api_sequencer_set_safety_fail_mode(int64_t port_,
                                                                                    struct wire_cst_list_prim_u_8_strict *mode);
@@ -2688,6 +2702,8 @@ struct wire_cst_list_quality_tile_metric_api *frbgen_nightshade_bridge_cst_new_l
 
 struct wire_cst_list_quirk_info *frbgen_nightshade_bridge_cst_new_list_quirk_info(int32_t len);
 
+struct wire_cst_list_record_string_i_32 *frbgen_nightshade_bridge_cst_new_list_record_string_i_32(int32_t len);
+
 struct wire_cst_list_record_string_string *frbgen_nightshade_bridge_cst_new_list_record_string_string(int32_t len);
 
 struct wire_cst_list_star_crop_api *frbgen_nightshade_bridge_cst_new_list_star_crop_api(int32_t len);
@@ -2756,6 +2772,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_8_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quality_tile_metric_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quirk_info);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_i_32);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_string);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_star_crop_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_switch_info);
@@ -2852,6 +2869,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_current_log_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_api_version);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_capabilities);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_display_name);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_health);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_heartbeat_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_get_device_quirks);

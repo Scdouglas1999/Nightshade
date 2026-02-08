@@ -388,8 +388,15 @@ class Phd2Controller {
     // Create a device ID for PHD2 connection
     final deviceId = 'phd2://$host:$port';
     ref.read(guiderStateProvider.notifier).setConnecting(deviceId, 'PHD2');
-    await backend.phd2Connect(host: host, port: port);
-    ref.read(guiderStateProvider.notifier).setConnected();
+    try {
+      await backend.phd2Connect(host: host, port: port);
+      ref.read(guiderStateProvider.notifier).setConnected();
+    } catch (e) {
+      _logger.error('Failed to connect to PHD2 at $host:$port: $e',
+          source: 'PHD2');
+      ref.read(guiderStateProvider.notifier).setDisconnected();
+      rethrow;
+    }
   }
 
   Future<void> disconnect() async {

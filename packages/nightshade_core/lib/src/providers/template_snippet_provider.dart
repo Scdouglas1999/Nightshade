@@ -241,6 +241,7 @@ Map<String, dynamic> _serializeNode(
       'repeatCount': node.repeatCount,
       'repeatUntil': node.repeatUntil?.toIso8601String(),
       'repeatUntilAltitude': node.repeatUntilAltitude,
+      'integrationTimeTarget': node.integrationTimeTarget,
     });
   } else if (node is ParallelNode) {
     base.addAll({
@@ -258,6 +259,8 @@ Map<String, dynamic> _serializeNode(
       'maxRetries': node.maxRetries,
       'triggerType': node.triggerType?.name,
       'triggerThreshold': node.triggerThreshold,
+      'hfrThresholdPercent': node.hfrThresholdPercent,
+      'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
     });
   } else if (node is SlewNode) {
     base.addAll({
@@ -268,8 +271,12 @@ Map<String, dynamic> _serializeNode(
   } else if (node is CenterNode) {
     base.addAll({
       'useTargetCoords': node.useTargetCoords,
+      'customRa': node.customRa,
+      'customDec': node.customDec,
       'accuracyArcsec': node.accuracyArcsec,
       'maxAttempts': node.maxAttempts,
+      'exposureDuration': node.exposureDuration,
+      'filter': node.filter,
     });
   } else if (node is ExposureNode) {
     base.addAll({
@@ -296,6 +303,8 @@ Map<String, dynamic> _serializeNode(
       'pixels': node.pixels,
       'settlePixels': node.settlePixels,
       'settleTime': node.settleTime,
+      'settleTimeout': node.settleTimeout,
+      'raOnly': node.raOnly,
     });
   } else if (node is StartGuidingNode) {
     base.addAll({
@@ -346,10 +355,17 @@ Map<String, dynamic> _serializeNode(
     });
   } else if (node is MeridianFlipNode) {
     base.addAll({
+      'triggerMethod': node.triggerMethod.name,
       'minutesPastMeridian': node.minutesPastMeridian,
+      'minutesBeforeLimit': node.minutesBeforeLimit,
+      'hourAngleThreshold': node.hourAngleThreshold,
       'pauseGuiding': node.pauseGuiding,
       'autoCenter': node.autoCenter,
+      'refocusAfter': node.refocusAfter,
       'settleTime': node.settleTime,
+      'resumeGuiding': node.resumeGuiding,
+      'maxRetries': node.maxRetries,
+      'failureAction': node.failureAction.name,
     });
   } else if (node is OpenDomeNode) {
     base.addAll({

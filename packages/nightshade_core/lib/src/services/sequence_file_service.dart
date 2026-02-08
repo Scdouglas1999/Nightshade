@@ -120,6 +120,7 @@ class SequenceFileService {
         'repeatCount': node.repeatCount,
         'repeatUntil': node.repeatUntil?.toIso8601String(),
         'repeatUntilAltitude': node.repeatUntilAltitude,
+        'integrationTimeTarget': node.integrationTimeTarget,
       });
     } else if (node is ParallelNode) {
       base.addAll({
@@ -137,6 +138,8 @@ class SequenceFileService {
         'maxRetries': node.maxRetries,
         'triggerType': node.triggerType?.name,
         'triggerThreshold': node.triggerThreshold,
+        'hfrThresholdPercent': node.hfrThresholdPercent,
+        'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
       });
     } else if (node is SlewNode) {
       base.addAll({
@@ -147,8 +150,12 @@ class SequenceFileService {
     } else if (node is CenterNode) {
       base.addAll({
         'useTargetCoords': node.useTargetCoords,
+        'customRa': node.customRa,
+        'customDec': node.customDec,
         'accuracyArcsec': node.accuracyArcsec,
         'maxAttempts': node.maxAttempts,
+        'exposureDuration': node.exposureDuration,
+        'filter': node.filter,
       });
     } else if (node is ExposureNode) {
       base.addAll({
@@ -175,6 +182,8 @@ class SequenceFileService {
         'pixels': node.pixels,
         'settlePixels': node.settlePixels,
         'settleTime': node.settleTime,
+        'settleTimeout': node.settleTimeout,
+        'raOnly': node.raOnly,
       });
     } else if (node is StartGuidingNode) {
       base.addAll({
@@ -225,10 +234,17 @@ class SequenceFileService {
       });
     } else if (node is MeridianFlipNode) {
       base.addAll({
+        'triggerMethod': node.triggerMethod.name,
         'minutesPastMeridian': node.minutesPastMeridian,
+        'minutesBeforeLimit': node.minutesBeforeLimit,
+        'hourAngleThreshold': node.hourAngleThreshold,
         'pauseGuiding': node.pauseGuiding,
         'autoCenter': node.autoCenter,
+        'refocusAfter': node.refocusAfter,
         'settleTime': node.settleTime,
+        'resumeGuiding': node.resumeGuiding,
+        'maxRetries': node.maxRetries,
+        'failureAction': node.failureAction.name,
       });
     } else if (node is OpenDomeNode) {
       base.addAll({
@@ -314,6 +330,8 @@ class SequenceFileService {
           repeatUntil: _parseDate(json['repeatUntil']),
           repeatUntilAltitude:
               (json['repeatUntilAltitude'] as num?)?.toDouble(),
+          integrationTimeTarget:
+              (json['integrationTimeTarget'] as num?)?.toDouble(),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -352,6 +370,10 @@ class SequenceFileService {
           maxRetries: (json['maxRetries'] as num?)?.toInt() ?? 3,
           triggerType: _parseTriggerType(json['triggerType']),
           triggerThreshold: (json['triggerThreshold'] as num?)?.toDouble(),
+          hfrThresholdPercent:
+              (json['hfrThresholdPercent'] as num?)?.toDouble() ?? 20.0,
+          hfrConsecutiveFrames:
+              (json['hfrConsecutiveFrames'] as num?)?.toInt() ?? 3,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -373,7 +395,7 @@ class SequenceFileService {
         return SlewNode(
           id: id,
           name: name ?? 'Slew to Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
+          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
           customRa: (json['customRa'] as num?)?.toDouble(),
           customDec: (json['customDec'] as num?)?.toDouble(),
           parentId: parentId,
@@ -387,9 +409,15 @@ class SequenceFileService {
         return CenterNode(
           id: id,
           name: name ?? 'Center Target',
-          useTargetCoords: json['useTargetCoords'] as bool? ?? false,
-          accuracyArcsec: (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
+          useTargetCoords: json['useTargetCoords'] as bool? ?? true,
+          customRa: (json['customRa'] as num?)?.toDouble(),
+          customDec: (json['customDec'] as num?)?.toDouble(),
+          accuracyArcsec:
+              (json['accuracyArcsec'] as num?)?.toDouble() ?? 5.0,
           maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 5,
+          exposureDuration:
+              (json['exposureDuration'] as num?)?.toDouble() ?? 5.0,
+          filter: json['filter'] as String?,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -439,6 +467,8 @@ class SequenceFileService {
           pixels: (json['pixels'] as num?)?.toDouble() ?? 5.0,
           settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 30.0,
+          settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 120.0,
+          raOnly: json['raOnly'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -452,7 +482,7 @@ class SequenceFileService {
           settlePixels: (json['settlePixels'] as num?)?.toDouble() ?? 1.5,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
           settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 60.0,
-          autoSelectStar: json['autoSelectStar'] as bool? ?? false,
+          autoSelectStar: json['autoSelectStar'] as bool? ?? true,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -594,11 +624,20 @@ class SequenceFileService {
         return MeridianFlipNode(
           id: id,
           name: name ?? 'Meridian Flip',
+          triggerMethod: _parseMeridianTriggerMethod(json['triggerMethod']),
           minutesPastMeridian:
               (json['minutesPastMeridian'] as num?)?.toDouble() ?? 5.0,
-          pauseGuiding: json['pauseGuiding'] as bool? ?? false,
-          autoCenter: json['autoCenter'] as bool? ?? false,
+          minutesBeforeLimit:
+              (json['minutesBeforeLimit'] as num?)?.toDouble() ?? 10.0,
+          hourAngleThreshold:
+              (json['hourAngleThreshold'] as num?)?.toDouble() ?? 0.5,
+          pauseGuiding: json['pauseGuiding'] as bool? ?? true,
+          autoCenter: json['autoCenter'] as bool? ?? true,
+          refocusAfter: json['refocusAfter'] as bool? ?? false,
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 10.0,
+          resumeGuiding: json['resumeGuiding'] as bool? ?? true,
+          maxRetries: json['maxRetries'] as int? ?? 3,
+          failureAction: _parseFlipFailureAction(json['failureAction']),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -700,8 +739,10 @@ class SequenceFileService {
   AutofocusMethod _parseAutofocusMethod(dynamic value) {
     final raw = value is String ? value : null;
     if (raw == null) return AutofocusMethod.vCurve;
+    // Handle legacy 'parabolic' name from old files
+    final normalized = raw.toLowerCase() == 'parabolic' ? 'quadratic' : raw;
     return AutofocusMethod.values.firstWhere(
-      (method) => method.name.toLowerCase() == raw.toLowerCase(),
+      (method) => method.name.toLowerCase() == normalized.toLowerCase(),
       orElse: () => AutofocusMethod.vCurve,
     );
   }
@@ -762,6 +803,24 @@ class SequenceFileService {
       }
     }
     return null;
+  }
+
+  MeridianTriggerMethod _parseMeridianTriggerMethod(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return MeridianTriggerMethod.minutesPastMeridian;
+    return MeridianTriggerMethod.values.firstWhere(
+      (type) => type.name.toLowerCase() == raw.toLowerCase(),
+      orElse: () => MeridianTriggerMethod.minutesPastMeridian,
+    );
+  }
+
+  FlipFailureAction _parseFlipFailureAction(dynamic value) {
+    final raw = value is String ? value : null;
+    if (raw == null) return FlipFailureAction.pauseAndAlert;
+    return FlipFailureAction.values.firstWhere(
+      (type) => type.name.toLowerCase() == raw.toLowerCase(),
+      orElse: () => FlipFailureAction.pauseAndAlert,
+    );
   }
 }
 

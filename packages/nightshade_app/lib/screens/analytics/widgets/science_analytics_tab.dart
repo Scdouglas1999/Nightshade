@@ -73,6 +73,43 @@ class ScienceAnalyticsTab extends ConsumerWidget {
               .watch(sessionTileMetricsProvider(activeSessionId))
               .valueOrNull ??
           const [];
+    } else {
+      // No session available — show standalone/quick capture science data
+      final targetObjectId = ref.watch(activePhotometryTargetObjectIdProvider);
+      lightCurve = ref.watch(sessionlessLightCurveProvider(targetObjectId));
+      transparency = ref.watch(sessionlessTransparencyTrendProvider);
+      transparencyRows = ref
+              .watch(sessionlessTransparencySamplesProvider)
+              .valueOrNull ??
+          const [];
+      calibrations = ref
+              .watch(sessionlessCalibrationsProvider)
+              .valueOrNull ??
+          const [];
+      psfTiles = ref
+              .watch(sessionlessPsfTilesProvider)
+              .valueOrNull ??
+          const [];
+      residuals = ref
+              .watch(sessionlessResidualVectorsProvider)
+              .valueOrNull ??
+          const [];
+      moving = ref
+              .watch(sessionlessMovingObjectCandidatesProvider)
+              .valueOrNull ??
+          const [];
+      lineRatios = ref
+              .watch(sessionlessLineRatioProductsProvider)
+              .valueOrNull ??
+          const [];
+      frameMetrics = ref
+              .watch(sessionlessFrameQualityMetricsProvider)
+              .valueOrNull ??
+          const [];
+      tileMetrics = ref
+              .watch(sessionlessTileMetricsProvider)
+              .valueOrNull ??
+          const [];
     }
 
     final latestPsfTiles = _latestPsfSnapshot(psfTiles);

@@ -80,7 +80,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration {
@@ -558,6 +558,17 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           await customStatement(
             "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('science.overlay.analysis_grid_cols', '32')",
           );
+        }
+
+        // Version 15: Add default_centering_exposure to equipment_profiles
+        if (from < 15) {
+          final hasCenteringExposure =
+              await _columnExists('equipment_profiles', 'default_centering_exposure');
+          if (!hasCenteringExposure) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN default_centering_exposure REAL',
+            );
+          }
         }
       },
     );

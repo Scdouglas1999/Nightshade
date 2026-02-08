@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
 import '../providers/imaging_provider.dart' show temperatureHistoryProvider;
 import '../providers/profiles_provider.dart'
@@ -94,6 +95,8 @@ class DeviceService {
   StreamSubscription? _eventSubscription;
   Timer? _temperaturePollingTimer;
   String? _connectedCameraId;
+  Timer? _warmingTimer;
+  bool _warmingCancelled = false;
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
   static const Duration _filterWheelVerifyPollInterval =
@@ -915,6 +918,7 @@ class DeviceService {
   void dispose() {
     _eventSubscription?.cancel();
     _temperaturePollingTimer?.cancel();
+    _warmingTimer?.cancel();
     _cancelAllReconnections();
   }
 
@@ -975,8 +979,12 @@ class DeviceService {
             notifier.setCooling(true);
           }
         }
-      } catch (_) {
-        // Profile provider not available or cooling command failed - use defaults
+      } catch (e) {
+        try {
+          _ref.read(loggingServiceProvider).warning(
+              'Cool-on-connect failed (profile lookup or cooling command): $e',
+              source: 'DeviceService');
+        } catch (_) {}
       }
 
       // Start temperature polling (this will immediately poll and update)
@@ -1041,8 +1049,177 @@ class DeviceService {
     );
   }
 
+  /// Gradually warm the camera by stepping the target temperature up
+  /// until the cooler power drops to 0%, then disabling the cooler.
+  ///
+  /// This is deliberately NOT temperature-aware. We don't care what
+  /// the sensor reads - we just keep raising the setpoint so the cooler
+  /// has less and less work to do. On a cold night (e.g. -10°C ambient)
+  /// the cooler power will hit 0% well before the sensor reaches 0°C,
+  /// which is exactly what we want. A temperature-based stopping
+  /// condition would stall or fail in cold ambient conditions.
+  ///
+  /// The mechanism: ASCOM/INDI cameras accept a target temperature and
+  /// the cooler's PID loop adjusts power to reach it. By steadily
+  /// raising the target, the cooler reduces power. We watch the
+  /// reported cooler power and disable the cooler once it hits 0%.
+  Future<void> warmCamera({double ratePerMin = 2.0}) async {
+    final cameraState = _ref.read(cameraStateProvider);
+    if (cameraState.connectionState != DeviceConnectionState.connected) {
+      throw Exception('Camera not connected');
+    }
+
+    final deviceId = cameraState.deviceId;
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No camera device ID available');
+    }
+
+    // Cancel any previous warming in progress
+    cancelWarmCamera();
+
+    final notifier = _ref.read(cameraStateProvider.notifier);
+    notifier.setWarming(true);
+    _warmingCancelled = false;
+
+    // Determine the starting setpoint from current sensor temperature.
+    // If sensor temp is unavailable, start from the current target temp.
+    final currentTemp = cameraState.temperature ?? cameraState.targetTemp;
+
+    // We ramp in steps. Tick every 10 seconds, adjusting the target by
+    // ratePerMin / 6 each tick (since 60s / 10s = 6 ticks per minute).
+    const tickInterval = Duration(seconds: 10);
+    final stepPerTick = ratePerMin / 6.0;
+    var currentSetpoint = currentTemp;
+
+    // Safety timeout: if warming hasn't finished after 30 minutes,
+    // just disable the cooler. Something is wrong.
+    const maxWarmingDuration = Duration(minutes: 30);
+    final warmingStartTime = DateTime.now();
+
+    try {
+      final logger = _ref.read(loggingServiceProvider);
+      logger.info(
+        'Starting gradual warm-up from ${currentTemp.toStringAsFixed(1)}°C at ${ratePerMin.toStringAsFixed(1)}°C/min (power-based stopping)',
+        source: 'DeviceService',
+      );
+    } catch (_) {}
+
+    // Set initial target to current temp (keeps cooler tracking but doesn't shock)
+    await _backend.cameraSetCooling(
+      deviceId: deviceId,
+      enabled: true,
+      targetTemp: currentSetpoint,
+    );
+
+    _warmingTimer = Timer.periodic(tickInterval, (timer) async {
+      if (_warmingCancelled) {
+        timer.cancel();
+        notifier.setWarming(false);
+        return;
+      }
+
+      // Check camera is still connected
+      final state = _ref.read(cameraStateProvider);
+      if (state.connectionState != DeviceConnectionState.connected) {
+        timer.cancel();
+        notifier.setWarming(false);
+        return;
+      }
+
+      // Check if cooler power has dropped to 0% - we're done
+      final coolerPower = state.coolerPower ?? 0.0;
+      if (coolerPower <= 2.0) {
+        timer.cancel();
+        try {
+          await _backend.cameraSetCooling(
+            deviceId: deviceId,
+            enabled: false,
+          );
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.info(
+              'Warm-up complete. Cooler power reached ${coolerPower.toStringAsFixed(0)}%, cooler disabled. Sensor: ${state.temperature?.toStringAsFixed(1) ?? "?"}°C',
+              source: 'DeviceService',
+            );
+          } catch (_) {}
+        } catch (e) {
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.error(
+              'Failed to disable cooler at end of warm-up: $e',
+              source: 'DeviceService',
+            );
+          } catch (_) {}
+        }
+        notifier.setWarming(false);
+        return;
+      }
+
+      // Safety timeout
+      if (DateTime.now().difference(warmingStartTime) > maxWarmingDuration) {
+        timer.cancel();
+        try {
+          await _backend.cameraSetCooling(
+            deviceId: deviceId,
+            enabled: false,
+          );
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.warning(
+              'Warm-up safety timeout (30 min). Cooler disabled at power ${coolerPower.toStringAsFixed(0)}%, sensor ${state.temperature?.toStringAsFixed(1) ?? "?"}°C',
+              source: 'DeviceService',
+            );
+          } catch (_) {}
+        } catch (e) {
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.error(
+              'Failed to disable cooler after warm-up timeout: $e',
+              source: 'DeviceService',
+            );
+          } catch (_) {}
+        }
+        notifier.setWarming(false);
+        return;
+      }
+
+      // Step the target temperature up
+      currentSetpoint += stepPerTick;
+      try {
+        await _backend.cameraSetCooling(
+          deviceId: deviceId,
+          enabled: true,
+          targetTemp: currentSetpoint,
+        );
+        // Update the UI target temp so the user sees it climbing
+        notifier.setTargetTemp(currentSetpoint);
+      } catch (e) {
+        try {
+          final logger = _ref.read(loggingServiceProvider);
+          logger.error(
+            'Error during warm-up step (setpoint ${currentSetpoint.toStringAsFixed(1)}°C): $e',
+            source: 'DeviceService',
+          );
+        } catch (_) {}
+        // Don't cancel on transient errors - try again next tick
+      }
+    });
+  }
+
+  /// Cancel an in-progress gradual warm-up.
+  /// The cooler remains in whatever state it was in at the time of cancellation.
+  void cancelWarmCamera() {
+    _warmingCancelled = true;
+    _warmingTimer?.cancel();
+    _warmingTimer = null;
+    final notifier = _ref.read(cameraStateProvider.notifier);
+    notifier.setWarming(false);
+  }
+
   /// Disconnect camera
   Future<void> disconnectCamera() async {
+    // Cancel any warming in progress
+    cancelWarmCamera();
     // Stop temperature polling first
     _stopTemperaturePolling();
 
@@ -1302,9 +1479,102 @@ class DeviceService {
       notifier.setDeviceName(deviceName);
       notifier.updatePosition(status.position);
       notifier.setMoving(status.moving);
+
+      // After connection, sync profile/session filter names to the native
+      // driver so user-defined names (Ha, OIII, SII, etc.) are used in
+      // sequences and UI instead of generic "Filter 1", "Filter 2".
+      await _syncFilterNamesToDriver(deviceId, status.filterNames);
     } catch (e) {
       notifier.setDisconnected();
       rethrow;
+    }
+  }
+
+  /// Sync filter names from the active equipment profile or session to the
+  /// native driver after a filter wheel connects.
+  ///
+  /// Filter names are resolved in this priority order:
+  /// 1. Active profile filter names (if profile exists and has filter names)
+  /// 2. Session filter names (if set via sessionFilterNamesProvider)
+  /// 3. Driver-reported names (no sync needed, already set)
+  Future<void> _syncFilterNamesToDriver(
+      String deviceId, List<String> driverNames) async {
+    final notifier = _ref.read(filterWheelStateProvider.notifier);
+
+    try {
+      // Priority 1: Check active profile filter names
+      final activeProfile = _ref.read(activeEquipmentProfileProvider);
+      if (activeProfile != null && activeProfile.filterNames.isNotEmpty) {
+        final profileFilterNames = activeProfile.filterNames;
+        debugPrint(
+            '[DeviceService] Profile has ${profileFilterNames.length} filter names, '
+            'driver has ${driverNames.length} slots');
+
+        // Pad or trim profile names to match the wheel's actual slot count
+        final List<String> syncedNames;
+        if (profileFilterNames.length < driverNames.length) {
+          syncedNames = [
+            ...profileFilterNames,
+            ...driverNames.sublist(profileFilterNames.length),
+          ];
+          debugPrint(
+              '[DeviceService] Padded profile names to ${syncedNames.length}: $syncedNames');
+        } else if (profileFilterNames.length > driverNames.length &&
+            driverNames.isNotEmpty) {
+          syncedNames = profileFilterNames.sublist(0, driverNames.length);
+        } else {
+          syncedNames = profileFilterNames;
+        }
+
+        await bridge_api.apiFilterwheelSetFilterNames(
+          deviceId: deviceId,
+          names: syncedNames,
+        );
+
+        notifier.setConnected(filterNames: syncedNames);
+        debugPrint(
+            '[DeviceService] Profile filter names synced: $syncedNames');
+        return;
+      }
+
+      // Priority 2: Check session filter names
+      final sessionFilterNames = _ref.read(sessionFilterNamesProvider);
+      if (sessionFilterNames != null && sessionFilterNames.isNotEmpty) {
+        debugPrint(
+            '[DeviceService] Session has ${sessionFilterNames.length} filter names, '
+            'driver has ${driverNames.length} slots');
+
+        // Pad or trim session names to match the wheel's actual slot count
+        final List<String> syncedNames;
+        if (sessionFilterNames.length < driverNames.length) {
+          syncedNames = [
+            ...sessionFilterNames,
+            ...driverNames.sublist(sessionFilterNames.length),
+          ];
+        } else if (sessionFilterNames.length > driverNames.length &&
+            driverNames.isNotEmpty) {
+          syncedNames = sessionFilterNames.sublist(0, driverNames.length);
+        } else {
+          syncedNames = sessionFilterNames;
+        }
+
+        await bridge_api.apiFilterwheelSetFilterNames(
+          deviceId: deviceId,
+          names: syncedNames,
+        );
+
+        notifier.setConnected(filterNames: syncedNames);
+        debugPrint(
+            '[DeviceService] Session filter names synced: $syncedNames');
+        return;
+      }
+
+      // Priority 3: Use driver-reported names (already set, no sync needed)
+      debugPrint(
+          '[DeviceService] No profile or session filter names - using driver-reported names');
+    } catch (e) {
+      // Don't fail connection if filter name sync fails - log the error
+      debugPrint('[DeviceService] Failed to sync filter names: $e');
     }
   }
 

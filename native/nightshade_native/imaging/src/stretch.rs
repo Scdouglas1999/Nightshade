@@ -59,7 +59,7 @@ pub fn auto_stretch_stf(image: &ImageData) -> StretchParams {
     // Calculate percentiles and median
     let mut sorted = pixels.clone();
     // Use unstable parallel sort for speed
-    sorted.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+    sorted.par_sort_unstable_by(|a, b| a.total_cmp(b));
 
     let len = sorted.len();
     let median = sorted[len / 2];
@@ -230,7 +230,7 @@ fn auto_stretch_channel(channel_data: &[u16]) -> StretchParams {
 
     // Calculate percentiles and median
     let mut sorted = pixels.clone();
-    sorted.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+    sorted.par_sort_unstable_by(|a, b| a.total_cmp(b));
 
     let len = sorted.len();
     let median = sorted[len / 2];

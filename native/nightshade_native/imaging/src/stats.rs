@@ -72,7 +72,7 @@ pub fn calculate_stats_u16(image: &ImageData) -> ImageStats {
         .map(|&p| (p as f64 - median).abs())
         .collect();
 
-    deviations.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+    deviations.par_sort_unstable_by(|a, b| a.total_cmp(b));
 
     let mad = if deviations.len() % 2 == 0 {
         let mid = deviations.len() / 2;
@@ -142,9 +142,9 @@ impl Default for StarDetectionConfig {
             max_eccentricity: 0.7, // Slightly tighter - real stars are round
             saturation_limit: 60000,
             hfr_radius: 20,
-            min_hfr: 1.2,       // NEW: Real stars have HFR > 1.2 typically
-            min_snr: 10.0,      // NEW: Require decent signal-to-noise
-            max_sharpness: 0.7, // NEW: Hot pixels have sharpness > 0.8
+            min_hfr: 1.0,       // Real stars have HFR > ~1.0; hot pixels < 0.8
+            min_snr: 5.0,       // Modest SNR threshold - real stars in short subs can be faint
+            max_sharpness: 0.95, // Only reject extreme hot pixels (sharpness ~1.0); real stars spread flux
         }
     }
 }
@@ -306,7 +306,7 @@ pub fn detect_stars(image: &ImageData, config: &StarDetectionConfig) -> Vec<Dete
     }
 
     // Sort by flux (brightest first)
-    stars.sort_by(|a, b| b.flux.partial_cmp(&a.flux).unwrap());
+    stars.sort_by(|a, b| b.flux.total_cmp(&a.flux));
 
     stars
 }
@@ -323,7 +323,7 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
 
     // Sigma clipping iterations
     for _ in 0..3 {
-        samples.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        samples.par_sort_unstable_by(|a, b| a.total_cmp(b));
         let median = samples[samples.len() / 2];
 
         // Parallel MAD calculation
@@ -344,7 +344,7 @@ fn estimate_background(pixels: &[f64], _width: usize, _height: usize) -> (f64, f
         }
     }
 
-    samples.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+    samples.par_sort_unstable_by(|a, b| a.total_cmp(b));
     let background = samples[samples.len() / 2];
 
     // Estimate noise from remaining samples
@@ -564,7 +564,7 @@ pub fn calculate_median_hfr(image: &ImageData) -> Option<f64> {
         return None;
     }
 
-    hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    hfrs.sort_by(|a, b| a.total_cmp(b));
     Some(hfrs[hfrs.len() / 2])
 }
 
@@ -692,9 +692,9 @@ pub fn detect_stars_with_stats(
         let mut fwhms: Vec<f64> = stars.iter().take(count).map(|s| s.fwhm).collect();
         let mut snrs: Vec<f64> = stars.iter().take(count).map(|s| s.snr).collect();
 
-        hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        fwhms.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        snrs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        hfrs.sort_by(|a, b| a.total_cmp(b));
+        fwhms.sort_by(|a, b| a.total_cmp(b));
+        snrs.sort_by(|a, b| a.total_cmp(b));
 
         (
             hfrs[hfrs.len() / 2],

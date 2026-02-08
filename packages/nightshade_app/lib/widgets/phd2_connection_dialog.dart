@@ -126,7 +126,6 @@ class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
   }
 
   Future<void> _connect() async {
-    Navigator.pop(context);
     final host = _hostController.text;
     final port = int.tryParse(_portController.text) ?? 4400;
 
@@ -134,7 +133,16 @@ class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
     await ref.read(appSettingsProvider.notifier).setPhd2Host(host);
     await ref.read(appSettingsProvider.notifier).setPhd2Port(port);
 
-    // Connect
-    ref.read(phd2ControllerProvider).connect(host, port);
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    // Connect - await so errors propagate
+    try {
+      await ref.read(phd2ControllerProvider).connect(host, port);
+    } catch (e) {
+      // Error is logged by the controller; the guiderState provider
+      // will reflect the disconnected state for the UI to show.
+      rethrow;
+    }
   }
 }

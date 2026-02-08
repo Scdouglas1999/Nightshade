@@ -46,7 +46,14 @@ class SequenceTree extends ConsumerWidget {
         final data = details.data;
         if (data is NodePaletteItem) {
           final node = data.createNode();
-          ref.read(currentSequenceProvider.notifier).addNode(node);
+          final notifier = ref.read(currentSequenceProvider.notifier);
+          notifier.addNode(node);
+          final children = data.createChildren?.call();
+          if (children != null) {
+            for (final child in children) {
+              notifier.addNode(child, parentId: node.id);
+            }
+          }
           ref.read(selectedNodeIdProvider.notifier).state = node.id;
         } else if (data is TemplateSnippet) {
           final profile = ref.read(activeEquipmentProfileProvider);
@@ -369,11 +376,18 @@ class _NodeTreeView extends ConsumerWidget {
                   );
                 } else if (data is NodePaletteItem) {
                   final newNode = data.createNode();
-                  ref.read(currentSequenceProvider.notifier).addNode(
+                  final notifier = ref.read(currentSequenceProvider.notifier);
+                  notifier.addNode(
                     newNode,
                     parentId: nodeId,
                     // No index = append
                   );
+                  final children = data.createChildren?.call();
+                  if (children != null) {
+                    for (final child in children) {
+                      notifier.addNode(child, parentId: newNode.id);
+                    }
+                  }
                   ref.read(selectedNodeIdProvider.notifier).state = newNode.id;
                 } else if (data is TemplateSnippet) {
                   final profile = ref.read(activeEquipmentProfileProvider);
@@ -1121,11 +1135,18 @@ class _DropZone extends ConsumerWidget {
           );
         } else if (data is NodePaletteItem) {
           final node = data.createNode();
-          ref.read(currentSequenceProvider.notifier).addNode(
+          final notifier = ref.read(currentSequenceProvider.notifier);
+          notifier.addNode(
             node,
             parentId: parentId,
             index: index,
           );
+          final children = data.createChildren?.call();
+          if (children != null) {
+            for (final child in children) {
+              notifier.addNode(child, parentId: node.id);
+            }
+          }
           ref.read(selectedNodeIdProvider.notifier).state = node.id;
         } else if (data is TemplateSnippet) {
           final profile = ref.read(activeEquipmentProfileProvider);

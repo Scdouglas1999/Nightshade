@@ -58,6 +58,8 @@ pub struct ExecutionContext {
     pub trigger_state: Option<Arc<RwLock<crate::triggers::TriggerState>>>,
     /// Safety fail mode - determines behavior when safety devices fail or are unavailable
     pub safety_fail_mode: SafetyFailMode,
+    /// Filter focus offsets from equipment profile (filter_name -> offset_steps)
+    pub filter_focus_offsets: std::collections::HashMap<String, i32>,
 }
 
 /// Progress update sent during execution
@@ -103,6 +105,7 @@ impl ExecutionContext {
             completed_integration_secs: Arc::new(RwLock::new(0.0)),
             trigger_state: None,
             safety_fail_mode: SafetyFailMode::default(),
+            filter_focus_offsets: std::collections::HashMap::new(),
         }
     }
 
@@ -358,6 +361,7 @@ impl ExecutionContext {
             longitude: self.longitude,
             device_ops: self.device_ops.clone(),
             trigger_state: self.trigger_state.clone(),
+            filter_focus_offsets: self.filter_focus_offsets.clone(),
         }
     }
 }
@@ -1770,6 +1774,7 @@ impl RuntimeNode {
         let longitude = context.longitude;
         let safety_fail_mode = context.safety_fail_mode;
         let skip_to_next_target = context.skip_to_next_target.clone();
+        let filter_focus_offsets = context.filter_focus_offsets.clone();
 
         // Spawn tasks for each child
         let handles: Vec<_> = children
@@ -1797,6 +1802,7 @@ impl RuntimeNode {
                 let save_path = save_path.clone();
                 let safety_fail_mode = safety_fail_mode;
                 let skip_to_next_target = skip_to_next_target.clone();
+                let filter_focus_offsets = filter_focus_offsets.clone();
 
                 tokio::spawn(async move {
                     // Check for cancellation before starting
@@ -1832,6 +1838,7 @@ impl RuntimeNode {
                         completed_integration_secs: completed_integration,
                         trigger_state: None,
                         safety_fail_mode,
+                        filter_focus_offsets,
                     };
 
                     // Execute the child with mutex guard

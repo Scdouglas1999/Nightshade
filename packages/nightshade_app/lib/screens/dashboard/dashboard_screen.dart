@@ -6,8 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_planetarium/nightshade_planetarium.dart'
-    hide sessionProgressProvider;
+import 'package:nightshade_planetarium/nightshade_planetarium.dart' hide sessionProgressProvider;
 import '../../services/mount_command_service.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/astro_image_viewer.dart';
@@ -20,6 +19,117 @@ import 'dashboard_layout.dart';
 import 'dashboard_layout_provider.dart';
 
 part 'dashboard_widgets.dart';
+
+// ============================================================================
+// Device ID Formatting Helpers
+// ============================================================================
+
+/// Format a device ID into a user-friendly display name
+String _formatDeviceId(String id) {
+  final lowerId = id.toLowerCase();
+
+  // Handle native device IDs: native:vendor:index or native:vendor_type:index
+  if (lowerId.startsWith('native:')) {
+    final parts = id.substring(7).split(':');
+    if (parts.isNotEmpty) {
+      final devicePart = parts[0];
+      final index = parts.length > 1 ? int.tryParse(parts[1]) : null;
+
+      if (devicePart.contains('_')) {
+        final subParts = devicePart.split('_');
+        final vendor = _capitalizeVendor(subParts[0]);
+        final type = subParts.sublist(1).map((s) => s.toUpperCase()).join(' ');
+        return '$vendor $type';
+      }
+
+      final vendor = _capitalizeVendor(devicePart);
+      if (index != null) {
+        return '$vendor #${index + 1}';
+      }
+      return vendor;
+    }
+  }
+
+  // Handle ASCOM device IDs
+  if (lowerId.startsWith('ascom:') || lowerId.startsWith('ascom.')) {
+    final ascomId = lowerId.startsWith('ascom:') ? id.substring(6) : id;
+    final parts = ascomId.split('.');
+    if (parts.length >= 2) {
+      final vendorPart = parts.length > 1 ? parts[1] : parts[0];
+      return _formatAscomVendor(vendorPart);
+    }
+  }
+
+  // Handle Alpaca device IDs
+  if (lowerId.startsWith('alpaca:')) {
+    return 'Alpaca: ${id.substring(7)}';
+  }
+
+  // Handle PHD2
+  if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
+    return 'PHD2';
+  }
+
+  // Handle underscore-separated IDs
+  if (id.contains('_')) {
+    return id.split('_').map(_capitalizeWord).join(' ');
+  }
+
+  return id;
+}
+
+String _capitalizeVendor(String vendor) {
+  const knownVendors = {
+    'zwo': 'ZWO',
+    'asi': 'ZWO ASI',
+    'qhy': 'QHY',
+    'playerone': 'PlayerOne',
+    'svbony': 'SVBony',
+    'atik': 'Atik',
+    'fli': 'FLI',
+    'moravian': 'Moravian',
+    'touptek': 'Touptek',
+    'pegasus': 'Pegasus',
+    'pegasusastro': 'Pegasus Astro',
+    'ioptron': 'iOptron',
+    'skywatcher': 'Sky-Watcher',
+    'celestron': 'Celestron',
+    'meade': 'Meade',
+    'moonlite': 'MoonLite',
+  };
+
+  final lower = vendor.toLowerCase();
+  if (knownVendors.containsKey(lower)) {
+    return knownVendors[lower]!;
+  }
+
+  if (vendor.isEmpty) return vendor;
+  return vendor[0].toUpperCase() + vendor.substring(1);
+}
+
+String _formatAscomVendor(String vendor) {
+  final spaced = vendor.replaceAllMapped(
+    RegExp(r'([a-z])([A-Z0-9])'),
+    (m) => '${m.group(1)} ${m.group(2)}',
+  );
+  return spaced;
+}
+
+String _capitalizeWord(String word) {
+  if (word.isEmpty) return word;
+  return word[0].toUpperCase() + word.substring(1).toLowerCase();
+}
+
+/// Get display name for a device
+String _getDeviceDisplayName(String? deviceName, String? deviceId, String fallback) {
+  if (deviceName != null && deviceName.isNotEmpty) {
+    return deviceName;
+  }
+  if (deviceId != null && deviceId.isNotEmpty) {
+    return _formatDeviceId(deviceId);
+  }
+  return fallback;
+}
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -88,20 +198,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             onManageWidgets: _showWidgetPicker,
             onResetLayout: _resetLayout,
             onReorder: (dragged, target) {
-              ref
-                  .read(dashboardLayoutProvider.notifier)
-                  .reorder(dragged, target);
+              ref.read(dashboardLayoutProvider.notifier).reorder(dragged, target);
             },
             onResize: (id) {
               final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
-              ref
-                  .read(dashboardLayoutProvider.notifier)
-                  .setTileSize(id, tile.size.next());
+              ref.read(dashboardLayoutProvider.notifier).setTileSize(id, tile.size.next());
             },
             onToggleEnabled: (id, enabled) {
-              ref
-                  .read(dashboardLayoutProvider.notifier)
-                  .setTileEnabled(id, enabled);
+              ref.read(dashboardLayoutProvider.notifier).setTileEnabled(id, enabled);
             },
             onSetZone: (id, zone) {
               ref.read(dashboardLayoutProvider.notifier).setTileZone(id, zone);
@@ -154,8 +258,7 @@ class _ZoneBasedDashboard extends StatelessWidget {
   final VoidCallback onToggleEdit;
   final VoidCallback onManageWidgets;
   final VoidCallback onResetLayout;
-  final void Function(DashboardWidgetId dragged, DashboardWidgetId target)
-      onReorder;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
   final void Function(DashboardWidgetId id) onResize;
   final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
   final void Function(DashboardWidgetId id, DashboardZone zone) onSetZone;
@@ -205,8 +308,7 @@ class _ZoneBasedDashboard extends StatelessWidget {
 
     // Calculate zone widths
     final availableWidth = constraints.maxWidth - 48; // padding
-    final secondaryWidth =
-        (availableWidth * layout.secondaryZoneWidth).clamp(280.0, 360.0);
+    final secondaryWidth = (availableWidth * layout.secondaryZoneWidth).clamp(280.0, 360.0);
     final primaryWidth = availableWidth - secondaryWidth - 16; // gap
 
     // On wide screens, split tertiary cards between primary and secondary zones
@@ -326,9 +428,7 @@ class _ZoneBasedDashboard extends StatelessWidget {
                           const SizedBox(height: 12),
                           ...tertiaryForSecondary.map((tile) {
                             final definition = registry[tile.widgetId];
-                            if (definition == null) {
-                              return const SizedBox.shrink();
-                            }
+                            if (definition == null) return const SizedBox.shrink();
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: _DashboardTile(
@@ -342,8 +442,7 @@ class _ZoneBasedDashboard extends StatelessWidget {
                                 onResize: onResize,
                                 onToggleEnabled: onToggleEnabled,
                                 child: Builder(
-                                  builder: (context) => definition.builder(
-                                      context, colors, pulseController),
+                                  builder: (context) => definition.builder(context, colors, pulseController),
                                 ),
                               ),
                             );
@@ -469,42 +568,30 @@ class _ZoneBasedDashboard extends StatelessWidget {
       ..sort((a, b) => a.order.compareTo(b.order));
 
     // Categorize tiles for mobile-optimized ordering
-    final weatherTile = allTiles
-        .where((t) => t.widgetId == DashboardWidgetId.weather)
-        .firstOrNull;
-    final livePreviewTile = allTiles
-        .where((t) => t.widgetId == DashboardWidgetId.livePreview)
-        .firstOrNull;
-    final captureSettingsTile = allTiles
-        .where((t) => t.widgetId == DashboardWidgetId.captureSettings)
-        .firstOrNull;
-    final quickActionsTile = allTiles
-        .where((t) => t.widgetId == DashboardWidgetId.quickActions)
-        .firstOrNull;
-    final sessionTile = allTiles
-        .where((t) => t.widgetId == DashboardWidgetId.sequenceStatus)
-        .firstOrNull;
+    final weatherTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.weather).firstOrNull;
+    final livePreviewTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.livePreview).firstOrNull;
+    final captureSettingsTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.captureSettings).firstOrNull;
+    final quickActionsTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.quickActions).firstOrNull;
+    final sessionTile = allTiles.where((t) => t.widgetId == DashboardWidgetId.sequenceStatus).firstOrNull;
 
     // Equipment-related tiles for wrap layout
-    final equipmentTiles = allTiles
-        .where((t) =>
-            t.widgetId == DashboardWidgetId.equipmentStatus ||
-            t.widgetId == DashboardWidgetId.mountControl ||
-            t.widgetId == DashboardWidgetId.focus)
-        .toList();
+    final equipmentTiles = allTiles.where((t) =>
+      t.widgetId == DashboardWidgetId.equipmentStatus ||
+      t.widgetId == DashboardWidgetId.mountControl ||
+      t.widgetId == DashboardWidgetId.focus
+    ).toList();
 
     // Other tiles (guiding, tonight, alerts, quick stats)
-    final otherTiles = allTiles
-        .where((t) =>
-            t.widgetId != DashboardWidgetId.weather &&
-            t.widgetId != DashboardWidgetId.livePreview &&
-            t.widgetId != DashboardWidgetId.captureSettings &&
-            t.widgetId != DashboardWidgetId.quickActions &&
-            t.widgetId != DashboardWidgetId.sequenceStatus &&
-            t.widgetId != DashboardWidgetId.equipmentStatus &&
-            t.widgetId != DashboardWidgetId.mountControl &&
-            t.widgetId != DashboardWidgetId.focus)
-        .toList();
+    final otherTiles = allTiles.where((t) =>
+      t.widgetId != DashboardWidgetId.weather &&
+      t.widgetId != DashboardWidgetId.livePreview &&
+      t.widgetId != DashboardWidgetId.captureSettings &&
+      t.widgetId != DashboardWidgetId.quickActions &&
+      t.widgetId != DashboardWidgetId.sequenceStatus &&
+      t.widgetId != DashboardWidgetId.equipmentStatus &&
+      t.widgetId != DashboardWidgetId.mountControl &&
+      t.widgetId != DashboardWidgetId.focus
+    ).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -679,13 +766,10 @@ class _CommandBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(sessionStateProvider);
-    final exposurePercent =
-        ref.watch(exposureProgressProvider.select((s) => s.percent));
-    final isDownloading =
-        ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
+    final exposurePercent = ref.watch(exposureProgressProvider.select((s) => s.percent));
+    final isDownloading = ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
 
-    final isCapturing =
-        sessionState.isCapturing || exposurePercent > 0 || isDownloading;
+    final isCapturing = sessionState.isCapturing || exposurePercent > 0 || isDownloading;
     final targetName = sessionState.targetName ?? 'No Target';
 
     return LayoutBuilder(
@@ -714,8 +798,7 @@ class _CommandBar extends ConsumerWidget {
               Flexible(
                 flex: 0,
                 child: ConstrainedBox(
-                  constraints:
-                      BoxConstraints(maxWidth: width < 900 ? 120 : 180),
+                  constraints: BoxConstraints(maxWidth: width < 900 ? 120 : 180),
                   child: _SessionStatusIndicator(
                     colors: colors,
                     pulseController: pulseController,
@@ -805,10 +888,8 @@ class _SessionStatusIndicator extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isCapturing
-                    ? colors.success
-                        .withValues(alpha: 0.4 + pulseController.value * 0.4)
-                    : colors.textMuted
-                        .withValues(alpha: 0.4 + pulseController.value * 0.3),
+                    ? colors.success.withValues(alpha: 0.4 + pulseController.value * 0.4)
+                    : colors.textMuted.withValues(alpha: 0.4 + pulseController.value * 0.3),
                 boxShadow: isCapturing
                     ? [
                         BoxShadow(
@@ -862,28 +943,22 @@ class _QuickStatsStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Camera temperature
-    final cameraConnected =
-        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final cameraTemp =
-        ref.watch(cameraStateProvider.select((s) => s.temperature));
+    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final cameraTemp = ref.watch(cameraStateProvider.select((s) => s.temperature));
 
     // Focuser position
-    final focuserConnected =
-        ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final focuserPosition =
-        ref.watch(focuserStateProvider.select((s) => s.position));
+    final focuserConnected = ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final focuserPosition = ref.watch(focuserStateProvider.select((s) => s.position));
 
     // HFR from last image
     final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
 
     // Guiding RMS
-    final guiderConnected =
-        ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final guiderIsGuiding =
-        ref.watch(guiderStateProvider.select((s) => s.isGuiding));
+    final guiderConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
     final guiderRms = ref.watch(guiderStateProvider.select((s) => s.rmsTotal));
 
     // Format values
@@ -1004,24 +1079,18 @@ class _CompactCommandBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(sessionStateProvider);
-    final exposurePercent =
-        ref.watch(exposureProgressProvider.select((s) => s.percent));
-    final isDownloading =
-        ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
+    final exposurePercent = ref.watch(exposureProgressProvider.select((s) => s.percent));
+    final isDownloading = ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
 
-    final isCapturing =
-        sessionState.isCapturing || exposurePercent > 0 || isDownloading;
+    final isCapturing = sessionState.isCapturing || exposurePercent > 0 || isDownloading;
     final targetName = sessionState.targetName ?? 'No Target';
 
     // Quick stats for mobile (only when capturing or has data)
-    final cameraConnected =
-        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final cameraTemp =
-        ref.watch(cameraStateProvider.select((s) => s.temperature));
+    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+        DeviceConnectionState.connected;
+    final cameraTemp = ref.watch(cameraStateProvider.select((s) => s.temperature));
     final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
-    final guiderIsGuiding =
-        ref.watch(guiderStateProvider.select((s) => s.isGuiding));
+    final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
     final guiderRms = ref.watch(guiderStateProvider.select((s) => s.rmsTotal));
 
     final showStats = isCapturing || cameraConnected;
@@ -1049,8 +1118,7 @@ class _CompactCommandBar extends ConsumerWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isCapturing
-                          ? colors.success.withValues(
-                              alpha: 0.4 + pulseController.value * 0.4)
+                          ? colors.success.withValues(alpha: 0.4 + pulseController.value * 0.4)
                           : colors.textMuted.withValues(alpha: 0.4),
                     ),
                   );
@@ -1068,8 +1136,7 @@ class _CompactCommandBar extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color:
-                            isCapturing ? colors.success : colors.textSecondary,
+                        color: isCapturing ? colors.success : colors.textSecondary,
                       ),
                     ),
                     if (isCapturing)
@@ -1087,10 +1154,8 @@ class _CompactCommandBar extends ConsumerWidget {
               // Edit button
               NightshadeButton(
                 label: isEditing ? 'Done' : 'Edit',
-                icon:
-                    isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
-                variant:
-                    isEditing ? ButtonVariant.primary : ButtonVariant.ghost,
+                icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
+                variant: isEditing ? ButtonVariant.primary : ButtonVariant.ghost,
                 size: ButtonSize.small,
                 onPressed: onToggleEdit,
               ),
@@ -1192,8 +1257,7 @@ class _ZoneColumn extends StatelessWidget {
   final bool isEditing;
   final CardVariant cardVariant;
   final bool isHeroZone;
-  final void Function(DashboardWidgetId dragged, DashboardWidgetId target)
-      onReorder;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
   final void Function(DashboardWidgetId id) onResize;
   final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
 
@@ -1214,7 +1278,7 @@ class _ZoneColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (tiles.isEmpty) {
-      return _EmptyZoneTile(zone: zone, colors: colors, isEditing: isEditing);
+      return _EmptyZonePlaceholder(zone: zone, colors: colors, isEditing: isEditing);
     }
 
     // Use tighter spacing for secondary zone (8px) vs primary (16px)
@@ -1243,8 +1307,7 @@ class _ZoneColumn extends StatelessWidget {
     }
 
     final child = Builder(
-      builder: (context) =>
-          definition.builder(context, colors, pulseController),
+      builder: (context) => definition.builder(context, colors, pulseController),
     );
 
     return _DashboardTile(
@@ -1262,13 +1325,13 @@ class _ZoneColumn extends StatelessWidget {
   }
 }
 
-/// Visual tile for empty zones in edit mode.
-class _EmptyZoneTile extends StatelessWidget {
+/// Placeholder for empty zones in edit mode.
+class _EmptyZonePlaceholder extends StatelessWidget {
   final DashboardZone zone;
   final NightshadeColors colors;
   final bool isEditing;
 
-  const _EmptyZoneTile({
+  const _EmptyZonePlaceholder({
     required this.zone,
     required this.colors,
     required this.isEditing,
@@ -1330,8 +1393,7 @@ class _MobileEquipmentSection extends StatelessWidget {
   final NightshadeColors colors;
   final AnimationController pulseController;
   final bool isEditing;
-  final void Function(DashboardWidgetId dragged, DashboardWidgetId target)
-      onReorder;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
   final void Function(DashboardWidgetId id) onResize;
   final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
 
@@ -1390,8 +1452,7 @@ class _MobileEquipmentSection extends StatelessWidget {
     if (definition == null) return const SizedBox.shrink();
 
     final child = Builder(
-      builder: (context) =>
-          definition.builder(context, colors, pulseController),
+      builder: (context) => definition.builder(context, colors, pulseController),
     );
 
     return _DashboardTile(
@@ -1417,8 +1478,7 @@ class _TertiaryZoneRow extends ConsumerWidget {
   final NightshadeColors colors;
   final AnimationController pulseController;
   final bool isEditing;
-  final void Function(DashboardWidgetId dragged, DashboardWidgetId target)
-      onReorder;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
   final void Function(DashboardWidgetId id) onResize;
   final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
 
@@ -1454,9 +1514,7 @@ class _TertiaryZoneRow extends ConsumerWidget {
 
     // Filter out Alerts card if it has no content (unless in edit mode where we show all)
     final filteredTiles = tiles.where((tile) {
-      if (tile.widgetId == DashboardWidgetId.alerts &&
-          !alertsHasContent &&
-          !isEditing) {
+      if (tile.widgetId == DashboardWidgetId.alerts && !alertsHasContent && !isEditing) {
         return false;
       }
       return true;
@@ -1545,8 +1603,7 @@ class _TertiaryZoneRow extends ConsumerWidget {
 
       // For the last row with fewer cards, we still want equal-width cards
       // but they should expand to fill the row (up to max width each)
-      final rowWidget =
-          _buildSingleRow(rowTiles, layout.cardWidth, layout.cardsPerRow);
+      final rowWidget = _buildSingleRow(rowTiles, layout.cardWidth, layout.cardsPerRow);
 
       if (rows.isNotEmpty) {
         rows.add(const SizedBox(height: _cardSpacing));
@@ -1585,8 +1642,7 @@ class _TertiaryZoneRow extends ConsumerWidget {
     if (definition == null) return const SizedBox.shrink();
 
     final child = Builder(
-      builder: (context) =>
-          definition.builder(context, colors, pulseController),
+      builder: (context) => definition.builder(context, colors, pulseController),
     );
 
     // Wrap in ConstrainedBox with minHeight for consistent card sizing
@@ -1607,6 +1663,7 @@ class _TertiaryZoneRow extends ConsumerWidget {
     );
   }
 }
+
 
 class _ClockWidget extends ConsumerWidget {
   final NightshadeColors colors;
@@ -1790,8 +1847,7 @@ class _DashboardTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DragTarget<DashboardWidgetId>(
-      onWillAcceptWithDetails: (details) =>
-          isEditing && details.data != tile.widgetId,
+      onWillAcceptWithDetails: (details) => isEditing && details.data != tile.widgetId,
       onAcceptWithDetails: (details) {
         if (isEditing) onReorder(details.data, tile.widgetId);
       },
@@ -2143,7 +2199,9 @@ class _WidgetPickerDialog extends ConsumerWidget {
     final layoutAsync = ref.watch(dashboardLayoutProvider);
     final screenSize = MediaQuery.of(context).size;
     // Responsive dialog width: 90% of screen on small screens, max 420px on larger
-    final dialogWidth = screenSize.width < 500 ? screenSize.width * 0.9 : 420.0;
+    final dialogWidth = screenSize.width < 500
+        ? screenSize.width * 0.9
+        : 420.0;
 
     return AlertDialog(
       backgroundColor: colors.surface,
@@ -2153,9 +2211,7 @@ class _WidgetPickerDialog extends ConsumerWidget {
       ),
       title: Text(
         'Dashboard Widgets',
-        style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: screenSize.width < 400 ? 16 : 20),
+        style: TextStyle(color: colors.textPrimary, fontSize: screenSize.width < 400 ? 16 : 20),
       ),
       content: ConstrainedBox(
         constraints: BoxConstraints(
@@ -2283,20 +2339,15 @@ class _LivePreviewCard extends StatelessWidget {
                       color: colors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Icon(LucideIcons.image,
-                        size: 14, color: colors.primary),
+                    child: Icon(LucideIcons.image, size: 14, color: colors.primary),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     'Live Preview',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary),
                   ),
                   const Spacer(),
-                  _CaptureStatusIndicator(
-                      colors: colors, pulseController: pulseController),
+                  _CaptureStatusIndicator(colors: colors, pulseController: pulseController),
                 ],
               ),
 
@@ -2340,15 +2391,11 @@ class _CaptureStatusIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final exposurePercent =
-        ref.watch(exposureProgressProvider.select((s) => s.percent));
-    final isDownloading =
-        ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
-    final isSessionCapturing =
-        ref.watch(sessionStateProvider.select((s) => s.isCapturing));
+    final exposurePercent = ref.watch(exposureProgressProvider.select((s) => s.percent));
+    final isDownloading = ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
+    final isSessionCapturing = ref.watch(sessionStateProvider.select((s) => s.isCapturing));
 
-    final isCapturing =
-        isSessionCapturing || exposurePercent > 0 || isDownloading;
+    final isCapturing = isSessionCapturing || exposurePercent > 0 || isDownloading;
 
     return Row(
       children: [
@@ -2361,10 +2408,8 @@ class _CaptureStatusIndicator extends ConsumerWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isCapturing
-                    ? colors.success
-                        .withValues(alpha: 0.3 + pulseController.value * 0.4)
-                    : colors.textMuted
-                        .withValues(alpha: 0.3 + pulseController.value * 0.4),
+                    ? colors.success.withValues(alpha: 0.3 + pulseController.value * 0.4)
+                    : colors.textMuted.withValues(alpha: 0.3 + pulseController.value * 0.4),
               ),
             );
           },
@@ -2399,9 +2444,7 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
   Widget build(BuildContext context) {
     final colors = widget.colors;
     final currentImage = ref.watch(currentImageProvider);
-    final isConnected =
-        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
+    final isConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
 
     return Container(
       decoration: BoxDecoration(
@@ -2447,22 +2490,16 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                         shape: BoxShape.circle,
                         border: Border.all(color: colors.border),
                       ),
-                      child: Icon(LucideIcons.camera,
-                          size: 32, color: colors.textMuted),
+                      child: Icon(LucideIcons.camera, size: 32, color: colors.textMuted),
                     ),
                     const SizedBox(height: 16),
                     Text(
                       isConnected ? 'No Image' : 'No Camera Connected',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: colors.textSecondary),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: colors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      isConnected
-                          ? 'Take a snapshot or start a sequence'
-                          : 'Connect a camera in Equipment',
+                      isConnected ? 'Take a snapshot or start a sequence' : 'Connect a camera in Equipment',
                       style: TextStyle(fontSize: 12, color: colors.textMuted),
                     ),
                   ],
@@ -2475,13 +2512,11 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                 top: 8,
                 left: 8,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surface.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(4),
-                    border:
-                        Border.all(color: colors.border.withValues(alpha: 0.5)),
+                    border: Border.all(color: colors.border.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     '${(_currentZoom * 100).toInt()}%',
@@ -2500,13 +2535,11 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                 top: 8,
                 right: 8,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surface.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(4),
-                    border:
-                        Border.all(color: colors.border.withValues(alpha: 0.5)),
+                    border: Border.all(color: colors.border.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     '${currentImage.width} × ${currentImage.height}',
@@ -2551,47 +2584,20 @@ class _ImageStatsRow extends ConsumerWidget {
           // Top row - Image info
           Row(
             children: [
-              _StatCell(
-                  label: 'Size',
-                  value: width != null && height != null
-                      ? '${width}x$height'
-                      : '---',
-                  colors: colors),
-              _StatCell(
-                  label: 'Stars',
-                  value: lastStats?.starCount?.toString() ?? '---',
-                  colors: colors),
-              _StatCell(
-                  label: 'HFR',
-                  value: lastStats?.hfr?.toStringAsFixed(2) ?? '---',
-                  colors: colors,
-                  highlight: true),
-              _StatCell(
-                  label: 'FWHM',
-                  value: lastStats?.fwhm?.toStringAsFixed(2) ?? '---',
-                  colors: colors),
+              _StatCell(label: 'Size', value: width != null && height != null ? '${width}x$height' : '---', colors: colors),
+              _StatCell(label: 'Stars', value: lastStats?.starCount?.toString() ?? '---', colors: colors),
+              _StatCell(label: 'HFR', value: lastStats?.hfr?.toStringAsFixed(2) ?? '---', colors: colors, highlight: true),
+              _StatCell(label: 'FWHM', value: lastStats?.fwhm?.toStringAsFixed(2) ?? '---', colors: colors),
             ],
           ),
           const SizedBox(height: 4),
           // Bottom row - Pixel stats
           Row(
             children: [
-              _StatCell(
-                  label: 'Mean',
-                  value: lastStats?.mean?.toStringAsFixed(0) ?? '---',
-                  colors: colors),
-              _StatCell(
-                  label: 'Median',
-                  value: lastStats?.median?.toStringAsFixed(0) ?? '---',
-                  colors: colors),
-              _StatCell(
-                  label: 'Min',
-                  value: lastStats?.min?.toStringAsFixed(0) ?? '---',
-                  colors: colors),
-              _StatCell(
-                  label: 'Max',
-                  value: lastStats?.max?.toStringAsFixed(0) ?? '---',
-                  colors: colors),
+              _StatCell(label: 'Mean', value: lastStats?.mean?.toStringAsFixed(0) ?? '---', colors: colors),
+              _StatCell(label: 'Median', value: lastStats?.median?.toStringAsFixed(0) ?? '---', colors: colors),
+              _StatCell(label: 'Min', value: lastStats?.min?.toStringAsFixed(0) ?? '---', colors: colors),
+              _StatCell(label: 'Max', value: lastStats?.max?.toStringAsFixed(0) ?? '---', colors: colors),
             ],
           ),
         ],
@@ -2739,8 +2745,7 @@ class _SessionProgressCard extends ConsumerWidget {
     final targetName = sessionState.targetName ?? 'No target';
 
     // Format exposure count
-    final exposureText =
-        '${sessionState.completedExposures}/${sessionState.totalExposures}';
+    final exposureText = '${sessionState.completedExposures}/${sessionState.totalExposures}';
 
     // Format integration time
     final integrationText = sessionState.totalIntegrationSecs > 0
@@ -2754,10 +2759,7 @@ class _SessionProgressCard extends ConsumerWidget {
 
     // Calculate remaining time
     String remainingText = '---';
-    if (isActive &&
-        progressValue > 0 &&
-        progressValue < 1.0 &&
-        sessionState.startTime != null) {
+    if (isActive && progressValue > 0 && progressValue < 1.0 && sessionState.startTime != null) {
       final elapsed = DateTime.now().difference(sessionState.startTime!);
       final estimatedTotal = Duration(
         milliseconds: (elapsed.inMilliseconds / progressValue).round(),
@@ -2769,8 +2771,7 @@ class _SessionProgressCard extends ConsumerWidget {
     }
 
     // Current exposure info
-    final currentExpText =
-        '${exposureSettings.exposureTime}s ${exposureSettings.filter ?? "L"}';
+    final currentExpText = '${exposureSettings.exposureTime}s ${exposureSettings.filter ?? "L"}';
 
     return _GlassCard(
       colors: colors,
@@ -2809,9 +2810,7 @@ class _SessionProgressCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isActive
-                      ? colors.success.withValues(alpha: 0.15)
-                      : colors.surfaceAlt,
+                  color: isActive ? colors.success.withValues(alpha: 0.15) : colors.surfaceAlt,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -2843,8 +2842,7 @@ class _SessionProgressCard extends ConsumerWidget {
                     alignment: Alignment.centerLeft,
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                            colors: [colors.primary, colors.accent]),
+                        gradient: LinearGradient(colors: [colors.primary, colors.accent]),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
@@ -2886,14 +2884,9 @@ class _SessionProgressCard extends ConsumerWidget {
             child: Row(
               children: [
                 _CompactStat(label: 'Frm', value: exposureText, colors: colors),
-                _CompactStat(
-                    label: 'Int', value: integrationText, colors: colors),
+                _CompactStat(label: 'Int', value: integrationText, colors: colors),
                 _CompactStat(label: 'Elap', value: elapsedText, colors: colors),
-                _CompactStat(
-                    label: 'Rem',
-                    value: remainingText,
-                    colors: colors,
-                    highlight: isActive),
+                _CompactStat(label: 'Rem', value: remainingText, colors: colors, highlight: isActive),
               ],
             ),
           ),
@@ -2959,8 +2952,7 @@ class _ExposureProgressRow extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Container(
                   decoration: BoxDecoration(
-                    color:
-                        progress.isDownloading ? colors.info : colors.primary,
+                    color: progress.isDownloading ? colors.info : colors.primary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -3010,6 +3002,50 @@ class _CompactStat extends StatelessWidget {
   }
 }
 
+class _SessionStat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+
+  const _SessionStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: colors.textMuted),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: colors.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _GuidingCard extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
@@ -3028,8 +3064,7 @@ class _GuidingCardState extends ConsumerState<_GuidingCard> {
     final guiderState = ref.watch(guiderStateProvider);
     final guideGraphData = ref.watch(guideGraphProvider);
 
-    final isConnected =
-        guiderState.connectionState == DeviceConnectionState.connected;
+    final isConnected = guiderState.connectionState == DeviceConnectionState.connected;
     final isGuiding = guiderState.isGuiding;
     final rmsTotal = guiderState.rmsTotal?.toStringAsFixed(2) ?? '---';
     final rmsRa = guiderState.rmsRa?.toStringAsFixed(2) ?? '---';
@@ -3062,10 +3097,7 @@ class _GuidingCardState extends ConsumerState<_GuidingCard> {
               const SizedBox(width: 8),
               Text(
                 'Guiding',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textPrimary),
               ),
               const Spacer(),
               // Inline RMS values
@@ -3082,9 +3114,7 @@ class _GuidingCardState extends ConsumerState<_GuidingCard> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isGuiding
-                      ? colors.success.withValues(alpha: 0.15)
-                      : colors.surfaceAlt,
+                  color: isGuiding ? colors.success.withValues(alpha: 0.15) : colors.surfaceAlt,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -3112,8 +3142,7 @@ class _GuidingCardState extends ConsumerState<_GuidingCard> {
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: CustomPaint(
-                      painter: _DashboardGuidingGraphPainter(
-                          data: guideGraphData, colors: colors),
+                      painter: _DashboardGuidingGraphPainter(data: guideGraphData, colors: colors),
                       child: Container(),
                     ),
                   )
@@ -3133,13 +3162,11 @@ class _GuidingCardState extends ConsumerState<_GuidingCard> {
               // Stats row with legend
               Container(width: 10, height: 2, color: Colors.redAccent),
               const SizedBox(width: 3),
-              Text('$rmsRa"',
-                  style: TextStyle(fontSize: 10, color: colors.textSecondary)),
+              Text('$rmsRa"', style: TextStyle(fontSize: 10, color: colors.textSecondary)),
               const SizedBox(width: 8),
               Container(width: 10, height: 2, color: Colors.blueAccent),
               const SizedBox(width: 3),
-              Text('$rmsDec"',
-                  style: TextStyle(fontSize: 10, color: colors.textSecondary)),
+              Text('$rmsDec"', style: TextStyle(fontSize: 10, color: colors.textSecondary)),
               const Spacer(),
               // Start/Stop button
               SizedBox(
@@ -3147,8 +3174,7 @@ class _GuidingCardState extends ConsumerState<_GuidingCard> {
                 child: NightshadeButton(
                   label: isGuiding ? 'Stop' : 'Start',
                   icon: isGuiding ? LucideIcons.square : LucideIcons.play,
-                  variant:
-                      isGuiding ? ButtonVariant.outline : ButtonVariant.primary,
+                  variant: isGuiding ? ButtonVariant.outline : ButtonVariant.primary,
                   size: ButtonSize.small,
                   onPressed: (!isConnected || _isStartingOrStopping)
                       ? null
@@ -3175,8 +3201,7 @@ class _GuidingCardState extends ConsumerState<_GuidingCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                'Failed to ${isCurrentlyGuiding ? 'stop' : 'start'} guiding: $e'),
+            content: Text('Failed to ${isCurrentlyGuiding ? 'stop' : 'start'} guiding: $e'),
             backgroundColor: widget.colors.error,
           ),
         );
@@ -3229,7 +3254,7 @@ class _DashboardGuidingGraphPainter extends CustomPainter {
     for (int i = 0; i < data.length; i++) {
       final point = data[i];
       final x = size.width - ((data.length - 1 - i) * stepX);
-
+      
       if (x < 0) continue;
 
       // Clamp values to range
@@ -3413,8 +3438,7 @@ class _CaptureSettingsCardState extends ConsumerState<_CaptureSettingsCard> {
                 )
               else if (!isConnected)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: colors.warning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
@@ -3434,14 +3458,11 @@ class _CaptureSettingsCardState extends ConsumerState<_CaptureSettingsCard> {
                 flex: 2,
                 child: NightshadeButton(
                   label: isCapturing
-                      ? (exposureProgress.isDownloading
-                          ? 'Downloading...'
-                          : 'Capturing...')
+                      ? (exposureProgress.isDownloading ? 'Downloading...' : 'Capturing...')
                       : 'Capture',
                   icon: isCapturing ? LucideIcons.loader2 : LucideIcons.camera,
                   size: ButtonSize.small,
-                  onPressed:
-                      (!isConnected || isCapturing) ? null : _captureImage,
+                  onPressed: (!isConnected || isCapturing) ? null : _captureImage,
                 ),
               ),
               const SizedBox(width: 6),
@@ -3449,9 +3470,7 @@ class _CaptureSettingsCardState extends ConsumerState<_CaptureSettingsCard> {
                 child: NightshadeButton(
                   label: _isLooping ? 'Stop' : 'Loop',
                   icon: LucideIcons.repeat,
-                  variant: _isLooping
-                      ? ButtonVariant.primary
-                      : ButtonVariant.outline,
+                  variant: _isLooping ? ButtonVariant.primary : ButtonVariant.outline,
                   size: ButtonSize.small,
                   onPressed: (!isConnected || isCapturing) ? null : _toggleLoop,
                 ),
@@ -3513,8 +3532,7 @@ class _CaptureSettingsCardState extends ConsumerState<_CaptureSettingsCard> {
   }
 
   /// Handle filter selection - updates settings AND moves the physical filter wheel
-  Future<void> _onFilterChanged(
-      String? filterName, List<String> filterNames) async {
+  Future<void> _onFilterChanged(String? filterName, List<String> filterNames) async {
     if (filterName == null) return;
 
     // Find the position index for this filter name
@@ -3614,8 +3632,7 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
             textAlign: TextAlign.center,
             decoration: InputDecoration(
               isDense: true,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
               filled: true,
               fillColor: widget.colors.surfaceAlt,
               border: OutlineInputBorder(
@@ -3624,8 +3641,7 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(4),
-                borderSide: BorderSide(
-                    color: widget.colors.border.withValues(alpha: 0.5)),
+                borderSide: BorderSide(color: widget.colors.border.withValues(alpha: 0.5)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(4),
@@ -3637,8 +3653,7 @@ class _CompactSettingFieldState extends State<_CompactSettingField> {
         ),
         if (widget.suffix != null) ...[
           const SizedBox(width: 2),
-          Text(widget.suffix!,
-              style: TextStyle(fontSize: 10, color: widget.colors.textMuted)),
+          Text(widget.suffix!, style: TextStyle(fontSize: 10, color: widget.colors.textMuted)),
         ],
       ],
     );
@@ -3680,14 +3695,10 @@ class _CompactDropdown extends StatelessWidget {
             height: 28,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color: highlight
-                  ? colors.primary.withValues(alpha: 0.1)
-                  : colors.surfaceAlt,
+              color: highlight ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt,
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
-                color: highlight
-                    ? colors.primary.withValues(alpha: 0.3)
-                    : colors.border.withValues(alpha: 0.5),
+                color: highlight ? colors.primary.withValues(alpha: 0.3) : colors.border.withValues(alpha: 0.5),
               ),
             ),
             child: DropdownButtonHideUnderline(
@@ -3702,14 +3713,11 @@ class _CompactDropdown extends StatelessWidget {
                     fontWeight: highlight ? FontWeight.w600 : FontWeight.normal,
                   ),
                   dropdownColor: colors.surface,
-                  icon: Icon(LucideIcons.chevronDown,
-                      size: 12, color: colors.textMuted),
-                  items: items
-                      .map((item) => DropdownMenuItem(
-                            value: item,
-                            child: Text(item),
-                          ))
-                      .toList(),
+                  icon: Icon(LucideIcons.chevronDown, size: 12, color: colors.textMuted),
+                  items: items.map((item) => DropdownMenuItem(
+                    value: item,
+                    child: Text(item),
+                  )).toList(),
                   onChanged: onChanged,
                 ),
               ),
@@ -3757,14 +3765,11 @@ class _MountControlCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mountState = ref.watch(mountStateProvider);
-    final isConnected =
-        mountState.connectionState == DeviceConnectionState.connected;
+    final isConnected = mountState.connectionState == DeviceConnectionState.connected;
 
     final raText = mountState.ra != null ? _formatRa(mountState.ra!) : '---';
-    final decText =
-        mountState.dec != null ? _formatDec(mountState.dec!) : '---';
-    final pierText =
-        isConnected ? (mountState.sideOfPier?.toUpperCase() ?? '---') : '---';
+    final decText = mountState.dec != null ? _formatDec(mountState.dec!) : '---';
+    final pierText = isConnected ? (mountState.sideOfPier?.toUpperCase() ?? '---') : '---';
 
     // Status with color
     final (statusText, statusColor) = mountState.isSlewing
@@ -3794,37 +3799,25 @@ class _MountControlCard extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: mountState.isTracking
-                          ? colors.success.withValues(alpha: 0.1)
-                          : colors.info.withValues(alpha: 0.1),
+                      color: mountState.isTracking ? colors.success.withValues(alpha: 0.1) : colors.info.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(
                       LucideIcons.move3d,
                       size: 14,
-                      color:
-                          mountState.isTracking ? colors.success : colors.info,
+                      color: mountState.isTracking ? colors.success : colors.info,
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text('Mount',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary)),
+                  Text('Mount', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary)),
                   const Spacer(),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(statusText,
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: statusColor)),
+                    child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
                   ),
                 ],
               ),
@@ -3844,15 +3837,8 @@ class _MountControlCard extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('RA',
-                              style: TextStyle(
-                                  fontSize: 9, color: colors.textMuted)),
-                          Text(raText,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textPrimary,
-                                  fontFamily: 'monospace')),
+                          Text('RA', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                          Text(raText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
                         ],
                       ),
                     ),
@@ -3860,29 +3846,16 @@ class _MountControlCard extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Dec',
-                              style: TextStyle(
-                                  fontSize: 9, color: colors.textMuted)),
-                          Text(decText,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textPrimary,
-                                  fontFamily: 'monospace')),
+                          Text('Dec', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                          Text(decText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
                         ],
                       ),
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('Pier',
-                            style: TextStyle(
-                                fontSize: 9, color: colors.textMuted)),
-                        Text(pierText,
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: colors.textPrimary)),
+                        Text('Pier', style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                        Text(pierText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary)),
                       ],
                     ),
                   ],
@@ -3897,12 +3870,8 @@ class _MountControlCard extends ConsumerWidget {
                 _MountDirectionalPad(
                   colors: colors,
                   isEnabled: isConnected && !mountState.isParked,
-                  onDirection: (direction) async {
-                    final result = await ref
-                        .read(mountCommandServiceProvider)
-                        .pulseGuide(direction);
-                    if (!context.mounted) return;
-                    context.showCommandActionResult(result);
+                  onDirection: (direction) {
+                    ref.read(mountCommandServiceProvider).pulseGuide(direction);
                   },
                 ),
 
@@ -3911,9 +3880,7 @@ class _MountControlCard extends ConsumerWidget {
                 // Tracking rate selector
                 Row(
                   children: [
-                    Text('Rate:',
-                        style:
-                            TextStyle(fontSize: 10, color: colors.textMuted)),
+                    Text('Rate:', style: TextStyle(fontSize: 10, color: colors.textMuted)),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Container(
@@ -3922,31 +3889,24 @@ class _MountControlCard extends ConsumerWidget {
                         decoration: BoxDecoration(
                           color: colors.surfaceAlt,
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                              color: colors.border.withValues(alpha: 0.5)),
+                          border: Border.all(color: colors.border.withValues(alpha: 0.5)),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<TrackingRate>(
                             value: mountState.trackingRate,
                             isDense: true,
                             isExpanded: true,
-                            style: TextStyle(
-                                fontSize: 11, color: colors.textPrimary),
+                            style: TextStyle(fontSize: 11, color: colors.textPrimary),
                             dropdownColor: colors.surface,
-                            icon: Icon(LucideIcons.chevronDown,
-                                size: 12, color: colors.textMuted),
-                            items: TrackingRate.values
-                                .map((rate) => DropdownMenuItem(
-                                      value: rate,
-                                      child: Text(_trackingRateLabel(rate)),
-                                    ))
-                                .toList(),
+                            icon: Icon(LucideIcons.chevronDown, size: 12, color: colors.textMuted),
+                            items: TrackingRate.values.map((rate) => DropdownMenuItem(
+                              value: rate,
+                              child: Text(_trackingRateLabel(rate)),
+                            )).toList(),
                             onChanged: mountState.canSetTrackingRate
                                 ? (rate) {
                                     if (rate != null) {
-                                      ref
-                                          .read(deviceServiceProvider)
-                                          .setMountTrackingRate(rate.index);
+                                      ref.read(deviceServiceProvider).setMountTrackingRate(rate.index);
                                     }
                                   }
                                 : null,
@@ -3969,15 +3929,7 @@ class _MountControlCard extends ConsumerWidget {
                       icon: LucideIcons.parkingCircle,
                       variant: ButtonVariant.outline,
                       size: ButtonSize.small,
-                      onPressed: isConnected
-                          ? () async {
-                              final result = await ref
-                                  .read(mountCommandServiceProvider)
-                                  .togglePark();
-                              if (!context.mounted) return;
-                              context.showCommandActionResult(result);
-                            }
-                          : null,
+                      onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).togglePark() : null,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -3985,19 +3937,9 @@ class _MountControlCard extends ConsumerWidget {
                     child: NightshadeButton(
                       label: mountState.isTracking ? 'Stop' : 'Track',
                       icon: LucideIcons.activity,
-                      variant: mountState.isTracking
-                          ? ButtonVariant.primary
-                          : ButtonVariant.outline,
+                      variant: mountState.isTracking ? ButtonVariant.primary : ButtonVariant.outline,
                       size: ButtonSize.small,
-                      onPressed: isConnected
-                          ? () async {
-                              final result = await ref
-                                  .read(mountCommandServiceProvider)
-                                  .toggleTracking();
-                              if (!context.mounted) return;
-                              context.showCommandActionResult(result);
-                            }
-                          : null,
+                      onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).toggleTracking() : null,
                     ),
                   ),
                 ],
@@ -4011,15 +3953,7 @@ class _MountControlCard extends ConsumerWidget {
                     icon: LucideIcons.xCircle,
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
-                    onPressed: isConnected
-                        ? () async {
-                            final result = await ref
-                                .read(mountCommandServiceProvider)
-                                .abortSlew();
-                            if (!context.mounted) return;
-                            context.showCommandActionResult(result);
-                          }
-                        : null,
+                    onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).abortSlew() : null,
                   ),
                 ),
               ],
@@ -4261,9 +4195,7 @@ class _FocusCard extends ConsumerWidget {
                   isEnabled: isConnected && !focuserState.isMoving,
                   onMove: (steps) async {
                     try {
-                      await ref
-                          .read(deviceServiceProvider)
-                          .moveFocuserRelative(steps);
+                      await ref.read(deviceServiceProvider).moveFocuserRelative(steps);
                     } catch (e) {
                       if (context.mounted) {
                         context.showErrorSnackBar('Failed to move focuser: $e');
@@ -4283,12 +4215,9 @@ class _FocusCard extends ConsumerWidget {
                     label: 'Autofocus',
                     icon: LucideIcons.focus,
                     size: ButtonSize.small,
-                    onPressed: isConnected
-                        ? () {
-                            context.showInfoSnackBar(
-                                'Use Focus tab for autofocus');
-                          }
-                        : null,
+                    onPressed: isConnected ? () {
+                      context.showInfoSnackBar('Use Focus tab for autofocus');
+                    } : null,
                   ),
                 )
               else
@@ -4355,8 +4284,7 @@ class _FocusPositionSparkline extends StatelessWidget {
           // Sparkline chart with left padding for labels
           Positioned.fill(
             child: Padding(
-              padding:
-                  const EdgeInsets.only(left: 28, right: 4, top: 4, bottom: 4),
+              padding: const EdgeInsets.only(left: 28, right: 4, top: 4, bottom: 4),
               child: CustomPaint(
                 size: const Size(double.infinity, 32),
                 painter: _SparklinePainter(
@@ -4643,8 +4571,7 @@ class _AlertsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifications = ref.watch(uiNotificationProvider);
     final hasOperation = ref.watch(hasActiveOperationProvider);
-    final recent =
-        notifications.reversed.take(2).toList(); // Show fewer in compact
+    final recent = notifications.reversed.take(2).toList(); // Show fewer in compact
 
     return _GlassCard(
       colors: colors,
@@ -4680,8 +4607,9 @@ class _AlertsCard extends ConsumerWidget {
               ),
               if (notifications.isNotEmpty)
                 NightshadeButton(
-                  onPressed: () =>
-                      ref.read(uiNotificationProvider.notifier).clearAll(),
+                  onPressed: () => ref
+                      .read(uiNotificationProvider.notifier)
+                      .clearAll(),
                   label: 'Clear',
                   variant: ButtonVariant.ghost,
                   size: ButtonSize.small,
@@ -4731,29 +4659,14 @@ class _EquipmentStatusCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Use select() to only rebuild when connection state changes
-    final cameraConnected =
-        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final mountConnected =
-        ref.watch(mountStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final guiderConnected =
-        ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final focuserConnected =
-        ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final filterWheelConnected =
-        ref.watch(filterWheelStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
+    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+    final mountConnected = ref.watch(mountStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+    final guiderConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+    final focuserConnected = ref.watch(focuserStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+    final filterWheelConnected = ref.watch(filterWheelStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
 
-    final connectedCount = [
-      cameraConnected,
-      mountConnected,
-      guiderConnected,
-      focuserConnected,
-      filterWheelConnected
-    ].where((c) => c).length;
+    final connectedCount = [cameraConnected, mountConnected, guiderConnected, focuserConnected, filterWheelConnected]
+        .where((c) => c).length;
 
     return _GlassCard(
       colors: colors,
@@ -4785,9 +4698,7 @@ class _EquipmentStatusCard extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: connectedCount == 5
-                      ? colors.success
-                      : colors.textSecondary,
+                  color: connectedCount == 5 ? colors.success : colors.textSecondary,
                 ),
               ),
               const SizedBox(width: 8),
@@ -4885,9 +4796,7 @@ class _CompactEquipmentIcon extends StatelessWidget {
                   : colors.surface,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                color: isConnected
-                    ? colors.success.withValues(alpha: 0.3)
-                    : colors.border,
+                color: isConnected ? colors.success.withValues(alpha: 0.3) : colors.border,
                 width: 1,
               ),
             ),
@@ -4919,26 +4828,17 @@ class _QuickStatsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Use select() to only rebuild when specific fields change
-    final cameraConnected =
-        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final cameraTemp =
-        ref.watch(cameraStateProvider.select((s) => s.temperature));
+    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+    final cameraTemp = ref.watch(cameraStateProvider.select((s) => s.temperature));
 
-    final guiderConnected =
-        ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final guiderIsGuiding =
-        ref.watch(guiderStateProvider.select((s) => s.isGuiding));
+    final guiderConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+    final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
     final guiderRms = ref.watch(guiderStateProvider.select((s) => s.rmsTotal));
 
     final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
 
-    final focuserConnected =
-        ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
-            DeviceConnectionState.connected;
-    final focuserPosition =
-        ref.watch(focuserStateProvider.select((s) => s.position));
+    final focuserConnected = ref.watch(focuserStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+    final focuserPosition = ref.watch(focuserStateProvider.select((s) => s.position));
 
     // Format temperature (same logic as Imaging tab)
     String tempValue = '---';
@@ -5086,14 +4986,12 @@ class _TonightCard extends ConsumerWidget {
       final dusk = twilight.astronomicalDusk!;
       // If dusk is in the future (relative to simulation time), show it
       if (dusk.isAfter(now)) {
-        astroTwilightTime =
-            '${dusk.hour.toString().padLeft(2, '0')}:${dusk.minute.toString().padLeft(2, '0')}';
+        astroTwilightTime = '${dusk.hour.toString().padLeft(2, '0')}:${dusk.minute.toString().padLeft(2, '0')}';
       } else {
         // Dusk already passed, show dawn
         if (twilight.astronomicalDawn != null) {
           final dawn = twilight.astronomicalDawn!;
-          astroTwilightTime =
-              '${dawn.hour.toString().padLeft(2, '0')}:${dawn.minute.toString().padLeft(2, '0')}';
+          astroTwilightTime = '${dawn.hour.toString().padLeft(2, '0')}:${dawn.minute.toString().padLeft(2, '0')}';
         }
       }
     }
@@ -5103,10 +5001,8 @@ class _TonightCard extends ConsumerWidget {
 
     // Calculate imaging window (darkness duration)
     String imagingWindow = '--:--';
-    if (twilight.astronomicalDusk != null &&
-        twilight.astronomicalDawn != null) {
-      final duration =
-          twilight.astronomicalDawn!.difference(twilight.astronomicalDusk!);
+    if (twilight.astronomicalDusk != null && twilight.astronomicalDawn != null) {
+      final duration = twilight.astronomicalDawn!.difference(twilight.astronomicalDusk!);
       final hours = duration.inHours;
       final minutes = duration.inMinutes % 60;
       imagingWindow = '${hours}h ${minutes}m';
@@ -5143,7 +5039,9 @@ class _TonightCard extends ConsumerWidget {
               ),
             ],
           ),
+
           const SizedBox(height: 12),
+
           _TonightRow(
             icon: LucideIcons.sunset,
             label: 'Twilight',
@@ -5224,12 +5122,9 @@ class _QuickActionsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Watch mount capabilities to gate Park button
     final mountState = ref.watch(mountStateProvider);
-    final mountCapabilitiesAsync =
-        ref.watch(mountCapabilitiesProvider(mountState.deviceId ?? ''));
+    final mountCapabilitiesAsync = ref.watch(
+        mountCapabilitiesProvider(mountState.deviceId ?? ''));
     final mountCapabilities = mountCapabilitiesAsync.valueOrNull;
-    final canPark =
-        mountState.connectionState == DeviceConnectionState.connected &&
-            (mountCapabilities == null || mountCapabilities.canPark);
 
     // Build action buttons with their callbacks
     final actionButtons = [
@@ -5251,13 +5146,8 @@ class _QuickActionsCard extends ConsumerWidget {
       _ActionButtonData(
         icon: LucideIcons.parkingCircle,
         label: 'Park',
-        onTap: canPark
-            ? () async {
-                final result =
-                    await ref.read(mountCommandServiceProvider).park();
-                if (!context.mounted) return;
-                context.showCommandActionResult(result);
-              }
+        onTap: (mountCapabilities?.canPark ?? true)
+            ? () => ref.read(mountCommandServiceProvider).park()
             : null,
       ),
     ];
@@ -5295,8 +5185,7 @@ class _QuickActionsCard extends ConsumerWidget {
                         colors: colors,
                         onTap: actionButtons[i].onTap,
                       ),
-                      if (i < actionButtons.length - 1)
-                        const SizedBox(height: 8),
+                      if (i < actionButtons.length - 1) const SizedBox(height: 8),
                     ],
                   ],
                 );
@@ -5362,8 +5251,7 @@ class _QuickActionsCard extends ConsumerWidget {
                           onTap: actionButtons[i].onTap,
                         ),
                       ),
-                      if (i < actionButtons.length - 1)
-                        const SizedBox(width: 8),
+                      if (i < actionButtons.length - 1) const SizedBox(width: 8),
                     ],
                   ],
                 );
@@ -5536,28 +5424,28 @@ class _ActionButtonState extends State<_ActionButton> {
             ),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                widget.icon,
-                size: 16,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              widget.icon,
+              size: 16,
+              color: _isHovered
+                  ? widget.colors.primary
+                  : widget.colors.textSecondary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
                 color: _isHovered
                     ? widget.colors.primary
                     : widget.colors.textSecondary,
               ),
-              const SizedBox(width: 8),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: _isHovered
-                      ? widget.colors.primary
-                      : widget.colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
+        ),
         ),
       ),
     );
@@ -5644,8 +5532,7 @@ class _CenteringDialogState extends State<_CenteringDialog> {
       // Use user-configured exposure settings for centering captures
       final userSettings = widget.ref.read(exposureSettingsProvider);
       final centeringSettings = ExposureSettings(
-        exposureTime:
-            userSettings.exposureTime > 0 ? userSettings.exposureTime : 5.0,
+        exposureTime: userSettings.exposureTime > 0 ? userSettings.exposureTime : 5.0,
         gain: userSettings.gain,
         offset: userSettings.offset,
         binningX: userSettings.binningX > 0 ? userSettings.binningX : 2,
@@ -5656,104 +5543,88 @@ class _CenteringDialogState extends State<_CenteringDialog> {
         _iteration++;
 
         // Step 1: Take an image
-        setState(() => _status =
-            'Capturing image (attempt $_iteration/$_maxIterations)...');
+        setState(() => _status = 'Capturing image (attempt $_iteration/$_maxIterations)...');
 
         final image = await imagingService.captureImage(
           settings: centeringSettings,
           targetName: 'center_${widget.targetName}',
         );
-
+        
         if (image == null || image.filePath == null) {
           setState(() => _status = 'Failed to capture image');
           return;
         }
-
+        
         // Step 2: Plate solve
         setState(() => _status = 'Plate solving...');
 
         // PlateSolveService tries backend.plateSolve() first (works for both local and remote)
         // Only falls back to local solver if backend fails
-        final executablePath =
-            await PlateSolverUtils.findAstapExecutable(astapPath);
+        final executablePath = await PlateSolverUtils.findAstapExecutable(astapPath);
 
         final result = await widget.ref.read(plateSolveServiceProvider).solve(
-              image.filePath!,
-              PlateSolverConfig(
-                type: PlateSolverType.astap,
-                hintRa: widget.targetRa,
-                hintDec: widget.targetDec,
-                searchRadius: 15.0,
-                // Provide path for local fallback - backend is tried first
-                executablePath: executablePath ?? '',
-              ),
-            );
-
+          image.filePath!,
+          PlateSolverConfig(
+            type: PlateSolverType.astap,
+            hintRa: widget.targetRa,
+            hintDec: widget.targetDec,
+            searchRadius: 15.0,
+            // Provide path for local fallback - backend is tried first
+            executablePath: executablePath ?? '',
+          ),
+        );
+        
         if (!result.success || result.ra == null || result.dec == null) {
-          setState(() => _status =
-              'Plate solve failed: ${result.errorMessage ?? "Unknown error"}');
+          setState(() => _status = 'Plate solve failed: ${result.errorMessage ?? "Unknown error"}');
           return;
         }
-
+        
         // Step 3: Calculate error
         // RA is in hours, Dec is in degrees. Convert both to arcsec for display.
         // 1 hour RA = 15 degrees = 54000 arcsec
-        final raErrorArcsec =
-            (result.ra! - widget.targetRa) * 15.0 * 3600.0; // hours to arcsec
-        final decErrorArcsec =
-            (result.dec! - widget.targetDec) * 3600.0; // degrees to arcsec
-        final totalErrorArcsec = math.sqrt(
-            raErrorArcsec * raErrorArcsec + decErrorArcsec * decErrorArcsec);
-
+        final raErrorArcsec = (result.ra! - widget.targetRa) * 15.0 * 3600.0; // hours to arcsec
+        final decErrorArcsec = (result.dec! - widget.targetDec) * 3600.0; // degrees to arcsec
+        final totalErrorArcsec = math.sqrt(raErrorArcsec * raErrorArcsec + decErrorArcsec * decErrorArcsec);
+        
         setState(() {
           _lastRaError = raErrorArcsec;
           _lastDecError = decErrorArcsec;
-          _status =
-              'Error: ${totalErrorArcsec.toStringAsFixed(1)}" (RA: ${raErrorArcsec.toStringAsFixed(1)}", Dec: ${decErrorArcsec.toStringAsFixed(1)}")';
+          _status = 'Error: ${totalErrorArcsec.toStringAsFixed(1)}" (RA: ${raErrorArcsec.toStringAsFixed(1)}", Dec: ${decErrorArcsec.toStringAsFixed(1)}")';
         });
-
+        
         // Check if centered enough (within 30 arcseconds)
         if (totalErrorArcsec < 30.0) {
           setState(() {
             _success = true;
-            _status =
-                'Centered! Error: ${totalErrorArcsec.toStringAsFixed(1)}"';
+            _status = 'Centered! Error: ${totalErrorArcsec.toStringAsFixed(1)}"';
           });
           break;
         }
-
+        
         // Step 4: Slew to corrected position
         setState(() => _status = 'Slewing to corrected position...');
 
         // Convert arcsec error back to coordinate units for correction
         // RA: arcsec / (15 * 3600) = hours, Dec: arcsec / 3600 = degrees
-        final newRa = widget.targetRa -
-            (raErrorArcsec / (15.0 * 3600.0)); // Correct for offset (hours)
-        final newDec = widget.targetDec -
-            (decErrorArcsec / 3600.0); // Correct for offset (degrees)
+        final newRa = widget.targetRa - (raErrorArcsec / (15.0 * 3600.0)); // Correct for offset (hours)
+        final newDec = widget.targetDec - (decErrorArcsec / 3600.0); // Correct for offset (degrees)
 
         // Use service without feedback - dialog shows its own status
-        final slewResult =
-            await mountService.slewTo(newRa, newDec, showFeedback: false);
-        if (!slewResult.isSuccess) {
-          if (!mounted) return;
-          setState(() => _status = slewResult.message ?? 'Slew failed');
-          return;
-        }
-
+        await mountService.slewTo(newRa, newDec, showFeedback: false);
+        
         // Wait for slew to complete
         await Future.delayed(const Duration(seconds: 2));
-
+        
         // Small delay before next iteration
         await Future.delayed(const Duration(seconds: 1));
       }
-
+      
       if (!_success && _iteration >= _maxIterations) {
         setState(() {
-          _status =
-              'Max iterations reached. Last error: RA ${_lastRaError?.toStringAsFixed(1)}", Dec ${_lastDecError?.toStringAsFixed(1)}"';
+          _status = 'Max iterations reached. Last error: RA ${_lastRaError?.toStringAsFixed(1)}", Dec ${_lastDecError?.toStringAsFixed(1)}"';
         });
       }
+      
     } catch (e) {
       setState(() => _status = 'Error: $e');
     } finally {
@@ -5809,20 +5680,16 @@ class _CenteringDialogState extends State<_CenteringDialog> {
               decoration: BoxDecoration(
                 color: widget.colors.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: widget.colors.success.withValues(alpha: 0.3)),
+                border: Border.all(color: widget.colors.success.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                  Icon(LucideIcons.checkCircle,
-                      color: widget.colors.success, size: 20),
+                  Icon(LucideIcons.checkCircle, color: widget.colors.success, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Target centered successfully!',
-                      style: TextStyle(
-                          color: widget.colors.success,
-                          fontWeight: FontWeight.w500),
+                      style: TextStyle(color: widget.colors.success, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
@@ -5838,28 +5705,18 @@ class _CenteringDialogState extends State<_CenteringDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('RA Error:',
-                    style: TextStyle(
-                        color: widget.colors.textMuted, fontSize: 12)),
-                Text('${_lastRaError?.toStringAsFixed(1) ?? "---"}"',
-                    style: TextStyle(
-                        color: widget.colors.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500)),
+                Text('RA Error:', style: TextStyle(color: widget.colors.textMuted, fontSize: 12)),
+                Text('${_lastRaError?.toStringAsFixed(1) ?? "---"}"', 
+                     style: TextStyle(color: widget.colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
               ],
             ),
             const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Dec Error:',
-                    style: TextStyle(
-                        color: widget.colors.textMuted, fontSize: 12)),
-                Text('${_lastDecError?.toStringAsFixed(1) ?? "---"}"',
-                    style: TextStyle(
-                        color: widget.colors.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500)),
+                Text('Dec Error:', style: TextStyle(color: widget.colors.textMuted, fontSize: 12)),
+                Text('${_lastDecError?.toStringAsFixed(1) ?? "---"}"', 
+                     style: TextStyle(color: widget.colors.textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
               ],
             ),
           ],
@@ -5891,3 +5748,4 @@ class _CenteringDialogState extends State<_CenteringDialog> {
     );
   }
 }
+

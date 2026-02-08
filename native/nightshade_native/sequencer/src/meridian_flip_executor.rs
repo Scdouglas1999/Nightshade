@@ -468,6 +468,7 @@ impl MeridianFlipExecutor {
             longitude: None,
             device_ops: self.device_ops.clone(),
             trigger_state: None,
+            filter_focus_offsets: std::collections::HashMap::new(),
         };
 
         // Execute autofocus

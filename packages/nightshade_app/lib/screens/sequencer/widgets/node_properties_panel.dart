@@ -381,6 +381,11 @@ class _NodeEditor extends ConsumerWidget {
     } else if (node is ScriptNode) {
       propertiesWidget =
           _ScriptProperties(colors: colors, node: node as ScriptNode);
+    } else if (node is StartGuidingNode) {
+      propertiesWidget = _StartGuidingProperties(
+          colors: colors, node: node as StartGuidingNode);
+    } else if (node is StopGuidingNode) {
+      propertiesWidget = _SimpleInstructionInfo(colors: colors, node: node);
     } else if (node is ParkNode || node is UnparkNode) {
       propertiesWidget = _SimpleInstructionInfo(colors: colors, node: node);
     } else if (node is MeridianFlipNode) {
@@ -1588,19 +1593,166 @@ class _TargetGroupProperties extends ConsumerWidget {
         ),
         _PropertyField(
           colors: colors,
-          label: 'Min Altitude',
+          label: 'Priority',
           child: _NumberInput(
             colors: colors,
-            value: node.minAltitude ?? 30,
-            suffix: '°',
+            value: node.priority.toDouble(),
             min: 0,
-            max: 90,
-            decimals: 0,
+            max: 100,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(minAltitude: value),
+                    node.copyWith(priority: value.toInt()),
                   );
             },
+          ),
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Min Altitude',
+                child: _NumberInput(
+                  colors: colors,
+                  value: node.minAltitude ?? 30,
+                  suffix: '°',
+                  min: 0,
+                  max: 90,
+                  decimals: 0,
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                          node.copyWith(minAltitude: value),
+                        );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _PropertyField(
+                colors: colors,
+                label: 'Max Altitude',
+                child: _NumberInput(
+                  colors: colors,
+                  value: node.maxAltitude ?? 90,
+                  suffix: '°',
+                  min: 0,
+                  max: 90,
+                  decimals: 0,
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                          node.copyWith(maxAltitude: value),
+                        );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Start After (optional)',
+          child: GestureDetector(
+            onTap: () async {
+              final time = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay.fromDateTime(
+                    node.startAfter ?? DateTime.now()),
+              );
+              if (time != null) {
+                final now = DateTime.now();
+                var targetDate = DateTime(
+                    now.year, now.month, now.day, time.hour, time.minute);
+                if (targetDate.isBefore(now)) {
+                  targetDate = targetDate.add(const Duration(days: 1));
+                }
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(startAfter: targetDate),
+                    );
+              }
+            },
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.clock,
+                      size: 14, color: colors.textMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      node.startAfter != null
+                          ? '${node.startAfter!.hour.toString().padLeft(2, '0')}:${node.startAfter!.minute.toString().padLeft(2, '0')}'
+                          : 'Not set',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: node.startAfter != null
+                            ? colors.textPrimary
+                            : colors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'End Before (optional)',
+          child: GestureDetector(
+            onTap: () async {
+              final time = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay.fromDateTime(
+                    node.endBefore ?? DateTime.now()),
+              );
+              if (time != null) {
+                final now = DateTime.now();
+                var targetDate = DateTime(
+                    now.year, now.month, now.day, time.hour, time.minute);
+                if (targetDate.isBefore(now)) {
+                  targetDate = targetDate.add(const Duration(days: 1));
+                }
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(endBefore: targetDate),
+                    );
+              }
+            },
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.clock,
+                      size: 14, color: colors.textMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      node.endBefore != null
+                          ? '${node.endBefore!.hour.toString().padLeft(2, '0')}:${node.endBefore!.minute.toString().padLeft(2, '0')}'
+                          : 'Not set',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: node.endBefore != null
+                            ? colors.textPrimary
+                            : colors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
@@ -1642,7 +1794,11 @@ class _LoopProperties extends ConsumerWidget {
                 case LoopConditionType.untilTime:
                   return 'Until Time';
                 case LoopConditionType.untilAltitude:
-                  return 'Until Altitude';
+                  return 'Until Altitude Below';
+                case LoopConditionType.altitudeAbove:
+                  return 'Until Altitude Above';
+                case LoopConditionType.integrationTime:
+                  return 'Until Integration Time';
                 case LoopConditionType.forever:
                   return 'Forever';
                 case LoopConditionType.whileDark:
@@ -1822,6 +1978,41 @@ class _LoopProperties extends ConsumerWidget {
               },
             ),
           ),
+        if (node.conditionType == LoopConditionType.altitudeAbove)
+          _PropertyField(
+            colors: colors,
+            label: 'Loop Until Above Altitude',
+            child: _NumberInput(
+              colors: colors,
+              value: node.repeatUntilAltitude ?? 30,
+              suffix: '°',
+              min: 0,
+              max: 90,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(repeatUntilAltitude: value),
+                    );
+              },
+            ),
+          ),
+        if (node.conditionType == LoopConditionType.integrationTime)
+          _PropertyField(
+            colors: colors,
+            label: 'Target Integration Time',
+            child: _NumberInput(
+              colors: colors,
+              value: (node.integrationTimeTarget ?? 3600) / 60.0,
+              suffix: 'min',
+              min: 1,
+              max: 1440,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(integrationTimeTarget: value * 60.0),
+                    );
+              },
+            ),
+          ),
       ],
     );
   }
@@ -1847,6 +2038,64 @@ class _CenterProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
+        _PropertyField(
+          colors: colors,
+          label: 'Use Target Coordinates',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: node.useTargetCoords,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(useTargetCoords: value),
+                  );
+            },
+          ),
+        ),
+        if (!node.useTargetCoords) ...[
+          Row(
+            children: [
+              Expanded(
+                child: _PropertyField(
+                  colors: colors,
+                  label: 'Custom RA (hours)',
+                  child: _NumberInput(
+                    colors: colors,
+                    value: node.customRa ?? 0,
+                    suffix: 'h',
+                    min: 0,
+                    max: 24,
+                    decimals: 4,
+                    onChanged: (value) {
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                            node.copyWith(customRa: value),
+                          );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _PropertyField(
+                  colors: colors,
+                  label: 'Custom Dec (deg)',
+                  child: _NumberInput(
+                    colors: colors,
+                    value: node.customDec ?? 0,
+                    suffix: '°',
+                    min: -90,
+                    max: 90,
+                    decimals: 4,
+                    onChanged: (value) {
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                            node.copyWith(customDec: value),
+                          );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
         _PropertyField(
           colors: colors,
           label: 'Accuracy',
@@ -1875,6 +2124,37 @@ class _CenterProperties extends ConsumerWidget {
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(maxAttempts: value.toInt()),
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Solve Exposure',
+          child: _NumberInput(
+            colors: colors,
+            value: node.exposureDuration,
+            suffix: 's',
+            min: 0.5,
+            max: 30,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(exposureDuration: value),
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Solve Filter',
+          child: _TextInput(
+            colors: colors,
+            value: node.filter ?? '',
+            hint: 'Current filter',
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(filter: value.isEmpty ? null : value),
                   );
             },
           ),
@@ -1917,8 +2197,8 @@ class _AutofocusProperties extends ConsumerWidget {
                   return 'V-Curve';
                 case AutofocusMethod.hyperbolic:
                   return 'Hyperbolic';
-                case AutofocusMethod.parabolic:
-                  return 'Parabolic';
+                case AutofocusMethod.quadratic:
+                  return 'Quadratic';
               }
             },
             onChanged: (value) {
@@ -2000,6 +2280,21 @@ class _AutofocusProperties extends ConsumerWidget {
                   .read(sequencerDefaultsProvider.notifier)
                   .updateAutofocusDefaults(
                     exposureDuration: value,
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Exposures Per Point',
+          child: _NumberInput(
+            colors: colors,
+            value: node.exposuresPerPoint.toDouble(),
+            min: 1,
+            max: 10,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(exposuresPerPoint: value.toInt()),
                   );
             },
           ),
@@ -2232,6 +2527,99 @@ class _DelayProperties extends ConsumerWidget {
   }
 }
 
+class _StartGuidingProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final StartGuidingNode node;
+
+  const _StartGuidingProperties({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Guiding Settings',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _PropertyField(
+          colors: colors,
+          label: 'Settle Threshold',
+          child: _NumberInput(
+            colors: colors,
+            value: node.settlePixels,
+            suffix: 'px',
+            min: 0.1,
+            max: 10,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(settlePixels: value),
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Settle Time',
+          child: _NumberInput(
+            colors: colors,
+            value: node.settleTime,
+            suffix: 's',
+            min: 1,
+            max: 120,
+            decimals: 0,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(settleTime: value),
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Settle Timeout',
+          child: _NumberInput(
+            colors: colors,
+            value: node.settleTimeout,
+            suffix: 's',
+            min: 10,
+            max: 300,
+            decimals: 0,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(settleTimeout: value),
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Auto-select Star',
+          child: SizedBox(
+            height: 28,
+            child: Switch(
+              value: node.autoSelectStar,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(autoSelectStar: value),
+                    );
+              },
+              activeColor: colors.accent,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _DitherProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final DitherNode node;
@@ -2309,6 +2697,40 @@ class _DitherProperties extends ConsumerWidget {
                     node.copyWith(settlePixels: value),
                   );
             },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Settle Timeout',
+          child: _NumberInput(
+            colors: colors,
+            value: node.settleTimeout,
+            suffix: 's',
+            min: 10,
+            max: 300,
+            decimals: 0,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(settleTimeout: value),
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'RA Only',
+          child: SizedBox(
+            height: 28,
+            child: Switch(
+              value: node.raOnly,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(raOnly: value),
+                    );
+              },
+              activeColor: colors.accent,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
         ),
       ],
@@ -2824,6 +3246,58 @@ class _ConditionalProperties extends ConsumerWidget {
               },
             ),
           ),
+        if (node.conditionType == ConditionalType.timeAfter)
+          _PropertyField(
+            colors: colors,
+            label: 'Execute After Time',
+            child: GestureDetector(
+              onTap: () async {
+                final time = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.fromDateTime(
+                      node.thresholdTime ?? DateTime.now()),
+                );
+                if (time != null) {
+                  final now = DateTime.now();
+                  var targetDate = DateTime(
+                      now.year, now.month, now.day, time.hour, time.minute);
+                  if (targetDate.isBefore(now)) {
+                    targetDate = targetDate.add(const Duration(days: 1));
+                  }
+                  ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(thresholdTime: targetDate),
+                      );
+                }
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.clock,
+                        size: 14, color: colors.textMuted),
+                    const SizedBox(width: 8),
+                    Text(
+                      node.thresholdTime != null
+                          ? '${node.thresholdTime!.hour.toString().padLeft(2, '0')}:${node.thresholdTime!.minute.toString().padLeft(2, '0')}'
+                          : 'Select time...',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: node.thresholdTime != null
+                            ? colors.textPrimary
+                            : colors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -2936,6 +3410,8 @@ class _RecoveryProperties extends ConsumerWidget {
                   return 'Temperature Shift';
                 case TriggerType.filterChange:
                   return 'Filter Change';
+                case TriggerType.dawnApproaching:
+                  return 'Dawn Approaching';
               }
             },
             onChanged: (value) {
@@ -2992,15 +3468,15 @@ class _RecoveryProperties extends ConsumerWidget {
             },
           ),
         ),
-        if (node.triggerType == TriggerType.hfrDegraded)
+        if (node.triggerType == TriggerType.hfrDegraded) ...[
           _PropertyField(
             colors: colors,
-            label: 'HFR Threshold',
+            label: 'Absolute HFR Threshold',
             child: _NumberInput(
               colors: colors,
-              value: node.triggerThreshold ?? 4.0,
+              value: node.triggerThreshold ?? 0.0,
               suffix: 'px',
-              min: 1,
+              min: 0,
               max: 20,
               decimals: 1,
               onChanged: (value) {
@@ -3010,6 +3486,41 @@ class _RecoveryProperties extends ConsumerWidget {
               },
             ),
           ),
+          _PropertyField(
+            colors: colors,
+            label: '% Above Baseline',
+            child: _NumberInput(
+              colors: colors,
+              value: node.hfrThresholdPercent,
+              suffix: '%',
+              min: 0,
+              max: 100,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(hfrThresholdPercent: value),
+                    );
+              },
+            ),
+          ),
+          _PropertyField(
+            colors: colors,
+            label: 'Consecutive Frames',
+            child: _NumberInput(
+              colors: colors,
+              value: node.hfrConsecutiveFrames.toDouble(),
+              suffix: '',
+              min: 1,
+              max: 20,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(hfrConsecutiveFrames: value.toInt()),
+                    );
+              },
+            ),
+          ),
+        ],
         if (node.triggerType == TriggerType.altitudeLimit)
           _PropertyField(
             colors: colors,
@@ -3280,21 +3791,92 @@ class _MeridianFlipProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         _PropertyField(
           colors: colors,
-          label: 'Minutes Past Meridian',
-          child: _NumberInput(
+          label: 'Trigger Method',
+          child: _Dropdown<MeridianTriggerMethod>(
             colors: colors,
-            value: node.minutesPastMeridian,
-            suffix: 'min',
-            min: 0,
-            max: 60,
-            decimals: 1,
+            value: node.triggerMethod,
+            items: MeridianTriggerMethod.values,
+            labelBuilder: (m) {
+              switch (m) {
+                case MeridianTriggerMethod.minutesPastMeridian:
+                  return 'Minutes Past Meridian';
+                case MeridianTriggerMethod.minutesBeforeLimit:
+                  return 'Minutes Before Limit';
+                case MeridianTriggerMethod.hourAngleThreshold:
+                  return 'Hour Angle Threshold';
+              }
+            },
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(minutesPastMeridian: value),
+                    node.copyWith(triggerMethod: value),
                   );
             },
           ),
         ),
+        if (node.triggerMethod == MeridianTriggerMethod.minutesPastMeridian)
+          _PropertyField(
+            colors: colors,
+            label: 'Minutes Past Meridian',
+            child: _NumberInput(
+              colors: colors,
+              value: node.minutesPastMeridian,
+              suffix: 'min',
+              min: 0,
+              max: 60,
+              decimals: 1,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(minutesPastMeridian: value),
+                    );
+              },
+            ),
+          ),
+        if (node.triggerMethod == MeridianTriggerMethod.minutesBeforeLimit)
+          _PropertyField(
+            colors: colors,
+            label: 'Minutes Before Limit',
+            child: _NumberInput(
+              colors: colors,
+              value: node.minutesBeforeLimit,
+              suffix: 'min',
+              min: 1,
+              max: 60,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(minutesBeforeLimit: value),
+                    );
+              },
+            ),
+          ),
+        if (node.triggerMethod == MeridianTriggerMethod.hourAngleThreshold)
+          _PropertyField(
+            colors: colors,
+            label: 'Hour Angle Threshold',
+            child: _NumberInput(
+              colors: colors,
+              value: node.hourAngleThreshold,
+              suffix: 'h',
+              min: 0.0,
+              max: 6.0,
+              decimals: 2,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(hourAngleThreshold: value),
+                    );
+              },
+            ),
+          ),
+        const SizedBox(height: 8),
+        Text(
+          'Flip Sequence',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
         _PropertyField(
           colors: colors,
           label: 'Pause Guiding',
@@ -3323,6 +3905,32 @@ class _MeridianFlipProperties extends ConsumerWidget {
         ),
         _PropertyField(
           colors: colors,
+          label: 'Refocus After Flip',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: node.refocusAfter,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(refocusAfter: value),
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Resume Guiding',
+          child: _ToggleSwitch(
+            colors: colors,
+            value: node.resumeGuiding,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(resumeGuiding: value),
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
           label: 'Settle Time',
           child: _NumberInput(
             colors: colors,
@@ -3334,6 +3942,53 @@ class _MeridianFlipProperties extends ConsumerWidget {
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(settleTime: value),
+                  );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Error Handling',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _PropertyField(
+          colors: colors,
+          label: 'Max Retries',
+          child: _NumberInput(
+            colors: colors,
+            value: node.maxRetries.toDouble(),
+            min: 0,
+            max: 10,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(maxRetries: value.toInt()),
+                  );
+            },
+          ),
+        ),
+        _PropertyField(
+          colors: colors,
+          label: 'Failure Action',
+          child: _Dropdown<FlipFailureAction>(
+            colors: colors,
+            value: node.failureAction,
+            items: FlipFailureAction.values,
+            labelBuilder: (a) {
+              switch (a) {
+                case FlipFailureAction.pauseAndAlert:
+                  return 'Pause & Alert';
+                case FlipFailureAction.abortAndPark:
+                  return 'Abort & Park';
+              }
+            },
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(failureAction: value),
                   );
             },
           ),
@@ -3351,7 +4006,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Performs pier flip when target crosses meridian. Pauses guiding, flips, then optionally re-centers.',
+                  'Performs pier flip when target crosses meridian. Pauses guiding, flips, then optionally re-centers and refocuses.',
                   style: TextStyle(
                     fontSize: 11,
                     color: colors.info,

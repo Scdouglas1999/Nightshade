@@ -164,6 +164,16 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
         .get();
   }
 
+  /// Watch recent standalone (sessionless) images — captures taken outside
+  /// any sequence session.  Limited to the most recent [limit] images.
+  Stream<List<CapturedImage>> watchStandaloneImages({int limit = 100}) {
+    return (select(capturedImages)
+          ..where((i) => i.sessionId.isNull())
+          ..orderBy([(i) => OrderingTerm.desc(i.capturedAt)])
+          ..limit(limit))
+        .watch();
+  }
+
   /// Get images by filter
   Future<List<CapturedImage>> getImagesByFilter(String filter) {
     return (select(capturedImages)

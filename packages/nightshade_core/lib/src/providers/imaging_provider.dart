@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/imaging/imaging_models.dart';
 import '../models/imaging/auto_stretch_settings.dart';
 import 'database_provider.dart';
+import 'profiles_provider.dart';
 import 'settings_provider.dart';
 
 /// Current exposure settings
@@ -14,6 +15,37 @@ final exposureSettingsProvider = StateProvider<ExposureSettings>((ref) {
     binningX: 1,
     binningY: 1,
     frameType: FrameType.light,
+  );
+});
+
+/// Tracks the profile ID whose defaults were last applied to exposure settings.
+/// This prevents re-applying defaults when navigating back to the imaging screen
+/// while still allowing a profile switch to re-initialize the controls.
+final _lastAppliedProfileIdProvider = StateProvider<int?>((ref) => null);
+
+/// Call this provider from the imaging screen's initState/build to ensure
+/// snapshot controls are initialized from the active equipment profile.
+///
+/// On first call (or when the active profile changes), this reads the profile's
+/// defaultGain, defaultOffset, and defaultBinX/Y and pushes them into
+/// [exposureSettingsProvider]. Subsequent calls with the same profile are no-ops,
+/// so manual user edits are preserved.
+final syncExposureFromProfileProvider = Provider<void>((ref) {
+  final profile = ref.watch(activeEquipmentProfileProvider);
+  if (profile == null) return;
+
+  final lastApplied = ref.read(_lastAppliedProfileIdProvider);
+  if (lastApplied == profile.id) return;
+
+  // Mark this profile as applied so we don't overwrite user edits
+  ref.read(_lastAppliedProfileIdProvider.notifier).state = profile.id;
+
+  final current = ref.read(exposureSettingsProvider);
+  ref.read(exposureSettingsProvider.notifier).state = current.copyWith(
+    gain: profile.defaultGain ?? current.gain,
+    offset: profile.defaultOffset ?? current.offset,
+    binningX: profile.defaultBinX,
+    binningY: profile.defaultBinY,
   );
 });
 

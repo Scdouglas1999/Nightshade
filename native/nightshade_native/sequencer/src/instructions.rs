@@ -133,6 +133,10 @@ pub struct InstructionContext {
     pub device_ops: SharedDeviceOps,
     /// Trigger state (for updating during execution)
     pub trigger_state: Option<Arc<tokio::sync::RwLock<crate::triggers::TriggerState>>>,
+    /// Filter focus offsets from the equipment profile (filter_name -> offset_steps).
+    /// When a filter change occurs, the focuser is moved by the offset relative to
+    /// the current position. A positive offset means move outward.
+    pub filter_focus_offsets: std::collections::HashMap<String, i32>,
 }
 
 impl InstructionContext {
@@ -1290,7 +1294,7 @@ pub async fn execute_autofocus(
         };
     let best_hfr = match focus_data
         .iter()
-        .min_by(|a, b| a.hfr.partial_cmp(&b.hfr).unwrap())
+        .min_by(|a, b| a.hfr.total_cmp(&b.hfr))
         .map(|point| point.hfr)
     {
         Some(v) => v,
@@ -1463,12 +1467,12 @@ fn find_best_focus_with_quality(
     if data.len() < 3 {
         let best_pos = data
             .iter()
-            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|(pos, _)| *pos)
             .ok_or_else(|| {
                 "Autofocus failed: unable to determine best focus position".to_string()
             })?;
-        return Ok((best_pos, 0.0)); // Can't calculate RÃ‚Â² with < 3 points
+        return Ok((best_pos, 0.0)); // Can't calculate R² with < 3 points
     }
 
     match method {
@@ -1478,7 +1482,7 @@ fn find_best_focus_with_quality(
             let min_point = data
                 .iter()
                 .enumerate()
-                .min_by(|a, b| a.1 .1.partial_cmp(&b.1 .1).unwrap())
+                .min_by(|a, b| a.1 .1.total_cmp(&b.1 .1))
                 .map(|(idx, (pos, _))| (idx, *pos))
                 .ok_or_else(|| "Autofocus failed: unable to evaluate V-curve minimum".to_string())?;
 
@@ -1551,7 +1555,7 @@ fn find_best_focus_with_quality(
             if denom.abs() < 1e-10 {
                 let best_pos = data
                     .iter()
-                    .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                    .min_by(|a, b| a.1.total_cmp(&b.1))
                     .map(|(pos, _)| *pos)
                     .ok_or_else(|| "Autofocus failed: unable to determine best focus position".to_string())?;
                 return Ok((best_pos, 0.0));
@@ -1578,7 +1582,7 @@ fn find_best_focus_with_quality(
                 (-b / (2.0 * a)).round() as i32
             } else {
                 data.iter()
-                    .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                    .min_by(|a, b| a.1.total_cmp(&b.1))
                     .map(|(pos, _)| *pos)
                     .ok_or_else(|| "Autofocus failed: unable to determine best focus position".to_string())?
             };
@@ -1825,12 +1829,14 @@ pub async fn execute_filter_change(
         match ctx.device_ops.filterwheel_set_position(&fw_id, index).await {
             Ok(_) => {
                 if let Some(cb) = progress_callback {
-                    cb(50.0, format!("Moving to position {}", index));
+                    cb(30.0, format!("Moving to position {}", index));
                 }
                 // Wait for filter wheel to reach target position (the wait function also verifies)
                 if let Err(e) = wait_for_filterwheel_idle(&fw_id, index, ctx, timeout).await {
                     return InstructionResult::failure(e);
                 }
+                // Apply focus offset for this filter
+                apply_filter_focus_offset(&config.filter_name, ctx, progress_callback).await;
                 if let Some(cb) = progress_callback {
                     cb(100.0, format!("Filter {}", index));
                 }
@@ -1851,12 +1857,14 @@ pub async fn execute_filter_change(
     {
         Ok(pos) => {
             if let Some(cb) = progress_callback {
-                cb(50.0, format!("Moving to {}", config.filter_name));
+                cb(30.0, format!("Moving to {}", config.filter_name));
             }
             // Wait for filter wheel to reach target position
             if let Err(e) = wait_for_filterwheel_idle(&fw_id, pos, ctx, timeout).await {
                 return InstructionResult::failure(e);
             }
+            // Apply focus offset for this filter
+            apply_filter_focus_offset(&config.filter_name, ctx, progress_callback).await;
             if let Some(cb) = progress_callback {
                 cb(100.0, format!("Filter: {}", config.filter_name));
             }
@@ -1867,6 +1875,100 @@ pub async fn execute_filter_change(
         }
         Err(e) => InstructionResult::failure(format!("Filter change failed: {}", e)),
     }
+}
+
+/// Apply the focus offset configured for a given filter after a filter change.
+///
+/// Looks up the offset in `ctx.filter_focus_offsets` and moves the focuser
+/// by that amount relative to its current position. If the offset is zero,
+/// no focuser is connected, or no offset is configured, this is a no-op.
+/// Errors are logged but do not fail the filter change.
+async fn apply_filter_focus_offset(
+    filter_name: &str,
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) {
+    let offset = match ctx.filter_focus_offsets.get(filter_name) {
+        Some(&o) if o != 0 => o,
+        _ => return,
+    };
+
+    let focuser_id = match ctx.focuser_id.as_deref() {
+        Some(id) if !id.is_empty() => id,
+        _ => return,
+    };
+
+    tracing::info!(
+        "Applying focus offset for filter \"{}\": {} steps",
+        filter_name,
+        offset
+    );
+
+    if let Some(cb) = progress_callback {
+        cb(
+            60.0,
+            format!("Applying focus offset: {} steps", offset),
+        );
+    }
+
+    // Get current focuser position
+    let current_pos = match ctx.device_ops.focuser_get_position(focuser_id).await {
+        Ok(pos) => pos,
+        Err(e) => {
+            tracing::error!(
+                "Failed to read focuser position for filter offset: {}",
+                e
+            );
+            return;
+        }
+    };
+
+    let target_pos = current_pos + offset;
+    tracing::info!(
+        "Focus offset: {} + {} = {} (current + offset = target)",
+        current_pos,
+        offset,
+        target_pos
+    );
+
+    if let Err(e) = ctx.device_ops.focuser_move_to(focuser_id, target_pos).await {
+        tracing::error!(
+            "Failed to apply focus offset for filter \"{}\": {}",
+            filter_name,
+            e
+        );
+        return;
+    }
+
+    // Wait for focuser to finish moving
+    for _ in 0..60 {
+        sleep(Duration::from_millis(500)).await;
+        match ctx.device_ops.focuser_is_moving(focuser_id).await {
+            Ok(false) => break,
+            Ok(true) => continue,
+            Err(e) => {
+                tracing::warn!("Error checking focuser movement: {}", e);
+                break;
+            }
+        }
+    }
+
+    if let Some(cb) = progress_callback {
+        cb(
+            80.0,
+            format!(
+                "Focus offset applied: {} -> {} ({:+} steps)",
+                current_pos, target_pos, offset
+            ),
+        );
+    }
+
+    tracing::info!(
+        "Focus offset for filter \"{}\" applied: {} -> {}",
+        filter_name,
+        current_pos,
+        target_pos
+    );
 }
 
 // =============================================================================

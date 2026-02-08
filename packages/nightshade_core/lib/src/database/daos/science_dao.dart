@@ -353,4 +353,108 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)]))
         .watch();
   }
+
+  // =========================================================================
+  // Standalone (sessionless) queries — for snapshots taken outside sequences
+  // =========================================================================
+
+  Stream<List<FramePhotometricCalibrationRow>>
+      watchSessionlessCalibrationsRecent({int limit = 50}) {
+    return (select(framePhotometricCalibration)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+          ..limit(limit))
+        .watch();
+  }
+
+  Stream<List<TransparencySampleRow>> watchSessionlessTransparencyRecent(
+      {int limit = 50}) {
+    return (select(transparencySamples)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+          ..limit(limit))
+        .watch();
+  }
+
+  Stream<List<PsfFieldTileRow>> watchSessionlessPsfTilesRecent(
+      {int limit = 500}) {
+    return (select(psfFieldTiles)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([
+            (tbl) => OrderingTerm.desc(tbl.timestamp),
+            (tbl) => OrderingTerm.asc(tbl.tileRow),
+            (tbl) => OrderingTerm.asc(tbl.tileCol),
+          ])
+          ..limit(limit))
+        .watch();
+  }
+
+  Stream<List<ScienceFrameQualityMetricsRow>>
+      watchSessionlessFrameQualityMetricsRecent({int limit = 50}) {
+    return (select(scienceFrameQualityMetrics)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+          ..limit(limit))
+        .watch();
+  }
+
+  Stream<List<ScienceTileMetricRow>> watchSessionlessTileMetricsRecent(
+      {int limit = 500}) {
+    return (select(scienceTileMetrics)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([
+            (tbl) => OrderingTerm.desc(tbl.timestamp),
+            (tbl) => OrderingTerm.asc(tbl.tileRow),
+            (tbl) => OrderingTerm.asc(tbl.tileCol),
+          ])
+          ..limit(limit))
+        .watch();
+  }
+
+  Stream<List<AstrometryResidualVectorRow>>
+      watchSessionlessResidualsRecent({int limit = 200}) {
+    return (select(astrometryResidualVectors)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+          ..limit(limit))
+        .watch();
+  }
+
+  Stream<List<MovingObjectCandidateRow>>
+      watchSessionlessMovingObjectsRecent({int limit = 50}) {
+    return (select(movingObjectCandidates)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.confidence)])
+          ..limit(limit))
+        .watch();
+  }
+
+  Stream<List<PhotometryMeasurementRow>>
+      watchSessionlessPhotometryRecent({int limit = 200}) {
+    return (select(photometryMeasurements)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+          ..limit(limit))
+        .watch();
+  }
+
+  Stream<List<LineRatioProductRow>> watchSessionlessLineRatiosRecent(
+      {int limit = 10}) {
+    return (select(lineRatioProducts)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)])
+          ..limit(limit))
+        .watch();
+  }
+
+  /// Returns true if any sessionless science data exists (for showing the
+  /// standalone tab even when no sequence session is available).
+  Future<bool> hasSessionlessScienceData() async {
+    final countExp = scienceFrameQualityMetrics.id.count();
+    final query = selectOnly(scienceFrameQualityMetrics)
+      ..addColumns([countExp])
+      ..where(scienceFrameQualityMetrics.sessionId.isNull());
+    final result = await query.getSingle();
+    return (result.read(countExp) ?? 0) > 0;
+  }
 }

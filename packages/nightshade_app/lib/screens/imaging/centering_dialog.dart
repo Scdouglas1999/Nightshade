@@ -1,3 +1,6 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -6,7 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../utils/snackbar_helper.dart';
 
-/// Dialog for automated target centering
+/// Dialog for automated target centering with live image preview
 class CenteringDialog extends ConsumerStatefulWidget {
   final double? targetRa;
   final double? targetDec;
@@ -26,16 +29,33 @@ class CenteringDialog extends ConsumerStatefulWidget {
 class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   bool _isCentering = false;
   CenteringResult? _result;
+  late final TextEditingController _exposureController;
 
-  /// Build centering config using user-configured exposure settings
+  @override
+  void initState() {
+    super.initState();
+    final profile = ref.read(activeEquipmentProfileProvider);
+    final defaultExposure = profile?.defaultCenteringExposure ?? 5.0;
+    _exposureController = TextEditingController(
+      text: defaultExposure.toString(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _exposureController.dispose();
+    super.dispose();
+  }
+
   CenteringConfig get _centeringConfig {
-    final userSettings = ref.read(exposureSettingsProvider);
+    final exposureTime = double.tryParse(_exposureController.text) ?? 5.0;
+    final profile = ref.read(activeEquipmentProfileProvider);
     return CenteringConfig(
       maxIterations: 5,
       toleranceArcsec: 30.0,
-      exposureTime: userSettings.exposureTime > 0 ? userSettings.exposureTime : 3.0,
-      binning: userSettings.binningX > 0 ? userSettings.binningX : 2,
-      gain: userSettings.gain,
+      exposureTime: exposureTime > 0 ? exposureTime : 5.0,
+      binning: profile?.defaultBinX ?? 2,
+      gain: profile?.defaultGain ?? 100,
       syncMount: false,
     );
   }
@@ -43,109 +63,90 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   @override
   Widget build(BuildContext context) {
     final centeringStatus = ref.watch(centeringStatusProvider);
+    final currentImage = ref.watch(currentImageProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Dialog(
-      child: Container(
-        width: 600,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        width: _isCentering || _result != null ? 900 : 600,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Header
-            Row(
-              children: [
-                Icon(
-                  LucideIcons.target,
-                  color: colorScheme.primary,
-                  size: 28,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Target Centering',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
+            _buildHeader(theme, colorScheme),
+            const SizedBox(height: 16),
+
+            // Main content area
+            if (_isCentering || _result != null || centeringStatus.iterationHistory.isNotEmpty)
+              Flexible(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Left: Image preview
+                    if (currentImage != null && (_isCentering || _result != null))
+                      Expanded(
+                        flex: 1,
+                        child: _buildImagePreview(currentImage, colorScheme, theme),
+                      ),
+                    if (currentImage != null && (_isCentering || _result != null))
+                      const SizedBox(width: 16),
+
+                    // Right: Status and info
+                    Expanded(
+                      flex: 1,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Coordinates
+                            if (widget.targetRa != null && widget.targetDec != null)
+                              _buildCoordinatesCompact(centeringStatus, colorScheme, theme),
+
+                            if (widget.targetRa != null && widget.targetDec != null)
+                              const SizedBox(height: 12),
+
+                            // Exposure settings
+                            _buildExposureSettings(colorScheme, theme),
+                            const SizedBox(height: 12),
+
+                            // Status section
+                            if (_isCentering)
+                              _buildStatusSection(centeringStatus, colorScheme),
+
+                            // Result section
+                            if (_result != null && !_isCentering)
+                              _buildResultSection(_result!, colorScheme),
+
+                            // Iteration history
+                            if (centeringStatus.iterationHistory.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              _buildIterationHistory(centeringStatus.iterationHistory, colorScheme),
+                            ],
+                          ],
                         ),
                       ),
-                      if (widget.targetName != null)
-                        Text(
-                          widget.targetName!,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurface.withValues(alpha:0.7),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(LucideIcons.x),
-                  onPressed: _isCentering ? null : () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Target coordinates display
-            if (widget.targetRa != null && widget.targetDec != null) ...[
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(alpha:0.5),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: colorScheme.outline.withValues(alpha:0.3),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildCoordInfo(
-                            'RA',
-                            _formatRa(widget.targetRa!),
-                            LucideIcons.compass,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildCoordInfo(
-                            'Dec',
-                            _formatDec(widget.targetDec!),
-                            LucideIcons.moveVertical,
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
+              )
+            else ...[
+              // Pre-centering: simple vertical layout
+              if (widget.targetRa != null && widget.targetDec != null) ...[
+                _buildCoordinatesCompact(centeringStatus, colorScheme, theme),
+                const SizedBox(height: 16),
+              ],
+              _buildExposureSettings(colorScheme, theme),
             ],
 
-            // Status section
-            if (_isCentering) ...[
-              _buildStatusSection(centeringStatus, colorScheme),
-              const SizedBox(height: 24),
-            ],
-
-            // Result section
-            if (_result != null && !_isCentering) ...[
-              _buildResultSection(_result!, colorScheme),
-              const SizedBox(height: 24),
-            ],
-
-            // Iteration history
-            if (centeringStatus.iterationHistory.isNotEmpty) ...[
-              _buildIterationHistory(centeringStatus.iterationHistory, colorScheme),
-              const SizedBox(height: 24),
-            ],
+            const SizedBox(height: 16),
 
             // Action buttons
             Row(
@@ -174,22 +175,242 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     );
   }
 
+  Widget _buildHeader(ThemeData theme, ColorScheme colorScheme) {
+    return Row(
+      children: [
+        Icon(
+          LucideIcons.target,
+          color: colorScheme.primary,
+          size: 28,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Target Centering',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (widget.targetName != null)
+                Text(
+                  widget.targetName!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: const Icon(LucideIcons.x),
+          onPressed: _isCentering ? null : () => Navigator.of(context).pop(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImagePreview(CapturedImageData imageData, ColorScheme colorScheme, ThemeData theme) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 400),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: colorScheme.outline.withValues(alpha: 0.3),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(7),
+        child: Stack(
+          children: [
+            // Image
+            Center(
+              child: _CenteringImageWidget(
+                imageData: imageData.displayData,
+                width: imageData.width,
+                height: imageData.height,
+              ),
+            ),
+
+            // Crosshair overlay
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _CrosshairPainter(
+                  color: colorScheme.primary.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+
+            // Image info badge
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${imageData.width}x${imageData.height}',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCoordinatesCompact(CenteringStatus status, ColorScheme colorScheme, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: colorScheme.outline.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildCoordInfo(
+                  'Target RA',
+                  _formatRa(widget.targetRa!),
+                  LucideIcons.compass,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildCoordInfo(
+                  'Target Dec',
+                  _formatDec(widget.targetDec!),
+                  LucideIcons.moveVertical,
+                ),
+              ),
+            ],
+          ),
+          if (status.solvedRa != null && status.solvedDec != null) ...[
+            const SizedBox(height: 8),
+            Divider(height: 1, color: colorScheme.outline.withValues(alpha: 0.2)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildCoordInfo(
+                    'Solved RA',
+                    _formatRa(status.solvedRa!),
+                    LucideIcons.sparkles,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildCoordInfo(
+                    'Solved Dec',
+                    _formatDec(status.solvedDec!),
+                    LucideIcons.sparkles,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExposureSettings(ColorScheme colorScheme, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.camera, size: 16, color: colorScheme.onSurface.withValues(alpha: 0.6)),
+          const SizedBox(width: 8),
+          Text(
+            'Solve exposure:',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 80,
+            height: 32,
+            child: TextField(
+              controller: _exposureController,
+              enabled: !_isCentering,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                fontFeatures: [const FontFeature.tabularFigures()],
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: colorScheme.primary),
+                ),
+                filled: true,
+                fillColor: colorScheme.surface,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            's',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCoordInfo(String label, String value, IconData icon) {
     final theme = Theme.of(context);
     return Row(
       children: [
-        Icon(icon, size: 16, color: theme.colorScheme.primary),
-        const SizedBox(width: 8),
+        Icon(icon, size: 14, color: theme.colorScheme.primary),
+        const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               label,
-              style: theme.textTheme.labelSmall,
+              style: theme.textTheme.labelSmall?.copyWith(fontSize: 10),
             ),
             Text(
               value,
-              style: theme.textTheme.bodyLarge?.copyWith(
+              style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 fontFeatures: [const FontFeature.tabularFigures()],
               ),
@@ -209,7 +430,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
 
     switch (status.state) {
       case CenteringState.exposing:
-        stateText = 'Taking image...';
+        stateText = 'Capturing...';
         stateIcon = LucideIcons.camera;
         stateColor = colorScheme.primary;
         break;
@@ -219,17 +440,17 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         stateColor = colorScheme.primary;
         break;
       case CenteringState.slewing:
-        stateText = 'Slewing to target...';
+        stateText = 'Correcting...';
         stateIcon = LucideIcons.moveHorizontal;
         stateColor = colorScheme.primary;
         break;
       case CenteringState.verifying:
-        stateText = 'Verifying position...';
+        stateText = 'Verifying...';
         stateIcon = LucideIcons.checkCircle;
         stateColor = colorScheme.primary;
         break;
       case CenteringState.completed:
-        stateText = 'Completed!';
+        stateText = 'Centered!';
         stateIcon = LucideIcons.checkCircle;
         stateColor = colorScheme.tertiary;
         break;
@@ -241,16 +462,16 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       default:
         stateText = 'Ready';
         stateIcon = LucideIcons.circle;
-        stateColor = colorScheme.onSurface.withValues(alpha:0.5);
+        stateColor = colorScheme.onSurface.withValues(alpha: 0.5);
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: stateColor.withValues(alpha:0.1),
+        color: stateColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: stateColor.withValues(alpha:0.3),
+          color: stateColor.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -258,52 +479,53 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         children: [
           Row(
             children: [
-              Icon(stateIcon, color: stateColor, size: 20),
+              Icon(stateIcon, color: stateColor, size: 18),
               const SizedBox(width: 8),
-              Text(
-                stateText,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: stateColor,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  stateText,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: stateColor,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              const Spacer(),
               Text(
-                'Iteration ${status.currentIteration}/${status.maxIterations}',
+                '${status.currentIteration}/${status.maxIterations}',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurface.withValues(alpha:0.6),
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  fontFeatures: [const FontFeature.tabularFigures()],
                 ),
               ),
             ],
           ),
-          if (status.message != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              status.message!,
-              style: theme.textTheme.bodyMedium,
-            ),
-          ],
           if (status.currentOffsetArcmin != null) ...[
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: status.currentOffsetArcsec! / _centeringConfig.toleranceArcsec,
-              backgroundColor: colorScheme.surfaceContainerHighest,
-              color: status.currentOffsetArcsec! <= _centeringConfig.toleranceArcsec
-                  ? colorScheme.tertiary
-                  : colorScheme.primary,
-            ),
             const SizedBox(height: 8),
+            // Offset bar
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Offset: ${status.currentOffsetArcmin!.toStringAsFixed(2)} arcmin',
-                  style: theme.textTheme.bodySmall,
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: (status.currentOffsetArcsec! / _centeringConfig.toleranceArcsec).clamp(0.0, 2.0) / 2.0,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
+                      color: status.currentOffsetArcsec! <= _centeringConfig.toleranceArcsec
+                          ? colorScheme.tertiary
+                          : colorScheme.primary,
+                      minHeight: 6,
+                    ),
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Text(
-                  'Target: ${(_centeringConfig.toleranceArcsec / 60.0).toStringAsFixed(2)} arcmin',
+                  '${status.currentOffsetArcmin!.toStringAsFixed(2)}\'',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurface.withValues(alpha:0.6),
+                    fontWeight: FontWeight.bold,
+                    fontFeatures: [const FontFeature.tabularFigures()],
+                    color: status.currentOffsetArcsec! <= _centeringConfig.toleranceArcsec
+                        ? colorScheme.tertiary
+                        : colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -321,12 +543,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     final color = isSuccess ? colorScheme.tertiary : colorScheme.error;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha:0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: color.withValues(alpha:0.3),
+          color: color.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -334,12 +556,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(width: 12),
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  isSuccess ? 'Target Centered Successfully!' : 'Centering Failed',
-                  style: theme.textTheme.titleMedium?.copyWith(
+                  isSuccess ? 'Centered!' : 'Centering Failed',
+                  style: theme.textTheme.titleSmall?.copyWith(
                     color: color,
                     fontWeight: FontWeight.bold,
                   ),
@@ -347,22 +569,21 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           if (isSuccess && result.finalOffsetArcsec != null)
             Text(
-              'Final offset: ${(result.finalOffsetArcsec! / 60.0).toStringAsFixed(2)} arcmin (${result.finalOffsetArcsec!.toStringAsFixed(1)}")',
-              style: theme.textTheme.bodyMedium,
+              'Final offset: ${(result.finalOffsetArcsec! / 60.0).toStringAsFixed(2)}\' (${result.finalOffsetArcsec!.toStringAsFixed(1)}")',
+              style: theme.textTheme.bodySmall,
             ),
           if (!isSuccess && result.errorMessage != null)
             Text(
               result.errorMessage!,
-              style: theme.textTheme.bodyMedium?.copyWith(color: color),
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
             ),
-          const SizedBox(height: 8),
           Text(
-            'Completed in ${result.iterations} iteration${result.iterations != 1 ? 's' : ''}',
+            '${result.iterations} iteration${result.iterations != 1 ? 's' : ''}',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurface.withValues(alpha:0.6),
+              color: colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -373,87 +594,69 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   Widget _buildIterationHistory(List<CenteringIteration> history, ColorScheme colorScheme) {
     final theme = Theme.of(context);
 
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 200),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: colorScheme.outline.withValues(alpha:0.3),
-        ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              'Iteration History',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Iterations',
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface.withValues(alpha: 0.6),
           ),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(8),
-              itemCount: history.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final iteration = history[index];
-                return ListTile(
-                  dense: true,
-                  leading: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: iteration.plateSolveSuccess
-                        ? colorScheme.tertiary.withValues(alpha:0.2)
-                        : colorScheme.error.withValues(alpha:0.2),
+        ),
+        const SizedBox(height: 6),
+        ...history.map((iter) {
+          final isSuccess = iter.plateSolveSuccess;
+          final color = isSuccess ? colorScheme.tertiary : colorScheme.error;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
                     child: Text(
-                      '${iteration.iterationNumber}',
-                      style: theme.textTheme.labelSmall?.copyWith(
+                      '${iter.iterationNumber}',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: iteration.plateSolveSuccess
-                            ? colorScheme.tertiary
-                            : colorScheme.error,
                       ),
                     ),
                   ),
-                  title: iteration.plateSolveSuccess
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: isSuccess
                       ? Text(
-                          'Offset: ${iteration.offsetArcmin?.toStringAsFixed(2) ?? '?'} arcmin',
-                          style: theme.textTheme.bodyMedium,
+                          '${iter.offsetArcmin?.toStringAsFixed(2) ?? '?'}\' offset',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontFeatures: [const FontFeature.tabularFigures()],
+                          ),
                         )
                       : Text(
-                          'Failed',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.error,
+                          iter.errorMessage ?? 'Failed',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: color,
                           ),
-                        ),
-                  subtitle: iteration.errorMessage != null
-                      ? Text(
-                          iteration.errorMessage!,
-                          style: theme.textTheme.bodySmall,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                        )
-                      : null,
-                  trailing: iteration.plateSolveSuccess
-                      ? Icon(
-                          LucideIcons.checkCircle,
-                          size: 16,
-                          color: colorScheme.tertiary,
-                        )
-                      : Icon(
-                          LucideIcons.xCircle,
-                          size: 16,
-                          color: colorScheme.error,
                         ),
-                );
-              },
+                ),
+                if (isSuccess)
+                  Icon(LucideIcons.checkCircle, size: 14, color: color),
+                if (!isSuccess)
+                  Icon(LucideIcons.xCircle, size: 14, color: color),
+              ],
             ),
-          ),
-        ],
-      ),
+          );
+        }),
+      ],
     );
   }
 
@@ -472,15 +675,11 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
 
     final centeringService = ref.read(centeringServiceProvider);
 
-    // Get plate solver config from settings
-    // PlateSolveService tries backend.plateSolve() first (works for both local and remote)
-    // Only falls back to local solver if backend fails
     final appSettings = ref.read(appSettingsProvider).value;
     final executablePath = await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
 
     final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,
-      // Provide path for local fallback - backend is tried first
       executablePath: executablePath ?? '',
       timeoutSeconds: 60,
       searchRadius: 30.0,
@@ -536,4 +735,119 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     final seconds = ((absDec - degrees - minutes / 60) * 3600);
     return '$sign${degrees.toString().padLeft(2, '0')}° ${minutes.toString().padLeft(2, '0')}\' ${seconds.toStringAsFixed(1).padLeft(4, '0')}"';
   }
+}
+
+/// Efficiently renders RGBA image data without zoom/pan (simple fit display)
+class _CenteringImageWidget extends StatefulWidget {
+  final Uint8List imageData;
+  final int width;
+  final int height;
+
+  const _CenteringImageWidget({
+    required this.imageData,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<_CenteringImageWidget> createState() => _CenteringImageWidgetState();
+}
+
+class _CenteringImageWidgetState extends State<_CenteringImageWidget> {
+  ui.Image? _decodedImage;
+  Uint8List? _lastData;
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeImage();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CenteringImageWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.imageData, _lastData)) {
+      _decodeImage();
+    }
+  }
+
+  Future<void> _decodeImage() async {
+    _lastData = widget.imageData;
+    try {
+      final completer = ui.ImmutableBuffer.fromUint8List(widget.imageData);
+      final buffer = await completer;
+      final descriptor = ui.ImageDescriptor.raw(
+        buffer,
+        width: widget.width,
+        height: widget.height,
+        pixelFormat: ui.PixelFormat.rgba8888,
+      );
+      final codec = await descriptor.instantiateCodec();
+      final frame = await codec.getNextFrame();
+      if (mounted) {
+        setState(() {
+          _decodedImage?.dispose();
+          _decodedImage = frame.image;
+        });
+      }
+      codec.dispose();
+      descriptor.dispose();
+      buffer.dispose();
+    } catch (_) {
+      // Decode failed silently
+    }
+  }
+
+  @override
+  void dispose() {
+    _decodedImage?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_decodedImage == null) {
+      return const SizedBox(
+        width: 200,
+        height: 200,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    return RawImage(
+      image: _decodedImage,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+    );
+  }
+}
+
+/// Crosshair overlay painter for centering image
+class _CrosshairPainter extends CustomPainter {
+  final Color color;
+
+  _CrosshairPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    // Horizontal line
+    canvas.drawLine(Offset(0, cy), Offset(size.width, cy), paint);
+    // Vertical line
+    canvas.drawLine(Offset(cx, 0), Offset(cx, size.height), paint);
+
+    // Center circle
+    canvas.drawCircle(Offset(cx, cy), 20, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CrosshairPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

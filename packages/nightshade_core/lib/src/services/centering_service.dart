@@ -133,6 +133,15 @@ class CenteringStatus {
   final String? message;
   final List<CenteringIteration> iterationHistory;
 
+  /// Path to the most recently captured centering image
+  final String? lastImagePath;
+
+  /// Solved RA of the most recent plate solve (hours)
+  final double? solvedRa;
+
+  /// Solved Dec of the most recent plate solve (degrees)
+  final double? solvedDec;
+
   const CenteringStatus({
     required this.state,
     required this.currentIteration,
@@ -141,6 +150,9 @@ class CenteringStatus {
     this.currentOffsetArcmin,
     this.message,
     required this.iterationHistory,
+    this.lastImagePath,
+    this.solvedRa,
+    this.solvedDec,
   });
 
   CenteringStatus copyWith({
@@ -151,6 +163,9 @@ class CenteringStatus {
     double? currentOffsetArcmin,
     String? message,
     List<CenteringIteration>? iterationHistory,
+    String? lastImagePath,
+    double? solvedRa,
+    double? solvedDec,
   }) {
     return CenteringStatus(
       state: state ?? this.state,
@@ -160,6 +175,9 @@ class CenteringStatus {
       currentOffsetArcmin: currentOffsetArcmin ?? this.currentOffsetArcmin,
       message: message ?? this.message,
       iterationHistory: iterationHistory ?? this.iterationHistory,
+      lastImagePath: lastImagePath ?? this.lastImagePath,
+      solvedRa: solvedRa ?? this.solvedRa,
+      solvedDec: solvedDec ?? this.solvedDec,
     );
   }
 
@@ -279,6 +297,7 @@ class CenteringService {
         maxIterations: config.maxIterations,
         message: 'Plate solving image...',
         iterationHistory: iterations,
+        lastImagePath: capturedImage.filePath,
       ));
 
       PlateSolveResult? solveResult;
@@ -350,6 +369,9 @@ class CenteringService {
         currentOffsetArcmin: offset / 60.0,
         message: 'Offset: ${(offset / 60.0).toStringAsFixed(2)} arcmin',
         iterationHistory: iterations,
+        lastImagePath: capturedImage.filePath,
+        solvedRa: solvedRa,
+        solvedDec: solvedDec,
       ));
 
       // Step 4: Check if within tolerance
@@ -362,6 +384,9 @@ class CenteringService {
           currentOffsetArcmin: offset / 60.0,
           message: 'Target centered successfully!',
           iterationHistory: iterations,
+          lastImagePath: capturedImage.filePath,
+          solvedRa: solvedRa,
+          solvedDec: solvedDec,
         ));
 
         // Smart notification for centering completion
@@ -388,6 +413,9 @@ class CenteringService {
         currentOffsetArcmin: offset / 60.0,
         message: 'Slewing to target...',
         iterationHistory: iterations,
+        lastImagePath: capturedImage.filePath,
+        solvedRa: solvedRa,
+        solvedDec: solvedDec,
       ));
 
       try {

@@ -433,8 +433,16 @@ DriverType? _deriveDriverType(String deviceId) {
   if (lower.startsWith('sim:') || lower.contains('simulator')) {
     return DriverType.simulator;
   }
+  // Native SDK prefix (e.g., "native:zwo:0", "native:qhy:1")
+  if (lower.startsWith('native:')) {
+    return DriverType.native;
+  }
+  // PHD2 guider
+  if (lower.startsWith('phd2:') || lower.contains('phd2') || lower.contains('phd 2')) {
+    return DriverType.native;
+  }
 
-  // Check for native vendor prefixes
+  // Check for native vendor prefixes (bare, without native: wrapper)
   const nativeVendorPrefixes = [
     'zwo:',
     'asi:',
@@ -448,6 +456,7 @@ DriverType? _deriveDriverType(String deviceId) {
     'skywatcher:',
     'ioptron:',
     'lx200:',
+    'pegasus:',
   ];
   for (final prefix in nativeVendorPrefixes) {
     if (lower.startsWith(prefix)) {
@@ -473,105 +482,70 @@ final connectedDevicesProvider = Provider<AsyncValue<List<DeviceInfo>>>((ref) {
   // Add camera if connected
   if (cameraState.connectionState == DeviceConnectionState.connected &&
       cameraState.deviceId != null) {
-    final driverType = _deriveDriverType(cameraState.deviceId!);
-    if (driverType == null) {
-      debugPrint(
-        '[EquipmentStatus] Unknown driver type for connected camera ${cameraState.deviceId}; omitting from status list.',
-      );
-    } else {
-      devices.add(DeviceInfo(
-        id: cameraState.deviceId!,
-        name:
-            _getDeviceDisplayName(cameraState.deviceName, cameraState.deviceId),
-        deviceType: DeviceType.camera,
-        driverType: driverType,
-        description: '',
-        driverVersion: '',
-      ));
-    }
+    devices.add(DeviceInfo(
+      id: cameraState.deviceId!,
+      name:
+          _getDeviceDisplayName(cameraState.deviceName, cameraState.deviceId),
+      deviceType: DeviceType.camera,
+      driverType: _deriveDriverType(cameraState.deviceId!) ?? DriverType.native,
+      description: '',
+      driverVersion: '',
+    ));
   }
 
   // Add mount if connected
   if (mountState.connectionState == DeviceConnectionState.connected &&
       mountState.deviceId != null) {
-    final driverType = _deriveDriverType(mountState.deviceId!);
-    if (driverType == null) {
-      debugPrint(
-        '[EquipmentStatus] Unknown driver type for connected mount ${mountState.deviceId}; omitting from status list.',
-      );
-    } else {
-      devices.add(DeviceInfo(
-        id: mountState.deviceId!,
-        name: _getDeviceDisplayName(mountState.deviceName, mountState.deviceId),
-        deviceType: DeviceType.mount,
-        driverType: driverType,
-        description: '',
-        driverVersion: '',
-      ));
-    }
+    devices.add(DeviceInfo(
+      id: mountState.deviceId!,
+      name: _getDeviceDisplayName(mountState.deviceName, mountState.deviceId),
+      deviceType: DeviceType.mount,
+      driverType: _deriveDriverType(mountState.deviceId!) ?? DriverType.native,
+      description: '',
+      driverVersion: '',
+    ));
   }
 
   // Add focuser if connected
   if (focuserState.connectionState == DeviceConnectionState.connected &&
       focuserState.deviceId != null) {
-    final driverType = _deriveDriverType(focuserState.deviceId!);
-    if (driverType == null) {
-      debugPrint(
-        '[EquipmentStatus] Unknown driver type for connected focuser ${focuserState.deviceId}; omitting from status list.',
-      );
-    } else {
-      devices.add(DeviceInfo(
-        id: focuserState.deviceId!,
-        name: _getDeviceDisplayName(
-            focuserState.deviceName, focuserState.deviceId),
-        deviceType: DeviceType.focuser,
-        driverType: driverType,
-        description: '',
-        driverVersion: '',
-      ));
-    }
+    devices.add(DeviceInfo(
+      id: focuserState.deviceId!,
+      name: _getDeviceDisplayName(
+          focuserState.deviceName, focuserState.deviceId),
+      deviceType: DeviceType.focuser,
+      driverType: _deriveDriverType(focuserState.deviceId!) ?? DriverType.native,
+      description: '',
+      driverVersion: '',
+    ));
   }
 
   // Add filter wheel if connected
   if (filterWheelState.connectionState == DeviceConnectionState.connected &&
       filterWheelState.deviceId != null) {
-    final driverType = _deriveDriverType(filterWheelState.deviceId!);
-    if (driverType == null) {
-      debugPrint(
-        '[EquipmentStatus] Unknown driver type for connected filter wheel ${filterWheelState.deviceId}; omitting from status list.',
-      );
-    } else {
-      devices.add(DeviceInfo(
-        id: filterWheelState.deviceId!,
-        name: _getDeviceDisplayName(
-            filterWheelState.deviceName, filterWheelState.deviceId),
-        deviceType: DeviceType.filterWheel,
-        driverType: driverType,
-        description: '',
-        driverVersion: '',
-      ));
-    }
+    devices.add(DeviceInfo(
+      id: filterWheelState.deviceId!,
+      name: _getDeviceDisplayName(
+          filterWheelState.deviceName, filterWheelState.deviceId),
+      deviceType: DeviceType.filterWheel,
+      driverType: _deriveDriverType(filterWheelState.deviceId!) ?? DriverType.native,
+      description: '',
+      driverVersion: '',
+    ));
   }
 
   // Add guider if connected
   if (guiderState.connectionState == DeviceConnectionState.connected &&
       guiderState.deviceId != null) {
-    final driverType = _deriveDriverType(guiderState.deviceId!);
-    if (driverType == null) {
-      debugPrint(
-        '[EquipmentStatus] Unknown driver type for connected guider ${guiderState.deviceId}; omitting from status list.',
-      );
-    } else {
-      devices.add(DeviceInfo(
-        id: guiderState.deviceId!,
-        name:
-            _getDeviceDisplayName(guiderState.deviceName, guiderState.deviceId),
-        deviceType: DeviceType.guider,
-        driverType: driverType,
-        description: '',
-        driverVersion: '',
-      ));
-    }
+    devices.add(DeviceInfo(
+      id: guiderState.deviceId!,
+      name:
+          _getDeviceDisplayName(guiderState.deviceName, guiderState.deviceId),
+      deviceType: DeviceType.guider,
+      driverType: _deriveDriverType(guiderState.deviceId!) ?? DriverType.native,
+      description: '',
+      driverVersion: '',
+    ));
   }
 
   return AsyncValue.data(devices);

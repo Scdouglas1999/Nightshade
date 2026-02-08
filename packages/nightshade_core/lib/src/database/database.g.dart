@@ -2,7 +2,7 @@
 
 part of 'database.dart';
 
-// ignore_for_file: type=lint, unnecessary_null_comparison, unnecessary_non_null_assertion
+// ignore_for_file: type=lint
 class $EquipmentProfilesTable extends EquipmentProfiles
     with TableInfo<$EquipmentProfilesTable, EquipmentProfile> {
   @override
@@ -151,6 +151,12 @@ class $EquipmentProfilesTable extends EquipmentProfiles
       defaultConstraints: GeneratedColumn.constraintIsAlways(
           'CHECK ("cool_on_connect" IN (0, 1))'),
       defaultValue: const Constant(false));
+  static const VerificationMeta _defaultCenteringExposureMeta =
+      const VerificationMeta('defaultCenteringExposure');
+  @override
+  late final GeneratedColumn<double> defaultCenteringExposure =
+      GeneratedColumn<double>('default_centering_exposure', aliasedName, true,
+          type: DriftSqlType.double, requiredDuringInsert: false);
   static const VerificationMeta _filterNamesMeta =
       const VerificationMeta('filterNames');
   @override
@@ -302,6 +308,7 @@ class $EquipmentProfilesTable extends EquipmentProfiles
         defaultBinY,
         defaultCoolingTemp,
         coolOnConnect,
+        defaultCenteringExposure,
         filterNames,
         filterFocusOffsets,
         meridianFlipOverrides,
@@ -438,6 +445,13 @@ class $EquipmentProfilesTable extends EquipmentProfiles
           _coolOnConnectMeta,
           coolOnConnect.isAcceptableOrUnknown(
               data['cool_on_connect']!, _coolOnConnectMeta));
+    }
+    if (data.containsKey('default_centering_exposure')) {
+      context.handle(
+          _defaultCenteringExposureMeta,
+          defaultCenteringExposure.isAcceptableOrUnknown(
+              data['default_centering_exposure']!,
+              _defaultCenteringExposureMeta));
     }
     if (data.containsKey('filter_names')) {
       context.handle(
@@ -592,6 +606,9 @@ class $EquipmentProfilesTable extends EquipmentProfiles
           DriftSqlType.double, data['${effectivePrefix}default_cooling_temp']),
       coolOnConnect: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}cool_on_connect'])!,
+      defaultCenteringExposure: attachedDatabase.typeMapping.read(
+          DriftSqlType.double,
+          data['${effectivePrefix}default_centering_exposure']),
       filterNames: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}filter_names']),
       filterFocusOffsets: attachedDatabase.typeMapping.read(
@@ -664,6 +681,7 @@ class EquipmentProfile extends DataClass
   final int defaultBinY;
   final double? defaultCoolingTemp;
   final bool coolOnConnect;
+  final double? defaultCenteringExposure;
   final String? filterNames;
   final String? filterFocusOffsets;
   final String? meridianFlipOverrides;
@@ -705,6 +723,7 @@ class EquipmentProfile extends DataClass
       required this.defaultBinY,
       this.defaultCoolingTemp,
       required this.coolOnConnect,
+      this.defaultCenteringExposure,
       this.filterNames,
       this.filterFocusOffsets,
       this.meridianFlipOverrides,
@@ -776,6 +795,10 @@ class EquipmentProfile extends DataClass
       map['default_cooling_temp'] = Variable<double>(defaultCoolingTemp);
     }
     map['cool_on_connect'] = Variable<bool>(coolOnConnect);
+    if (!nullToAbsent || defaultCenteringExposure != null) {
+      map['default_centering_exposure'] =
+          Variable<double>(defaultCenteringExposure);
+    }
     if (!nullToAbsent || filterNames != null) {
       map['filter_names'] = Variable<String>(filterNames);
     }
@@ -876,6 +899,9 @@ class EquipmentProfile extends DataClass
           ? const Value.absent()
           : Value(defaultCoolingTemp),
       coolOnConnect: Value(coolOnConnect),
+      defaultCenteringExposure: defaultCenteringExposure == null && nullToAbsent
+          ? const Value.absent()
+          : Value(defaultCenteringExposure),
       filterNames: filterNames == null && nullToAbsent
           ? const Value.absent()
           : Value(filterNames),
@@ -953,6 +979,8 @@ class EquipmentProfile extends DataClass
       defaultCoolingTemp:
           serializer.fromJson<double?>(json['defaultCoolingTemp']),
       coolOnConnect: serializer.fromJson<bool>(json['coolOnConnect']),
+      defaultCenteringExposure:
+          serializer.fromJson<double?>(json['defaultCenteringExposure']),
       filterNames: serializer.fromJson<String?>(json['filterNames']),
       filterFocusOffsets:
           serializer.fromJson<String?>(json['filterFocusOffsets']),
@@ -1003,6 +1031,8 @@ class EquipmentProfile extends DataClass
       'defaultBinY': serializer.toJson<int>(defaultBinY),
       'defaultCoolingTemp': serializer.toJson<double?>(defaultCoolingTemp),
       'coolOnConnect': serializer.toJson<bool>(coolOnConnect),
+      'defaultCenteringExposure':
+          serializer.toJson<double?>(defaultCenteringExposure),
       'filterNames': serializer.toJson<String?>(filterNames),
       'filterFocusOffsets': serializer.toJson<String?>(filterFocusOffsets),
       'meridianFlipOverrides':
@@ -1048,6 +1078,7 @@ class EquipmentProfile extends DataClass
           int? defaultBinY,
           Value<double?> defaultCoolingTemp = const Value.absent(),
           bool? coolOnConnect,
+          Value<double?> defaultCenteringExposure = const Value.absent(),
           Value<String?> filterNames = const Value.absent(),
           Value<String?> filterFocusOffsets = const Value.absent(),
           Value<String?> meridianFlipOverrides = const Value.absent(),
@@ -1095,6 +1126,9 @@ class EquipmentProfile extends DataClass
             ? defaultCoolingTemp.value
             : this.defaultCoolingTemp,
         coolOnConnect: coolOnConnect ?? this.coolOnConnect,
+        defaultCenteringExposure: defaultCenteringExposure.present
+            ? defaultCenteringExposure.value
+            : this.defaultCenteringExposure,
         filterNames: filterNames.present ? filterNames.value : this.filterNames,
         filterFocusOffsets: filterFocusOffsets.present
             ? filterFocusOffsets.value
@@ -1166,6 +1200,9 @@ class EquipmentProfile extends DataClass
       coolOnConnect: data.coolOnConnect.present
           ? data.coolOnConnect.value
           : this.coolOnConnect,
+      defaultCenteringExposure: data.defaultCenteringExposure.present
+          ? data.defaultCenteringExposure.value
+          : this.defaultCenteringExposure,
       filterNames:
           data.filterNames.present ? data.filterNames.value : this.filterNames,
       filterFocusOffsets: data.filterFocusOffsets.present
@@ -1232,6 +1269,7 @@ class EquipmentProfile extends DataClass
           ..write('defaultBinY: $defaultBinY, ')
           ..write('defaultCoolingTemp: $defaultCoolingTemp, ')
           ..write('coolOnConnect: $coolOnConnect, ')
+          ..write('defaultCenteringExposure: $defaultCenteringExposure, ')
           ..write('filterNames: $filterNames, ')
           ..write('filterFocusOffsets: $filterFocusOffsets, ')
           ..write('meridianFlipOverrides: $meridianFlipOverrides, ')
@@ -1278,6 +1316,7 @@ class EquipmentProfile extends DataClass
         defaultBinY,
         defaultCoolingTemp,
         coolOnConnect,
+        defaultCenteringExposure,
         filterNames,
         filterFocusOffsets,
         meridianFlipOverrides,
@@ -1323,6 +1362,7 @@ class EquipmentProfile extends DataClass
           other.defaultBinY == this.defaultBinY &&
           other.defaultCoolingTemp == this.defaultCoolingTemp &&
           other.coolOnConnect == this.coolOnConnect &&
+          other.defaultCenteringExposure == this.defaultCenteringExposure &&
           other.filterNames == this.filterNames &&
           other.filterFocusOffsets == this.filterFocusOffsets &&
           other.meridianFlipOverrides == this.meridianFlipOverrides &&
@@ -1366,6 +1406,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
   final Value<int> defaultBinY;
   final Value<double?> defaultCoolingTemp;
   final Value<bool> coolOnConnect;
+  final Value<double?> defaultCenteringExposure;
   final Value<String?> filterNames;
   final Value<String?> filterFocusOffsets;
   final Value<String?> meridianFlipOverrides;
@@ -1407,6 +1448,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.defaultBinY = const Value.absent(),
     this.defaultCoolingTemp = const Value.absent(),
     this.coolOnConnect = const Value.absent(),
+    this.defaultCenteringExposure = const Value.absent(),
     this.filterNames = const Value.absent(),
     this.filterFocusOffsets = const Value.absent(),
     this.meridianFlipOverrides = const Value.absent(),
@@ -1449,6 +1491,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.defaultBinY = const Value.absent(),
     this.defaultCoolingTemp = const Value.absent(),
     this.coolOnConnect = const Value.absent(),
+    this.defaultCenteringExposure = const Value.absent(),
     this.filterNames = const Value.absent(),
     this.filterFocusOffsets = const Value.absent(),
     this.meridianFlipOverrides = const Value.absent(),
@@ -1491,6 +1534,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     Expression<int>? defaultBinY,
     Expression<double>? defaultCoolingTemp,
     Expression<bool>? coolOnConnect,
+    Expression<double>? defaultCenteringExposure,
     Expression<String>? filterNames,
     Expression<String>? filterFocusOffsets,
     Expression<String>? meridianFlipOverrides,
@@ -1534,6 +1578,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       if (defaultCoolingTemp != null)
         'default_cooling_temp': defaultCoolingTemp,
       if (coolOnConnect != null) 'cool_on_connect': coolOnConnect,
+      if (defaultCenteringExposure != null)
+        'default_centering_exposure': defaultCenteringExposure,
       if (filterNames != null) 'filter_names': filterNames,
       if (filterFocusOffsets != null)
         'filter_focus_offsets': filterFocusOffsets,
@@ -1581,6 +1627,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       Value<int>? defaultBinY,
       Value<double?>? defaultCoolingTemp,
       Value<bool>? coolOnConnect,
+      Value<double?>? defaultCenteringExposure,
       Value<String?>? filterNames,
       Value<String?>? filterFocusOffsets,
       Value<String?>? meridianFlipOverrides,
@@ -1622,6 +1669,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       defaultBinY: defaultBinY ?? this.defaultBinY,
       defaultCoolingTemp: defaultCoolingTemp ?? this.defaultCoolingTemp,
       coolOnConnect: coolOnConnect ?? this.coolOnConnect,
+      defaultCenteringExposure:
+          defaultCenteringExposure ?? this.defaultCenteringExposure,
       filterNames: filterNames ?? this.filterNames,
       filterFocusOffsets: filterFocusOffsets ?? this.filterFocusOffsets,
       meridianFlipOverrides:
@@ -1711,6 +1760,10 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     if (coolOnConnect.present) {
       map['cool_on_connect'] = Variable<bool>(coolOnConnect.value);
     }
+    if (defaultCenteringExposure.present) {
+      map['default_centering_exposure'] =
+          Variable<double>(defaultCenteringExposure.value);
+    }
     if (filterNames.present) {
       map['filter_names'] = Variable<String>(filterNames.value);
     }
@@ -1797,6 +1850,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
           ..write('defaultBinY: $defaultBinY, ')
           ..write('defaultCoolingTemp: $defaultCoolingTemp, ')
           ..write('coolOnConnect: $coolOnConnect, ')
+          ..write('defaultCenteringExposure: $defaultCenteringExposure, ')
           ..write('filterNames: $filterNames, ')
           ..write('filterFocusOffsets: $filterFocusOffsets, ')
           ..write('meridianFlipOverrides: $meridianFlipOverrides, ')
@@ -16682,6 +16736,7 @@ typedef $$EquipmentProfilesTableCreateCompanionBuilder
   Value<int> defaultBinY,
   Value<double?> defaultCoolingTemp,
   Value<bool> coolOnConnect,
+  Value<double?> defaultCenteringExposure,
   Value<String?> filterNames,
   Value<String?> filterFocusOffsets,
   Value<String?> meridianFlipOverrides,
@@ -16725,6 +16780,7 @@ typedef $$EquipmentProfilesTableUpdateCompanionBuilder
   Value<int> defaultBinY,
   Value<double?> defaultCoolingTemp,
   Value<bool> coolOnConnect,
+  Value<double?> defaultCenteringExposure,
   Value<String?> filterNames,
   Value<String?> filterFocusOffsets,
   Value<String?> meridianFlipOverrides,
@@ -16842,6 +16898,10 @@ class $$EquipmentProfilesTableFilterComposer
 
   ColumnFilters<bool> get coolOnConnect => $composableBuilder(
       column: $table.coolOnConnect, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get defaultCenteringExposure => $composableBuilder(
+      column: $table.defaultCenteringExposure,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get filterNames => $composableBuilder(
       column: $table.filterNames, builder: (column) => ColumnFilters(column));
@@ -17004,6 +17064,10 @@ class $$EquipmentProfilesTableOrderingComposer
       column: $table.coolOnConnect,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get defaultCenteringExposure => $composableBuilder(
+      column: $table.defaultCenteringExposure,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get filterNames => $composableBuilder(
       column: $table.filterNames, builder: (column) => ColumnOrderings(column));
 
@@ -17141,6 +17205,9 @@ class $$EquipmentProfilesTableAnnotationComposer
   GeneratedColumn<bool> get coolOnConnect => $composableBuilder(
       column: $table.coolOnConnect, builder: (column) => column);
 
+  GeneratedColumn<double> get defaultCenteringExposure => $composableBuilder(
+      column: $table.defaultCenteringExposure, builder: (column) => column);
+
   GeneratedColumn<String> get filterNames => $composableBuilder(
       column: $table.filterNames, builder: (column) => column);
 
@@ -17266,6 +17333,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<int> defaultBinY = const Value.absent(),
             Value<double?> defaultCoolingTemp = const Value.absent(),
             Value<bool> coolOnConnect = const Value.absent(),
+            Value<double?> defaultCenteringExposure = const Value.absent(),
             Value<String?> filterNames = const Value.absent(),
             Value<String?> filterFocusOffsets = const Value.absent(),
             Value<String?> meridianFlipOverrides = const Value.absent(),
@@ -17308,6 +17376,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             defaultBinY: defaultBinY,
             defaultCoolingTemp: defaultCoolingTemp,
             coolOnConnect: coolOnConnect,
+            defaultCenteringExposure: defaultCenteringExposure,
             filterNames: filterNames,
             filterFocusOffsets: filterFocusOffsets,
             meridianFlipOverrides: meridianFlipOverrides,
@@ -17350,6 +17419,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<int> defaultBinY = const Value.absent(),
             Value<double?> defaultCoolingTemp = const Value.absent(),
             Value<bool> coolOnConnect = const Value.absent(),
+            Value<double?> defaultCenteringExposure = const Value.absent(),
             Value<String?> filterNames = const Value.absent(),
             Value<String?> filterFocusOffsets = const Value.absent(),
             Value<String?> meridianFlipOverrides = const Value.absent(),
@@ -17392,6 +17462,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             defaultBinY: defaultBinY,
             defaultCoolingTemp: defaultCoolingTemp,
             coolOnConnect: coolOnConnect,
+            defaultCenteringExposure: defaultCenteringExposure,
             filterNames: filterNames,
             filterFocusOffsets: filterFocusOffsets,
             meridianFlipOverrides: meridianFlipOverrides,

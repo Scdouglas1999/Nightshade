@@ -3174,6 +3174,7 @@ pub async fn api_run_autofocus(
         longitude: None,
         device_ops,
         trigger_state: None,
+        filter_focus_offsets: std::collections::HashMap::new(),
     };
 
     // Execute (no progress callback when called directly from API)
@@ -3638,6 +3639,30 @@ pub async fn api_camera_start_exposure(
         );
         let star_count = stars.len() as u32;
 
+        // Compute median HFR from detected stars (top 50% brightest, capped at 50)
+        let median_hfr = if !stars.is_empty() {
+            let count = (stars.len() / 2).clamp(1, 50);
+            let mut hfrs: Vec<f64> = stars
+                .iter()
+                .take(count)
+                .map(|s| s.hfr)
+                .filter(|&h| h > 0.0 && h < 20.0)
+                .collect();
+            if hfrs.is_empty() {
+                None
+            } else {
+                hfrs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                Some(hfrs[hfrs.len() / 2])
+            }
+        } else {
+            None
+        };
+        tracing::info!(
+            "Star detection: {} stars found, median HFR: {:?}",
+            star_count,
+            median_hfr
+        );
+
         // Calculate histogram from pre-RGBA display data (256 bins for u8 pixel values)
         let mut histogram = vec![0u32; 256];
         for &pixel in &display_data_raw {
@@ -3660,7 +3685,7 @@ pub async fn api_camera_start_exposure(
                 mean: stats.mean,
                 median: stats.median,
                 std_dev: stats.std_dev,
-                hfr: None,
+                hfr: median_hfr,
                 star_count,
             },
             exposure_time: duration_secs,
@@ -4742,15 +4767,15 @@ pub struct StarDetectionConfigApi {
 impl Default for StarDetectionConfigApi {
     fn default() -> Self {
         Self {
-            detection_sigma: 5.0, // Increased from 3.0 - more conservative
-            min_area: 9,          // Increased from 5 - hot pixels rarely exceed this
+            detection_sigma: 5.0,
+            min_area: 9,
             max_area: 10000,
-            max_eccentricity: 0.7, // Slightly tighter - real stars are round
+            max_eccentricity: 0.7,
             saturation_limit: 60000,
             hfr_radius: 20,
-            min_hfr: Some(1.2),       // Real stars have HFR > 1.2 typically
-            min_snr: Some(10.0),      // Require decent signal-to-noise
-            max_sharpness: Some(0.7), // Hot pixels have sharpness > 0.8
+            min_hfr: Some(1.0),        // Real stars have HFR > ~1.0; hot pixels < 0.8
+            min_snr: Some(5.0),        // Modest SNR threshold - real stars in short subs can be faint
+            max_sharpness: Some(0.95), // Only reject extreme hot pixels (sharpness ~1.0)
         }
     }
 }
@@ -4776,9 +4801,9 @@ pub async fn api_detect_stars_in_file(
         max_eccentricity: config.max_eccentricity,
         saturation_limit: config.saturation_limit as u16,
         hfr_radius: config.hfr_radius,
-        min_hfr: config.min_hfr.unwrap_or(1.2),
-        min_snr: config.min_snr.unwrap_or(10.0),
-        max_sharpness: config.max_sharpness.unwrap_or(0.7),
+        min_hfr: config.min_hfr.unwrap_or(1.0),
+        min_snr: config.min_snr.unwrap_or(5.0),
+        max_sharpness: config.max_sharpness.unwrap_or(0.95),
     };
 
     let result = nightshade_imaging::detect_stars_with_stats(&image_data, &detection_config);
@@ -5505,19 +5530,27 @@ pub async fn api_phd2_connect(
 
     let mut client = nightshade_imaging::Phd2Client::new(&host, port);
 
-    // Set up event callback to forward PHD2 events to the main event stream
+    // Set up event callback to forward PHD2 events to the main event stream.
+    // This callback runs on the PHD2 reader std::thread, NOT on the tokio runtime.
+    // It publishes to the broadcast channel which is picked up by api_event_stream.
     client.set_event_callback(move |event| {
-        tracing::trace!("PHD2 event callback received: {:?}", event);
-        match event {
+        let subscriber_count = get_state().event_bus.subscriber_count();
+        tracing::info!(
+            "PHD2 event callback received: {:?} (event bus subscribers: {})",
+            std::mem::discriminant(&event),
+            subscriber_count
+        );
+
+        let guiding_event = match event {
             nightshade_imaging::Phd2Event::GuideStep(ref frame) => {
-                tracing::trace!(
+                tracing::info!(
                     "PHD2 GuideStep: RA={:.3}, Dec={:.3}, SNR={:.1}",
                     frame.ra_distance,
                     frame.dec_distance,
                     frame.snr
                 );
                 // Forward guide step correction data
-                get_state().publish_guiding_event(
+                let event_id = get_state().publish_guiding_event(
                     GuidingEvent::Correction {
                         ra: frame.ra_distance,
                         dec: frame.dec_distance,
@@ -5526,100 +5559,70 @@ pub async fn api_phd2_connect(
                     },
                     EventSeverity::Info,
                 );
+                tracing::info!("PHD2: Published Correction event (id={})", event_id);
                 // Also forward guide stats (SNR and star mass)
-                get_state().publish_guiding_event(
+                let stats_id = get_state().publish_guiding_event(
                     GuidingEvent::GuideStats {
                         snr: frame.snr,
                         star_mass: frame.star_mass,
                     },
                     EventSeverity::Info,
                 );
+                tracing::info!("PHD2: Published GuideStats event (id={})", stats_id);
+                return;
             }
             nightshade_imaging::Phd2Event::StateChanged(state) => {
-                tracing::debug!("PHD2 state changed: {:?}", state);
+                tracing::info!("PHD2 state changed: {:?}", state);
                 match state {
-                    nightshade_imaging::Phd2State::Guiding => {
-                        get_state().publish_guiding_event(
-                            GuidingEvent::GuidingStarted,
-                            EventSeverity::Info,
-                        );
-                    }
-                    nightshade_imaging::Phd2State::Connected => {
-                        // Connected but not guiding - this is GuidingStopped
-                        get_state().publish_guiding_event(
-                            GuidingEvent::GuidingStopped,
-                            EventSeverity::Info,
-                        );
-                    }
-                    nightshade_imaging::Phd2State::Disconnected => {
-                        get_state().publish_guiding_event(
-                            GuidingEvent::Disconnected,
-                            EventSeverity::Warning,
-                        );
-                    }
-                    nightshade_imaging::Phd2State::Paused => {
-                        get_state()
-                            .publish_guiding_event(GuidingEvent::Paused, EventSeverity::Info);
-                    }
-                    nightshade_imaging::Phd2State::LostLock => {
-                        get_state()
-                            .publish_guiding_event(GuidingEvent::LostStar, EventSeverity::Warning);
-                    }
-                    nightshade_imaging::Phd2State::Looping => {
-                        get_state()
-                            .publish_guiding_event(GuidingEvent::Looping, EventSeverity::Info);
-                    }
-                    nightshade_imaging::Phd2State::Calibrating => {
-                        get_state()
-                            .publish_guiding_event(GuidingEvent::Calibrating, EventSeverity::Info);
-                    }
-                    nightshade_imaging::Phd2State::Settling => {
-                        get_state()
-                            .publish_guiding_event(GuidingEvent::Settling, EventSeverity::Info);
-                    }
+                    nightshade_imaging::Phd2State::Guiding => GuidingEvent::GuidingStarted,
+                    nightshade_imaging::Phd2State::Connected => GuidingEvent::GuidingStopped,
+                    nightshade_imaging::Phd2State::Disconnected => GuidingEvent::Disconnected,
+                    nightshade_imaging::Phd2State::Paused => GuidingEvent::Paused,
+                    nightshade_imaging::Phd2State::LostLock => GuidingEvent::LostStar,
+                    nightshade_imaging::Phd2State::Looping => GuidingEvent::Looping,
+                    nightshade_imaging::Phd2State::Calibrating => GuidingEvent::Calibrating,
+                    nightshade_imaging::Phd2State::Settling => GuidingEvent::Settling,
                 }
             }
-            nightshade_imaging::Phd2Event::StarLost => {
-                get_state().publish_guiding_event(GuidingEvent::LostStar, EventSeverity::Warning);
-            }
+            nightshade_imaging::Phd2Event::StarLost => GuidingEvent::LostStar,
             nightshade_imaging::Phd2Event::StarSelected { x, y } => {
-                get_state().publish_guiding_event(
-                    GuidingEvent::StarSelected { x, y },
-                    EventSeverity::Info,
-                );
+                GuidingEvent::StarSelected { x, y }
             }
-            nightshade_imaging::Phd2Event::SettleBegin => {
-                get_state().publish_guiding_event(GuidingEvent::Settling, EventSeverity::Info);
-            }
+            nightshade_imaging::Phd2Event::SettleBegin => GuidingEvent::Settling,
             nightshade_imaging::Phd2Event::SettleDone {
                 total_frames: _,
                 dropped_frames: _,
-            } => {
-                // Settling complete - report with estimated RMS from AvgDist in last frame
-                get_state()
-                    .publish_guiding_event(GuidingEvent::Settled { rms: 0.0 }, EventSeverity::Info);
-            }
+            } => GuidingEvent::Settled { rms: 0.0 },
             nightshade_imaging::Phd2Event::CalibrationComplete => {
                 tracing::info!("PHD2: Calibration complete");
-                get_state()
-                    .publish_guiding_event(GuidingEvent::CalibrationComplete, EventSeverity::Info);
+                GuidingEvent::CalibrationComplete
             }
-            nightshade_imaging::Phd2Event::Disconnected => {
-                get_state()
-                    .publish_guiding_event(GuidingEvent::Disconnected, EventSeverity::Warning);
-            }
+            nightshade_imaging::Phd2Event::Disconnected => GuidingEvent::Disconnected,
             nightshade_imaging::Phd2Event::Alert {
                 message,
                 alert_type,
             } => {
                 tracing::warn!("PHD2 Alert [{}]: {}", alert_type, message);
-                // Alerts are logged but not sent as GuidingEvent - could add later if needed
+                return; // Alerts are not forwarded as GuidingEvent
             }
             nightshade_imaging::Phd2Event::Error(msg) => {
                 tracing::error!("PHD2 Error: {}", msg);
-                // Errors are logged but not sent as GuidingEvent
+                return; // Errors are not forwarded as GuidingEvent
             }
-        }
+        };
+
+        let severity = match &guiding_event {
+            GuidingEvent::LostStar | GuidingEvent::Disconnected => EventSeverity::Warning,
+            _ => EventSeverity::Info,
+        };
+
+        let event_id = get_state().publish_guiding_event(guiding_event.clone(), severity);
+        tracing::info!(
+            "PHD2: Published {:?} to event bus (event_id={}, subscribers={})",
+            guiding_event,
+            event_id,
+            subscriber_count
+        );
     });
 
     client
@@ -6801,15 +6804,19 @@ pub async fn api_sequencer_set_devices(
     filterwheel_id: Option<String>,
     rotator_id: Option<String>,
     filter_names: Option<Vec<String>>,
+    filter_focus_offsets: Option<std::collections::HashMap<String, i32>>,
 ) -> Result<(), NightshadeError> {
     tracing::info!(
-        "Setting sequencer devices: camera={:?}, mount={:?}, focuser={:?}, filterwheel={:?}, rotator={:?}, filter_names={:?}",
-        camera_id, mount_id, focuser_id, filterwheel_id, rotator_id, filter_names
+        "Setting sequencer devices: camera={:?}, mount={:?}, focuser={:?}, filterwheel={:?}, rotator={:?}, filter_names={:?}, filter_focus_offsets={:?}",
+        camera_id, mount_id, focuser_id, filterwheel_id, rotator_id, filter_names, filter_focus_offsets
     );
     let filterwheel_for_names = filterwheel_id.clone();
     {
         let mut executor = get_sequence_executor().write().await;
         executor.set_devices(camera_id, mount_id, focuser_id, filterwheel_id, rotator_id);
+        if let Some(offsets) = filter_focus_offsets {
+            executor.set_filter_focus_offsets(offsets);
+        }
     }
 
     if let Some(names) = filter_names {

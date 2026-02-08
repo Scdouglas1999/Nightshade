@@ -591,19 +591,113 @@ final sessionMovingObjectTrendProvider =
       .toList(growable: false);
 });
 
+// =========================================================================
+// Sessionless (standalone snapshot) providers
+// =========================================================================
+
+final sessionlessCalibrationsProvider =
+    StreamProvider<List<FramePhotometricCalibrationRow>>((ref) {
+  return ref.watch(scienceDaoProvider).watchSessionlessCalibrationsRecent();
+});
+
+final sessionlessTransparencySamplesProvider =
+    StreamProvider<List<TransparencySampleRow>>((ref) {
+  return ref.watch(scienceDaoProvider).watchSessionlessTransparencyRecent();
+});
+
+final sessionlessPsfTilesProvider =
+    StreamProvider<List<PsfFieldTileRow>>((ref) {
+  return ref.watch(scienceDaoProvider).watchSessionlessPsfTilesRecent();
+});
+
+final sessionlessFrameQualityMetricsProvider =
+    StreamProvider<List<ScienceFrameQualityMetricsRow>>((ref) {
+  return ref
+      .watch(scienceDaoProvider)
+      .watchSessionlessFrameQualityMetricsRecent();
+});
+
+final sessionlessTileMetricsProvider =
+    StreamProvider<List<ScienceTileMetricRow>>((ref) {
+  return ref.watch(scienceDaoProvider).watchSessionlessTileMetricsRecent();
+});
+
+final sessionlessResidualVectorsProvider =
+    StreamProvider<List<AstrometryResidualVectorRow>>((ref) {
+  return ref.watch(scienceDaoProvider).watchSessionlessResidualsRecent();
+});
+
+final sessionlessMovingObjectCandidatesProvider =
+    StreamProvider<List<MovingObjectCandidateRow>>((ref) {
+  return ref.watch(scienceDaoProvider).watchSessionlessMovingObjectsRecent();
+});
+
+final sessionlessPhotometryProvider =
+    StreamProvider<List<PhotometryMeasurementRow>>((ref) {
+  return ref.watch(scienceDaoProvider).watchSessionlessPhotometryRecent();
+});
+
+final sessionlessLineRatioProductsProvider =
+    StreamProvider<List<LineRatioProductRow>>((ref) {
+  return ref.watch(scienceDaoProvider).watchSessionlessLineRatiosRecent();
+});
+
+final sessionlessLightCurveProvider =
+    Provider.family<List<LightCurvePoint>, String>((ref, objectId) {
+  final photometry =
+      ref.watch(sessionlessPhotometryProvider).valueOrNull ?? const [];
+
+  return photometry
+      .where((row) => row.objectId == objectId)
+      .map(
+        (row) => LightCurvePoint(
+          timestamp: row.timestamp,
+          flux: row.flux,
+          differentialMagnitude: row.differentialMagnitude ?? 0.0,
+          snr: row.snr ?? 0.0,
+          uncertainty: row.uncertainty ?? 0.0,
+        ),
+      )
+      .toList(growable: false);
+});
+
+final sessionlessTransparencyTrendProvider =
+    Provider<List<TransparencyTrendPoint>>((ref) {
+  final rows =
+      ref.watch(sessionlessTransparencySamplesProvider).valueOrNull ?? const [];
+  return rows
+      .map(
+        (row) => TransparencyTrendPoint(
+          timestamp: row.timestamp,
+          transparencyPercent: row.transparencyPercent,
+          extinctionCoefficient: row.extinctionCoefficient,
+        ),
+      )
+      .toList(growable: false);
+});
+
 final currentScienceSnapshotProvider =
     Provider<(FramePhotometricCalibrationRow?, TransparencySampleRow?)>((ref) {
   final sessionId = ref.watch(sessionStateProvider).dbSessionId;
-  if (sessionId == null) {
-    return (null, null);
-  }
 
-  final calibrations =
-      ref.watch(sessionFrameCalibrationsProvider(sessionId)).valueOrNull ??
-          const [];
-  final transparency =
-      ref.watch(sessionTransparencySamplesProvider(sessionId)).valueOrNull ??
-          const [];
+  List<FramePhotometricCalibrationRow> calibrations;
+  List<TransparencySampleRow> transparency;
+
+  if (sessionId != null) {
+    calibrations =
+        ref.watch(sessionFrameCalibrationsProvider(sessionId)).valueOrNull ??
+            const [];
+    transparency =
+        ref.watch(sessionTransparencySamplesProvider(sessionId)).valueOrNull ??
+            const [];
+  } else {
+    // Fall back to sessionless data for standalone captures
+    calibrations =
+        ref.watch(sessionlessCalibrationsProvider).valueOrNull ?? const [];
+    transparency =
+        ref.watch(sessionlessTransparencySamplesProvider).valueOrNull ??
+            const [];
+  }
 
   return (
     calibrations.isEmpty ? null : calibrations.last,

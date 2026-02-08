@@ -101,6 +101,9 @@ class FramingState {
   /// Whether to highlight the capture sequence path
   final bool showSequencePath;
 
+  /// Whether to show the optical config overlay panel on the framing canvas
+  final bool showOpticalConfigPanel;
+
   const FramingState({
     this.target,
     this.surveySource = SurveySource.dss2Red,
@@ -126,6 +129,7 @@ class FramingState {
     this.selectedPanelIndex = -1,
     this.showPanelNumbers = true,
     this.showSequencePath = true,
+    this.showOpticalConfigPanel = false,
   });
 
   FramingState copyWith({
@@ -153,6 +157,7 @@ class FramingState {
     int? selectedPanelIndex,
     bool? showPanelNumbers,
     bool? showSequencePath,
+    bool? showOpticalConfigPanel,
     bool clearImage = false,
     bool clearTarget = false,
   }) {
@@ -185,6 +190,8 @@ class FramingState {
       selectedPanelIndex: selectedPanelIndex ?? this.selectedPanelIndex,
       showPanelNumbers: showPanelNumbers ?? this.showPanelNumbers,
       showSequencePath: showSequencePath ?? this.showSequencePath,
+      showOpticalConfigPanel:
+          showOpticalConfigPanel ?? this.showOpticalConfigPanel,
     );
   }
 }
@@ -560,6 +567,17 @@ class FramingNotifier extends StateNotifier<FramingState> {
   void toggleCardinalDirections() {
     state =
         state.copyWith(showCardinalDirections: !state.showCardinalDirections);
+  }
+
+  /// Toggle optical config panel visibility
+  void toggleOpticalConfigPanel() {
+    state = state.copyWith(
+        showOpticalConfigPanel: !state.showOpticalConfigPanel);
+  }
+
+  /// Set optical config panel visibility
+  void setOpticalConfigPanelVisible(bool visible) {
+    state = state.copyWith(showOpticalConfigPanel: visible);
   }
 
   /// Set custom equipment
@@ -1175,12 +1193,20 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
   }
 
   // Profile has basic optical data - we can calculate FOV
-  // Get camera name for display (strip any ASCOM prefix)
-  final cameraName = profile.cameraId != null
-      ? _extractDeviceName(profile.cameraId!)
-      : 'Unknown Camera';
+  // Check camera state early so we can use the friendly device name
+  final cameraState = ref.watch(cameraStateProvider);
 
-  final telescopeName = profile.name;
+  // Use friendly name from profile first, then connected camera's device name,
+  // then fall back to device ID extraction
+  final cameraName = profile.cameraName ??
+      (cameraState.connectionState == DeviceConnectionState.connected &&
+              cameraState.deviceName != null
+          ? cameraState.deviceName!
+          : (profile.cameraId != null
+              ? _extractDeviceName(profile.cameraId!)
+              : 'Unknown Camera'));
+
+  final telescopeName = profile.telescopeName ?? profile.name;
 
   // Require real camera sensor specs; do not approximate with guessed defaults.
   double? sensorWidthMm;
@@ -1189,9 +1215,6 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
   int? pixelsX;
   int? pixelsY;
   String? cameraMessage;
-
-  // Check if camera is connected and get real specs
-  final cameraState = ref.watch(cameraStateProvider);
   if (profile.cameraId != null &&
       cameraState.connectionState == DeviceConnectionState.connected) {
     try {
@@ -1257,12 +1280,28 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
   );
 });
 
-/// Extract device name from ASCOM driver ID
+/// Extract a human-readable device name from a raw device identifier.
+///
+/// Handles several formats:
+/// - ASCOM IDs: "ASCOM.Simulator.Camera" -> "Camera"
+/// - Native IDs: "zwo:native:0" -> "ZWO #0"
+/// - Plain names are returned as-is.
 String _extractDeviceName(String deviceId) {
   // ASCOM IDs are typically like "ASCOM.Simulator.Camera" or just a name
   if (deviceId.contains('.')) {
     final parts = deviceId.split('.');
     return parts.length > 1 ? parts.last : deviceId;
+  }
+  // Native driver IDs use colon separator: "vendor:driver:index"
+  if (deviceId.contains(':')) {
+    final parts = deviceId.split(':');
+    if (parts.length >= 3) {
+      final vendor = parts[0].toUpperCase();
+      final index = parts[2];
+      return '$vendor #$index';
+    }
+    // Fallback for 2-part colon IDs
+    return parts[0].toUpperCase();
   }
   return deviceId;
 }

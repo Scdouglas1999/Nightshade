@@ -101,10 +101,26 @@ class _SessionTab extends ConsumerWidget {
     final sessionState = ref.watch(sessionStateProvider);
     final duration = ref.watch(sessionDurationProvider);
 
-    // Get current session images if active
+    // Get current session images if active, otherwise show standalone captures
+    final bool isStandaloneMode = sessionState.dbSessionId == null;
     final imagesAsyncValue = sessionState.dbSessionId != null
         ? ref.watch(sessionImagesProvider(sessionState.dbSessionId!))
-        : const AsyncValue<List<CapturedImage>>.data([]);
+        : ref.watch(standaloneImagesProvider);
+
+    final String headerTitle;
+    final String headerSubtitle;
+    if (sessionState.isActive) {
+      headerTitle = 'Current Session';
+      headerSubtitle = sessionState.startTime != null
+          ? 'Started: ${DateFormat('MMM d, yyyy HH:mm').format(sessionState.startTime!)}'
+          : 'Session in progress';
+    } else if (isStandaloneMode) {
+      headerTitle = 'Quick Capture';
+      headerSubtitle = 'Standalone snapshots taken outside sequences';
+    } else {
+      headerTitle = 'No Active Session';
+      headerSubtitle = 'No session in progress';
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -121,9 +137,7 @@ class _SessionTab extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        sessionState.isActive
-                            ? 'Current Session'
-                            : 'No Active Session',
+                        headerTitle,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -132,9 +146,7 @@ class _SessionTab extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        sessionState.isActive && sessionState.startTime != null
-                            ? 'Started: ${DateFormat('MMM d, yyyy HH:mm').format(sessionState.startTime!)}'
-                            : 'No session in progress',
+                        headerSubtitle,
                         style: TextStyle(
                             fontSize: 12, color: colors.textSecondary),
                       ),
@@ -266,6 +278,12 @@ class _SessionTab extends ConsumerWidget {
 final sessionImagesProvider =
     StreamProvider.family<List<CapturedImage>, int>((ref, sessionId) {
   return ref.watch(imagesDaoProvider).watchImagesForSession(sessionId);
+});
+
+/// Provider for watching standalone (sessionless) images
+final standaloneImagesProvider =
+    StreamProvider<List<CapturedImage>>((ref) {
+  return ref.watch(imagesDaoProvider).watchStandaloneImages();
 });
 
 /// Provider for unique target names derived from sessions

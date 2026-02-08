@@ -206,10 +206,13 @@ class ImagingService {
               mean: capturedImage.stats.mean,
               median: capturedImage.stats.median,
               stdDev: capturedImage.stats.stdDev,
-              hfr: capturedImage.stats.hfr ?? 0.0,
-              fwhm:
-                  (capturedImage.stats.hfr ?? 0.0) * 2.35, // FWHM ≈ 2.35 * HFR
-              starCount: capturedImage.stats.starCount,
+              hfr: capturedImage.stats.hfr,
+              fwhm: capturedImage.stats.hfr != null
+                  ? capturedImage.stats.hfr! * 2.35 // FWHM ~ 2.35 * HFR
+                  : null,
+              starCount: capturedImage.stats.starCount > 0
+                  ? capturedImage.stats.starCount
+                  : null,
               background: capturedImage.stats.mean - capturedImage.stats.stdDev,
               noise: capturedImage.stats.stdDev,
               snr: capturedImage.stats.stdDev > 0

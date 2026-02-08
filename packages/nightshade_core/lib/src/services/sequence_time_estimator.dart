@@ -334,9 +334,22 @@ class SequenceTimeEstimator {
       case LoopConditionType.untilAltitude:
         final alt = node.repeatUntilAltitude;
         if (alt != null) {
-          return 'Loop until altitude ${alt.toStringAsFixed(0)} degrees - showing single iteration';
+          return 'Loop until altitude below ${alt.toStringAsFixed(0)} degrees - showing single iteration';
         }
         return 'Altitude-based loop - showing single iteration estimate';
+      case LoopConditionType.altitudeAbove:
+        final alt = node.repeatUntilAltitude;
+        if (alt != null) {
+          return 'Loop until altitude above ${alt.toStringAsFixed(0)} degrees - showing single iteration';
+        }
+        return 'Altitude-based loop - showing single iteration estimate';
+      case LoopConditionType.integrationTime:
+        final target = node.integrationTimeTarget;
+        if (target != null && target > 0) {
+          final mins = (target / 60).round();
+          return 'Loop until ${mins}m integration time reached - showing single iteration';
+        }
+        return 'Integration time loop - showing single iteration estimate';
     }
   }
 

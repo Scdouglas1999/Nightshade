@@ -2868,6 +2868,7 @@ class NativeBridge {
     String? filterwheelId,
     String? rotatorId,
     List<String>? filterNames,
+    Map<String, int>? filterFocusOffsets,
   }) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('sequencerSetDevices');
@@ -2881,9 +2882,10 @@ class NativeBridge {
         filterwheelId: filterwheelId,
         rotatorId: rotatorId,
         filterNames: filterNames,
+        filterFocusOffsets: filterFocusOffsets,
       );
       debugPrint(
-          '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames');
+          '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames, filterFocusOffsets=$filterFocusOffsets');
     } catch (e) {
       debugPrint('[Bridge] Error setting sequencer devices: $e');
       rethrow;

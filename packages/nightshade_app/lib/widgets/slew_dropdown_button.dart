@@ -277,14 +277,14 @@ class _CenteringDialogWithResultState
   bool _isCentering = false;
 
   CenteringConfig get _centeringConfig {
-    final userSettings = ref.read(exposureSettingsProvider);
+    final profile = ref.read(activeEquipmentProfileProvider);
+    final exposureTime = profile?.defaultCenteringExposure ?? 5.0;
     return CenteringConfig(
       maxIterations: 5,
       toleranceArcsec: 30.0,
-      exposureTime:
-          userSettings.exposureTime > 0 ? userSettings.exposureTime : 3.0,
-      binning: userSettings.binningX > 0 ? userSettings.binningX : 2,
-      gain: userSettings.gain,
+      exposureTime: exposureTime > 0 ? exposureTime : 5.0,
+      binning: profile?.defaultBinX ?? 2,
+      gain: profile?.defaultGain ?? 100,
       syncMount: false,
     );
   }

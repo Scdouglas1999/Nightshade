@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -2105894733;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 547556524;
 
 // Section: executor
 
@@ -2468,6 +2468,32 @@ fn wire__crate__api__api_get_device_capabilities_impl(
                     (move || async move {
                         let output_ok =
                             crate::api::api_get_device_capabilities(api_device_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__api_get_device_display_name_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_device_display_name",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::api_get_device_display_name(api_device_id).await,
+                        )?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4985,6 +5011,7 @@ fn wire__crate__api__api_sequencer_set_devices_impl(
     filterwheel_id: impl CstDecode<Option<String>>,
     rotator_id: impl CstDecode<Option<String>>,
     filter_names: impl CstDecode<Option<Vec<String>>>,
+    filter_focus_offsets: impl CstDecode<Option<std::collections::HashMap<String, i32>>>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -4999,6 +5026,7 @@ fn wire__crate__api__api_sequencer_set_devices_impl(
             let api_filterwheel_id = filterwheel_id.cst_decode();
             let api_rotator_id = rotator_id.cst_decode();
             let api_filter_names = filter_names.cst_decode();
+            let api_filter_focus_offsets = filter_focus_offsets.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
@@ -5009,6 +5037,7 @@ fn wire__crate__api__api_sequencer_set_devices_impl(
                             api_filterwheel_id,
                             api_rotator_id,
                             api_filter_names,
+                            api_filter_focus_offsets,
                         )
                         .await?;
                         Ok(output_ok)
@@ -7371,6 +7400,14 @@ impl SseDecode for Arc<AlpacaClient> {
     }
 }
 
+impl SseDecode for std::collections::HashMap<String, i32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <Vec<(String, i32)>>::sse_decode(deserializer);
+        return inner.into_iter().collect();
+    }
+}
+
 impl SseDecode
     for RustOpaqueNom<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Arc<AlpacaClient>>>
 {
@@ -9128,6 +9165,18 @@ impl SseDecode for Vec<crate::api::QuirkInfo> {
     }
 }
 
+impl SseDecode for Vec<(String, i32)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<(String, i32)>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<(String, String)> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9587,6 +9636,19 @@ impl SseDecode for crate::storage::ObserverLocation {
             longitude: var_longitude,
             elevation: var_elevation,
         };
+    }
+}
+
+impl SseDecode for Option<std::collections::HashMap<String, i32>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<std::collections::HashMap<String, i32>>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
     }
 }
 
@@ -10097,6 +10159,15 @@ impl SseDecode for (i64, bool) {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_field0 = <i64>::sse_decode(deserializer);
         let mut var_field1 = <bool>::sse_decode(deserializer);
+        return (var_field0, var_field1);
+    }
+}
+
+impl SseDecode for (String, i32) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_field0 = <String>::sse_decode(deserializer);
+        let mut var_field1 = <i32>::sse_decode(deserializer);
         return (var_field0, var_field1);
     }
 }
@@ -13611,6 +13682,13 @@ impl SseEncode for Arc<AlpacaClient> {
     }
 }
 
+impl SseEncode for std::collections::HashMap<String, i32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<(String, i32)>>::sse_encode(self.into_iter().collect(), serializer);
+    }
+}
+
 impl SseEncode
     for RustOpaqueNom<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Arc<AlpacaClient>>>
 {
@@ -15003,6 +15081,16 @@ impl SseEncode for Vec<crate::api::QuirkInfo> {
     }
 }
 
+impl SseEncode for Vec<(String, i32)> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <(String, i32)>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<(String, String)> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15353,6 +15441,16 @@ impl SseEncode for crate::storage::ObserverLocation {
         <f64>::sse_encode(self.latitude, serializer);
         <f64>::sse_encode(self.longitude, serializer);
         <f64>::sse_encode(self.elevation, serializer);
+    }
+}
+
+impl SseEncode for Option<std::collections::HashMap<String, i32>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <std::collections::HashMap<String, i32>>::sse_encode(value, serializer);
+        }
     }
 }
 
@@ -15738,6 +15836,14 @@ impl SseEncode for (i64, bool) {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i64>::sse_encode(self.0, serializer);
         <bool>::sse_encode(self.1, serializer);
+    }
+}
+
+impl SseEncode for (String, i32) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.0, serializer);
+        <i32>::sse_encode(self.1, serializer);
     }
 }
 
@@ -16279,6 +16385,13 @@ mod io {
             >::cst_decode(
                 self
             ))
+        }
+    }
+    impl CstDecode<std::collections::HashMap<String, i32>> for *mut wire_cst_list_record_string_i_32 {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> std::collections::HashMap<String, i32> {
+            let vec: Vec<(String, i32)> = self.cst_decode();
+            vec.into_iter().collect()
         }
     }
     impl
@@ -17688,6 +17801,16 @@ mod io {
             vec.into_iter().map(CstDecode::cst_decode).collect()
         }
     }
+    impl CstDecode<Vec<(String, i32)>> for *mut wire_cst_list_record_string_i_32 {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<(String, i32)> {
+            let vec = unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            };
+            vec.into_iter().map(CstDecode::cst_decode).collect()
+        }
+    }
     impl CstDecode<Vec<(String, String)>> for *mut wire_cst_list_record_string_string {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> Vec<(String, String)> {
@@ -18224,6 +18347,12 @@ mod io {
     impl CstDecode<(i64, bool)> for wire_cst_record_i_64_bool {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> (i64, bool) {
+            (self.field0.cst_decode(), self.field1.cst_decode())
+        }
+    }
+    impl CstDecode<(String, i32)> for wire_cst_record_string_i_32 {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> (String, i32) {
             (self.field0.cst_decode(), self.field1.cst_decode())
         }
     }
@@ -19700,6 +19829,19 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_record_string_i_32 {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                field0: core::ptr::null_mut(),
+                field1: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_record_string_i_32 {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_record_string_string {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -21018,6 +21160,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_device_display_name(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__api_get_device_display_name_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_get_device_health(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
@@ -21858,6 +22008,7 @@ mod io {
         filterwheel_id: *mut wire_cst_list_prim_u_8_strict,
         rotator_id: *mut wire_cst_list_prim_u_8_strict,
         filter_names: *mut wire_cst_list_String,
+        filter_focus_offsets: *mut wire_cst_list_record_string_i_32,
     ) {
         wire__crate__api__api_sequencer_set_devices_impl(
             port_,
@@ -21867,6 +22018,7 @@ mod io {
             filterwheel_id,
             rotator_id,
             filter_names,
+            filter_focus_offsets,
         )
     }
 
@@ -23123,6 +23275,20 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_record_string_i_32(
+        len: i32,
+    ) -> *mut wire_cst_list_record_string_i_32 {
+        let wrap = wire_cst_list_record_string_i_32 {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
+                <wire_cst_record_string_i_32>::new_with_null_ptr(),
+                len,
+            ),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(wrap)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_record_string_string(
         len: i32,
     ) -> *mut wire_cst_list_record_string_string {
@@ -24117,6 +24283,12 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_list_record_string_i_32 {
+        ptr: *mut wire_cst_record_string_i_32,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_list_record_string_string {
         ptr: *mut wire_cst_record_string_string,
         len: i32,
@@ -24608,6 +24780,12 @@ mod io {
     pub struct wire_cst_record_i_64_bool {
         field0: i64,
         field1: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_record_string_i_32 {
+        field0: *mut wire_cst_list_prim_u_8_strict,
+        field1: i32,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

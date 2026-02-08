@@ -5,6 +5,7 @@ import 'package:nightshade_bridge/src/api.dart' as bridge_api;
 import '../services/device_service.dart';
 import '../models/backend/autofocus_result.dart';
 import '../models/equipment/equipment_models.dart';
+import 'backend_provider.dart';
 import 'profiles_provider.dart';
 
 // Note: All async callbacks and stream listeners check `mounted`
@@ -126,6 +127,11 @@ class CameraStateNotifier extends StateNotifier<CameraState> {
     state = state.copyWith(isCooling: isCooling);
   }
 
+  /// Update warming state (gradual warm-up in progress)
+  void setWarming(bool isWarming) {
+    state = state.copyWith(isWarming: isWarming);
+  }
+
   void setExposing(bool isExposing, {double? progress}) {
     state = state.copyWith(
       isExposing: isExposing,
@@ -161,8 +167,22 @@ final mountStateProvider =
 class MountStateNotifier extends StateNotifier<MountState> {
   final Ref _ref;
   int _retryAttempts = 0;
+  Timer? _positionPollTimer;
+  bool _isPolling = false;
+
+  /// Normal polling interval (tracking/idle)
+  static const _normalPollInterval = Duration(seconds: 2);
+
+  /// Fast polling interval (while slewing)
+  static const _slewingPollInterval = Duration(milliseconds: 500);
 
   MountStateNotifier(this._ref) : super(const MountState());
+
+  @override
+  void dispose() {
+    _stopPositionPolling();
+    super.dispose();
+  }
 
   Future<void> connect(String deviceId,
       {int maxRetries = _defaultMaxRetries}) async {
@@ -212,6 +232,7 @@ class MountStateNotifier extends StateNotifier<MountState> {
   }
 
   Future<void> disconnect() async {
+    _stopPositionPolling();
     if (state.deviceId == null) return;
     try {
       final deviceService = _ref.read(deviceServiceProvider);
@@ -225,6 +246,7 @@ class MountStateNotifier extends StateNotifier<MountState> {
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
+    _stopPositionPolling();
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
@@ -238,9 +260,11 @@ class MountStateNotifier extends StateNotifier<MountState> {
       connectionState: DeviceConnectionState.connected,
       clearError: true,
     );
+    _startPositionPolling();
   }
 
   void setDisconnected() {
+    _stopPositionPolling();
     state = const MountState();
   }
 
@@ -253,7 +277,13 @@ class MountStateNotifier extends StateNotifier<MountState> {
   }
 
   void setSlewing(bool slewing) {
+    final wasSlewing = state.isSlewing;
     state = state.copyWith(isSlewing: slewing);
+    // Adjust poll rate when slewing state changes
+    if (wasSlewing != slewing &&
+        state.connectionState == DeviceConnectionState.connected) {
+      _restartPollingWithCurrentRate();
+    }
   }
 
   void setParked(bool parked) {
@@ -273,6 +303,75 @@ class MountStateNotifier extends StateNotifier<MountState> {
       connectionState: DeviceConnectionState.error,
       lastError: DeviceError.fromException(error, deviceId: state.deviceId),
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Position polling
+  // ---------------------------------------------------------------------------
+
+  void _startPositionPolling() {
+    _stopPositionPolling();
+    final interval =
+        state.isSlewing ? _slewingPollInterval : _normalPollInterval;
+    debugPrint(
+        '[Mount] Starting position polling (interval: ${interval.inMilliseconds}ms)');
+    _positionPollTimer = Timer.periodic(interval, (_) => _pollPosition());
+  }
+
+  void _stopPositionPolling() {
+    if (_positionPollTimer != null) {
+      _positionPollTimer!.cancel();
+      _positionPollTimer = null;
+      debugPrint('[Mount] Stopped position polling');
+    }
+  }
+
+  void _restartPollingWithCurrentRate() {
+    if (_positionPollTimer == null) return; // Not currently polling
+    _startPositionPolling();
+  }
+
+  Future<void> _pollPosition() async {
+    if (_isPolling) return; // Skip if previous poll is still in-flight
+    if (!mounted) return;
+    if (state.connectionState != DeviceConnectionState.connected) return;
+
+    final deviceId = state.deviceId;
+    if (deviceId == null) return;
+
+    _isPolling = true;
+    try {
+      final backend = _ref.read(backendProvider);
+      final status = await backend.getMountStatus(deviceId);
+      if (!mounted) return;
+
+      updatePosition(
+        status.rightAscension,
+        status.declination,
+        status.altitude,
+        status.azimuth,
+      );
+
+      // Also sync tracking/slewing/parked state from hardware
+      final wasSlewing = state.isSlewing;
+      state = state.copyWith(
+        isTracking: status.tracking,
+        isSlewing: status.slewing,
+        isParked: status.parked,
+      );
+
+      // If slewing state changed, adjust poll rate
+      if (wasSlewing != status.slewing) {
+        _restartPollingWithCurrentRate();
+      }
+    } catch (e) {
+      // Don't spam errors for transient failures during polling.
+      // A persistent failure will eventually be caught by the heartbeat
+      // monitor which handles reconnection.
+      debugPrint('[Mount] Position poll failed: $e');
+    } finally {
+      _isPolling = false;
+    }
   }
 }
 
@@ -452,7 +551,34 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
   final Ref _ref;
   int _retryAttempts = 0;
 
-  FilterWheelStateNotifier(this._ref) : super(const FilterWheelState());
+  FilterWheelStateNotifier(this._ref) : super(const FilterWheelState()) {
+    // Watch for profile changes and re-sync filter names when the active
+    // profile's filter names are updated (e.g. user edits profile and saves).
+    _ref.listen<EquipmentProfileModel?>(activeEquipmentProfileProvider,
+        (previous, next) {
+      if (!mounted) return;
+      if (state.connectionState != DeviceConnectionState.connected) return;
+      if (state.deviceId == null) return;
+
+      // Only re-sync if filter names actually changed
+      final previousNames = previous?.filterNames ?? [];
+      final nextNames = next?.filterNames ?? [];
+      if (_filterNamesEqual(previousNames, nextNames)) return;
+
+      debugPrint(
+          'FilterWheelStateNotifier: Active profile filter names changed, re-syncing');
+      _syncProfileFilterNamesToDriver(state.deviceId!);
+    });
+  }
+
+  /// Compare two filter name lists for equality
+  static bool _filterNamesEqual(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   Future<void> connect(String deviceId,
       {int maxRetries = _defaultMaxRetries}) async {
@@ -464,14 +590,13 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     try {
       setConnecting(deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
+      // DeviceService.connectFilterWheel handles:
+      // 1. Connecting to the hardware
+      // 2. Populating filter names from the driver
+      // 3. Syncing profile/session filter names to the driver
       await deviceService.connectFilterWheel(deviceId);
       if (!mounted) return;
       _retryAttempts = 0;
-      setConnected();
-
-      // After connection, sync profile filter names to the native driver
-      // This ensures user-defined filter names (Ha, OIII, SII) work in sequences
-      await _syncProfileFilterNamesToDriver(deviceId);
     } catch (e) {
       if (!mounted) return;
       _retryAttempts++;
@@ -495,14 +620,13 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     }
   }
 
-  /// Sync filter names to the native driver on connection.
+  /// Re-sync filter names to the native driver when the active profile changes
+  /// while the filter wheel is already connected.
   ///
-  /// Filter names are resolved in this priority order:
-  /// 1. Active profile filter names (if profile exists and has filter names configured)
-  /// 2. Session filter names (if set via sessionFilterNamesProvider)
-  /// 3. Driver-reported names (from the backend/hardware) - no sync needed
+  /// Called by the _ref.listen callback in the constructor when profile filter
+  /// names are updated (e.g., user edits profile and saves).
   ///
-  /// This allows users to set filter names without creating an equipment profile.
+  /// Initial sync on connection is handled by DeviceService.connectFilterWheel.
   Future<void> _syncProfileFilterNamesToDriver(String deviceId) async {
     try {
       // Priority 1: Check active profile filter names

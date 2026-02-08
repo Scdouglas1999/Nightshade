@@ -1457,6 +1457,8 @@ Map<String, SequenceNode> _createUnattendedNodes() {
       maxRetries: 3,
       triggerType: TriggerType.hfrDegraded,
       triggerThreshold: 4.0,
+      hfrThresholdPercent: 20.0,
+      hfrConsecutiveFrames: 3,
       parentId: loopId,
       orderIndex: 0,
       childIds: const [recoveryFocusId],

@@ -62,17 +62,28 @@ class FfiBackend implements NightshadeBackend {
 
     // Return cached broadcast stream to allow multiple subscribers
     if (_cachedEventStream == null) {
+      _logger.info('Creating event stream from native bridge');
       _cachedEventStream = bridge.NativeBridge.eventStream().map((bridgeEvent) {
         // Extract eventType and data from the EventPayload
         final payloadInfo = _extractPayloadInfo(bridgeEvent.payload);
+        final category = _fromBridgeCategory(bridgeEvent.category);
+
+        // Log guiding events at info level for diagnostics
+        if (category == EventCategory.guiding) {
+          _logger.info(
+              'FfiBackend received guiding event: ${payloadInfo.$1} data=${payloadInfo.$2}');
+        }
+
         return NightshadeEvent(
           timestamp: bridgeEvent.timestamp,
           severity: _fromBridgeSeverity(bridgeEvent.severity),
-          category: _fromBridgeCategory(bridgeEvent.category),
+          category: category,
           eventType: payloadInfo.$1,
           data: payloadInfo.$2,
         );
       }).asBroadcastStream();
+
+      _logger.info('Event stream created as broadcast stream');
 
       // Wire up polar alignment events to the dedicated stream
       // Store subscription for proper cleanup on dispose
@@ -1256,6 +1267,7 @@ class FfiBackend implements NightshadeBackend {
     String? filterwheelId,
     String? rotatorId,
     List<String>? filterNames,
+    Map<String, int>? filterFocusOffsets,
   }) async {
     await bridge.NativeBridge.sequencerSetDevices(
       cameraId: cameraId,
@@ -1264,6 +1276,7 @@ class FfiBackend implements NightshadeBackend {
       filterwheelId: filterwheelId,
       rotatorId: rotatorId,
       filterNames: filterNames,
+      filterFocusOffsets: filterFocusOffsets,
     );
   }
 

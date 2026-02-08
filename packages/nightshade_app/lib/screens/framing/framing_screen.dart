@@ -264,12 +264,45 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                     },
                   ),
                 ),
-                // Optical config panel overlaid in top-left corner
-                const Positioned(
-                  top: 16,
-                  left: 16,
-                  child: OpticalConfigPanel(),
-                ),
+                // Optical config panel overlaid in top-left corner (dismissable)
+                if (framingState.showOpticalConfigPanel)
+                  const Positioned(
+                    top: 16,
+                    left: 16,
+                    child: OpticalConfigPanel(),
+                  )
+                else
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    child: Tooltip(
+                      message: 'Show optical config panel',
+                      child: Material(
+                        color: colors.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () {
+                            ref
+                                .read(framingProvider.notifier)
+                                .setOpticalConfigPanelVisible(true);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: colors.border),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              LucideIcons.aperture,
+                              size: 16,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -670,7 +703,18 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                 );
               },
               loading: () => const SizedBox(),
-              error: (_, __) => const SizedBox(),
+              error: (error, _) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.alertCircle,
+                      size: 12, color: colors.error),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Error',
+                    style: TextStyle(fontSize: 10, color: colors.error),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

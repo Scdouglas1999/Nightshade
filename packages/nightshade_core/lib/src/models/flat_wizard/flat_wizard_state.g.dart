@@ -78,6 +78,8 @@ _$FlatWizardStateImpl _$$FlatWizardStateImplFromJson(
           $enumDecodeNullable(_$TwilightModeEnumMap, json['twilightMode']) ??
               TwilightMode.dusk,
       lastImagePath: json['lastImagePath'] as String?,
+      lastImageData:
+          const RuntimeOnlyValueConverter().fromJson(json['lastImageData']),
       errorMessage: json['errorMessage'] as String?,
       warningMessage: json['warningMessage'] as String?,
       statusMessage: json['statusMessage'] as String?,
@@ -106,6 +108,8 @@ Map<String, dynamic> _$$FlatWizardStateImplToJson(
       'skyAduRate': instance.skyAduRate,
       'twilightMode': _$TwilightModeEnumMap[instance.twilightMode]!,
       'lastImagePath': instance.lastImagePath,
+      'lastImageData':
+          const RuntimeOnlyValueConverter().toJson(instance.lastImageData),
       'errorMessage': instance.errorMessage,
       'warningMessage': instance.warningMessage,
       'statusMessage': instance.statusMessage,

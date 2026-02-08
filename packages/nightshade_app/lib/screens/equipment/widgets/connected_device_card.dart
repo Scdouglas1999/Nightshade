@@ -726,8 +726,8 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           ),
           const SizedBox(width: 8),
           _ActionButton(
-            label: 'Warm Up',
-            onTap: _handleWarmCamera,
+            label: state.isWarming ? 'Cancel Warm' : 'Warm Up',
+            onTap: state.isWarming ? _handleCancelWarm : _handleWarmCamera,
             colors: colors,
           ),
         ];
@@ -1028,6 +1028,8 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
   Future<void> _handleCoolCamera(double targetTemp) async {
     final deviceService = ref.read(deviceServiceProvider);
+    // Cancel any in-progress warm-up before cooling
+    deviceService.cancelWarmCamera();
     try {
       await deviceService.setCameraCooling(
           enabled: true, targetTemp: targetTemp);
@@ -1095,14 +1097,22 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   Future<void> _handleWarmCamera() async {
     final deviceService = ref.read(deviceServiceProvider);
     try {
-      await deviceService.setCameraCooling(enabled: false);
+      await deviceService.warmCamera();
       if (mounted) {
-        context.showSuccessSnackBar('Warming up camera');
+        context.showSuccessSnackBar('Gradually warming camera (2°C/min)');
       }
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Failed to warm up: $e');
       }
+    }
+  }
+
+  void _handleCancelWarm() {
+    final deviceService = ref.read(deviceServiceProvider);
+    deviceService.cancelWarmCamera();
+    if (mounted) {
+      context.showSuccessSnackBar('Warm-up cancelled');
     }
   }
 

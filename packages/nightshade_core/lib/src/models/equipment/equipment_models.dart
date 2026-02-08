@@ -235,6 +235,7 @@ class CameraState extends Equatable {
   final int? offset;
   final String? binning;
   final bool isCooling;
+  final bool isWarming;
   final bool isExposing;
   final double? exposureProgress;
   final DeviceError? lastError;
@@ -256,6 +257,7 @@ class CameraState extends Equatable {
     this.offset,
     this.binning,
     this.isCooling = false,
+    this.isWarming = false,
     this.isExposing = false,
     this.exposureProgress,
     this.lastError,
@@ -289,6 +291,7 @@ class CameraState extends Equatable {
     int? offset,
     String? binning,
     bool? isCooling,
+    bool? isWarming,
     bool? isExposing,
     double? exposureProgress,
     DeviceError? lastError,
@@ -307,6 +310,7 @@ class CameraState extends Equatable {
       offset: offset ?? this.offset,
       binning: binning ?? this.binning,
       isCooling: isCooling ?? this.isCooling,
+      isWarming: isWarming ?? this.isWarming,
       isExposing: isExposing ?? this.isExposing,
       exposureProgress: exposureProgress ?? this.exposureProgress,
       lastError: clearError ? null : (lastError ?? this.lastError),
@@ -328,6 +332,7 @@ class CameraState extends Equatable {
         offset,
         binning,
         isCooling,
+        isWarming,
         isExposing,
         exposureProgress,
         lastError,

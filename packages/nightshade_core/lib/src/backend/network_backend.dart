@@ -1230,6 +1230,7 @@ class NetworkBackend implements NightshadeBackend {
     String? filterwheelId,
     String? rotatorId,
     List<String>? filterNames,
+    Map<String, int>? filterFocusOffsets,
   }) async {
     await _post('sequencer/devices', {
       'cameraId': cameraId,
@@ -1238,6 +1239,7 @@ class NetworkBackend implements NightshadeBackend {
       'filterwheelId': filterwheelId,
       'rotatorId': rotatorId,
       'filterNames': filterNames,
+      'filterFocusOffsets': filterFocusOffsets,
     });
   }
 

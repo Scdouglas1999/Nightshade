@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import '../database/database.dart';
 import '../models/backend/device_capabilities.dart';
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
@@ -10,6 +11,8 @@ import 'capability_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
 import '../services/profile_service.dart';
+
+final _log = Logger('ProfilesProvider');
 
 // ============================================================================
 // Equipment Profile Model (UI-friendly)
@@ -59,6 +62,9 @@ class EquipmentProfileModel {
   final double? defaultCoolingTemp;
   final bool coolOnConnect;
 
+  // Centering/plate-solve default exposure (seconds)
+  final double? defaultCenteringExposure;
+
   // Filter configuration
   final List<String> filterNames;
   final Map<String, int> filterFocusOffsets;
@@ -105,6 +111,7 @@ class EquipmentProfileModel {
     this.defaultBinY = 1,
     this.defaultCoolingTemp,
     this.coolOnConnect = false,
+    this.defaultCenteringExposure,
     this.filterNames = const [],
     this.filterFocusOffsets = const {},
     this.profileIcon,
@@ -145,7 +152,10 @@ class EquipmentProfileModel {
     if (db.filterNames != null) {
       try {
         filters = (jsonDecode(db.filterNames!) as List).cast<String>();
-      } catch (_) {}
+      } catch (e) {
+        _log.warning(
+            'Failed to parse filterNames JSON for profile "${db.name}": $e');
+      }
     }
 
     if (db.filterFocusOffsets != null) {
@@ -153,7 +163,10 @@ class EquipmentProfileModel {
         final decoded =
             jsonDecode(db.filterFocusOffsets!) as Map<String, dynamic>;
         offsets = decoded.map((key, value) => MapEntry(key, value as int));
-      } catch (_) {}
+      } catch (e) {
+        _log.warning(
+            'Failed to parse filterFocusOffsets JSON for profile "${db.name}": $e');
+      }
     }
 
     return EquipmentProfileModel(
@@ -188,6 +201,7 @@ class EquipmentProfileModel {
       defaultBinY: db.defaultBinY,
       defaultCoolingTemp: db.defaultCoolingTemp,
       coolOnConnect: db.coolOnConnect,
+      defaultCenteringExposure: db.defaultCenteringExposure,
       filterNames: filters,
       filterFocusOffsets: offsets,
       profileIcon: db.profileIcon,
@@ -233,6 +247,7 @@ class EquipmentProfileModel {
       defaultBinY: Value(defaultBinY),
       defaultCoolingTemp: Value(defaultCoolingTemp),
       coolOnConnect: Value(coolOnConnect),
+      defaultCenteringExposure: Value(defaultCenteringExposure),
       filterNames:
           Value(filterNames.isNotEmpty ? jsonEncode(filterNames) : null),
       filterFocusOffsets: Value(filterFocusOffsets.isNotEmpty
@@ -278,6 +293,7 @@ class EquipmentProfileModel {
     int? defaultBinY,
     double? defaultCoolingTemp,
     bool? coolOnConnect,
+    double? defaultCenteringExposure,
     List<String>? filterNames,
     Map<String, int>? filterFocusOffsets,
     String? profileIcon,
@@ -319,6 +335,7 @@ class EquipmentProfileModel {
       defaultBinY: defaultBinY ?? this.defaultBinY,
       defaultCoolingTemp: defaultCoolingTemp ?? this.defaultCoolingTemp,
       coolOnConnect: coolOnConnect ?? this.coolOnConnect,
+      defaultCenteringExposure: defaultCenteringExposure ?? this.defaultCenteringExposure,
       filterNames: filterNames ?? this.filterNames,
       filterFocusOffsets: filterFocusOffsets ?? this.filterFocusOffsets,
       profileIcon: profileIcon ?? this.profileIcon,
@@ -470,6 +487,7 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       defaultBinY: profile.defaultBinY,
       defaultCoolingTemp: Value(profile.defaultCoolingTemp),
       coolOnConnect: profile.coolOnConnect,
+      defaultCenteringExposure: Value(profile.defaultCenteringExposure),
       filterNames: Value(profile.filterNames.isNotEmpty
           ? jsonEncode(profile.filterNames)
           : null),

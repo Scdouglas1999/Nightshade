@@ -18,6 +18,10 @@ pub struct Trigger {
     pub cooldown_secs: Option<u64>,
     #[serde(skip)]
     pub last_triggered: Option<Instant>,
+    /// Counter for consecutive frames exceeding HFR threshold.
+    /// Only used by HfrDegraded triggers; reset when condition clears.
+    #[serde(skip)]
+    pub hfr_bad_frame_count: u32,
 }
 
 impl Trigger {
@@ -36,6 +40,7 @@ impl Trigger {
             enabled: true,
             cooldown_secs: None,
             last_triggered: None,
+            hfr_bad_frame_count: 0,
         }
     }
 
@@ -61,13 +66,49 @@ impl Trigger {
         }
 
         let triggered = match &self.trigger_type {
-            TriggerType::HfrDegraded { threshold_percent } => {
-                if let (Some(baseline), Some(current)) = (state.baseline_hfr, state.current_hfr) {
-                    let increase = (current - baseline) / baseline * 100.0;
-                    increase > *threshold_percent
+            TriggerType::HfrDegraded {
+                threshold_percent,
+                absolute_threshold,
+                consecutive_frames,
+            } => {
+                let current = match state.current_hfr {
+                    Some(v) => v,
+                    None => return false,
+                };
+
+                // Check absolute threshold (if configured > 0)
+                let exceeds_absolute =
+                    *absolute_threshold > 0.0 && current > *absolute_threshold;
+
+                // Check relative threshold (percentage above baseline)
+                let exceeds_relative = if *threshold_percent > 0.0 {
+                    if let Some(baseline) = state.baseline_hfr {
+                        if baseline > 0.0 {
+                            let increase = (current - baseline) / baseline * 100.0;
+                            increase > *threshold_percent
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
                 } else {
                     false
+                };
+
+                // HFR is "bad" if either threshold is exceeded
+                let is_bad = exceeds_absolute || exceeds_relative;
+
+                // Track consecutive bad frames
+                if is_bad {
+                    self.hfr_bad_frame_count += 1;
+                } else {
+                    self.hfr_bad_frame_count = 0;
                 }
+
+                // Only trigger after required consecutive bad frames
+                let required = (*consecutive_frames).max(1);
+                self.hfr_bad_frame_count >= required
             }
             TriggerType::MeridianFlip { config } => {
                 // Don't trigger if we've already flipped for this target
@@ -637,6 +678,8 @@ impl TriggerManager {
                 "HFR Degradation",
                 TriggerType::HfrDegraded {
                     threshold_percent: 20.0,
+                    absolute_threshold: 0.0, // disabled by default; users set from UI
+                    consecutive_frames: 3,   // require 3 bad frames to avoid seeing spikes
                 },
                 RecoveryAction::Autofocus,
             )
@@ -763,12 +806,14 @@ mod tests {
     use std::time::Duration;
 
     #[tokio::test]
-    async fn test_hfr_trigger() {
+    async fn test_hfr_trigger_relative() {
         let mut trigger = Trigger::new(
             "test",
-            "Test HFR",
+            "Test HFR Relative",
             TriggerType::HfrDegraded {
                 threshold_percent: 20.0,
+                absolute_threshold: 0.0,
+                consecutive_frames: 1,
             },
             RecoveryAction::Autofocus,
         );
@@ -784,9 +829,73 @@ mod tests {
         state.current_hfr = Some(2.2);
         assert!(!trigger.check(&state).await);
 
-        // 25% increase - should trigger
+        // 25% increase - should trigger (consecutive_frames=1, so immediate)
         state.current_hfr = Some(2.5);
         assert!(trigger.check(&state).await);
+    }
+
+    #[tokio::test]
+    async fn test_hfr_trigger_absolute() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test HFR Absolute",
+            TriggerType::HfrDegraded {
+                threshold_percent: 0.0, // disabled
+                absolute_threshold: 3.5,
+                consecutive_frames: 1,
+            },
+            RecoveryAction::Autofocus,
+        );
+
+        let mut state = TriggerState::new();
+
+        // Below absolute threshold - should not trigger
+        state.current_hfr = Some(3.0);
+        assert!(!trigger.check(&state).await);
+
+        // Above absolute threshold - should trigger
+        state.current_hfr = Some(4.0);
+        assert!(trigger.check(&state).await);
+    }
+
+    #[tokio::test]
+    async fn test_hfr_trigger_consecutive_frames() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test HFR Consecutive",
+            TriggerType::HfrDegraded {
+                threshold_percent: 0.0,
+                absolute_threshold: 3.0,
+                consecutive_frames: 3,
+            },
+            RecoveryAction::Autofocus,
+        );
+
+        let mut state = TriggerState::new();
+
+        // Frame 1: bad - should not trigger yet (need 3)
+        state.current_hfr = Some(4.0);
+        assert!(!trigger.check(&state).await);
+        assert_eq!(trigger.hfr_bad_frame_count, 1);
+
+        // Frame 2: bad - still not enough
+        assert!(!trigger.check(&state).await);
+        assert_eq!(trigger.hfr_bad_frame_count, 2);
+
+        // Frame 3: bad - now should trigger
+        assert!(trigger.check(&state).await);
+        assert_eq!(trigger.hfr_bad_frame_count, 3);
+
+        // Reset: good frame resets counter
+        state.current_hfr = Some(2.0);
+        trigger.hfr_bad_frame_count = 0; // Reset after trigger fired
+        assert!(!trigger.check(&state).await);
+        assert_eq!(trigger.hfr_bad_frame_count, 0);
+
+        // One bad frame after reset - not enough
+        state.current_hfr = Some(4.0);
+        assert!(!trigger.check(&state).await);
+        assert_eq!(trigger.hfr_bad_frame_count, 1);
     }
 
     #[tokio::test]
@@ -962,6 +1071,8 @@ mod tests {
             "Test Cooldown",
             TriggerType::HfrDegraded {
                 threshold_percent: 20.0,
+                absolute_threshold: 0.0,
+                consecutive_frames: 1,
             },
             RecoveryAction::Autofocus,
         )
@@ -994,6 +1105,8 @@ mod tests {
             "HFR Monitor",
             TriggerType::HfrDegraded {
                 threshold_percent: 25.0,
+                absolute_threshold: 0.0,
+                consecutive_frames: 1,
             },
             RecoveryAction::Autofocus,
         ));

@@ -76,7 +76,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -2105894733;
+  int get rustContentHash => 547556524;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -443,6 +443,8 @@ abstract class RustLibApi extends BaseApi {
   Future<DeviceCapabilities> crateApiApiGetDeviceCapabilities(
       {required String deviceId});
 
+  Future<String?> crateApiApiGetDeviceDisplayName({required String deviceId});
+
   Future<(PlatformInt64, bool)> crateApiApiGetDeviceHealth(
       {required String deviceId});
 
@@ -735,7 +737,8 @@ abstract class RustLibApi extends BaseApi {
       String? focuserId,
       String? filterwheelId,
       String? rotatorId,
-      List<String>? filterNames});
+      List<String>? filterNames,
+      Map<String, int>? filterFocusOffsets});
 
   Future<void> crateApiApiSequencerSetSafetyFailMode({required String mode});
 
@@ -3542,6 +3545,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String?> crateApiApiGetDeviceDisplayName({required String deviceId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(deviceId);
+        return wire.wire__crate__api__api_get_device_display_name(port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_opt_String,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiApiGetDeviceDisplayNameConstMeta,
+      argValues: [deviceId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiApiGetDeviceDisplayNameConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_get_device_display_name",
+        argNames: ["deviceId"],
+      );
+
+  @override
   Future<(PlatformInt64, bool)> crateApiApiGetDeviceHealth(
       {required String deviceId}) {
     return handler.executeNormal(NormalTask(
@@ -6005,7 +6031,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       String? focuserId,
       String? filterwheelId,
       String? rotatorId,
-      List<String>? filterNames}) {
+      List<String>? filterNames,
+      Map<String, int>? filterFocusOffsets}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         var arg0 = cst_encode_opt_String(cameraId);
@@ -6014,8 +6041,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var arg3 = cst_encode_opt_String(filterwheelId);
         var arg4 = cst_encode_opt_String(rotatorId);
         var arg5 = cst_encode_opt_list_String(filterNames);
+        var arg6 = cst_encode_opt_Map_String_i_32_None(filterFocusOffsets);
         return wire.wire__crate__api__api_sequencer_set_devices(
-            port_, arg0, arg1, arg2, arg3, arg4, arg5);
+            port_, arg0, arg1, arg2, arg3, arg4, arg5, arg6);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
@@ -6028,7 +6056,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         focuserId,
         filterwheelId,
         rotatorId,
-        filterNames
+        filterNames,
+        filterFocusOffsets
       ],
       apiImpl: this,
     ));
@@ -6043,7 +6072,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "focuserId",
           "filterwheelId",
           "rotatorId",
-          "filterNames"
+          "filterNames",
+          "filterFocusOffsets"
         ],
       );
 
@@ -8019,6 +8049,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Map<String, int> dco_decode_Map_String_i_32_None(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return Map.fromEntries(dco_decode_list_record_string_i_32(raw)
+        .map((e) => MapEntry(e.$1, e.$2)));
+  }
+
+  @protected
   ArcAlpacaClient
       dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
           dynamic raw) {
@@ -9432,6 +9469,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<(String, int)> dco_decode_list_record_string_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_record_string_i_32).toList();
+  }
+
+  @protected
   List<(String, String)> dco_decode_list_record_string_string(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_record_string_string).toList();
@@ -9745,6 +9788,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       longitude: dco_decode_f_64(arr[1]),
       elevation: dco_decode_f_64(arr[2]),
     );
+  }
+
+  @protected
+  Map<String, int>? dco_decode_opt_Map_String_i_32_None(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_Map_String_i_32_None(raw);
   }
 
   @protected
@@ -10127,6 +10176,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return (
       dco_decode_i_64(arr[0]),
       dco_decode_bool(arr[1]),
+    );
+  }
+
+  @protected
+  (String, int) dco_decode_record_string_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2) {
+      throw Exception('Expected 2 elements, got ${arr.length}');
+    }
+    return (
+      dco_decode_String(arr[0]),
+      dco_decode_i_32(arr[1]),
     );
   }
 
@@ -10649,6 +10711,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return ArcAlpacaClientImpl.frbInternalSseDecode(
         sse_decode_usize(deserializer), sse_decode_i_32(deserializer));
+  }
+
+  @protected
+  Map<String, int> sse_decode_Map_String_i_32_None(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_list_record_string_i_32(deserializer);
+    return Map.fromEntries(inner.map((e) => MapEntry(e.$1, e.$2)));
   }
 
   @protected
@@ -12383,6 +12453,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<(String, int)> sse_decode_list_record_string_i_32(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <(String, int)>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_record_string_i_32(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<(String, String)> sse_decode_list_record_string_string(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -12766,6 +12849,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         latitude: var_latitude,
         longitude: var_longitude,
         elevation: var_elevation);
+  }
+
+  @protected
+  Map<String, int>? sse_decode_opt_Map_String_i_32_None(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_Map_String_i_32_None(deserializer));
+    } else {
+      return null;
+    }
   }
 
   @protected
@@ -13249,6 +13344,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_field0 = sse_decode_i_64(deserializer);
     var var_field1 = sse_decode_bool(deserializer);
+    return (var_field0, var_field1);
+  }
+
+  @protected
+  (String, int) sse_decode_record_string_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_field0 = sse_decode_String(deserializer);
+    var var_field1 = sse_decode_i_32(deserializer);
     return (var_field0, var_field1);
   }
 
@@ -13958,6 +14061,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_usize(
         (self as ArcAlpacaClientImpl).frbInternalSseEncode(move: true),
         serializer);
+  }
+
+  @protected
+  void sse_encode_Map_String_i_32_None(
+      Map<String, int> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_record_string_i_32(
+        self.entries.map((e) => (e.key, e.value)).toList(), serializer);
   }
 
   @protected
@@ -15364,6 +15475,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_record_string_i_32(
+      List<(String, int)> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_record_string_i_32(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_record_string_string(
       List<(String, String)> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -15699,6 +15820,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.latitude, serializer);
     sse_encode_f_64(self.longitude, serializer);
     sse_encode_f_64(self.elevation, serializer);
+  }
+
+  @protected
+  void sse_encode_opt_Map_String_i_32_None(
+      Map<String, int>? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_Map_String_i_32_None(self, serializer);
+    }
   }
 
   @protected
@@ -16084,6 +16216,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_64(self.$1, serializer);
     sse_encode_bool(self.$2, serializer);
+  }
+
+  @protected
+  void sse_encode_record_string_i_32(
+      (String, int) self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.$1, serializer);
+    sse_encode_i_32(self.$2, serializer);
   }
 
   @protected

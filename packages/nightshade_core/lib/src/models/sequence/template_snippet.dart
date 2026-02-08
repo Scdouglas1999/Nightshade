@@ -166,15 +166,19 @@ class BuiltInSnippets {
   static final hfrTriggeredAf = TemplateSnippet(
     id: 'builtin-hfr-triggered-af',
     name: 'HFR-Triggered AF',
-    description: 'Re-focus when HFR exceeds threshold',
+    description: 'Re-focus when HFR degrades above baseline',
     category: SnippetCategory.autofocus,
     iconName: 'focus',
     nodeData: [
       {
-        'nodeType': 'Conditional',
-        'name': 'HFR Above Threshold',
-        'conditionType': 'hfrAbove',
-        'thresholdValue': 3.0,
+        'nodeType': 'Recovery',
+        'name': 'HFR Triggered AF',
+        'recoveryAction': 'autofocus',
+        'maxRetries': 3,
+        'triggerType': 'hfrDegraded',
+        'triggerThreshold': 0.0,
+        'hfrThresholdPercent': 20.0,
+        'hfrConsecutiveFrames': 3,
         'children': [
           {
             'nodeType': 'Autofocus',
@@ -201,10 +205,12 @@ class BuiltInSnippets {
     iconName: 'focus',
     nodeData: [
       {
-        'nodeType': 'Conditional',
-        'name': 'Temperature Changed',
-        'conditionType': 'temperatureChange',
-        'thresholdValue': 2.0,
+        'nodeType': 'Recovery',
+        'name': 'Temperature Drift AF',
+        'recoveryAction': 'autofocus',
+        'maxRetries': 3,
+        'triggerType': 'temperatureShift',
+        'triggerThreshold': 2.0,
         'children': [
           {
             'nodeType': 'Autofocus',
@@ -222,11 +228,11 @@ class BuiltInSnippets {
     createdAt: DateTime(2024, 1, 1),
   );
 
-  /// Per-filter autofocus with offsets - focus on L, apply offsets for RGB
+  /// Per-filter autofocus - autofocus on each filter in sequence
   static final perFilterAf = TemplateSnippet(
     id: 'builtin-per-filter-af',
-    name: 'Per-Filter AF Offsets',
-    description: 'Autofocus on L, apply offsets for RGB',
+    name: 'Per-Filter AF',
+    description: 'Autofocus on each LRGB filter individually',
     category: SnippetCategory.autofocus,
     iconName: 'focus',
     nodeData: [
@@ -237,12 +243,12 @@ class BuiltInSnippets {
           {
             'nodeType': 'ChangeFilter',
             'name': 'Switch to L',
-            'filter': 'L',
-            'filterIndex': 0,
+            'filterName': 'L',
+            'filterPosition': 0,
           },
           {
             'nodeType': 'Autofocus',
-            'name': 'Autofocus on L',
+            'name': 'AF on Luminance',
             'method': 'vCurve',
             'stepSize': 100,
             'stepsOut': 7,
@@ -250,25 +256,49 @@ class BuiltInSnippets {
             'exposureDuration': 3.0,
           },
           {
-            'nodeType': 'FilterOffset',
-            'name': 'R Filter Offset',
-            'filter': 'R',
-            'filterIndex': 1,
-            'offsetSteps': 50,
+            'nodeType': 'ChangeFilter',
+            'name': 'Switch to R',
+            'filterName': 'R',
+            'filterPosition': 1,
           },
           {
-            'nodeType': 'FilterOffset',
-            'name': 'G Filter Offset',
-            'filter': 'G',
-            'filterIndex': 2,
-            'offsetSteps': 25,
+            'nodeType': 'Autofocus',
+            'name': 'AF on Red',
+            'method': 'vCurve',
+            'stepSize': 100,
+            'stepsOut': 7,
+            'exposuresPerPoint': 1,
+            'exposureDuration': 3.0,
           },
           {
-            'nodeType': 'FilterOffset',
-            'name': 'B Filter Offset',
-            'filter': 'B',
-            'filterIndex': 3,
-            'offsetSteps': 75,
+            'nodeType': 'ChangeFilter',
+            'name': 'Switch to G',
+            'filterName': 'G',
+            'filterPosition': 2,
+          },
+          {
+            'nodeType': 'Autofocus',
+            'name': 'AF on Green',
+            'method': 'vCurve',
+            'stepSize': 100,
+            'stepsOut': 7,
+            'exposuresPerPoint': 1,
+            'exposureDuration': 3.0,
+          },
+          {
+            'nodeType': 'ChangeFilter',
+            'name': 'Switch to B',
+            'filterName': 'B',
+            'filterPosition': 3,
+          },
+          {
+            'nodeType': 'Autofocus',
+            'name': 'AF on Blue',
+            'method': 'vCurve',
+            'stepSize': 100,
+            'stepsOut': 7,
+            'exposuresPerPoint': 1,
+            'exposureDuration': 3.0,
           },
         ],
       },
@@ -332,7 +362,8 @@ class BuiltInSnippets {
           {
             'nodeType': 'Loop',
             'name': 'Exposure Set',
-            'count': 3,
+            'conditionType': 'count',
+            'repeatCount': 3,
             'children': [
               {
                 'nodeType': 'TakeExposure',
@@ -619,18 +650,21 @@ class BuiltInSnippets {
     createdAt: DateTime(2024, 1, 1),
   );
 
-  /// Weather Pause - pause and retry on bad weather
+  /// Weather Pause - park and wait on unsafe weather, resume when safe
   static final weatherPause = TemplateSnippet(
     id: 'builtin-weather-pause',
     name: 'Weather Pause',
-    description: 'Pause and park on unsafe weather, resume when safe',
+    description: 'Park and wait on unsafe weather, resume when safe',
     category: SnippetCategory.safety,
     iconName: 'cloud-off',
     nodeData: [
       {
-        'nodeType': 'Conditional',
-        'name': 'Weather Unsafe',
-        'conditionType': 'weatherUnsafe',
+        'nodeType': 'Recovery',
+        'name': 'Weather Safety',
+        'recoveryAction': 'parkAndAbort',
+        'maxRetries': 10,
+        'triggerType': 'weatherUnsafe',
+        'triggerThreshold': 0.0,
         'children': [
           {
             'nodeType': 'InstructionSet',
@@ -643,19 +677,11 @@ class BuiltInSnippets {
               {
                 'nodeType': 'Park',
                 'name': 'Park Mount',
-                'waitUntilParked': true,
               },
               {
-                'nodeType': 'Loop',
-                'name': 'Wait for Safe Weather',
-                'conditionType': 'whileWeatherUnsafe',
-                'children': [
-                  {
-                    'nodeType': 'WaitTime',
-                    'name': 'Wait 5 Minutes',
-                    'durationMinutes': 5.0,
-                  },
-                ],
+                'nodeType': 'Delay',
+                'name': 'Wait 5 Minutes',
+                'seconds': 300.0,
               },
               {
                 'nodeType': 'Unpark',
@@ -689,8 +715,10 @@ class BuiltInSnippets {
       {
         'nodeType': 'Recovery',
         'name': 'Guiding Recovery',
+        'recoveryAction': 'retry',
         'maxRetries': 3,
-        'retryDelaySeconds': 5.0,
+        'triggerType': 'guidingFailed',
+        'triggerThreshold': 0.0,
         'children': [
           {
             'nodeType': 'InstructionSet',
@@ -701,9 +729,9 @@ class BuiltInSnippets {
                 'name': 'Stop Guiding',
               },
               {
-                'nodeType': 'WaitTime',
+                'nodeType': 'Delay',
                 'name': 'Wait Before Restart',
-                'durationMinutes': 0.5,
+                'seconds': 30.0,
               },
               {
                 'nodeType': 'StartGuiding',

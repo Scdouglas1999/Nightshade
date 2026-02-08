@@ -273,12 +273,12 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       return;
     }
 
-    // Trigger discovery first to populate the device cache
-    // This ensures devices are findable by the connect methods
+    // Use cached discovery results if they are recent (< 30s old).
+    // Only rescan backends whose results are stale or missing.
     if (mounted) {
-      context.showInfoSnackBar('Discovering devices...');
+      context.showInfoSnackBar('Connecting devices...');
     }
-    await discoveryNotifier.discoverAll();
+    await discoveryNotifier.discoverIfNeeded();
 
     final connections = <(String?, Future<void> Function(String), String)>[
       (profile.cameraId, deviceService.connectCamera, 'camera'),

@@ -425,8 +425,8 @@ mixin _$FlatWizardState {
   String? get lastImagePath => throw _privateConstructorUsedError;
 
   /// Most recent captured image data (for preview, runtime only)
-  @JsonKey(includeToJson: false, includeFromJson: false)
-  dynamic get lastImageData => throw _privateConstructorUsedError;
+  @RuntimeOnlyValueConverter()
+  Object? get lastImageData => throw _privateConstructorUsedError;
 
   /// Error message if any
   String? get errorMessage => throw _privateConstructorUsedError;
@@ -472,8 +472,7 @@ abstract class $FlatWizardStateCopyWith<$Res> {
       double? skyAduRate,
       TwilightMode twilightMode,
       String? lastImagePath,
-      @JsonKey(includeToJson: false, includeFromJson: false)
-      dynamic lastImageData,
+      @RuntimeOnlyValueConverter() Object? lastImageData,
       String? errorMessage,
       String? warningMessage,
       String? statusMessage,
@@ -585,10 +584,8 @@ class _$FlatWizardStateCopyWithImpl<$Res, $Val extends FlatWizardState>
           ? _value.lastImagePath
           : lastImagePath // ignore: cast_nullable_to_non_nullable
               as String?,
-      lastImageData: freezed == lastImageData
-          ? _value.lastImageData
-          : lastImageData // ignore: cast_nullable_to_non_nullable
-              as dynamic,
+      lastImageData:
+          freezed == lastImageData ? _value.lastImageData : lastImageData,
       errorMessage: freezed == errorMessage
           ? _value.errorMessage
           : errorMessage // ignore: cast_nullable_to_non_nullable
@@ -658,8 +655,7 @@ abstract class _$$FlatWizardStateImplCopyWith<$Res>
       double? skyAduRate,
       TwilightMode twilightMode,
       String? lastImagePath,
-      @JsonKey(includeToJson: false, includeFromJson: false)
-      dynamic lastImageData,
+      @RuntimeOnlyValueConverter() Object? lastImageData,
       String? errorMessage,
       String? warningMessage,
       String? statusMessage,
@@ -770,10 +766,8 @@ class __$$FlatWizardStateImplCopyWithImpl<$Res>
           ? _value.lastImagePath
           : lastImagePath // ignore: cast_nullable_to_non_nullable
               as String?,
-      lastImageData: freezed == lastImageData
-          ? _value.lastImageData
-          : lastImageData // ignore: cast_nullable_to_non_nullable
-              as dynamic,
+      lastImageData:
+          freezed == lastImageData ? _value.lastImageData : lastImageData,
       errorMessage: freezed == errorMessage
           ? _value.errorMessage
           : errorMessage // ignore: cast_nullable_to_non_nullable
@@ -829,8 +823,7 @@ class _$FlatWizardStateImpl implements _FlatWizardState {
       this.skyAduRate,
       this.twilightMode = TwilightMode.dusk,
       this.lastImagePath,
-      @JsonKey(includeToJson: false, includeFromJson: false)
-      this.lastImageData = null,
+      @RuntimeOnlyValueConverter() this.lastImageData,
       this.errorMessage,
       this.warningMessage,
       this.statusMessage,
@@ -949,8 +942,8 @@ class _$FlatWizardStateImpl implements _FlatWizardState {
 
   /// Most recent captured image data (for preview, runtime only)
   @override
-  @JsonKey(includeToJson: false, includeFromJson: false)
-  final dynamic lastImageData;
+  @RuntimeOnlyValueConverter()
+  final Object? lastImageData;
 
   /// Error message if any
   @override
@@ -1103,8 +1096,7 @@ abstract class _FlatWizardState implements FlatWizardState {
       final double? skyAduRate,
       final TwilightMode twilightMode,
       final String? lastImagePath,
-      @JsonKey(includeToJson: false, includeFromJson: false)
-      final dynamic lastImageData,
+      @RuntimeOnlyValueConverter() final Object? lastImageData,
       final String? errorMessage,
       final String? warningMessage,
       final String? statusMessage,
@@ -1180,8 +1172,8 @@ abstract class _FlatWizardState implements FlatWizardState {
   @override
 
   /// Most recent captured image data (for preview, runtime only)
-  @JsonKey(includeToJson: false, includeFromJson: false)
-  dynamic get lastImageData;
+  @RuntimeOnlyValueConverter()
+  Object? get lastImageData;
   @override
 
   /// Error message if any

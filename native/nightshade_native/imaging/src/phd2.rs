@@ -6,10 +6,11 @@
 //! Reference: https://github.com/OpenPHDGuiding/phd2/wiki/EventMonitoring
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -332,9 +333,16 @@ struct Phd2EventMessage {
     extra: serde_json::Value,
 }
 
-/// PHD2 client for real guiding control
+/// PHD2 client for real guiding control.
+///
+/// Uses a single reader thread for the TCP socket to avoid race conditions
+/// between event monitoring and RPC request/response handling.
+/// The reader thread routes:
+///   - JSON-RPC responses (messages with "id") to pending request waiters
+///   - PHD2 events (messages with "Event") to the event callback
 pub struct Phd2Client {
-    stream: Option<TcpStream>,
+    /// Write half of the TCP stream for sending commands
+    write_stream: Option<TcpStream>,
     host: String,
     port: u16,
     request_id: u32,
@@ -348,13 +356,16 @@ pub struct Phd2Client {
     state: Arc<Mutex<Phd2State>>,
     /// Number of reconnection attempts
     reconnect_attempts: Arc<std::sync::atomic::AtomicU32>,
+    /// Registry of pending RPC response senders, keyed by request ID.
+    /// The reader thread sends response lines to the matching sender.
+    response_registry: Arc<Mutex<HashMap<u32, mpsc::Sender<String>>>>,
 }
 
 impl Phd2Client {
     /// Create a new PHD2 client
     pub fn new(host: &str, port: u16) -> Self {
         Self {
-            stream: None,
+            write_stream: None,
             host: host.to_string(),
             port,
             request_id: 0,
@@ -364,13 +375,14 @@ impl Phd2Client {
             config: Phd2ConnectionConfig::default(),
             state: Arc::new(Mutex::new(Phd2State::Disconnected)),
             reconnect_attempts: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            response_registry: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
     /// Create a new PHD2 client with custom configuration
     pub fn with_config(host: &str, port: u16, config: Phd2ConnectionConfig) -> Self {
         Self {
-            stream: None,
+            write_stream: None,
             host: host.to_string(),
             port,
             request_id: 0,
@@ -380,6 +392,7 @@ impl Phd2Client {
             config,
             state: Arc::new(Mutex::new(Phd2State::Disconnected)),
             reconnect_attempts: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            response_registry: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -470,11 +483,15 @@ impl Phd2Client {
         )
         .map_err(|e| format!("Failed to connect to PHD2: {}", e))?;
 
-        stream
+        // Clone the stream: one for reading (event listener), one for writing (commands)
+        let read_stream = stream
+            .try_clone()
+            .map_err(|e| format!("Failed to clone stream for reader: {}", e))?;
+        read_stream
             .set_read_timeout(Some(Duration::from_millis(100)))
-            .map_err(|e| format!("Failed to set timeout: {}", e))?;
+            .map_err(|e| format!("Failed to set read timeout: {}", e))?;
 
-        self.stream = Some(stream);
+        self.write_stream = Some(stream);
         self.running.store(true, Ordering::SeqCst);
 
         // Update connection state
@@ -482,8 +499,8 @@ impl Phd2Client {
             *state = Phd2State::Connected;
         }
 
-        // Start event listener thread
-        self.start_event_listener();
+        // Start event listener thread with the dedicated read stream
+        self.start_event_listener(read_stream);
 
         tracing::info!("Connected to PHD2");
         Ok(())
@@ -492,7 +509,12 @@ impl Phd2Client {
     /// Disconnect from PHD2
     pub fn disconnect(&mut self) {
         self.running.store(false, Ordering::SeqCst);
-        self.stream = None;
+        self.write_stream = None;
+
+        // Clear any pending response waiters so they don't hang
+        if let Ok(mut registry) = self.response_registry.lock() {
+            registry.clear();
+        }
 
         // Update connection state
         if let Ok(mut state) = self.state.lock() {
@@ -504,110 +526,245 @@ impl Phd2Client {
 
     /// Check if connected
     pub fn is_connected(&self) -> bool {
-        self.stream.is_some() && self.running.load(Ordering::SeqCst)
+        self.write_stream.is_some() && self.running.load(Ordering::SeqCst)
     }
 
-    /// Start the event listener thread
-    fn start_event_listener(&self) {
-        let stream = match &self.stream {
-            Some(s) => s.try_clone().expect("Failed to clone stream"),
-            None => return,
-        };
-
+    /// Start the event listener thread.
+    ///
+    /// This single thread owns the read side of the TCP stream and routes
+    /// all incoming lines:
+    ///   - JSON-RPC responses (lines containing "id") -> pending request waiter
+    ///   - PHD2 events (lines containing "Event") -> event callback
+    ///
+    /// Uses manual line reading instead of BufReader::lines() to avoid data
+    /// loss when read timeouts occur mid-line. A persistent line buffer
+    /// accumulates bytes across read calls until a complete newline-terminated
+    /// line is available.
+    fn start_event_listener(&self, read_stream: TcpStream) {
         let running = Arc::clone(&self.running);
         let callback = self.event_callback.clone();
         let rolling_stats = Arc::clone(&self.rolling_stats);
         let state = Arc::clone(&self.state);
+        let response_registry = Arc::clone(&self.response_registry);
 
         thread::spawn(move || {
-            let reader = BufReader::new(stream);
+            tracing::info!("PHD2: Reader thread started");
+            let mut reader = BufReader::new(read_stream);
+            // Persistent line buffer: survives across read timeouts so partial
+            // lines are not lost when the 100ms read timeout fires mid-line.
+            // read_line() appends to this buffer; we only clear it after
+            // successfully processing a complete line.
+            let mut line_buf = String::new();
 
-            for line in reader.lines() {
+            loop {
                 if !running.load(Ordering::SeqCst) {
+                    tracing::info!("PHD2: Reader thread stopping (running=false)");
                     break;
                 }
 
-                match line {
-                    Ok(json) => {
-                        if json.trim().is_empty() {
+                match reader.read_line(&mut line_buf) {
+                    Ok(0) => {
+                        // EOF - connection closed
+                        tracing::info!("PHD2: Reader thread got EOF, connection closed");
+                        if let Ok(mut s) = state.lock() {
+                            *s = Phd2State::Disconnected;
+                        }
+                        if let Some(ref cb) = callback {
+                            if let Ok(cb) = cb.lock() {
+                                cb(Phd2Event::Disconnected);
+                            }
+                        }
+                        break;
+                    }
+                    Ok(_n) => {
+                        // read_line returns Ok(n) where n includes the \n.
+                        // Only process if we have a complete line (ends with \n).
+                        if !line_buf.ends_with('\n') {
+                            // Partial line in buffer - keep accumulating
                             continue;
                         }
 
-                        // Parse as event message
-                        if let Ok(event_msg) = serde_json::from_str::<Phd2EventMessage>(&json) {
-                            if let Some(event) = parse_phd2_event(&event_msg) {
-                                // Update rolling stats for guide frames
-                                if let Phd2Event::GuideStep(ref frame) = event {
-                                    if let Ok(mut stats) = rolling_stats.lock() {
-                                        stats.add_frame(frame);
-                                    }
-                                }
-
-                                // Update state for state change events
-                                if let Phd2Event::StateChanged(ref new_state) = event {
-                                    if let Ok(mut s) = state.lock() {
-                                        *s = new_state.clone();
-                                    }
-                                }
-
-                                // Call user callback
-                                if let Some(ref cb) = callback {
-                                    tracing::trace!("PHD2: Calling event callback for {:?}", event);
-                                    if let Ok(cb) = cb.lock() {
-                                        cb(event);
-                                    }
-                                } else {
-                                    tracing::warn!(
-                                        "PHD2: No event callback registered, dropping event"
-                                    );
-                                }
-                            }
+                        // Got a complete line (terminated by \n)
+                        let json = line_buf.trim();
+                        if json.is_empty() {
+                            line_buf.clear();
+                            continue;
                         }
+
+                        // Process the complete line
+                        Self::process_line(
+                            json,
+                            &response_registry,
+                            &rolling_stats,
+                            &state,
+                            &callback,
+                        );
+
+                        // Clear buffer for next line
+                        line_buf.clear();
                     }
                     Err(e) => {
-                        if e.kind() != std::io::ErrorKind::WouldBlock
-                            && e.kind() != std::io::ErrorKind::TimedOut
+                        if e.kind() == std::io::ErrorKind::WouldBlock
+                            || e.kind() == std::io::ErrorKind::TimedOut
                         {
-                            tracing::warn!("PHD2 read error: {}", e);
-
-                            // Update state to disconnected
-                            if let Ok(mut s) = state.lock() {
-                                *s = Phd2State::Disconnected;
-                            }
-
-                            if let Some(ref cb) = callback {
-                                if let Ok(cb) = cb.lock() {
-                                    cb(Phd2Event::Disconnected);
-                                }
-                            }
-                            break;
+                            // Read timeout - normal polling interval.
+                            // IMPORTANT: Do NOT clear line_buf here. If read_line()
+                            // already moved bytes from BufReader's internal buffer
+                            // into line_buf before the timeout, those bytes are
+                            // preserved. On the next read_line() call, it will
+                            // continue appending to line_buf.
+                            continue;
                         }
+
+                        tracing::warn!("PHD2: Read error (kind={:?}): {}", e.kind(), e);
+
+                        // Update state to disconnected
+                        if let Ok(mut s) = state.lock() {
+                            *s = Phd2State::Disconnected;
+                        }
+
+                        if let Some(ref cb) = callback {
+                            if let Ok(cb) = cb.lock() {
+                                cb(Phd2Event::Disconnected);
+                            }
+                        }
+                        break;
                     }
                 }
             }
+
+            tracing::info!("PHD2: Reader thread exited");
         });
     }
 
-    /// Send a JSON-RPC request
+    /// Process a single complete JSON line from the PHD2 TCP stream.
+    ///
+    /// Routes the line to either the response registry (for JSON-RPC responses)
+    /// or the event callback (for PHD2 events).
+    fn process_line(
+        json: &str,
+        response_registry: &Arc<Mutex<HashMap<u32, mpsc::Sender<String>>>>,
+        rolling_stats: &Arc<Mutex<RollingGuideStats>>,
+        state: &Arc<Mutex<Phd2State>>,
+        callback: &Option<Arc<Mutex<dyn Fn(Phd2Event) + Send>>>,
+    ) {
+        // Parse JSON
+        let parsed: serde_json::Value = match serde_json::from_str(json) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("PHD2: Failed to parse JSON line: {} (line: {})", e, json);
+                return;
+            }
+        };
+
+        // Check for JSON-RPC response (has "id" field that is a number)
+        if let Some(id_val) = parsed.get("id") {
+            if let Some(id) = id_val.as_u64() {
+                let id = id as u32;
+                if let Ok(mut registry) = response_registry.lock() {
+                    if let Some(sender) = registry.remove(&id) {
+                        if let Err(e) = sender.send(json.to_string()) {
+                            tracing::warn!(
+                                "PHD2: Failed to send response for id {}: {}",
+                                id,
+                                e
+                            );
+                        }
+                    } else {
+                        tracing::debug!("PHD2: Received response for unknown id {}", id);
+                    }
+                }
+                return;
+            }
+        }
+
+        // Otherwise treat as event message
+        match serde_json::from_str::<Phd2EventMessage>(json) {
+            Ok(event_msg) => {
+                tracing::info!("PHD2: Received event: {}", event_msg.event);
+                if let Some(event) = parse_phd2_event(&event_msg) {
+                    // Update rolling stats for guide frames
+                    if let Phd2Event::GuideStep(ref frame) = event {
+                        if let Ok(mut stats) = rolling_stats.lock() {
+                            stats.add_frame(frame);
+                        }
+                    }
+
+                    // Update state for state change events
+                    if let Phd2Event::StateChanged(ref new_state) = event {
+                        if let Ok(mut s) = state.lock() {
+                            *s = new_state.clone();
+                        }
+                    }
+
+                    // Call user callback
+                    if let Some(ref cb) = callback {
+                        tracing::info!("PHD2: Dispatching event to callback: {:?}", event);
+                        match cb.lock() {
+                            Ok(cb) => {
+                                cb(event);
+                                tracing::info!("PHD2: Event callback completed successfully");
+                            }
+                            Err(e) => {
+                                tracing::error!("PHD2: Event callback mutex poisoned: {}", e);
+                            }
+                        }
+                    } else {
+                        tracing::warn!(
+                            "PHD2: No event callback registered, dropping event"
+                        );
+                    }
+                } else {
+                    tracing::debug!("PHD2: Unhandled event type: {}", event_msg.event);
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "PHD2: Failed to parse event message: {} (line: {})",
+                    e,
+                    json
+                );
+            }
+        }
+    }
+
+    /// Send a JSON-RPC request and wait for the response.
+    ///
+    /// The write half of the stream is used to send the request.
+    /// A one-shot channel is registered in the response registry so the
+    /// reader thread can route the matching response back to us.
     fn send_request(
         &mut self,
         method: &str,
         params: Option<serde_json::Value>,
     ) -> Result<serde_json::Value, String> {
         let stream = self
-            .stream
+            .write_stream
             .as_mut()
             .ok_or_else(|| "Not connected to PHD2".to_string())?;
 
         self.request_id += 1;
+        let request_id = self.request_id;
         let request = JsonRpcRequest {
             method: method.to_string(),
             params,
-            id: self.request_id,
+            id: request_id,
         };
+
+        // Register a response channel BEFORE sending so there is no race window
+        let (tx, rx) = mpsc::channel::<String>();
+        {
+            let mut registry = self
+                .response_registry
+                .lock()
+                .map_err(|e| format!("Failed to lock response registry: {}", e))?;
+            registry.insert(request_id, tx);
+        }
 
         let json = serde_json::to_string(&request)
             .map_err(|e| format!("Failed to serialize request: {}", e))?;
+
+        tracing::debug!("PHD2 send_request: {} (id={})", method, request_id);
 
         stream
             .write_all(json.as_bytes())
@@ -619,38 +776,31 @@ impl Phd2Client {
             .flush()
             .map_err(|e| format!("Failed to flush: {}", e))?;
 
-        // Read response (simplified - real impl would handle async)
-        let mut reader = BufReader::new(stream.try_clone().unwrap());
-        let mut response_line = String::new();
-
-        // Wait for response with timeout
-        stream
-            .set_read_timeout(Some(Duration::from_secs(10)))
-            .map_err(|e| format!("Failed to set timeout: {}", e))?;
-
-        loop {
-            response_line.clear();
-            match reader.read_line(&mut response_line) {
-                Ok(0) => return Err("Connection closed".to_string()),
-                Ok(_) => {
-                    // Check if this is a response (has "id" field matching our request)
-                    if let Ok(resp) = serde_json::from_str::<JsonRpcResponse>(&response_line) {
-                        if resp.id == Some(self.request_id) {
-                            if let Some(error) = resp.error {
-                                return Err(format!("PHD2 error: {}", error.message));
-                            }
-                            return Ok(resp.result.unwrap_or(serde_json::Value::Null));
-                        }
+        // Wait for the response from the reader thread with a timeout
+        let response_line = rx
+            .recv_timeout(Duration::from_secs(10))
+            .map_err(|e| match e {
+                mpsc::RecvTimeoutError::Timeout => {
+                    // Clean up the registry entry on timeout
+                    if let Ok(mut registry) = self.response_registry.lock() {
+                        registry.remove(&request_id);
                     }
-                    // Otherwise it's an event, keep reading
+                    format!("Request '{}' timed out (id={})", method, request_id)
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => continue,
-                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
-                    return Err("Request timed out".to_string());
+                mpsc::RecvTimeoutError::Disconnected => {
+                    format!("Response channel disconnected for '{}' (id={})", method, request_id)
                 }
-                Err(e) => return Err(format!("Read error: {}", e)),
-            }
+            })?;
+
+        // Parse the response
+        let resp: JsonRpcResponse = serde_json::from_str(&response_line)
+            .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        if let Some(error) = resp.error {
+            return Err(format!("PHD2 error: {}", error.message));
         }
+
+        Ok(resp.result.unwrap_or(serde_json::Value::Null))
     }
 
     // ========================================================================

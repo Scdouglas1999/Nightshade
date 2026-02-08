@@ -38,6 +38,44 @@ class _CoolingCard extends ConsumerStatefulWidget {
 
 class _CoolingCardState extends ConsumerState<_CoolingCard> {
   bool _isSetting = false;
+  late final TextEditingController _tempController;
+  double? _lastProviderTemp;
+
+  @override
+  void initState() {
+    super.initState();
+    _tempController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _tempController.dispose();
+    super.dispose();
+  }
+
+  void _syncControllerFromProvider(double targetTemp) {
+    // Only update the text field when the provider value changes externally
+    // (not from our own edits). This avoids cursor jumps while typing.
+    if (_lastProviderTemp != targetTemp) {
+      _lastProviderTemp = targetTemp;
+      final text = targetTemp.toStringAsFixed(0);
+      if (_tempController.text != text) {
+        _tempController.text = text;
+      }
+    }
+  }
+
+  void _onTempSubmitted(String value) {
+    final parsed = double.tryParse(value);
+    if (parsed == null) return;
+    final clamped = parsed.clamp(-40.0, 20.0);
+    ref.read(cameraStateProvider.notifier).setTargetTemp(clamped);
+    // Update display to clamped value if it was out of range
+    final clampedText = clamped.toStringAsFixed(0);
+    if (_tempController.text != clampedText) {
+      _tempController.text = clampedText;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +85,7 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
         cameraState.connectionState == DeviceConnectionState.connected;
     // Use target temp from provider (persists across navigation)
     final targetTemp = cameraState.targetTemp;
+    _syncControllerFromProvider(targetTemp);
 
     return NightshadeCard(
       child: Padding(
@@ -95,34 +134,49 @@ class _CoolingCardState extends ConsumerState<_CoolingCard> {
                   style: TextStyle(fontSize: 12, color: colors.textSecondary),
                 ),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: SliderTheme(
-                    data: SliderThemeData(
-                      activeTrackColor: colors.primary,
-                      inactiveTrackColor: colors.surfaceAlt,
-                      thumbColor: colors.primary,
+                SizedBox(
+                  width: 80,
+                  child: TextField(
+                    controller: _tempController,
+                    enabled: isConnected,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      signed: true,
+                      decimal: false,
                     ),
-                    child: Slider(
-                      value: targetTemp,
-                      min: -40,
-                      max: 20,
-                      divisions: 60,
-                      onChanged: isConnected
-                          ? (value) {
-                              // Update provider so value persists across navigation
-                              ref
-                                  .read(cameraStateProvider.notifier)
-                                  .setTargetTemp(value);
-                            }
-                          : null,
+                    textAlign: TextAlign.center,
+                    style: NightshadeTypography.monoSm.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: isConnected
+                          ? colors.textPrimary
+                          : colors.textMuted,
                     ),
-                  ),
-                ),
-                Text(
-                  '${targetTemp.toStringAsFixed(0)}°C',
-                  style: NightshadeTypography.monoSm.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
+                    decoration: InputDecoration(
+                      suffixText: '\u00B0C',
+                      suffixStyle: NightshadeTypography.monoSm.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(color: colors.primary),
+                      ),
+                    ),
+                    onSubmitted: _onTempSubmitted,
+                    onEditingComplete: () {
+                      _onTempSubmitted(_tempController.text);
+                    },
                   ),
                 ),
               ],

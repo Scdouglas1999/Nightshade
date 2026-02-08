@@ -847,8 +847,29 @@ pub enum ConditionalCheck {
 /// Trigger types that run in parallel
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TriggerType {
-    /// Trigger when HFR increases
-    HfrDegraded { threshold_percent: f64 },
+    /// Trigger when HFR degrades beyond acceptable limits.
+    ///
+    /// Two modes of operation:
+    /// - **Relative mode** (`threshold_percent`): Triggers when HFR increases by
+    ///   more than this percentage above the baseline HFR (set after autofocus).
+    /// - **Absolute mode** (`absolute_threshold`): Triggers when HFR exceeds a
+    ///   fixed value in arcseconds/pixels, regardless of baseline.
+    ///
+    /// `consecutive_frames` prevents false positives from momentary seeing spikes
+    /// by requiring multiple consecutive frames above the threshold before firing.
+    HfrDegraded {
+        /// Percentage above baseline HFR that triggers (e.g., 20.0 = 20% above baseline).
+        /// Used in relative mode. Set to 0.0 or leave at default to disable relative check.
+        threshold_percent: f64,
+        /// Absolute HFR threshold in arcseconds/pixels. When current HFR exceeds this
+        /// value, the trigger fires regardless of baseline. Set to 0.0 to disable.
+        #[serde(default)]
+        absolute_threshold: f64,
+        /// Number of consecutive frames that must exceed the threshold before triggering.
+        /// Prevents false positives from momentary seeing spikes. Default is 1 (trigger immediately).
+        #[serde(default = "default_consecutive_frames")]
+        consecutive_frames: u32,
+    },
     /// Trigger when meridian flip is needed
     MeridianFlip { config: MeridianFlipConfig },
     /// Trigger when guiding fails
@@ -874,6 +895,10 @@ pub enum TriggerType {
     MountTrackingLost,
     /// Dome shutter is not open when expected
     DomeShutterNotOpen,
+}
+
+fn default_consecutive_frames() -> u32 {
+    1
 }
 
 /// Recovery action to take when a trigger fires or error occurs

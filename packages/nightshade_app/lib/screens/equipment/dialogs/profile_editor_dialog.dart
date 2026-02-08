@@ -79,6 +79,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   int _binning = 1;
   final _coolingTargetController = TextEditingController();
   bool _coolOnConnect = false;
+  final _centeringExposureController = TextEditingController();
 
   // Available icons for profile customization
   static const List<String> _availableIcons = [
@@ -170,6 +171,9 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
         _coolingTargetController.text = profile.defaultCoolingTemp!.toString();
       }
       _coolOnConnect = profile.coolOnConnect;
+      if (profile.defaultCenteringExposure != null) {
+        _centeringExposureController.text = profile.defaultCenteringExposure!.toString();
+      }
     }
   }
 
@@ -188,6 +192,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     _gainController.dispose();
     _offsetController.dispose();
     _coolingTargetController.dispose();
+    _centeringExposureController.dispose();
     for (final pair in _filterControllers) {
       pair.dispose();
     }
@@ -429,6 +434,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           defaultBinY: _binning,
           defaultCoolingTemp: Value(double.tryParse(_coolingTargetController.text)),
           coolOnConnect: _coolOnConnect,
+          defaultCenteringExposure: Value(double.tryParse(_centeringExposureController.text)),
           updatedAt: DateTime.now(),
         );
 
@@ -471,6 +477,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           defaultBinY: Value(_binning),
           defaultCoolingTemp: Value(double.tryParse(_coolingTargetController.text)),
           coolOnConnect: Value(_coolOnConnect),
+          defaultCenteringExposure: Value(double.tryParse(_centeringExposureController.text)),
         );
 
         final newId = await dao.createProfile(companion);
@@ -1266,6 +1273,39 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                         controlAffinity: ListTileControlAffinity.trailing,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                         dense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Centering exposure
+          Row(
+            children: [
+              Expanded(
+                child: NightshadeTextField(
+                  label: 'Centering Exposure',
+                  controller: _centeringExposureController,
+                  hint: 'e.g., 5',
+                  suffix: 's',
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 18),
+                    Text(
+                      'Default exposure time used for plate-solve centering. '
+                      'Can be adjusted per-session in the centering dialog.',
+                      style: TextStyle(
+                        color: colors.textMuted,
+                        fontSize: 11,
                       ),
                     ),
                   ],

@@ -1,6 +1,10 @@
 import 'package:equatable/equatable.dart';
 import 'package:uuid/uuid.dart';
 import '../imaging/imaging_models.dart' show FrameType;
+import '../meridian_flip_settings.dart'
+    show MeridianTriggerMethod, FlipFailureAction;
+export '../meridian_flip_settings.dart'
+    show MeridianTriggerMethod, FlipFailureAction;
 import '../../backend/nightshade_backend.dart' show DeviceType;
 
 /// Sequence execution state
@@ -37,10 +41,21 @@ extension BinningModeExtension on BinningMode {
 }
 
 /// Autofocus method
-enum AutofocusMethod { vCurve, hyperbolic, parabolic }
+enum AutofocusMethod { vCurve, hyperbolic, quadratic }
 
 /// Loop condition type
-enum LoopConditionType { count, untilTime, untilAltitude, forever, whileDark }
+enum LoopConditionType {
+  count,
+  untilTime,
+  untilAltitude,
+  /// Loop until altitude is above threshold (condition_value = altitude degrees).
+  /// Note: untilAltitude means "below", altitudeAbove means "above".
+  altitudeAbove,
+  /// Loop until accumulated integration time reaches threshold (condition_value = seconds)
+  integrationTime,
+  forever,
+  whileDark,
+}
 
 /// Result of sequence integration time estimation
 class SequenceEstimate extends Equatable {
@@ -123,6 +138,7 @@ enum TriggerType {
   weatherUnsafe,
   temperatureShift,
   filterChange,
+  dawnApproaching,
 }
 
 /// Notification level
@@ -369,6 +385,9 @@ class LoopNode extends SequenceNode {
   final DateTime? repeatUntil;
   final double? repeatUntilAltitude;
 
+  /// Target total integration time in seconds for [LoopConditionType.integrationTime]
+  final double? integrationTimeTarget;
+
   LoopNode({
     super.id,
     super.name = 'Loop',
@@ -380,6 +399,7 @@ class LoopNode extends SequenceNode {
     this.repeatCount = 1,
     this.repeatUntil,
     this.repeatUntilAltitude,
+    this.integrationTimeTarget,
   });
 
   @override
@@ -403,6 +423,7 @@ class LoopNode extends SequenceNode {
     int? repeatCount,
     DateTime? repeatUntil,
     double? repeatUntilAltitude,
+    double? integrationTimeTarget,
   }) {
     return LoopNode(
       id: id ?? this.id,
@@ -415,6 +436,7 @@ class LoopNode extends SequenceNode {
       repeatCount: repeatCount ?? this.repeatCount,
       repeatUntil: repeatUntil ?? this.repeatUntil,
       repeatUntilAltitude: repeatUntilAltitude ?? this.repeatUntilAltitude,
+      integrationTimeTarget: integrationTimeTarget ?? this.integrationTimeTarget,
     );
   }
 
@@ -425,6 +447,7 @@ class LoopNode extends SequenceNode {
         repeatCount,
         repeatUntil,
         repeatUntilAltitude,
+        integrationTimeTarget,
       ];
 }
 
@@ -542,7 +565,23 @@ class RecoveryNode extends SequenceNode {
   final RecoveryActionType recoveryAction;
   final int maxRetries;
   final TriggerType? triggerType;
+
+  /// Generic threshold value whose meaning depends on [triggerType]:
+  /// - For [TriggerType.hfrDegraded]: absolute HFR threshold in arcsec/px
+  ///   (0 = disabled, use only relative mode)
+  /// - For [TriggerType.altitudeLimit]: minimum altitude in degrees
   final double? triggerThreshold;
+
+  /// HFR-specific: percentage above baseline HFR that triggers recovery.
+  /// E.g. 20.0 means trigger when HFR is 20% above the post-autofocus baseline.
+  /// Only used when [triggerType] is [TriggerType.hfrDegraded].
+  /// Set to 0 to disable relative mode and use only absolute threshold.
+  final double hfrThresholdPercent;
+
+  /// HFR-specific: number of consecutive frames that must exceed the threshold
+  /// before the trigger fires. Prevents false positives from momentary seeing
+  /// spikes. Only used when [triggerType] is [TriggerType.hfrDegraded].
+  final int hfrConsecutiveFrames;
 
   RecoveryNode({
     super.id,
@@ -555,6 +594,8 @@ class RecoveryNode extends SequenceNode {
     this.maxRetries = 3,
     this.triggerType,
     this.triggerThreshold,
+    this.hfrThresholdPercent = 20.0,
+    this.hfrConsecutiveFrames = 3,
   });
 
   @override
@@ -578,6 +619,8 @@ class RecoveryNode extends SequenceNode {
     int? maxRetries,
     TriggerType? triggerType,
     double? triggerThreshold,
+    double? hfrThresholdPercent,
+    int? hfrConsecutiveFrames,
   }) {
     return RecoveryNode(
       id: id ?? this.id,
@@ -590,6 +633,8 @@ class RecoveryNode extends SequenceNode {
       maxRetries: maxRetries ?? this.maxRetries,
       triggerType: triggerType ?? this.triggerType,
       triggerThreshold: triggerThreshold ?? this.triggerThreshold,
+      hfrThresholdPercent: hfrThresholdPercent ?? this.hfrThresholdPercent,
+      hfrConsecutiveFrames: hfrConsecutiveFrames ?? this.hfrConsecutiveFrames,
     );
   }
 
@@ -600,6 +645,8 @@ class RecoveryNode extends SequenceNode {
         maxRetries,
         triggerType,
         triggerThreshold,
+        hfrThresholdPercent,
+        hfrConsecutiveFrames,
       ];
 }
 
@@ -712,6 +759,14 @@ class CenterNode extends SequenceNode {
   final double accuracyArcsec;
   final int maxAttempts;
   final bool useTargetCoords;
+  final double? customRa;
+  final double? customDec;
+
+  /// Exposure duration for plate solve captures (seconds)
+  final double exposureDuration;
+
+  /// Filter to use for plate solve captures (null = current filter)
+  final String? filter;
 
   CenterNode({
     super.id,
@@ -723,6 +778,10 @@ class CenterNode extends SequenceNode {
     this.accuracyArcsec = 5.0,
     this.maxAttempts = 5,
     this.useTargetCoords = true,
+    this.customRa,
+    this.customDec,
+    this.exposureDuration = 5.0,
+    this.filter,
   });
 
   @override
@@ -748,6 +807,10 @@ class CenterNode extends SequenceNode {
     double? accuracyArcsec,
     int? maxAttempts,
     bool? useTargetCoords,
+    double? customRa,
+    double? customDec,
+    double? exposureDuration,
+    String? filter,
   }) {
     return CenterNode(
       id: id ?? this.id,
@@ -759,6 +822,10 @@ class CenterNode extends SequenceNode {
       accuracyArcsec: accuracyArcsec ?? this.accuracyArcsec,
       maxAttempts: maxAttempts ?? this.maxAttempts,
       useTargetCoords: useTargetCoords ?? this.useTargetCoords,
+      customRa: customRa ?? this.customRa,
+      customDec: customDec ?? this.customDec,
+      exposureDuration: exposureDuration ?? this.exposureDuration,
+      filter: filter ?? this.filter,
     );
   }
 
@@ -768,6 +835,10 @@ class CenterNode extends SequenceNode {
         accuracyArcsec,
         maxAttempts,
         useTargetCoords,
+        customRa,
+        customDec,
+        exposureDuration,
+        filter,
       ];
 }
 
@@ -951,6 +1022,12 @@ class DitherNode extends SequenceNode {
   final double settleTime;
   final double settlePixels;
 
+  /// Maximum time to wait for settling after dither (seconds)
+  final double settleTimeout;
+
+  /// If true, only dither in RA (useful for dec backlash-prone setups)
+  final bool raOnly;
+
   DitherNode({
     super.id,
     super.name = 'Dither',
@@ -961,6 +1038,8 @@ class DitherNode extends SequenceNode {
     this.pixels = 5.0,
     this.settleTime = 30.0,
     this.settlePixels = 1.5,
+    this.settleTimeout = 120.0,
+    this.raOnly = false,
   });
 
   @override
@@ -986,6 +1065,8 @@ class DitherNode extends SequenceNode {
     double? pixels,
     double? settleTime,
     double? settlePixels,
+    double? settleTimeout,
+    bool? raOnly,
   }) {
     return DitherNode(
       id: id ?? this.id,
@@ -997,11 +1078,14 @@ class DitherNode extends SequenceNode {
       pixels: pixels ?? this.pixels,
       settleTime: settleTime ?? this.settleTime,
       settlePixels: settlePixels ?? this.settlePixels,
+      settleTimeout: settleTimeout ?? this.settleTimeout,
+      raOnly: raOnly ?? this.raOnly,
     );
   }
 
   @override
-  List<Object?> get props => [...super.props, pixels, settleTime, settlePixels];
+  List<Object?> get props =>
+      [...super.props, pixels, settleTime, settlePixels, settleTimeout, raOnly];
 }
 
 /// Start guiding instruction - connects to PHD2 and starts guiding
@@ -1631,10 +1715,22 @@ class ScriptNode extends SequenceNode {
 
 /// Meridian Flip instruction
 class MeridianFlipNode extends SequenceNode {
+  // Trigger conditions
+  final MeridianTriggerMethod triggerMethod;
   final double minutesPastMeridian;
+  final double minutesBeforeLimit;
+  final double hourAngleThreshold;
+
+  // Flip sequence options
   final bool pauseGuiding;
   final bool autoCenter;
+  final bool refocusAfter;
   final double settleTime;
+  final bool resumeGuiding;
+
+  // Error handling
+  final int maxRetries;
+  final FlipFailureAction failureAction;
 
   MeridianFlipNode({
     super.id,
@@ -1643,10 +1739,17 @@ class MeridianFlipNode extends SequenceNode {
     super.childIds = const [],
     super.parentId,
     super.orderIndex,
+    this.triggerMethod = MeridianTriggerMethod.minutesPastMeridian,
     this.minutesPastMeridian = 5.0,
+    this.minutesBeforeLimit = 10.0,
+    this.hourAngleThreshold = 0.5,
     this.pauseGuiding = true,
     this.autoCenter = true,
+    this.refocusAfter = false,
     this.settleTime = 10.0,
+    this.resumeGuiding = true,
+    this.maxRetries = 3,
+    this.failureAction = FlipFailureAction.pauseAndAlert,
   });
 
   @override
@@ -1669,10 +1772,17 @@ class MeridianFlipNode extends SequenceNode {
     List<String>? childIds,
     String? parentId,
     int? orderIndex,
+    MeridianTriggerMethod? triggerMethod,
     double? minutesPastMeridian,
+    double? minutesBeforeLimit,
+    double? hourAngleThreshold,
     bool? pauseGuiding,
     bool? autoCenter,
+    bool? refocusAfter,
     double? settleTime,
+    bool? resumeGuiding,
+    int? maxRetries,
+    FlipFailureAction? failureAction,
   }) {
     return MeridianFlipNode(
       id: id ?? this.id,
@@ -1681,20 +1791,34 @@ class MeridianFlipNode extends SequenceNode {
       childIds: childIds ?? this.childIds,
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
+      triggerMethod: triggerMethod ?? this.triggerMethod,
       minutesPastMeridian: minutesPastMeridian ?? this.minutesPastMeridian,
+      minutesBeforeLimit: minutesBeforeLimit ?? this.minutesBeforeLimit,
+      hourAngleThreshold: hourAngleThreshold ?? this.hourAngleThreshold,
       pauseGuiding: pauseGuiding ?? this.pauseGuiding,
       autoCenter: autoCenter ?? this.autoCenter,
+      refocusAfter: refocusAfter ?? this.refocusAfter,
       settleTime: settleTime ?? this.settleTime,
+      resumeGuiding: resumeGuiding ?? this.resumeGuiding,
+      maxRetries: maxRetries ?? this.maxRetries,
+      failureAction: failureAction ?? this.failureAction,
     );
   }
 
   @override
   List<Object?> get props => [
         ...super.props,
+        triggerMethod,
         minutesPastMeridian,
+        minutesBeforeLimit,
+        hourAngleThreshold,
         pauseGuiding,
         autoCenter,
+        refocusAfter,
         settleTime,
+        resumeGuiding,
+        maxRetries,
+        failureAction,
       ];
 }
 
@@ -2097,7 +2221,39 @@ class Sequence extends Equatable {
         case LoopConditionType.forever:
         case LoopConditionType.whileDark:
         case LoopConditionType.untilAltitude:
+        case LoopConditionType.altitudeAbove:
           // Unbounded loops - return single iteration time but mark as unbounded
+          return SequenceEstimate(
+            estimatedSecs: childrenSingleIteration,
+            singleIterationSecs: childrenSingleIteration,
+            isUnbounded: true,
+            conditionType: node.conditionType,
+          );
+
+        case LoopConditionType.integrationTime:
+          // Integration time loop: estimate iterations based on target integration time
+          if (node.integrationTimeTarget != null &&
+              node.integrationTimeTarget! > 0 &&
+              childrenSingleIteration > 0) {
+            // Find total exposure time per iteration from children
+            double exposurePerIteration = 0;
+            for (final childId in node.childIds) {
+              final child = nodes[childId];
+              if (child is ExposureNode && child.isEnabled) {
+                exposurePerIteration += child.totalDurationSecs;
+              }
+            }
+            if (exposurePerIteration > 0) {
+              final estimatedIterations =
+                  (node.integrationTimeTarget! / exposurePerIteration).ceil();
+              return SequenceEstimate(
+                estimatedSecs: childrenSingleIteration * estimatedIterations,
+                singleIterationSecs: childrenSingleIteration,
+                isUnbounded: false,
+              );
+            }
+          }
+          // If we can't estimate, treat as unbounded
           return SequenceEstimate(
             estimatedSecs: childrenSingleIteration,
             singleIterationSecs: childrenSingleIteration,

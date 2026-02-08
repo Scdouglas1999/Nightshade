@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// Panel that displays optical configuration from the active equipment profile.
 /// Shows telescope specs, camera specs, FOV, and image scale.
 /// Allows switching between profiles directly from the framing screen.
+/// Can be dismissed via the close button; state is stored in FramingState.
 class OpticalConfigPanel extends ConsumerWidget {
   const OpticalConfigPanel({super.key});
 
@@ -31,18 +32,35 @@ class OpticalConfigPanel extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header
+          // Header with close button
           Row(
             children: [
               Icon(LucideIcons.aperture, size: 14, color: colors.textMuted),
               const SizedBox(width: 8),
-              Text(
-                'OPTICAL CONFIG',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textMuted,
-                  letterSpacing: 0.5,
+              Expanded(
+                child: Text(
+                  'OPTICAL CONFIG',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textMuted,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  iconSize: 14,
+                  tooltip: 'Hide optical config panel',
+                  icon: Icon(LucideIcons.x, size: 14, color: colors.textMuted),
+                  onPressed: () {
+                    ref
+                        .read(framingProvider.notifier)
+                        .setOpticalConfigPanelVisible(false);
+                  },
                 ),
               ),
             ],

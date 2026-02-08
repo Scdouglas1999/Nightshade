@@ -549,10 +549,20 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
   void _addNode() {
     final node = widget.item.createNode();
     final selectedId = ref.read(selectedNodeIdProvider);
-    ref.read(currentSequenceProvider.notifier).addNode(
+    final notifier = ref.read(currentSequenceProvider.notifier);
+    notifier.addNode(
       node,
       parentId: selectedId,
     );
+
+    // Add any pre-configured children (e.g. Autofocus inside HFR Triggered AF)
+    final children = widget.item.createChildren?.call();
+    if (children != null) {
+      for (final child in children) {
+        notifier.addNode(child, parentId: node.id);
+      }
+    }
+
     ref.read(selectedNodeIdProvider.notifier).state = node.id;
     widget.onNodeAdded?.call();
   }

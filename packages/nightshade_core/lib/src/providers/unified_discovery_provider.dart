@@ -144,6 +144,92 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     );
   }
 
+  /// Discover devices only if results are missing or stale.
+  ///
+  /// Backends whose last successful discovery completed within [maxAge] are
+  /// skipped.  Backends that have never completed or whose results are older
+  /// than [maxAge] are rediscovered.  If *all* backends are fresh, this method
+  /// returns immediately without any network I/O.
+  Future<void> discoverIfNeeded({
+    Duration maxAge = const Duration(seconds: 30),
+  }) async {
+    final now = DateTime.now();
+    final backends = _getAvailableBackends();
+
+    final staleBackends = <DriverBackend>[];
+    for (final backend in backends) {
+      final bs = state.backendStates[backend];
+      if (bs == null ||
+          !bs.isSuccess ||
+          bs.completedAt == null ||
+          now.difference(bs.completedAt!) > maxAge) {
+        staleBackends.add(backend);
+      }
+    }
+
+    if (staleBackends.isEmpty) return;
+
+    // If all backends are stale, just do a full discovery
+    if (staleBackends.length == backends.length) {
+      await discoverAll();
+      return;
+    }
+
+    // Otherwise, selectively rediscover only the stale backends
+    _cancelled = false;
+
+    // Mark stale backends as discovering
+    final currentStates =
+        Map<DriverBackend, BackendDiscoveryState>.from(state.backendStates);
+    for (final backend in staleBackends) {
+      currentStates[backend] = BackendDiscoveryState(
+        backend: backend,
+        status: DiscoveryStatus.discovering,
+      );
+    }
+    state = state.copyWith(backendStates: currentStates);
+
+    // Discover stale backends in parallel
+    final futures = <Future<_BackendResult>>[];
+    for (final backend in staleBackends) {
+      futures.add(_discoverBackend(backend));
+    }
+    final results = await Future.wait(futures);
+
+    if (_cancelled) return;
+
+    // Merge results into existing state
+    final updatedStates =
+        Map<DriverBackend, BackendDiscoveryState>.from(state.backendStates);
+    for (final result in results) {
+      updatedStates[result.backend] = BackendDiscoveryState(
+        backend: result.backend,
+        status: result.error != null
+            ? DiscoveryStatus.error
+            : DiscoveryStatus.completed,
+        error: result.error,
+        devices: result.devices,
+        completedAt: DateTime.now(),
+      );
+    }
+
+    // Rebuild raw devices from all backends
+    final allDevices = <AvailableDevice>[];
+    for (final backendState in updatedStates.values) {
+      allDevices.addAll(backendState.devices);
+    }
+
+    // Re-group devices
+    final matchingService = _ref.read(deviceMatchingServiceProvider);
+    final groupedDevices = matchingService.groupDevices(allDevices);
+
+    state = state.copyWith(
+      backendStates: updatedStates,
+      rawDevices: allDevices,
+      groupedDevices: groupedDevices,
+    );
+  }
+
   /// Refresh discovery for all backends
   Future<void> refresh() async {
     await discoverAll();
