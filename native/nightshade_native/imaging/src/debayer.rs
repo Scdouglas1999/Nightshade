@@ -367,11 +367,14 @@ fn debayer_vng(pixels: &[u16], width: u32, height: u32, pattern: BayerPattern) -
                     // Calculate gradients in 8 directions
                     let gradients = calculate_gradients(pixels, w, x, y);
                     let min_g = gradients.iter().copied().min().unwrap_or(0);
-                    let max_g = gradients.iter().copied().max().unwrap_or(0);
-                    // Threshold = min + 1.5 * (max - min): directions with gradient
-                    // at or below this are considered "smooth" and selected for
-                    // interpolation, preserving edges.
-                    let threshold = min_g + (max_g - min_g) * 3 / 2;
+                    // Threshold = 1.5 * min_gradient (Chang/Cok VNG criterion):
+                    // directions whose gradient is at or below this are
+                    // considered "smooth" and selected for interpolation,
+                    // preserving edges. The earlier formula
+                    // `min + 1.5 * (max - min)` evaluated to `min + 1.5*range`,
+                    // which was always greater than max — every direction
+                    // passed and VNG degenerated to averaging all 8 directions.
+                    let threshold = (min_g * 3) / 2;
 
                     // Average values from directions with small gradients
                     let (r, g, b) =
@@ -752,5 +755,86 @@ mod tests {
         assert_eq!(rgb[idx], 1000);
         assert_eq!(rgb[idx + 1], 500);
         assert_eq!(rgb[idx + 2], 100);
+    }
+
+    #[test]
+    fn vng_threshold_excludes_high_gradient_directions_at_vertical_edge() {
+        // Synthetic 9x9 RGGB image with a sharp vertical edge between columns
+        // 4 and 5: left half is dark, right half is bright. We probe the
+        // gradients at the edge column (x = 4) and confirm that the E/W
+        // directional gradients exceed the VNG threshold (1.5 * min_g) and
+        // would therefore be excluded — the threshold actually filters
+        // something rather than passing every direction.
+        let w: usize = 9;
+        let h: usize = 9;
+        let mut pixels = vec![0u16; w * h];
+        for y in 0..h {
+            for x in 0..w {
+                // Bright right-half, dark left-half. Use the same brightness
+                // for every Bayer color so the only gradient is the edge
+                // itself, not the natural color mosaic pattern.
+                let base: u16 = if x >= 5 { 50_000 } else { 1_000 };
+                pixels[y * w + x] = base;
+            }
+        }
+
+        // Probe at (x = 4, y = 4): the pixel just to the left of the edge.
+        // Direction order from calculate_gradients: [N, NE, E, SE, S, SW, W, NW].
+        let gradients = calculate_gradients(&pixels, w, 4, 4);
+        let min_g = gradients.iter().copied().min().unwrap();
+        let threshold = (min_g * 3) / 2;
+
+        // N and S directions look at same-brightness neighbors (all in the
+        // dark half), so their gradient must be the minimum (zero here).
+        assert_eq!(gradients[0], 0, "N gradient on uniform column must be 0");
+        assert_eq!(gradients[4], 0, "S gradient on uniform column must be 0");
+        assert_eq!(min_g, 0, "minimum gradient on uniform column must be 0");
+        assert_eq!(threshold, 0, "(min_g * 3) / 2 must be 0 when min_g = 0");
+
+        // E direction crosses the edge: idx(2,0) is in the bright half,
+        // idx(0,0) is in the dark half — the gradient must be huge and
+        // therefore exceed the threshold.
+        let east = gradients[2];
+        assert!(
+            east > threshold,
+            "east gradient {east} must exceed threshold {threshold} at vertical edge",
+        );
+        // Same goes for NE and SE — all have a sample in the bright half.
+        assert!(gradients[1] > threshold, "NE gradient must exceed threshold");
+        assert!(gradients[3] > threshold, "SE gradient must exceed threshold");
+
+        // Sanity check: the buggy formula min + 1.5*(max - min) would have
+        // produced a threshold strictly greater than max, so every direction
+        // would have passed. Verify our new threshold is NOT degenerate.
+        let max_g = gradients.iter().copied().max().unwrap();
+        let buggy_threshold = min_g + (max_g - min_g) * 3 / 2;
+        assert!(
+            buggy_threshold > max_g,
+            "buggy formula would have passed every direction (sanity check)",
+        );
+        assert!(
+            threshold < max_g,
+            "fixed threshold must be below max gradient so it actually filters",
+        );
+
+        // Finally, run VNG end-to-end and ensure it produces a non-trivial
+        // result (no panics, output preserves the bright/dark contrast).
+        let rgb = debayer_to_rgb16(
+            &pixels,
+            w as u32,
+            h as u32,
+            BayerPattern::RGGB,
+            DebayerAlgorithm::VNG,
+        );
+        let dark_idx = (4 * w + 2) * 3;
+        let bright_idx = (4 * w + 7) * 3;
+        let dark_sum: u32 =
+            rgb[dark_idx] as u32 + rgb[dark_idx + 1] as u32 + rgb[dark_idx + 2] as u32;
+        let bright_sum: u32 =
+            rgb[bright_idx] as u32 + rgb[bright_idx + 1] as u32 + rgb[bright_idx + 2] as u32;
+        assert!(
+            bright_sum > dark_sum * 10,
+            "VNG must preserve the vertical-edge contrast: bright_sum={bright_sum} dark_sum={dark_sum}",
+        );
     }
 }
